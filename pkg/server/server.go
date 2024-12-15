@@ -7,49 +7,66 @@ import (
 	"io"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/go-go-golems/go-mcp/pkg"
 	"github.com/go-go-golems/go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
 )
 
-// Server handles MCP protocol communication
+// Transport represents a server transport mechanism
+type Transport interface {
+	Start() error
+}
+
+// Server represents an MCP server that can use different transports
 type Server struct {
 	mu       sync.Mutex
+	logger   zerolog.Logger
+	registry *pkg.ProviderRegistry
+}
+
+// NewServer creates a new server instance
+func NewServer(logger zerolog.Logger) *Server {
+	return &Server{
+		logger:   logger,
+		registry: pkg.NewProviderRegistry(),
+	}
+}
+
+// GetRegistry returns the server's provider registry
+func (s *Server) GetRegistry() *pkg.ProviderRegistry {
+	return s.registry
+}
+
+// StartStdio starts the server with stdio transport
+func (s *Server) StartStdio() error {
+	stdioServer := &StdioServer{
+		scanner:  bufio.NewScanner(os.Stdin),
+		writer:   json.NewEncoder(os.Stdout),
+		logger:   s.logger,
+		registry: s.registry,
+	}
+	stdioServer.scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer
+	return stdioServer.Start()
+}
+
+// StartSSE starts the server with SSE transport on the specified port
+func (s *Server) StartSSE(port int) error {
+	sseServer := NewSSEServer(s.logger, s.registry)
+	return sseServer.Start(port)
+}
+
+// StdioServer handles stdio transport for MCP protocol
+type StdioServer struct {
 	scanner  *bufio.Scanner
 	writer   *json.Encoder
 	logger   zerolog.Logger
 	registry *pkg.ProviderRegistry
 }
 
-// NewServer creates a new stdio server
-func NewServer() *Server {
-	// Configure scanner for line-based input
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer
-
-	// Configure JSON encoder for stdout
-	writer := json.NewEncoder(os.Stdout)
-
-	// Set the global log level to debug
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-
-	// Use ConsoleWriter for colored output
-	consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-	logger := zerolog.New(consoleWriter).With().Timestamp().Logger()
-
-	return &Server{
-		scanner:  scanner,
-		writer:   writer,
-		logger:   logger,
-		registry: pkg.NewProviderRegistry(),
-	}
-}
-
-// Start begins listening for and handling messages
-func (s *Server) Start() error {
-	s.logger.Info().Msg("Server starting...")
+// Start begins listening for and handling messages on stdio
+func (s *StdioServer) Start() error {
+	s.logger.Info().Msg("Starting stdio server...")
 
 	// Process messages until stdin is closed
 	for s.scanner.Scan() {
@@ -69,7 +86,7 @@ func (s *Server) Start() error {
 }
 
 // handleMessage processes a single message
-func (s *Server) handleMessage(message string) error {
+func (s *StdioServer) handleMessage(message string) error {
 	s.logger.Debug().Str("message", message).Msg("Received message")
 
 	// Parse the base message structure
@@ -91,7 +108,7 @@ func (s *Server) handleMessage(message string) error {
 }
 
 // handleRequest processes a request message
-func (s *Server) handleRequest(request protocol.Request) error {
+func (s *StdioServer) handleRequest(request protocol.Request) error {
 	switch request.Method {
 	case "initialize":
 		var params protocol.InitializeParams
@@ -255,7 +272,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 }
 
 // handleNotification processes a notification message
-func (s *Server) handleNotification(request protocol.Request) error {
+func (s *StdioServer) handleNotification(request protocol.Request) error {
 	var notification protocol.Notification
 	notification.JSONRPC = request.JSONRPC
 	notification.Method = request.Method
@@ -273,7 +290,7 @@ func (s *Server) handleNotification(request protocol.Request) error {
 }
 
 // handleInitialize processes an initialize request
-func (s *Server) handleInitialize(id *json.RawMessage, params *protocol.InitializeParams) error {
+func (s *StdioServer) handleInitialize(id *json.RawMessage, params *protocol.InitializeParams) error {
 	// Validate protocol version
 	supportedVersions := []string{"2024-11-05"}
 	isSupported := false
@@ -320,9 +337,7 @@ func (s *Server) handleInitialize(id *json.RawMessage, params *protocol.Initiali
 }
 
 // sendResult sends a successful response
-func (s *Server) sendResult(id *json.RawMessage, result interface{}) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *StdioServer) sendResult(id *json.RawMessage, result interface{}) error {
 
 	response := protocol.Response{
 		JSONRPC: "2.0",
@@ -337,9 +352,7 @@ func (s *Server) sendResult(id *json.RawMessage, result interface{}) error {
 }
 
 // sendError sends an error response
-func (s *Server) sendError(id *json.RawMessage, code int, message string, data interface{}) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *StdioServer) sendError(id *json.RawMessage, code int, message string, data interface{}) error {
 
 	var errorData json.RawMessage
 	if data != nil {
@@ -369,9 +382,4 @@ func mustMarshal(v interface{}) json.RawMessage {
 		panic(fmt.Sprintf("failed to marshal JSON: %v", err))
 	}
 	return data
-}
-
-// GetRegistry returns the server's provider registry
-func (s *Server) GetRegistry() *pkg.ProviderRegistry {
-	return s.registry
 }
