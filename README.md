@@ -6,68 +6,131 @@ A Go implementation of the Model Context Protocol (MCP), providing a framework f
 
 This project implements the [Model Context Protocol](https://github.com/modelcontextprotocol/specification), which enables standardized communication between AI applications and language models. The implementation includes:
 
-- Core protocol message types
+- Core protocol message types and interfaces
+- A modular registry system for managing prompts, resources, and tools
+- Thread-safe provider implementations
 - A stdio server implementation
-- Support for prompts and logging capabilities
+- Support for custom handlers and subscriptions
+
+## Architecture
+
+The project follows a modular, provider-based architecture with these main components:
+
+1. Protocol Types (`pkg/protocol/types.go`)
+2. Registry System
+   - Prompts Registry (`pkg/prompts/registry.go`)
+   - Resources Registry (`pkg/resources/registry.go`)
+   - Tools Registry (`pkg/tools/registry.go`)
+3. Server Implementation (`pkg/server/server.go`)
+4. Error Handling (`pkg/registry.go`)
+
+For detailed architecture documentation, see [Architecture Documentation](pkg/doc/architecture.md).
+
+## Features
+
+### Registry System
+
+The registry system provides thread-safe management of prompts, resources, and tools:
+
+```go
+// Create registries
+promptRegistry := prompts.NewRegistry()
+resourceRegistry := resources.NewRegistry()
+toolRegistry := tools.NewRegistry()
+
+// Register a prompt with custom handler
+promptRegistry.RegisterPromptWithHandler(protocol.Prompt{
+    Name: "hello",
+    Description: "A simple greeting prompt",
+    Arguments: []protocol.PromptArgument{
+        {
+            Name: "name",
+            Description: "Name to greet",
+            Required: false,
+        },
+    },
+}, func(prompt protocol.Prompt, args map[string]string) (*protocol.PromptMessage, error) {
+    return &protocol.PromptMessage{
+        Role: "user",
+        Content: protocol.PromptContent{
+            Type: "text",
+            Text: fmt.Sprintf("Hello, %s!", args["name"]),
+        },
+    }, nil
+})
+```
+
+### Custom Handlers
+
+Each registry supports custom handlers for flexible behavior:
+
+- **Prompts**: Custom message generation
+- **Resources**: Custom content providers with subscription support
+- **Tools**: Custom tool execution handlers
+
+### Error Handling
+
+Standardized error handling with JSON-RPC compatible error codes:
+
+```go
+var (
+    ErrPromptNotFound   = NewError("prompt not found", -32000)
+    ErrResourceNotFound = NewError("resource not found", -32001)
+    ErrToolNotFound     = NewError("tool not found", -32002)
+    ErrNotImplemented   = NewError("not implemented", -32003)
+)
+```
 
 ## Example Server
 
-The project includes an example stdio server that demonstrates basic MCP functionality:
+The project includes an example stdio server that demonstrates the registry system:
 
 ```go
 package main
 
 import (
-    "github.com/go-go-golems/go-mcp/pkg"
+    "io"
+
+    "github.com/go-go-golems/go-mcp/pkg/prompts"
+    "github.com/go-go-golems/go-mcp/pkg/protocol"
+    "github.com/go-go-golems/go-mcp/pkg/resources"
+    "github.com/go-go-golems/go-mcp/pkg/server"
+    "github.com/go-go-golems/go-mcp/pkg/tools"
+    "github.com/rs/zerolog/log"
 )
 
 func main() {
-    server := NewServer()
-    if err := server.Start(); err != nil && err != io.EOF {
+    srv := server.NewServer()
+
+    // Create registries
+    promptRegistry := prompts.NewRegistry()
+    resourceRegistry := resources.NewRegistry()
+    toolRegistry := tools.NewRegistry()
+
+    // Register with server
+    srv.GetRegistry().RegisterPromptProvider(promptRegistry)
+    srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
+    srv.GetRegistry().RegisterToolProvider(toolRegistry)
+
+    if err := srv.Start(); err != nil && err != io.EOF {
         log.Fatal().Err(err).Msg("Server error")
     }
 }
 ```
 
-### Features
-
-The example server implements:
-
-- JSON-RPC 2.0 message handling
-- Protocol version negotiation
-- Capability declaration
-- Structured logging
-- Simple prompt system
-
 ### Supported Methods
+
+The server implements the MCP specification methods:
 
 - `initialize` - Protocol initialization and capability negotiation
 - `ping` - Connection health check
 - `prompts/list` - List available prompts
 - `prompts/get` - Retrieve prompt content
-
-### Example Prompt
-
-The server includes a simple prompt that demonstrates prompt arguments:
-
-```json
-{
-  "name": "simple",
-  "description": "A simple prompt that can take optional context and topic arguments",
-  "arguments": [
-    {
-      "name": "context",
-      "description": "Additional context to consider",
-      "required": false
-    },
-    {
-      "name": "topic",
-      "description": "Specific topic to focus on",
-      "required": false
-    }
-  ]
-}
-```
+- `resources/list` - List available resources
+- `resources/read` - Read resource content
+- `resources/subscribe` - Subscribe to resource updates
+- `tools/list` - List available tools
+- `tools/call` - Execute a tool
 
 ## Usage
 
@@ -76,7 +139,7 @@ The server includes a simple prompt that demonstrates prompt arguments:
 Build and run the example stdio server:
 
 ```bash
-go build -o stdio-server go/cmd/stdio-server/main.go
+go build -o stdio-server cmd/stdio-server/main.go
 ./stdio-server
 ```
 
@@ -91,7 +154,18 @@ The server accepts JSON-RPC messages on stdin and writes responses to stdout. Ex
   "method": "initialize",
   "params": {
     "protocolVersion": "2024-11-05",
-    "capabilities": {},
+    "capabilities": {
+      "prompts": {
+        "listChanged": true
+      },
+      "resources": {
+        "subscribe": true,
+        "listChanged": true
+      },
+      "tools": {
+        "listChanged": true
+      }
+    },
     "clientInfo": {
       "name": "example-client",
       "version": "1.0.0"
@@ -104,7 +178,13 @@ The server accepts JSON-RPC messages on stdin and writes responses to stdout. Ex
 
 ### Project Structure
 
-- `pkg/` - Core protocol types and utilities
+- `pkg/`
+  - `protocol/` - Core protocol types and interfaces
+  - `prompts/` - Prompt registry and handlers
+  - `resources/` - Resource registry and handlers
+  - `tools/` - Tool registry and handlers
+  - `server/` - Server implementation
+  - `doc/` - Documentation
 - `cmd/stdio-server/` - Example stdio server implementation
 
 ### Dependencies
@@ -114,7 +194,7 @@ The server accepts JSON-RPC messages on stdin and writes responses to stdout. Ex
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## License
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-go-golems/go-mcp/pkg"
+	"github.com/go-go-golems/go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
 )
 
@@ -72,7 +73,7 @@ func (s *Server) handleMessage(message string) error {
 	s.logger.Debug().Str("message", message).Msg("Received message")
 
 	// Parse the base message structure
-	var request pkg.Request
+	var request protocol.Request
 	if err := json.Unmarshal([]byte(message), &request); err != nil {
 		return s.sendError(nil, -32700, "Parse error", err)
 	}
@@ -90,10 +91,10 @@ func (s *Server) handleMessage(message string) error {
 }
 
 // handleRequest processes a request message
-func (s *Server) handleRequest(request pkg.Request) error {
+func (s *Server) handleRequest(request protocol.Request) error {
 	switch request.Method {
 	case "initialize":
-		var params pkg.InitializeParams
+		var params protocol.InitializeParams
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
@@ -115,7 +116,7 @@ func (s *Server) handleRequest(request pkg.Request) error {
 			cursor = params.Cursor
 		}
 
-		var allPrompts []pkg.Prompt
+		var allPrompts []protocol.Prompt
 		var lastCursor string
 		for _, provider := range s.registry.GetPromptProviders() {
 			prompts, nextCursor, err := provider.ListPrompts(cursor)
@@ -147,7 +148,7 @@ func (s *Server) handleRequest(request pkg.Request) error {
 			if err == nil {
 				return s.sendResult(&request.ID, map[string]interface{}{
 					"description": "Prompt from provider",
-					"messages":    []pkg.PromptMessage{*message},
+					"messages":    []protocol.PromptMessage{*message},
 				})
 			}
 		}
@@ -165,7 +166,7 @@ func (s *Server) handleRequest(request pkg.Request) error {
 			cursor = params.Cursor
 		}
 
-		var allResources []pkg.Resource
+		var allResources []protocol.Resource
 		var lastCursor string
 		for _, provider := range s.registry.GetResourceProviders() {
 			resources, nextCursor, err := provider.ListResources(cursor)
@@ -195,7 +196,7 @@ func (s *Server) handleRequest(request pkg.Request) error {
 			content, err := provider.ReadResource(params.URI)
 			if err == nil {
 				return s.sendResult(&request.ID, map[string]interface{}{
-					"contents": []pkg.ResourceContent{*content},
+					"contents": []protocol.ResourceContent{*content},
 				})
 			}
 		}
@@ -213,7 +214,7 @@ func (s *Server) handleRequest(request pkg.Request) error {
 			cursor = params.Cursor
 		}
 
-		var allTools []pkg.Tool
+		var allTools []protocol.Tool
 		var lastCursor string
 		for _, provider := range s.registry.GetToolProviders() {
 			tools, nextCursor, err := provider.ListTools(cursor)
@@ -254,8 +255,8 @@ func (s *Server) handleRequest(request pkg.Request) error {
 }
 
 // handleNotification processes a notification message
-func (s *Server) handleNotification(request pkg.Request) error {
-	var notification pkg.Notification
+func (s *Server) handleNotification(request protocol.Request) error {
+	var notification protocol.Notification
 	notification.JSONRPC = request.JSONRPC
 	notification.Method = request.Method
 	notification.Params = request.Params
@@ -272,7 +273,7 @@ func (s *Server) handleNotification(request pkg.Request) error {
 }
 
 // handleInitialize processes an initialize request
-func (s *Server) handleInitialize(id *json.RawMessage, params *pkg.InitializeParams) error {
+func (s *Server) handleInitialize(id *json.RawMessage, params *protocol.InitializeParams) error {
 	// Validate protocol version
 	supportedVersions := []string{"2024-11-05"}
 	isSupported := false
@@ -294,22 +295,22 @@ func (s *Server) handleInitialize(id *json.RawMessage, params *pkg.InitializePar
 	}
 
 	// Accept the protocol version and declare capabilities
-	result := pkg.InitializeResult{
+	result := protocol.InitializeResult{
 		ProtocolVersion: params.ProtocolVersion,
-		Capabilities: pkg.ServerCapabilities{
-			Logging: &pkg.LoggingCapability{},
-			Prompts: &pkg.PromptsCapability{
+		Capabilities: protocol.ServerCapabilities{
+			Logging: &protocol.LoggingCapability{},
+			Prompts: &protocol.PromptsCapability{
 				ListChanged: true,
 			},
-			Resources: &pkg.ResourcesCapability{
+			Resources: &protocol.ResourcesCapability{
 				Subscribe:   true,
 				ListChanged: true,
 			},
-			Tools: &pkg.ToolsCapability{
+			Tools: &protocol.ToolsCapability{
 				ListChanged: true,
 			},
 		},
-		ServerInfo: pkg.ServerInfo{
+		ServerInfo: protocol.ServerInfo{
 			Name:    "example-stdio-server",
 			Version: "2024-11-05",
 		},
@@ -323,7 +324,7 @@ func (s *Server) sendResult(id *json.RawMessage, result interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	response := pkg.Response{
+	response := protocol.Response{
 		JSONRPC: "2.0",
 		Result:  mustMarshal(result),
 	}
@@ -345,9 +346,9 @@ func (s *Server) sendError(id *json.RawMessage, code int, message string, data i
 		errorData = mustMarshal(data)
 	}
 
-	response := pkg.Response{
+	response := protocol.Response{
 		JSONRPC: "2.0",
-		Error: &pkg.Error{
+		Error: &protocol.Error{
 			Code:    code,
 			Message: message,
 			Data:    errorData,

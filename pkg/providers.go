@@ -1,24 +1,26 @@
 package pkg
 
+import "github.com/go-go-golems/go-mcp/pkg/protocol"
+
 // PromptProvider defines the interface for serving prompts
 type PromptProvider interface {
 	// ListPrompts returns a list of available prompts with optional pagination
-	ListPrompts(cursor string) ([]Prompt, string, error)
+	ListPrompts(cursor string) ([]protocol.Prompt, string, error)
 
 	// GetPrompt retrieves a specific prompt with the given arguments
-	GetPrompt(name string, arguments map[string]string) (*PromptMessage, error)
+	GetPrompt(name string, arguments map[string]string) (*protocol.PromptMessage, error)
 }
 
 // ResourceProvider defines the interface for serving resources
 type ResourceProvider interface {
 	// ListResources returns a list of available resources with optional pagination
-	ListResources(cursor string) ([]Resource, string, error)
+	ListResources(cursor string) ([]protocol.Resource, string, error)
 
 	// ReadResource retrieves the contents of a specific resource
-	ReadResource(uri string) (*ResourceContent, error)
+	ReadResource(uri string) (*protocol.ResourceContent, error)
 
 	// ListResourceTemplates returns a list of available resource templates
-	ListResourceTemplates() ([]ResourceTemplate, error)
+	ListResourceTemplates() ([]protocol.ResourceTemplate, error)
 
 	// SubscribeToResource registers for notifications about resource changes
 	// Returns a channel that will receive notifications and a cleanup function
@@ -28,10 +30,10 @@ type ResourceProvider interface {
 // ToolProvider defines the interface for serving tools
 type ToolProvider interface {
 	// ListTools returns a list of available tools with optional pagination
-	ListTools(cursor string) ([]Tool, string, error)
+	ListTools(cursor string) ([]protocol.Tool, string, error)
 
 	// CallTool invokes a specific tool with the given arguments
-	CallTool(name string, arguments map[string]interface{}) (*ToolResult, error)
+	CallTool(name string, arguments map[string]interface{}) (*protocol.ToolResult, error)
 }
 
 // Provider combines all provider interfaces

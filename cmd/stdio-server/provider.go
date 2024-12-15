@@ -1,75 +1,48 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/go-go-golems/go-mcp/pkg"
+	"github.com/go-go-golems/go-mcp/pkg/prompts"
+	"github.com/go-go-golems/go-mcp/pkg/protocol"
 )
 
 // SimpleProvider implements a basic provider with a single prompt
-type SimpleProvider struct{}
+type SimpleProvider struct {
+	registry *prompts.Registry
+}
 
 // NewSimpleProvider creates a new simple provider
 func NewSimpleProvider() *SimpleProvider {
-	return &SimpleProvider{}
+	registry := prompts.NewRegistry()
+
+	// Register our simple prompt
+	registry.RegisterPrompt(protocol.Prompt{
+		Name:        "simple",
+		Description: "A simple prompt that can take optional context and topic arguments",
+		Arguments: []protocol.PromptArgument{
+			{
+				Name:        "context",
+				Description: "Additional context to consider",
+				Required:    false,
+			},
+			{
+				Name:        "topic",
+				Description: "Specific topic to focus on",
+				Required:    false,
+			},
+		},
+	})
+
+	return &SimpleProvider{
+		registry: registry,
+	}
 }
 
 // ListPrompts returns a list of available prompts
-func (p *SimpleProvider) ListPrompts(cursor string) ([]pkg.Prompt, string, error) {
-	return []pkg.Prompt{
-		{
-			Name: "simple",
-			Description: "A simple prompt that can take optional context and topic " +
-				"arguments",
-			Arguments: []pkg.PromptArgument{
-				{
-					Name:        "context",
-					Description: "Additional context to consider",
-					Required:    false,
-				},
-				{
-					Name:        "topic",
-					Description: "Specific topic to focus on",
-					Required:    false,
-				},
-			},
-		},
-	}, "", nil
+func (p *SimpleProvider) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
+	return p.registry.ListPrompts(cursor)
 }
 
 // GetPrompt retrieves a specific prompt with the given arguments
-func (p *SimpleProvider) GetPrompt(name string, arguments map[string]string) (*pkg.PromptMessage, error) {
-	if name != "simple" {
-		return nil, fmt.Errorf("unknown prompt: %s", name)
-	}
-
-	// Create messages based on arguments
-	messages := []pkg.PromptMessage{}
-
-	// Add context if provided
-	if context, ok := arguments["context"]; ok {
-		messages = append(messages, pkg.PromptMessage{
-			Role: "user",
-			Content: pkg.PromptContent{
-				Type: "text",
-				Text: fmt.Sprintf("Here is some relevant context: %s", context),
-			},
-		})
-	}
-
-	// Add main prompt
-	prompt := "Please help me with "
-	if topic, ok := arguments["topic"]; ok {
-		prompt += fmt.Sprintf("the following topic: %s", topic)
-	} else {
-		prompt += "whatever questions I may have."
-	}
-
-	return &pkg.PromptMessage{
-		Role: "user",
-		Content: pkg.PromptContent{
-			Type: "text",
-			Text: prompt,
-		},
-	}, nil
+func (p *SimpleProvider) GetPrompt(name string, arguments map[string]string) (*protocol.PromptMessage, error) {
+	return p.registry.GetPrompt(name, arguments)
 }
