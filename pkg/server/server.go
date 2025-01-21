@@ -8,8 +8,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg"
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
 )
 

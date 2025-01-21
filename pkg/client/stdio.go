@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 )
 
 // StdioTransport implements Transport using standard input/output

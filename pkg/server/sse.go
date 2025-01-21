@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg"
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"

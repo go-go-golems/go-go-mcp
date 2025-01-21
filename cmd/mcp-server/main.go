@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-go-golems/go-mcp/pkg/prompts"
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
-	"github.com/go-go-golems/go-mcp/pkg/resources"
-	"github.com/go-go-golems/go-mcp/pkg/server"
-	"github.com/go-go-golems/go-mcp/pkg/tools"
+	"github.com/go-go-golems/go-go-mcp/pkg/prompts"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/resources"
+	"github.com/go-go-golems/go-go-mcp/pkg/server"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -22,9 +22,11 @@ var (
 	GitCommit = "none"
 
 	// Command flags
-	transport string
-	port      int
-	debug     bool
+	transport  string
+	port       int
+	debug      bool
+	logLevel   string
+	withCaller bool
 )
 
 func main() {
@@ -37,16 +39,34 @@ Supports both stdio and SSE transports for client-server communication.
 The server implements the Model Context Protocol (MCP) specification,
 providing a framework for building MCP servers and clients.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Configure logging
-			zerolog.SetGlobalLevel(zerolog.InfoLevel)
+			level, err := zerolog.ParseLevel(logLevel)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Invalid log level %s, defaulting to info\n", logLevel)
+				level = zerolog.InfoLevel
+			}
+			zerolog.SetGlobalLevel(level)
 			if debug {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			}
+			if withCaller {
+				zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+					short := file
+					for i := len(file) - 1; i > 0; i-- {
+						if file[i] == '/' {
+							short = file[i+1:]
+							break
+						}
+					}
+					return fmt.Sprintf("%s:%d", short, line)
+				}
 			}
 		},
 	}
 
 	// Add persistent flags available to all commands
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", true, "Show caller information in logs")
 
 	// Start command
 	startCmd := &cobra.Command{

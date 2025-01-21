@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/r3labs/sse/v2"
 )
 

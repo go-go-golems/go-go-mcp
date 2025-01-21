@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg"
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 )
 
 // Registry provides a simple way to register individual prompts

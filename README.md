@@ -91,11 +91,11 @@ package main
 import (
     "io"
 
-    "github.com/go-go-golems/go-mcp/pkg/prompts"
-    "github.com/go-go-golems/go-mcp/pkg/protocol"
-    "github.com/go-go-golems/go-mcp/pkg/resources"
-    "github.com/go-go-golems/go-mcp/pkg/server"
-    "github.com/go-go-golems/go-mcp/pkg/tools"
+    "github.com/go-go-golems/go-go-mcp/pkg/prompts"
+    "github.com/go-go-golems/go-go-mcp/pkg/protocol"
+    "github.com/go-go-golems/go-go-mcp/pkg/resources"
+    "github.com/go-go-golems/go-go-mcp/pkg/server"
+    "github.com/go-go-golems/go-go-mcp/pkg/tools"
     "github.com/rs/zerolog/log"
 )
 
@@ -157,14 +157,14 @@ The client supports two transport types:
 The command transport is the default way to interact with an MCP server:
 
 ```bash
-# List available prompts
-./mcp-client prompts list
+# List available prompts (uses default command: mcp-server start --transport stdio)
+./mcp-client --command ./mcp-server prompts list
 
 # List available tools
-./mcp-client tools list
+./mcp-client --command ./mcp-server tools list
 
 # Execute a prompt with arguments
-./mcp-client prompts execute hello --args '{"name":"World"}'
+./mcp-client --command ./mcp-server prompts execute hello --args '{"name":"World"}'
 
 # Call a tool with arguments
 ./mcp-client tools call echo --args '{"message":"Hello, MCP!"}'
@@ -173,11 +173,11 @@ The command transport is the default way to interact with an MCP server:
 You can customize the server command and arguments if needed:
 
 ```bash
-# Use a different server binary
-./mcp-client --command ./custom-server prompts list
+# Use a different server binary with custom arguments
+./mcp-client --command custom-server,start,--debug,--port,8001 prompts list
 
-# Pass custom arguments to the server
-./mcp-client --args start,--debug,--port,8001 prompts list
+# Use a server with a specific configuration
+./mcp-client -c mcp-server,start,--config,config.yaml prompts list
 ```
 
 #### Using SSE Transport

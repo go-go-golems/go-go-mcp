@@ -1,6 +1,6 @@
 package pkg
 
-import "github.com/go-go-golems/go-mcp/pkg/protocol"
+import "github.com/go-go-golems/go-go-mcp/pkg/protocol"
 
 // PromptProvider defines the interface for serving prompts
 type PromptProvider interface {

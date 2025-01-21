@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
 )
 
@@ -398,6 +398,7 @@ func (c *Client) Ping() error {
 
 // Close closes the client connection
 func (c *Client) Close() error {
+	c.logger.Debug().Msg("closing client")
 	return c.transport.Close()
 }
 

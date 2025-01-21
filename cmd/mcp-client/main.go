@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-go-golems/go-mcp/pkg/client"
-	"github.com/go-go-golems/go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/client"
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -19,11 +19,12 @@ var (
 	GitCommit = "none"
 
 	// Command flags
-	transport string
-	serverURL string
-	debug     bool
-	command   string
-	cmdArgs   []string
+	transport  string
+	serverURL  string
+	debug      bool
+	cmdArgs    []string
+	logLevel   string
+	withCaller bool
 
 	// Operation flags
 	promptArgs string
@@ -37,19 +38,37 @@ func main() {
 		Long: `A Model Context Protocol (MCP) client CLI implementation.
 Supports both stdio and SSE transports for client-server communication.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			zerolog.SetGlobalLevel(zerolog.InfoLevel)
+			level, err := zerolog.ParseLevel(logLevel)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Invalid log level %s, defaulting to info\n", logLevel)
+				level = zerolog.InfoLevel
+			}
+			zerolog.SetGlobalLevel(level)
 			if debug {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			}
+			if withCaller {
+				zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+					short := file
+					for i := len(file) - 1; i > 0; i-- {
+						if file[i] == '/' {
+							short = file[i+1:]
+							break
+						}
+					}
+					return fmt.Sprintf("%s:%d", short, line)
+				}
 			}
 		},
 	}
 
 	// Add persistent flags
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
+	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", true, "Show caller information in logs")
 	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "command", "Transport type (command or sse)")
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://localhost:8000", "Server URL for SSE transport")
-	rootCmd.PersistentFlags().StringVarP(&command, "command", "c", "mcp-server", "Command to run for command transport")
-	rootCmd.PersistentFlags().StringSliceVarP(&cmdArgs, "args", "a", []string{"start", "--transport", "stdio"}, "Command arguments for command transport")
+	rootCmd.PersistentFlags().StringSliceVarP(&cmdArgs, "command", "c", []string{"mcp-server", "start", "--transport", "stdio"}, "Command and arguments for command transport (first argument is the command)")
 
 	// Prompts command group
 	promptsCmd := &cobra.Command{
@@ -308,7 +327,10 @@ func createClient() (*client.Client, error) {
 
 	switch transport {
 	case "command":
-		t, err = client.NewCommandStdioTransport(command, cmdArgs...)
+		if len(cmdArgs) == 0 {
+			return nil, fmt.Errorf("command is required for command transport")
+		}
+		t, err = client.NewCommandStdioTransport(cmdArgs[0], cmdArgs[1:]...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create command transport: %w", err)
 		}
