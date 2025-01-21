@@ -266,3 +266,11 @@ Improved the SSE server's client management to better handle multiple clients an
 - Added client metadata tracking (creation time, remote address, user agent)
 - Fixed race conditions in client management
 - Better error handling for invalid sessions 
+
+# SSE Client Endpoint Handling
+
+Enhanced SSE client to properly handle endpoint events and session management:
+- Added proper endpoint event handling and waiting
+- Added session ID extraction and storage
+- Improved initialization flow to wait for endpoint event
+- Added better error handling for endpoint event timeout 
