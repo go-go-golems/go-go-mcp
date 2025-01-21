@@ -199,3 +199,11 @@ Enhanced error handling in SSE server to better comply with JSON-RPC 2.0 specifi
 Removed non-standard endpoint event from SSE server to better align with the official protocol specification.
 
 - Removed endpoint event from SSE server implementation 
+
+# Async SSE Client
+
+Made the SSE client run asynchronously to prevent blocking on subscription:
+- Added initialization synchronization channel
+- Moved SSE subscription to a goroutine
+- Improved error handling and state management
+- Added proper mutex protection for shared state 
