@@ -301,3 +301,11 @@ Fixed an issue where the SSE server would hang during shutdown due to improper h
 - Added WaitGroup to track and wait for client goroutines to finish
 - Improved shutdown coordination between HTTP server and client cleanup
 - Added timeout handling for client goroutine cleanup 
+
+## Response Type Consolidation
+
+Consolidated list operation response types into a shared location:
+
+- Moved ListPromptsResult, ListResourcesResult, and ListToolsResult to responses.go
+- Updated both SSE and stdio servers to use the shared types
+- Ensured consistent response structure across all server implementations 

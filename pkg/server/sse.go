@@ -43,21 +43,6 @@ type SSEClient struct {
 	userAgent   string
 }
 
-type ListPromptsResult struct {
-	Prompts    []protocol.Prompt `json:"prompts"`
-	NextCursor string            `json:"nextCursor"`
-}
-
-type ListResourcesResult struct {
-	Resources  []protocol.Resource `json:"resources"`
-	NextCursor string              `json:"nextCursor"`
-}
-
-type ListToolsResult struct {
-	Tools      []protocol.Tool `json:"tools"`
-	NextCursor string          `json:"nextCursor"`
-}
-
 // NewSSEServer creates a new SSE server instance
 func NewSSEServer(logger zerolog.Logger, ps services.PromptService, rs services.ResourceService, ts services.ToolService, is services.InitializeService, port int) *SSEServer {
 	return &SSEServer{

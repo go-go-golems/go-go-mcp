@@ -120,10 +120,13 @@ func (s *StdioServer) handleRequest(request protocol.Request) error {
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
 		}
+		if prompts == nil {
+			prompts = []protocol.Prompt{}
+		}
 
-		return s.sendResult(&request.ID, map[string]interface{}{
-			"prompts":    prompts,
-			"nextCursor": nextCursor,
+		return s.sendResult(&request.ID, ListPromptsResult{
+			Prompts:    prompts,
+			NextCursor: nextCursor,
 		})
 
 	case "prompts/get":
@@ -161,10 +164,13 @@ func (s *StdioServer) handleRequest(request protocol.Request) error {
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
 		}
+		if resources == nil {
+			resources = []protocol.Resource{}
+		}
 
-		return s.sendResult(&request.ID, map[string]interface{}{
-			"resources":  resources,
-			"nextCursor": nextCursor,
+		return s.sendResult(&request.ID, ListResourcesResult{
+			Resources:  resources,
+			NextCursor: nextCursor,
 		})
 
 	case "resources/read":
@@ -200,10 +206,13 @@ func (s *StdioServer) handleRequest(request protocol.Request) error {
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
 		}
+		if tools == nil {
+			tools = []protocol.Tool{}
+		}
 
-		return s.sendResult(&request.ID, map[string]interface{}{
-			"tools":      tools,
-			"nextCursor": nextCursor,
+		return s.sendResult(&request.ID, ListToolsResult{
+			Tools:      tools,
+			NextCursor: nextCursor,
 		})
 
 	case "tools/call":
@@ -296,4 +305,19 @@ func (s *StdioServer) sendError(id *json.RawMessage, code int, message string, d
 
 	s.logger.Debug().Interface("response", response).Msg("Sending error response")
 	return s.writer.Encode(response)
+}
+
+type ListPromptsResult struct {
+	Prompts    []protocol.Prompt `json:"prompts"`
+	NextCursor string            `json:"nextCursor"`
+}
+
+type ListResourcesResult struct {
+	Resources  []protocol.Resource `json:"resources"`
+	NextCursor string              `json:"nextCursor"`
+}
+
+type ListToolsResult struct {
+	Tools      []protocol.Tool `json:"tools"`
+	NextCursor string          `json:"nextCursor"`
 }
