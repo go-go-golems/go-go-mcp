@@ -118,13 +118,15 @@ Available transports:
 					}
 				}
 			}`
+
+			tool, err := tools.NewToolImpl("echo", "Echo the input arguments", json.RawMessage(schemaJson))
+			if err != nil {
+				logger.Error().Err(err).Msg("Error creating tool")
+				return err
+			}
 			toolRegistry.RegisterToolWithHandler(
-				protocol.Tool{
-					Name:        "echo",
-					Description: "Echo the input arguments",
-					InputSchema: json.RawMessage(schemaJson),
-				},
-				func(tool protocol.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+				tool,
+				func(ctx context.Context, tool tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 					message, ok := arguments["message"].(string)
 					if !ok {
 						return protocol.NewToolResult(

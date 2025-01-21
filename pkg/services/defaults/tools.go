@@ -41,7 +41,7 @@ func (s *DefaultToolService) ListTools(ctx context.Context, cursor string) ([]pr
 
 func (s *DefaultToolService) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (interface{}, error) {
 	for _, provider := range s.registry.GetToolProviders() {
-		result, err := provider.CallTool(name, arguments)
+		result, err := provider.CallTool(ctx, name, arguments)
 		if err == nil {
 			return result, nil
 		}
