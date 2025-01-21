@@ -131,3 +131,12 @@ Enhanced command server shutdown handling:
 - Improved error handling for process termination
 - Added detailed debug logging with process IDs
 - Fixed issue with programmatic interrupt signals not working 
+
+# Improved Signal Handling
+
+Enhanced signal handling in stdio server:
+
+- Added direct signal handling in stdio server
+- Fixed issue with signals not breaking scanner reads
+- Added detailed debug logging for signal flow
+- Improved shutdown coordination between scanner and signals 

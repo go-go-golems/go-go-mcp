@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -24,6 +26,7 @@ type Server struct {
 	toolService       services.ToolService
 	initializeService services.InitializeService
 	done              chan struct{}
+	signalChan        chan os.Signal
 }
 
 // NewServer creates a new stdio server instance
@@ -52,6 +55,7 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 		toolService:       ts,
 		initializeService: is,
 		done:              make(chan struct{}),
+		signalChan:        make(chan os.Signal, 1),
 	}
 }
 
@@ -59,38 +63,75 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 func (s *Server) Start(ctx context.Context) error {
 	s.logger.Info().Msg("Starting stdio server...")
 
-	// Process messages until stdin is closed, stop is called, or context is cancelled
-	for s.scanner.Scan() {
-		select {
-		case <-s.done:
-			s.logger.Debug().Msg("Received done signal, stopping stdio server")
-			return nil
-		case <-ctx.Done():
-			s.logger.Debug().
-				Err(ctx.Err()).
-				Msg("Context cancelled, stopping stdio server")
-			return ctx.Err()
-		default:
-			line := s.scanner.Text()
-			s.logger.Debug().
-				Str("line", line).
-				Msg("Received line")
-			if err := s.handleMessage(line); err != nil {
-				s.logger.Error().Err(err).Msg("Error handling message")
-				// Continue processing messages even if one fails
+	// Set up signal handling
+	signal.Notify(s.signalChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(s.signalChan)
+
+	// Create a channel for scanner errors
+	scanErrChan := make(chan error, 1)
+
+	// Start scanning in a goroutine
+	go func() {
+		for s.scanner.Scan() {
+			select {
+			case <-s.done:
+				s.logger.Debug().Msg("Received done signal, stopping scanner")
+				scanErrChan <- nil
+				return
+			case <-ctx.Done():
+				s.logger.Debug().
+					Err(ctx.Err()).
+					Msg("Context cancelled, stopping scanner")
+				scanErrChan <- ctx.Err()
+				return
+			default:
+				line := s.scanner.Text()
+				s.logger.Debug().
+					Str("line", line).
+					Msg("Received line")
+				if err := s.handleMessage(line); err != nil {
+					s.logger.Error().Err(err).Msg("Error handling message")
+					// Continue processing messages even if one fails
+				}
 			}
 		}
-	}
 
-	if err := s.scanner.Err(); err != nil {
-		s.logger.Error().
-			Err(err).
-			Msg("Scanner error")
-		return fmt.Errorf("scanner error: %w", err)
-	}
+		if err := s.scanner.Err(); err != nil {
+			s.logger.Error().
+				Err(err).
+				Msg("Scanner error")
+			scanErrChan <- fmt.Errorf("scanner error: %w", err)
+			return
+		}
 
-	s.logger.Debug().Msg("Scanner reached EOF")
-	return io.EOF
+		s.logger.Debug().Msg("Scanner reached EOF")
+		scanErrChan <- io.EOF
+	}()
+
+	// Wait for either a signal, context cancellation, or scanner error
+	select {
+	case sig := <-s.signalChan:
+		s.logger.Debug().
+			Str("signal", sig.String()).
+			Msg("Received signal in stdio server")
+		close(s.done)
+		return nil
+	case <-ctx.Done():
+		s.logger.Debug().
+			Err(ctx.Err()).
+			Msg("Context cancelled in stdio server")
+		close(s.done)
+		return ctx.Err()
+	case err := <-scanErrChan:
+		if err == io.EOF {
+			s.logger.Debug().Msg("Scanner completed normally")
+		} else if err != nil {
+			s.logger.Error().
+				Err(err).
+				Msg("Scanner error in stdio server")
+		}
+		return err
+	}
 }
 
 // Stop gracefully stops the stdio server
