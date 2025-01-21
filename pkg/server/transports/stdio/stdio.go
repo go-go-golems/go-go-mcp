@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
@@ -30,10 +31,22 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer
 
+	// Create a ConsoleWriter that writes to stderr with a SERVER tag
+	consoleWriter := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: time.RFC3339,
+		FormatMessage: func(i interface{}) string {
+			return fmt.Sprintf("[SERVER] %s", i)
+		},
+	}
+
+	// Create a new logger that writes to the tagged stderr
+	taggedLogger := logger.Output(consoleWriter)
+
 	return &Server{
 		scanner:           scanner,
 		writer:            json.NewEncoder(os.Stdout),
-		logger:            logger,
+		logger:            taggedLogger,
 		promptService:     ps,
 		resourceService:   rs,
 		toolService:       ts,
@@ -50,12 +63,18 @@ func (s *Server) Start(ctx context.Context) error {
 	for s.scanner.Scan() {
 		select {
 		case <-s.done:
+			s.logger.Debug().Msg("Received done signal, stopping stdio server")
 			return nil
 		case <-ctx.Done():
+			s.logger.Debug().
+				Err(ctx.Err()).
+				Msg("Context cancelled, stopping stdio server")
 			return ctx.Err()
 		default:
 			line := s.scanner.Text()
-			s.logger.Debug().Str("line", line).Msg("Received line")
+			s.logger.Debug().
+				Str("line", line).
+				Msg("Received line")
 			if err := s.handleMessage(line); err != nil {
 				s.logger.Error().Err(err).Msg("Error handling message")
 				// Continue processing messages even if one fails
@@ -64,38 +83,78 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if err := s.scanner.Err(); err != nil {
+		s.logger.Error().
+			Err(err).
+			Msg("Scanner error")
 		return fmt.Errorf("scanner error: %w", err)
 	}
 
+	s.logger.Debug().Msg("Scanner reached EOF")
 	return io.EOF
 }
 
 // Stop gracefully stops the stdio server
 func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info().Msg("Stopping stdio server")
-	close(s.done)
-	return nil
+
+	select {
+	case <-s.done:
+		s.logger.Debug().Msg("Server already stopped")
+		return nil
+	default:
+		s.logger.Debug().Msg("Closing done channel to signal shutdown")
+		close(s.done)
+	}
+
+	// Wait for context to be done or timeout
+	select {
+	case <-ctx.Done():
+		s.logger.Debug().
+			Err(ctx.Err()).
+			Msg("Stop context cancelled before clean shutdown")
+		return ctx.Err()
+	case <-time.After(100 * time.Millisecond): // Give a small grace period for cleanup
+		s.logger.Debug().Msg("Stop completed successfully")
+		return nil
+	}
 }
 
 // handleMessage processes a single message
 func (s *Server) handleMessage(message string) error {
-	s.logger.Debug().Str("message", message).Msg("Received message")
+	s.logger.Debug().
+		Str("message", message).
+		Msg("Processing message")
 
 	// Parse the base message structure
 	var request protocol.Request
 	if err := json.Unmarshal([]byte(message), &request); err != nil {
+		s.logger.Error().
+			Err(err).
+			Str("message", message).
+			Msg("Failed to parse message as JSON-RPC request")
 		return s.sendError(nil, -32700, "Parse error", err)
 	}
 
 	// Validate JSON-RPC version
 	if request.JSONRPC != "2.0" {
+		s.logger.Error().
+			Str("version", request.JSONRPC).
+			Msg("Invalid JSON-RPC version")
 		return s.sendError(&request.ID, -32600, "Invalid Request", fmt.Errorf("invalid JSON-RPC version"))
 	}
 
 	// Handle requests vs notifications based on ID presence
 	if len(request.ID) > 0 {
+		s.logger.Debug().
+			RawJSON("id", request.ID).
+			Str("method", request.Method).
+			Msg("Handling request")
 		return s.handleRequest(request)
 	}
+
+	s.logger.Debug().
+		Str("method", request.Method).
+		Msg("Handling notification")
 	return s.handleNotification(request)
 }
 

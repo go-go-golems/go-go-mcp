@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
@@ -61,19 +62,43 @@ func (s *Server) GetRegistry() *pkg.ProviderRegistry {
 // StartStdio starts the server with stdio transport
 func (s *Server) StartStdio(ctx context.Context) error {
 	s.mu.Lock()
-	stdioServer := stdio.NewServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService)
+	s.logger.Debug().Msg("Creating stdio transport")
+	// Create a new logger for the stdio server that preserves the log level and other settings
+	stdioLogger := s.logger.With().Logger()
+	stdioServer := stdio.NewServer(stdioLogger, s.promptService, s.resourceService, s.toolService, s.initializeService)
 	s.transport = stdioServer
 	s.mu.Unlock()
-	return stdioServer.Start(ctx)
+
+	s.logger.Debug().Msg("Starting stdio transport")
+	err := stdioServer.Start(ctx)
+	if err != nil {
+		s.logger.Debug().
+			Err(err).
+			Msg("Stdio transport stopped with error")
+		return err
+	}
+	s.logger.Debug().Msg("Stdio transport stopped cleanly")
+	return nil
 }
 
 // StartSSE starts the server with SSE transport on the specified port
 func (s *Server) StartSSE(ctx context.Context, port int) error {
 	s.mu.Lock()
+	s.logger.Debug().Int("port", port).Msg("Creating SSE transport")
 	sseServer := NewSSEServer(s.logger, s.registry, port)
 	s.transport = sseServer
 	s.mu.Unlock()
-	return sseServer.Start(ctx)
+
+	s.logger.Debug().Int("port", port).Msg("Starting SSE transport")
+	err := sseServer.Start(ctx)
+	if err != nil {
+		s.logger.Debug().
+			Err(err).
+			Msg("SSE transport stopped with error")
+		return err
+	}
+	s.logger.Debug().Msg("SSE transport stopped cleanly")
+	return nil
 }
 
 // Stop gracefully stops the server
@@ -82,9 +107,19 @@ func (s *Server) Stop(ctx context.Context) error {
 	defer s.mu.Unlock()
 
 	if s.transport == nil {
+		s.logger.Debug().Msg("No transport to stop")
 		return nil
 	}
 
-	s.logger.Info().Msg("Stopping server")
-	return s.transport.Stop(ctx)
+	s.logger.Info().Msg("Stopping server transport")
+	err := s.transport.Stop(ctx)
+	if err != nil {
+		s.logger.Error().
+			Err(err).
+			Msg("Error stopping transport")
+		return fmt.Errorf("error stopping transport: %w", err)
+	}
+
+	s.logger.Debug().Msg("Transport stopped successfully")
+	return nil
 }

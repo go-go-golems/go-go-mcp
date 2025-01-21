@@ -185,6 +185,7 @@ Available transports:
 				if err := srv.Stop(shutdownCtx); err != nil {
 					logger.Error().Err(err).Msg("Error during shutdown")
 					return err
+
 				}
 				logger.Info().Msg("Server stopped gracefully")
 				return nil

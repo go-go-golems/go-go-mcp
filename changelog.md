@@ -105,3 +105,12 @@ Refactored the server to use context.Context for better control over server life
 - Updated stdio server to handle context cancellation
 - Added context with timeout for graceful shutdown in main program
 - Improved error handling with context cancellation 
+
+# Enhanced Server Logging
+
+Improved server logging when running as a command:
+
+- Added [SERVER] tag prefix to all server log messages
+- Configured stderr output to be forwarded to client
+- Preserved log level and timestamp formatting
+- Improved log message readability for debugging 
