@@ -166,8 +166,8 @@ Supports both stdio and SSE transports for client-server communication.`,
 			}
 
 			for _, tool := range tools {
-				fmt.Printf("Name: %s\n", tool.Name)
-				fmt.Printf("Description: %s\n", tool.Description)
+				fmt.Printf("Name: %s\n", tool.GetName())
+				fmt.Printf("Description: %s\n", tool.GetDescription())
 				fmt.Println()
 			}
 
@@ -198,7 +198,7 @@ Supports both stdio and SSE transports for client-server communication.`,
 				}
 			}
 
-			result, err := client.CallTool(args[0], toolArgMap)
+			result, err := client.CallTool(cmd.Context(), args[0], toolArgMap)
 			if err != nil {
 				return err
 			}

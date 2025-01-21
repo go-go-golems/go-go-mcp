@@ -1,6 +1,10 @@
 package pkg
 
-import "github.com/go-go-golems/go-go-mcp/pkg/protocol"
+import (
+	"context"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+)
 
 // PromptProvider defines the interface for serving prompts
 type PromptProvider interface {
@@ -33,7 +37,7 @@ type ToolProvider interface {
 	ListTools(cursor string) ([]protocol.Tool, string, error)
 
 	// CallTool invokes a specific tool with the given arguments
-	CallTool(name string, arguments map[string]interface{}) (*protocol.ToolResult, error)
+	CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error)
 }
 
 // Provider combines all provider interfaces

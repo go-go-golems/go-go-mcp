@@ -168,3 +168,12 @@ Simplified stdio server shutdown by using only context-based coordination:
 - Added dedicated scanner context for cleaner shutdown
 - Simplified shutdown logic and error handling
 - Improved logging messages for shutdown events 
+
+# Tool Interface Improvements
+
+Made Tool an interface with accessors and context-aware Call method for better extensibility and context propagation.
+
+- Changed Tool from struct to interface with GetName, GetDescription, GetInputSchema and Call methods
+- Added ToolImpl as a basic implementation of the Tool interface
+- Updated Registry, Client and CLI to use the new Tool interface
+- Added context support throughout the tool invocation chain 

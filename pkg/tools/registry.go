@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"sort"
 	"sync"
 
@@ -16,7 +17,7 @@ type Registry struct {
 }
 
 // Handler is a function that executes a tool with given arguments
-type Handler func(tool protocol.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error)
+type Handler func(ctx context.Context, tool protocol.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error)
 
 // NewRegistry creates a new tool registry
 func NewRegistry() *Registry {
@@ -30,15 +31,15 @@ func NewRegistry() *Registry {
 func (r *Registry) RegisterTool(tool protocol.Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tools[tool.Name] = tool
+	r.tools[tool.GetName()] = tool
 }
 
 // RegisterToolWithHandler adds a tool with a custom handler
 func (r *Registry) RegisterToolWithHandler(tool protocol.Tool, handler Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.tools[tool.Name] = tool
-	r.handlers[tool.Name] = handler
+	r.tools[tool.GetName()] = tool
+	r.handlers[tool.GetName()] = handler
 }
 
 // UnregisterTool removes a tool from the registry
@@ -60,7 +61,7 @@ func (r *Registry) ListTools(cursor string) ([]protocol.Tool, string, error) {
 	}
 
 	sort.Slice(tools, func(i, j int) bool {
-		return tools[i].Name < tools[j].Name
+		return tools[i].GetName() < tools[j].GetName()
 	})
 
 	if cursor == "" {
@@ -69,7 +70,7 @@ func (r *Registry) ListTools(cursor string) ([]protocol.Tool, string, error) {
 
 	pos := -1
 	for i, t := range tools {
-		if t.Name == cursor {
+		if t.GetName() == cursor {
 			pos = i
 			break
 		}
@@ -83,7 +84,7 @@ func (r *Registry) ListTools(cursor string) ([]protocol.Tool, string, error) {
 }
 
 // CallTool implements ToolProvider interface
-func (r *Registry) CallTool(name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+func (r *Registry) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -93,9 +94,9 @@ func (r *Registry) CallTool(name string, arguments map[string]interface{}) (*pro
 	}
 
 	if handler, ok := r.handlers[name]; ok {
-		return handler(tool, arguments)
+		return handler(ctx, tool, arguments)
 	}
 
-	// Return empty result if no handler is registered
-	return &protocol.ToolResult{}, nil
+	// If no handler is registered, use the tool's Call method
+	return tool.Call(ctx, arguments)
 }

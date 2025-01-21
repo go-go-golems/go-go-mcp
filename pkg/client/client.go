@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -304,7 +305,7 @@ func (c *Client) ListTools(cursor string) ([]protocol.Tool, string, error) {
 }
 
 // CallTool calls a specific tool on the server
-func (c *Client) CallTool(name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+func (c *Client) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 	if !c.initialized {
 		return nil, fmt.Errorf("client not initialized")
 	}
