@@ -150,3 +150,21 @@ Enhanced process group and signal handling in stdio transport:
 - Added fallback to direct process signals if process group handling fails
 - Improved debug logging for process and signal management
 - Fixed issue with signals not being properly received by the server 
+
+# Fixed Channel Close Race Condition
+
+Fixed a race condition in the stdio server where the done channel could be closed multiple times:
+
+- Added sync.Once to ensure done channel is only closed once
+- Fixed potential panic during server shutdown
+- Improved shutdown coordination between signal handling and Stop method
+- Enhanced logging around channel closing operations 
+
+# Simplified Server Shutdown
+
+Simplified stdio server shutdown by using only context-based coordination:
+
+- Removed redundant done channel in favor of context cancellation
+- Added dedicated scanner context for cleaner shutdown
+- Simplified shutdown logic and error handling
+- Improved logging messages for shutdown events 

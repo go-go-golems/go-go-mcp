@@ -25,7 +25,6 @@ type Server struct {
 	resourceService   services.ResourceService
 	toolService       services.ToolService
 	initializeService services.InitializeService
-	done              chan struct{}
 	signalChan        chan os.Signal
 }
 
@@ -54,7 +53,6 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 		resourceService:   rs,
 		toolService:       ts,
 		initializeService: is,
-		done:              make(chan struct{}),
 		signalChan:        make(chan os.Signal, 1),
 	}
 }
@@ -70,19 +68,17 @@ func (s *Server) Start(ctx context.Context) error {
 	// Create a channel for scanner errors
 	scanErrChan := make(chan error, 1)
 
+	// Create a cancellable context for the scanner
+	scannerCtx, cancelScanner := context.WithCancel(ctx)
+	defer cancelScanner()
+
 	// Start scanning in a goroutine
 	go func() {
 		for s.scanner.Scan() {
 			select {
-			case <-s.done:
-				s.logger.Debug().Msg("Received done signal, stopping scanner")
-				scanErrChan <- nil
-				return
-			case <-ctx.Done():
-				s.logger.Debug().
-					Err(ctx.Err()).
-					Msg("Context cancelled, stopping scanner")
-				scanErrChan <- ctx.Err()
+			case <-scannerCtx.Done():
+				s.logger.Debug().Msg("Context cancelled, stopping scanner")
+				scanErrChan <- scannerCtx.Err()
 				return
 			default:
 				line := s.scanner.Text()
@@ -114,13 +110,12 @@ func (s *Server) Start(ctx context.Context) error {
 		s.logger.Debug().
 			Str("signal", sig.String()).
 			Msg("Received signal in stdio server")
-		close(s.done)
+		cancelScanner()
 		return nil
 	case <-ctx.Done():
 		s.logger.Debug().
 			Err(ctx.Err()).
 			Msg("Context cancelled in stdio server")
-		close(s.done)
 		return ctx.Err()
 	case err := <-scanErrChan:
 		if err == io.EOF {
@@ -137,15 +132,6 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop gracefully stops the stdio server
 func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info().Msg("Stopping stdio server")
-
-	select {
-	case <-s.done:
-		s.logger.Debug().Msg("Server already stopped")
-		return nil
-	default:
-		s.logger.Debug().Msg("Closing done channel to signal shutdown")
-		close(s.done)
-	}
 
 	// Wait for context to be done or timeout
 	select {
