@@ -45,6 +45,8 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.logger.Debug().Msg("initializing client")
+
 	if c.initialized {
 		return fmt.Errorf("client already initialized")
 	}
@@ -57,6 +59,8 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 			Version: "dev",
 		},
 	}
+
+	c.logger.Debug().Interface("params", params).Msg("sending initialize request")
 
 	request := &protocol.Request{
 		JSONRPC: "2.0",
@@ -79,11 +83,14 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 		return fmt.Errorf("failed to unmarshal initialize result: %w", err)
 	}
 
+	c.logger.Debug().Interface("result", result).Msg("received initialize response")
+
 	c.capabilities = capabilities
 	c.serverCapabilities = result.Capabilities
 	c.initialized = true
 
 	// Send initialized notification
+	c.logger.Debug().Msg("sending initialized notification")
 	notification := &protocol.Request{
 		JSONRPC: "2.0",
 		Method:  "notifications/initialized",
@@ -411,6 +418,11 @@ func (c *Client) setRequestID(request *protocol.Request) {
 	id := json.RawMessage(fmt.Sprintf("%d", c.nextID))
 	request.ID = id
 	c.nextID++
+
+	c.logger.Debug().
+		Str("method", request.Method).
+		RawJSON("id", id).
+		Msg("set request ID")
 }
 
 // mustMarshal marshals data to JSON or panics
