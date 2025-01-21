@@ -309,3 +309,11 @@ Consolidated list operation response types into a shared location:
 - Moved ListPromptsResult, ListResourcesResult, and ListToolsResult to responses.go
 - Updated both SSE and stdio servers to use the shared types
 - Ensured consistent response structure across all server implementations 
+
+# Improved Logger Output
+
+Added conditional logger output based on terminal detection. When output is not going to a terminal, the logger will not use color escape codes, making the output more readable in log files and non-terminal environments.
+
+- Updated both client and server to detect terminal output
+- Added golang.org/x/term dependency for terminal detection
+- Logger now uses NoColor mode when output is not going to a terminal

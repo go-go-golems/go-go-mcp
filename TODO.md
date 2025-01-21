@@ -18,6 +18,7 @@
 
 ### Bugs
 - [x] BUG: figure out why closing the client seems to hang
+- [ ] Still using the wrong loggers in server (one with terminal, the other, for example)
 
 ## MCP server
 
@@ -30,4 +31,4 @@
 
 - [X] Allow debug logging
 - [x] Implement missing SSE methods
-- [ ] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
+- [x] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)

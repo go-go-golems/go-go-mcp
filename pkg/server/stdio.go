@@ -306,18 +306,3 @@ func (s *StdioServer) sendError(id *json.RawMessage, code int, message string, d
 	s.logger.Debug().Interface("response", response).Msg("Sending error response")
 	return s.writer.Encode(response)
 }
-
-type ListPromptsResult struct {
-	Prompts    []protocol.Prompt `json:"prompts"`
-	NextCursor string            `json:"nextCursor"`
-}
-
-type ListResourcesResult struct {
-	Resources  []protocol.Resource `json:"resources"`
-	NextCursor string              `json:"nextCursor"`
-}
-
-type ListToolsResult struct {
-	Tools      []protocol.Tool `json:"tools"`
-	NextCursor string          `json:"nextCursor"`
-}

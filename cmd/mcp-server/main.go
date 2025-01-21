@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -50,9 +51,18 @@ providing a framework for building MCP servers and clients.`,
 				level = zerolog.InfoLevel
 			}
 
-			// Set up console writer for colored output
-			consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-			logger := zerolog.New(consoleWriter).With().Timestamp()
+			var writer zerolog.ConsoleWriter
+			if term.IsTerminal(int(os.Stderr.Fd())) {
+				writer = zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+			} else {
+				writer = zerolog.ConsoleWriter{
+					Out:        os.Stderr,
+					TimeFormat: time.RFC3339,
+					NoColor:    true,
+				}
+			}
+
+			logger := zerolog.New(writer).With().Timestamp()
 			if withCaller {
 				logger = logger.Caller()
 			}
