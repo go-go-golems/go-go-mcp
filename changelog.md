@@ -240,3 +240,18 @@ Consolidated logging setup to use a consistent logger throughout the application
 - Set up global logger with console writer in main.go
 - Removed duplicate logger creation in createClient
 - Ensured client.go uses the local logger consistently
+
+# Server Logger Consolidation
+
+Consolidated logging setup in the server components:
+- Set up global logger with console writer in server's main.go
+- Removed duplicate logger creation in server startup
+- Ensured consistent logger propagation through server components
+
+# Client Transport Logger Consolidation
+
+Consolidated logging setup in client transports:
+- Updated SSE transport to use passed logger instead of creating its own
+- Updated stdio transport to use passed logger instead of creating its own
+- Modified transport constructors to accept logger parameter
+- Ensured consistent logger propagation through all client components

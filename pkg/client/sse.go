@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/r3labs/sse/v2"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // SSETransport implements Transport using Server-Sent Events
@@ -29,13 +27,13 @@ type SSETransport struct {
 }
 
 // NewSSETransport creates a new SSE transport
-func NewSSETransport(baseURL string) *SSETransport {
+func NewSSETransport(baseURL string, logger zerolog.Logger) *SSETransport {
 	return &SSETransport{
 		baseURL:   baseURL,
 		client:    &http.Client{},
 		sseClient: sse.NewClient(baseURL + "/sse"),
 		events:    make(chan *sse.Event),
-		logger:    zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
+		logger:    logger,
 	}
 }
 
@@ -85,7 +83,7 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		t.logger.Error().
 			Int("status", resp.StatusCode).
@@ -137,7 +135,7 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 	go func() {
 		defer cancel()
 
-		log.Debug().Msgf("Subscribing to SSE")
+		t.logger.Debug().Msg("Subscribing to SSE")
 		err := t.sseClient.SubscribeWithContext(subCtx, "", func(msg *sse.Event) {
 			t.logger.Debug().
 				Str("event", string(msg.Event)).

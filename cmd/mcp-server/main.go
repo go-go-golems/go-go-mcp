@@ -49,13 +49,18 @@ providing a framework for building MCP servers and clients.`,
 				fmt.Fprintf(os.Stderr, "Invalid log level %s, defaulting to info\n", logLevel)
 				level = zerolog.InfoLevel
 			}
+
+			// Set up console writer for colored output
+			consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+			logger := zerolog.New(consoleWriter).With().Timestamp()
+			if withCaller {
+				logger = logger.Caller()
+			}
+			log.Logger = logger.Logger()
+
 			zerolog.SetGlobalLevel(level)
 			if debug {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
-			}
-			if withCaller {
-				log.Debug().Msgf("Setting caller")
-				log.Logger = log.With().Caller().Logger()
 			}
 		},
 	}
@@ -75,12 +80,8 @@ Available transports:
 - stdio: Standard input/output transport (default)
 - sse: Server-Sent Events transport over HTTP`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Use ConsoleWriter for colored output
-			consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-			logger := zerolog.New(consoleWriter).With().Timestamp().Logger()
-
 			// Create server
-			srv := server.NewServer(logger)
+			srv := server.NewServer(log.Logger)
 			promptRegistry := prompts.NewRegistry()
 			resourceRegistry := resources.NewRegistry()
 			toolRegistry := tools.NewRegistry()
@@ -114,7 +115,7 @@ Available transports:
 
 			tool, err := tools.NewToolImpl("echo", "Echo the input arguments", json.RawMessage(schemaJson))
 			if err != nil {
-				logger.Error().Err(err).Msg("Error creating tool")
+				log.Error().Err(err).Msg("Error creating tool")
 				return err
 			}
 			toolRegistry.RegisterToolWithHandler(
@@ -151,10 +152,10 @@ Available transports:
 				var err error
 				switch transport {
 				case "stdio":
-					logger.Info().Msg("Starting server with stdio transport")
+					log.Info().Msg("Starting server with stdio transport")
 					err = srv.StartStdio(ctx)
 				case "sse":
-					logger.Info().Int("port", port).Msg("Starting server with SSE transport")
+					log.Info().Int("port", port).Msg("Starting server with SSE transport")
 					err = srv.StartSSE(ctx, port)
 				default:
 					err = fmt.Errorf("invalid transport type: %s", transport)
@@ -166,23 +167,23 @@ Available transports:
 			select {
 			case err := <-errChan:
 				if err != nil && err != io.EOF {
-					logger.Error().Err(err).Msg("Server error")
+					log.Error().Err(err).Msg("Server error")
 					return err
 				}
 				return nil
 			case sig := <-sigChan:
-				logger.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown")
+				log.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown")
 				// Cancel context to initiate shutdown
 				cancel()
 				// Create a timeout context for shutdown
 				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer shutdownCancel()
 				if err := srv.Stop(shutdownCtx); err != nil {
-					logger.Error().Err(err).Msg("Error during shutdown")
+					log.Error().Err(err).Msg("Error during shutdown")
 					return err
 
 				}
-				logger.Info().Msg("Server stopped gracefully")
+				log.Info().Msg("Server stopped gracefully")
 				return nil
 			}
 		},

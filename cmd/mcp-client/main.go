@@ -326,13 +326,13 @@ func createClient(ctx context.Context) (*client.Client, error) {
 			return nil, fmt.Errorf("command is required for command transport")
 		}
 		log.Debug().Msgf("Creating command transport with args: %v", cmdArgs)
-		t, err = client.NewCommandStdioTransport(cmdArgs[0], cmdArgs[1:]...)
+		t, err = client.NewCommandStdioTransport(log.Logger, cmdArgs[0], cmdArgs[1:]...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create command transport: %w", err)
 		}
 	case "sse":
 		log.Debug().Msgf("Creating SSE transport with server URL: %s", serverURL)
-		t = client.NewSSETransport(serverURL)
+		t = client.NewSSETransport(serverURL, log.Logger)
 	default:
 		return nil, fmt.Errorf("invalid transport type: %s", transport)
 	}

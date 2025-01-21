@@ -25,19 +25,18 @@ type StdioTransport struct {
 }
 
 // NewStdioTransport creates a new stdio transport
-func NewStdioTransport() *StdioTransport {
+func NewStdioTransport(logger zerolog.Logger) *StdioTransport {
 	return &StdioTransport{
 		scanner: bufio.NewScanner(os.Stdin),
 		writer:  json.NewEncoder(os.Stdout),
-		logger:  zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
+		logger:  logger,
 	}
 }
 
 // NewCommandStdioTransport creates a new stdio transport that launches a command
-func NewCommandStdioTransport(command string, args ...string) (*StdioTransport, error) {
+func NewCommandStdioTransport(logger zerolog.Logger, command string, args ...string) (*StdioTransport, error) {
 	cmd := exec.Command(command, args...)
 
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 	logger.Debug().
 		Str("command", command).
 		Strs("args", args).
