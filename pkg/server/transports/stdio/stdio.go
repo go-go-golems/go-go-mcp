@@ -22,6 +22,7 @@ type Server struct {
 	resourceService   services.ResourceService
 	toolService       services.ToolService
 	initializeService services.InitializeService
+	done              chan struct{}
 }
 
 // NewServer creates a new stdio server instance
@@ -37,6 +38,7 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 		resourceService:   rs,
 		toolService:       ts,
 		initializeService: is,
+		done:              make(chan struct{}),
 	}
 }
 
@@ -44,13 +46,18 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 func (s *Server) Start() error {
 	s.logger.Info().Msg("Starting stdio server...")
 
-	// Process messages until stdin is closed
+	// Process messages until stdin is closed or stop is called
 	for s.scanner.Scan() {
-		line := s.scanner.Text()
-		s.logger.Debug().Str("line", line).Msg("Received line")
-		if err := s.handleMessage(line); err != nil {
-			s.logger.Error().Err(err).Msg("Error handling message")
-			// Continue processing messages even if one fails
+		select {
+		case <-s.done:
+			return nil
+		default:
+			line := s.scanner.Text()
+			s.logger.Debug().Str("line", line).Msg("Received line")
+			if err := s.handleMessage(line); err != nil {
+				s.logger.Error().Err(err).Msg("Error handling message")
+				// Continue processing messages even if one fails
+			}
 		}
 	}
 
@@ -59,6 +66,13 @@ func (s *Server) Start() error {
 	}
 
 	return io.EOF
+}
+
+// Stop gracefully stops the stdio server
+func (s *Server) Stop() error {
+	s.logger.Info().Msg("Stopping stdio server")
+	close(s.done)
+	return nil
 }
 
 // handleMessage processes a single message

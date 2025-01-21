@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/prompts"
@@ -137,16 +140,44 @@ Available transports:
 			srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
 			srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
-			// Start server with selected transport
-			switch transport {
-			case "stdio":
-				logger.Info().Msg("Starting server with stdio transport")
-				return srv.StartStdio()
-			case "sse":
-				logger.Info().Int("port", port).Msg("Starting server with SSE transport")
-				return srv.StartSSE(port)
-			default:
-				return fmt.Errorf("invalid transport type: %s", transport)
+			// Set up signal handling
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+			// Start server in a goroutine
+			errChan := make(chan error, 1)
+			go func() {
+				// Start server with selected transport
+				var err error
+				switch transport {
+				case "stdio":
+					logger.Info().Msg("Starting server with stdio transport")
+					err = srv.StartStdio()
+				case "sse":
+					logger.Info().Int("port", port).Msg("Starting server with SSE transport")
+					err = srv.StartSSE(port)
+				default:
+					err = fmt.Errorf("invalid transport type: %s", transport)
+				}
+				errChan <- err
+			}()
+
+			// Wait for either server error or interrupt signal
+			select {
+			case err := <-errChan:
+				if err != nil && err != io.EOF {
+					logger.Error().Err(err).Msg("Server error")
+					return err
+				}
+				return nil
+			case sig := <-sigChan:
+				logger.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown")
+				if err := srv.Stop(); err != nil {
+					logger.Error().Err(err).Msg("Error during shutdown")
+					return err
+				}
+				logger.Info().Msg("Server stopped gracefully")
+				return nil
 			}
 		},
 	}

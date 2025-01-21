@@ -85,3 +85,13 @@ Refactored the MCP server to use a proper service layer:
 - Moved stdio server to its own package
 - Improved error handling by removing panic-based JSON marshaling
 - Added proper context support throughout the service layer 
+
+# Graceful Shutdown Implementation
+
+Added graceful shutdown support to handle interrupt signals (SIGINT, SIGTERM) properly. This ensures that the server can clean up resources and close connections gracefully when stopped.
+
+- Added Stop method to Server and Transport interface
+- Implemented graceful shutdown for SSE server with proper client connection cleanup
+- Added graceful shutdown for stdio server
+- Updated main program to handle interrupt signals and coordinate shutdown
+- Added proper error handling during shutdown process 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,19 +20,22 @@ type SSEServer struct {
 	logger   zerolog.Logger
 	registry *pkg.ProviderRegistry
 	clients  map[string]chan *protocol.Response
+	server   *http.Server
+	port     int
 }
 
 // NewSSEServer creates a new SSE server instance
-func NewSSEServer(logger zerolog.Logger, registry *pkg.ProviderRegistry) *SSEServer {
+func NewSSEServer(logger zerolog.Logger, registry *pkg.ProviderRegistry, port int) *SSEServer {
 	return &SSEServer{
 		logger:   logger,
 		registry: registry,
 		clients:  make(map[string]chan *protocol.Response),
+		port:     port,
 	}
 }
 
-// Start begins the SSE server on the specified port
-func (s *SSEServer) Start(port int) error {
+// Start begins the SSE server
+func (s *SSEServer) Start() error {
 	r := mux.NewRouter()
 
 	// SSE endpoint for clients to establish connection
@@ -40,8 +44,31 @@ func (s *SSEServer) Start(port int) error {
 	// POST endpoint for receiving client messages
 	r.HandleFunc("/messages", s.handleMessages).Methods("POST")
 
-	s.logger.Info().Int("port", port).Msg("Starting SSE server")
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), r)
+	s.server = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.port),
+		Handler: r,
+	}
+
+	s.logger.Info().Int("port", s.port).Msg("Starting SSE server")
+	return s.server.ListenAndServe()
+}
+
+// Stop gracefully stops the SSE server
+func (s *SSEServer) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.server != nil {
+		s.logger.Info().Msg("Stopping SSE server")
+		// Close all client connections
+		for sessionID, ch := range s.clients {
+			s.logger.Debug().Str("session_id", sessionID).Msg("Closing client connection")
+			close(ch)
+			delete(s.clients, sessionID)
+		}
+		return s.server.Shutdown(context.Background())
+	}
+	return nil
 }
 
 // marshalJSON marshals data to JSON and returns any error

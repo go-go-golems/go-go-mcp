@@ -12,7 +12,10 @@ import (
 
 // Transport represents a server transport mechanism
 type Transport interface {
+	// Start starts the transport
 	Start() error
+	// Stop gracefully stops the transport
+	Stop() error
 }
 
 // Server represents an MCP server that can use different transports
@@ -26,6 +29,7 @@ type Server struct {
 	initializeService services.InitializeService
 	serverName        string
 	serverVersion     string
+	transport         Transport
 }
 
 // NewServer creates a new server instance
@@ -55,12 +59,31 @@ func (s *Server) GetRegistry() *pkg.ProviderRegistry {
 
 // StartStdio starts the server with stdio transport
 func (s *Server) StartStdio() error {
+	s.mu.Lock()
 	stdioServer := stdio.NewServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService)
+	s.transport = stdioServer
+	s.mu.Unlock()
 	return stdioServer.Start()
 }
 
 // StartSSE starts the server with SSE transport on the specified port
 func (s *Server) StartSSE(port int) error {
-	sseServer := NewSSEServer(s.logger, s.registry)
-	return sseServer.Start(port)
+	s.mu.Lock()
+	sseServer := NewSSEServer(s.logger, s.registry, port)
+	s.transport = sseServer
+	s.mu.Unlock()
+	return sseServer.Start()
+}
+
+// Stop gracefully stops the server
+func (s *Server) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.transport == nil {
+		return nil
+	}
+
+	s.logger.Info().Msg("Stopping server")
+	return s.transport.Stop()
 }
