@@ -292,3 +292,12 @@ Added proper response types for list operations to ensure consistent JSON encodi
 - Improved type handling with proper interface conversions
 - Ensured empty arrays are always returned instead of null
 - Fixed JSON response structure to match API specification 
+
+# Fix SSE Server Shutdown
+
+Fixed an issue where the SSE server would hang during shutdown due to improper handling of client connections.
+
+- Added proper context cancellation for client goroutines
+- Added WaitGroup to track and wait for client goroutines to finish
+- Improved shutdown coordination between HTTP server and client cleanup
+- Added timeout handling for client goroutine cleanup 

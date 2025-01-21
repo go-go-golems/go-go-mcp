@@ -30,6 +30,8 @@ type SSEServer struct {
 	toolService       services.ToolService
 	initializeService services.InitializeService
 	nextClientID      int
+	wg                sync.WaitGroup
+	cancel            context.CancelFunc
 }
 
 type SSEClient struct {
@@ -71,6 +73,9 @@ func NewSSEServer(logger zerolog.Logger, ps services.PromptService, rs services.
 
 // Start begins the SSE server
 func (s *SSEServer) Start(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
+
 	r := mux.NewRouter()
 
 	// SSE endpoint for clients to establish connection
@@ -102,25 +107,54 @@ func (s *SSEServer) Start(ctx context.Context) error {
 	case err := <-errChan:
 		return err
 	case <-ctx.Done():
-		return s.Stop(ctx)
+		return s.Stop(context.Background())
 	}
 }
 
 // Stop gracefully stops the SSE server
 func (s *SSEServer) Stop(ctx context.Context) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.server != nil {
 		s.logger.Info().Msg("Stopping SSE server")
+
+		// Cancel all client goroutines
+		if s.cancel != nil {
+			s.cancel()
+		}
+
 		// Close all client connections
-		for sessionID, ch := range s.clients {
+		for sessionID, client := range s.clients {
 			s.logger.Debug().Str("sessionId", sessionID).Msg("Closing client connection")
-			close(ch.messageChan)
+			close(client.messageChan)
 			delete(s.clients, sessionID)
 		}
-		return s.server.Shutdown(ctx)
+
+		s.mu.Unlock()
+
+		// Wait for all client goroutines to finish with a timeout
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			s.logger.Debug().Msg("All client goroutines finished")
+		case <-ctx.Done():
+			s.logger.Warn().Msg("Timeout waiting for client goroutines")
+		}
+
+		// Shutdown the HTTP server
+		if err := s.server.Shutdown(ctx); err != nil {
+			return fmt.Errorf("error shutting down server: %w", err)
+		}
+
+		return nil
 	}
+
+	s.mu.Unlock()
 	return nil
 }
 
@@ -179,6 +213,10 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	endpoint := fmt.Sprintf("%s?sessionId=%s", "/messages", sessionID)
 	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint)
 	w.(http.Flusher).Flush()
+
+	// Add to waitgroup before starting goroutine
+	s.wg.Add(1)
+	defer s.wg.Done()
 
 	defer func() {
 		s.mu.Lock()
