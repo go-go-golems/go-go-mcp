@@ -317,3 +317,21 @@ Added conditional logger output based on terminal detection. When output is not 
 - Updated both client and server to detect terminal output
 - Added golang.org/x/term dependency for terminal detection
 - Logger now uses NoColor mode when output is not going to a terminal
+
+## SQLite Tool and Tool Reorganization
+
+Added a new SQLite tool to query the Cursor state database and reorganized tools into separate files for better maintainability.
+
+- Added new SQLite tool to query Cursor's state.vscdb database
+- Split tools into separate files in pkg/tools directory
+- Moved echo tool to its own file
+- Moved fetch tool to its own file
+- Added go-sqlite3 dependency
+
+## SQLite Tool YAML Output
+
+Changed SQLite tool output format from JSON to YAML for better readability.
+
+- Changed output format to YAML
+- Added gopkg.in/yaml.v3 dependency
+- Updated tool description to clarify SQLite dot command limitations
