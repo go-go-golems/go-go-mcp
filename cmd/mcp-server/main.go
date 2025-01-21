@@ -191,7 +191,7 @@ Available transports:
 
 	// Add flags to start command
 	startCmd.Flags().StringVarP(&transport, "transport", "t", "stdio", "Transport type (stdio or sse)")
-	startCmd.Flags().IntVarP(&port, "port", "p", 8000, "Port to listen on for SSE transport")
+	startCmd.Flags().IntVarP(&port, "port", "p", 3001, "Port to listen on for SSE transport")
 
 	// Version command
 	versionCmd := &cobra.Command{

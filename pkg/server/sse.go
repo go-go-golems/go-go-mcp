@@ -101,7 +101,7 @@ func (s *SSEServer) Stop(ctx context.Context) error {
 		s.logger.Info().Msg("Stopping SSE server")
 		// Close all client connections
 		for sessionID, ch := range s.clients {
-			s.logger.Debug().Str("session_id", sessionID).Msg("Closing client connection")
+			s.logger.Debug().Str("sessionId", sessionID).Msg("Closing client connection")
 			close(ch.messageChan)
 			delete(s.clients, sessionID)
 		}
@@ -133,7 +133,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 	// Create unique session ID
-	sessionID := r.URL.Query().Get("session_id")
+	sessionID := r.URL.Query().Get("sessionId")
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("%s", uuid.New())
 	}
@@ -155,7 +155,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Debug().
 		Str("client_id", clientID).
-		Str("session_id", sessionID).
+		Str("sessionId", sessionID).
 		Str("remote_addr", r.RemoteAddr).
 		Str("user_agent", r.UserAgent()).
 		Int("total_clients", clientCount).
@@ -173,7 +173,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 			delete(s.clients, clientID)
 			s.logger.Debug().
 				Str("client_id", clientID).
-				Str("session_id", sessionID).
+				Str("sessionId", sessionID).
 				Int("total_clients", len(s.clients)).
 				Dur("connection_duration", time.Since(c.createdAt)).
 				Msg("Client disconnected")
@@ -188,7 +188,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 			if msg == nil {
 				s.logger.Debug().
 					Str("client_id", clientID).
-					Str("session_id", sessionID).
+					Str("sessionId", sessionID).
 					Msg("Received nil message, closing connection")
 				return
 			}
@@ -198,7 +198,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 				s.logger.Error().
 					Err(err).
 					Str("client_id", clientID).
-					Str("session_id", sessionID).
+					Str("sessionId", sessionID).
 					Interface("message", msg).
 					Msg("Failed to marshal message")
 				continue
@@ -206,7 +206,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 			s.logger.Debug().
 				Str("client_id", clientID).
-				Str("session_id", sessionID).
+				Str("sessionId", sessionID).
 				RawJSON("message", data).
 				Msg("Sending message to client")
 
@@ -217,7 +217,7 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			s.logger.Debug().
 				Str("client_id", clientID).
-				Str("session_id", sessionID).
+				Str("sessionId", sessionID).
 				Msg("Context done, closing connection")
 			return
 		}
@@ -227,10 +227,11 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 // handleMessages processes incoming client messages
 func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	sessionID := r.URL.Query().Get("session_id")
+	sessionID := r.URL.Query().Get("sessionId")
 	s.logger.Debug().
+		Str("url", r.URL.String()).
 		Str("remote_addr", r.RemoteAddr).
-		Str("session_id", sessionID).
+		Str("sessionId", sessionID).
 		Msg("Received message request")
 
 	// Use default session if none provided
@@ -251,7 +252,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	if len(sessionClients) == 0 {
 		s.logger.Error().
-			Str("session_id", sessionID).
+			Str("sessionId", sessionID).
 			Msg("No active clients found for session")
 		http.Error(w, "No active clients found for session", http.StatusBadRequest)
 		return
@@ -261,7 +262,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		s.logger.Error().
 			Err(err).
-			Str("session_id", sessionID).
+			Str("sessionId", sessionID).
 			Msg("Invalid request body")
 		response := &protocol.Response{
 			JSONRPC: "2.0",
@@ -277,7 +278,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			default:
 				s.logger.Error().
 					Str("client_id", client.id).
-					Str("session_id", sessionID).
+					Str("sessionId", sessionID).
 					Msg("Failed to send error response to client")
 			}
 		}
@@ -302,7 +303,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			default:
 				s.logger.Error().
 					Str("client_id", client.id).
-					Str("session_id", sessionID).
+					Str("sessionId", sessionID).
 					Msg("Failed to send error response to client")
 			}
 		}
@@ -311,7 +312,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.logger.Debug().
-		Str("session_id", sessionID).
+		Str("sessionId", sessionID).
 		Str("method", request.Method).
 		Interface("params", request.Params).
 		Msg("Processing request")
@@ -419,6 +420,18 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 				},
 			}
 		} else {
+			// Ensure we have an empty array instead of null for empty results
+			if result == nil {
+				switch request.Method {
+				case "prompts/list":
+					result = []interface{}{}
+				case "resources/list":
+					result = []interface{}{}
+				case "tools/list":
+					result = []interface{}{}
+				}
+			}
+
 			resultMap := map[string]interface{}{
 				strings.TrimSuffix(request.Method, "/list"): result,
 				"nextCursor": nextCursor,
@@ -605,7 +618,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		s.logger.Warn().
-			Str("session_id", sessionID).
+			Str("sessionId", sessionID).
 			Str("method", request.Method).
 			Msg("Method not found")
 		response = &protocol.Response{
@@ -624,13 +637,13 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		case client.messageChan <- response:
 			s.logger.Debug().
 				Str("client_id", client.id).
-				Str("session_id", sessionID).
+				Str("sessionId", sessionID).
 				Interface("response", response).
 				Msg("Response sent to client")
 		default:
 			s.logger.Error().
 				Str("client_id", client.id).
-				Str("session_id", sessionID).
+				Str("sessionId", sessionID).
 				Msg("Failed to send response to client")
 		}
 	}

@@ -186,10 +186,10 @@ For web-based applications, use the SSE transport:
 
 ```bash
 # Start the server with SSE transport
-./mcp-server start --transport sse --port 8000
+./mcp-server start --transport sse --port 3001
 
 # In another terminal, connect using the client
-./mcp-client --transport sse --server http://localhost:8000 prompts list
+./mcp-client --transport sse --server http://localhost:3001 prompts list
 ```
 
 ### Debug Mode

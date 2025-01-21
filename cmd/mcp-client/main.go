@@ -66,7 +66,7 @@ Supports both stdio and SSE transports for client-server communication.`,
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
 	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", true, "Show caller information in logs")
 	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "command", "Transport type (command or sse)")
-	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://localhost:8000", "Server URL for SSE transport")
+	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://localhost:3001", "Server URL for SSE transport")
 	rootCmd.PersistentFlags().StringSliceVarP(&cmdArgs, "command", "c", []string{"mcp-server", "start", "--transport", "stdio"}, "Command and arguments for command transport (first argument is the command)")
 
 	// Prompts command group

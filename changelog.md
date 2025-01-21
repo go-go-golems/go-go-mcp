@@ -274,3 +274,9 @@ Enhanced SSE client to properly handle endpoint events and session management:
 - Added session ID extraction and storage
 - Improved initialization flow to wait for endpoint event
 - Added better error handling for endpoint event timeout 
+
+## Empty Array Response Fix
+
+Ensure list operations return empty arrays instead of null when no results are available. This fixes type validation errors in the client.
+
+- Modified SSE server to convert nil results to empty arrays for list operations 

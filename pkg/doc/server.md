@@ -138,7 +138,7 @@ if err := srv.StartStdio(); err != nil {
     log.Fatal(err)
 }
 // or
-if err := srv.StartSSE(8000); err != nil {
+if err := srv.StartSSE(3001); err != nil {
     log.Fatal(err)
 }
 ```

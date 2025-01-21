@@ -101,7 +101,7 @@ Features:
 // Create transport (stdio or SSE)
 transport := client.NewStdioTransport()
 // or
-transport := client.NewSSETransport("http://localhost:8000")
+transport := client.NewSSETransport("http://localhost:3001")
 
 // Create client
 logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
