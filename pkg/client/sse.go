@@ -129,9 +129,6 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 	// Create a new context with cancellation for the subscription
 	subCtx, cancel := context.WithCancel(ctx)
 
-	// Create a channel to receive initialization result
-	initDone := make(chan error, 1)
-
 	go func() {
 		defer cancel()
 
@@ -156,9 +153,15 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 			t.mu.Lock()
 			t.initialized = false
 			t.mu.Unlock()
-			initDone <- err
+			return
 		}
 	}()
+
+	t.mu.Lock()
+	t.initialized = true
+	t.mu.Unlock()
+
+	t.logger.Debug().Msg("SSE initialization successful")
 
 	return nil
 }

@@ -196,9 +196,11 @@ Enhanced error handling in SSE server to better comply with JSON-RPC 2.0 specifi
 
 # SSE Protocol Compliance
 
-Removed non-standard endpoint event from SSE server to better align with the official protocol specification.
-
-- Removed endpoint event from SSE server implementation 
+Updated the SSE server implementation to fully comply with the MCP protocol specification:
+- Added proper CORS headers for cross-origin requests
+- Implemented unique session ID generation using UUID
+- Added initial endpoint event with session ID
+- Ensured proper SSE headers according to spec
 
 # Async SSE Client
 
@@ -255,3 +257,12 @@ Consolidated logging setup in client transports:
 - Updated stdio transport to use passed logger instead of creating its own
 - Modified transport constructors to accept logger parameter
 - Ensured consistent logger propagation through all client components
+
+# Improved SSE Server Client Management
+
+Improved the SSE server's client management to better handle multiple clients and sessions:
+- Added unique client IDs for better tracking and debugging
+- Improved session management to handle multiple clients per session
+- Added client metadata tracking (creation time, remote address, user agent)
+- Fixed race conditions in client management
+- Better error handling for invalid sessions 

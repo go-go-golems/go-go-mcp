@@ -12,6 +12,58 @@ MCP uses a client-server architecture with two main transport options:
 - Uses SSE for server->client communication
 - Uses HTTP POST requests for client->server communication
 
+Detailed SSE Protocol Flow:
+
+1. **Connection Establishment**
+   - Client initiates connection by making a GET request to the server endpoint
+   - Server responds with SSE headers:
+     ```http
+     Content-Type: text/event-stream
+     Cache-Control: no-cache
+     Connection: keep-alive
+     ```
+   - Server generates a unique session ID (UUID)
+   - Server sends initial endpoint event:
+     ```
+     event: endpoint
+     data: {endpoint-url}?sessionId={session-uuid}
+     ```
+
+2. **Message Transport**
+   - Server → Client:
+     - Messages sent as SSE events:
+       ```
+       event: message
+       data: {JSON-RPC message}
+       ```
+   - Client → Server:
+     - Messages sent as HTTP POST requests
+     - Content-Type must be application/json
+     - Maximum message size: 4MB
+     - POST to the endpoint URL provided in initial connection
+     - Server responds with:
+       - 202: Message accepted
+       - 400: Invalid message
+       - 500: SSE connection not established
+
+3. **Security Considerations**
+   - Endpoint origin validation: Client verifies the POST endpoint matches the SSE connection origin
+   - Session management: Each connection has a unique session ID for routing messages
+   - Content validation: All messages must conform to the JSON-RPC message schema
+
+4. **Error Handling**
+   - Connection errors trigger onerror handlers
+   - Invalid messages return HTTP 400 responses
+   - Missing SSE connection returns HTTP 500
+   - Content-type mismatches are rejected
+   - Message size limits enforced
+
+5. **Connection Termination**
+   - Either side can initiate closure
+   - Server cleans up session resources
+   - Client closes EventSource connection
+   - Both sides receive close notifications
+
 ### Message Format
 
 All messages follow this basic JSON structure:

@@ -13,9 +13,10 @@
 - [ ] REPL mode / TUI
 - [X] Add debug logging
 - [ ] make web ui to easily debug / interact
+- [ ] add notification handler
 
 ### Bugs
-- [ ] BUG: figure out why closing the client seems to hang
+- [x] BUG: figure out why closing the client seems to hang
 
 ## MCP server
 
@@ -26,4 +27,5 @@
 - [ ] dynamic loading / enabling / removing servers
 
 - [X] Allow debug logging
-- [ ] Implement missing SSE methods
+- [x] Implement missing SSE methods
+- [ ] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
