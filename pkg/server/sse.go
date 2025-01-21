@@ -148,24 +148,6 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 	}()
 
-	// Send initial endpoint event
-	endpointData, err := s.marshalJSON(map[string]string{
-		"endpoint": fmt.Sprintf("/messages?session_id=%s", sessionID),
-	})
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to marshal endpoint data")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	endpointMsg := fmt.Sprintf("data: %s\n\n", endpointData)
-	s.logger.Debug().
-		Str("session_id", sessionID).
-		Str("endpoint", fmt.Sprintf("/messages?session_id=%s", sessionID)).
-		Msg("Sending endpoint information")
-	fmt.Fprint(w, endpointMsg)
-	w.(http.Flusher).Flush()
-
 	// Keep connection open and send messages
 	for {
 		select {

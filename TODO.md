@@ -1,8 +1,8 @@
 ## Tool API
 
-- [ ] Add context to the tool call
-- [ ] Don't allow a tool to be registered without interface
-- [ ] Make tool an interface?
+- [x] Add context to the tool call
+- [x] Don't allow a tool to be registered without interface
+- [x] Make tool an interface?
 
 ## MCP client
 

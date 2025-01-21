@@ -184,3 +184,9 @@ Added support for all MCP protocol methods in the SSE server implementation:
 - Updated SSEServer to use all services (prompt, resource, tool, initialize)
 - Added handlers for all protocol methods (prompts/list, prompts/get, resources/list, resources/read, tools/list, tools/call)
 - Improved error handling and response formatting 
+
+# SSE Protocol Compliance
+
+Removed non-standard endpoint event from SSE server to better align with the official protocol specification.
+
+- Removed endpoint event from SSE server implementation 
