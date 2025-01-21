@@ -207,3 +207,12 @@ Made the SSE client run asynchronously to prevent blocking on subscription:
 - Moved SSE subscription to a goroutine
 - Improved error handling and state management
 - Added proper mutex protection for shared state 
+
+# Context-Based Transport Control
+
+Refactored all transports to use context.Context for better control over cancellation and timeouts:
+- Added context support to Transport interface methods (Send and Close)
+- Updated SSE transport to use context for initialization and event handling
+- Updated stdio transport to use context for command execution and response handling
+- Removed channel-based cancellation in favor of context
+- Added proper context propagation throughout the client API 

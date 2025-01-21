@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,10 +24,8 @@ type SSETransport struct {
 	events      chan *sse.Event
 	sessionID   string
 	closeOnce   sync.Once
-	closeChan   chan struct{}
-	initialized bool
-	initChan    chan struct{} // Channel to signal initialization completion
 	logger      zerolog.Logger
+	initialized bool
 }
 
 // NewSSETransport creates a new SSE transport
@@ -36,28 +35,19 @@ func NewSSETransport(baseURL string) *SSETransport {
 		client:    &http.Client{},
 		sseClient: sse.NewClient(baseURL + "/sse"),
 		events:    make(chan *sse.Event),
-		closeChan: make(chan struct{}),
-		initChan:  make(chan struct{}),
 		logger:    zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger(),
 	}
 }
 
 // Send sends a request and returns the response
-func (t *SSETransport) Send(request *protocol.Request) (*protocol.Response, error) {
+func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {
 	t.mu.Lock()
 	if !t.initialized {
 		t.mu.Unlock()
 		t.logger.Debug().Msg("Initializing SSE connection")
-		if err := t.initializeSSE(); err != nil {
+		if err := t.initializeSSE(ctx); err != nil {
 			t.logger.Error().Err(err).Msg("Failed to initialize SSE")
 			return nil, fmt.Errorf("failed to initialize SSE: %w", err)
-		}
-		// Wait for initialization to complete
-		select {
-		case <-t.initChan:
-			t.logger.Debug().Msg("SSE initialization completed")
-		case <-t.closeChan:
-			return nil, fmt.Errorf("transport closed during initialization")
 		}
 		t.mu.Lock()
 	}
@@ -80,7 +70,15 @@ func (t *SSETransport) Send(request *protocol.Request) (*protocol.Response, erro
 		RawJSON("request", reqBody).
 		Msg("Sending HTTP POST request")
 
-	resp, err := t.client.Post(t.baseURL+"/messages", "application/json", bytes.NewReader(reqBody))
+	// Create a new request with context
+	req, err := http.NewRequestWithContext(ctx, "POST", t.baseURL+"/messages", bytes.NewReader(reqBody))
+	if err != nil {
+		t.logger.Error().Err(err).Msg("Failed to create HTTP request")
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(req)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("Failed to send HTTP request")
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -96,7 +94,7 @@ func (t *SSETransport) Send(request *protocol.Request) (*protocol.Response, erro
 		return nil, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Wait for response event
+	// Wait for response event with context
 	t.logger.Debug().Msg("Waiting for response event")
 	select {
 	case event := <-t.events:
@@ -120,21 +118,26 @@ func (t *SSETransport) Send(request *protocol.Request) (*protocol.Response, erro
 
 		return &response, nil
 
-	case <-t.closeChan:
-		t.logger.Debug().Msg("Transport closed while waiting for response")
-		return nil, fmt.Errorf("transport closed")
+	case <-ctx.Done():
+		t.logger.Debug().Msg("Context cancelled while waiting for response")
+		return nil, ctx.Err()
 	}
 }
 
 // initializeSSE sets up the SSE connection
-func (t *SSETransport) initializeSSE() error {
+func (t *SSETransport) initializeSSE(ctx context.Context) error {
 	t.logger.Debug().Str("url", t.baseURL+"/sse").Msg("Setting up SSE connection")
 
-	// Start SSE subscription in a goroutine
-	go func() {
-		defer close(t.initChan)
+	// Create a new context with cancellation for the subscription
+	subCtx, cancel := context.WithCancel(ctx)
 
-		err := t.sseClient.SubscribeRaw(func(msg *sse.Event) {
+	// Create a channel to receive initialization result
+	initDone := make(chan error, 1)
+
+	go func() {
+		defer cancel()
+
+		err := t.sseClient.SubscribeWithContext(subCtx, "", func(msg *sse.Event) {
 			// Handle session ID event
 			if string(msg.Event) == "session" {
 				t.mu.Lock()
@@ -142,6 +145,7 @@ func (t *SSETransport) initializeSSE() error {
 				t.initialized = true
 				t.mu.Unlock()
 				t.logger.Debug().Str("sessionID", t.sessionID).Msg("Received session ID")
+				initDone <- nil
 				return
 			}
 
@@ -154,29 +158,37 @@ func (t *SSETransport) initializeSSE() error {
 			select {
 			case t.events <- msg:
 				t.logger.Debug().Msg("Forwarded event to channel")
-			case <-t.closeChan:
-				t.logger.Debug().Msg("Transport closed while forwarding event")
+			case <-subCtx.Done():
+				t.logger.Debug().Msg("Context cancelled while forwarding event")
 			}
 		})
 
 		if err != nil {
 			t.logger.Error().Err(err).Msg("SSE subscription failed")
-			// Signal initialization failure
 			t.mu.Lock()
 			t.initialized = false
 			t.mu.Unlock()
+			initDone <- err
 		}
 	}()
 
-	return nil
+	// Wait for initialization or context cancellation
+	select {
+	case err := <-initDone:
+		close(initDone)
+		return err
+	case <-ctx.Done():
+		cancel()
+		return ctx.Err()
+	}
 }
 
 // Close closes the transport
-func (t *SSETransport) Close() error {
+func (t *SSETransport) Close(ctx context.Context) error {
 	t.logger.Debug().Msg("Closing transport")
 	t.closeOnce.Do(func() {
-		close(t.closeChan)
 		t.sseClient.Unsubscribe(t.events)
+		close(t.events)
 		t.logger.Debug().Msg("Transport closed")
 	})
 	return nil

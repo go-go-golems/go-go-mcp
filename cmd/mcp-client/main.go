@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -81,13 +82,13 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Use:   "list",
 		Short: "List available prompts",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
-			prompts, cursor, err := client.ListPrompts("")
+			prompts, cursor, err := client.ListPrompts(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
@@ -116,11 +117,11 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Short: "Execute a specific prompt",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
 			// Parse prompt arguments
 			promptArgMap := make(map[string]string)
@@ -130,7 +131,7 @@ Supports both stdio and SSE transports for client-server communication.`,
 				}
 			}
 
-			message, err := client.GetPrompt(args[0], promptArgMap)
+			message, err := client.GetPrompt(cmd.Context(), args[0], promptArgMap)
 			if err != nil {
 				return err
 			}
@@ -154,13 +155,13 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Use:   "list",
 		Short: "List available tools",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
-			tools, cursor, err := client.ListTools("")
+			tools, cursor, err := client.ListTools(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
@@ -184,11 +185,11 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Short: "Call a specific tool",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
 			// Parse tool arguments
 			toolArgMap := make(map[string]interface{})
@@ -231,13 +232,13 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Use:   "list",
 		Short: "List available resources",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
-			resources, cursor, err := client.ListResources("")
+			resources, cursor, err := client.ListResources(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
@@ -263,13 +264,13 @@ Supports both stdio and SSE transports for client-server communication.`,
 		Short: "Read a specific resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := createClient()
+			client, err := createClient(cmd.Context())
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer client.Close(cmd.Context())
 
-			content, err := client.ReadResource(args[0])
+			content, err := client.ReadResource(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -317,7 +318,7 @@ Supports both stdio and SSE transports for client-server communication.`,
 	}
 }
 
-func createClient() (*client.Client, error) {
+func createClient(ctx context.Context) (*client.Client, error) {
 	// Use ConsoleWriter for colored output
 	consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
 	logger := zerolog.New(consoleWriter).With().Timestamp().Logger()
@@ -342,7 +343,7 @@ func createClient() (*client.Client, error) {
 
 	// Create and initialize client
 	c := client.NewClient(logger, t)
-	err = c.Initialize(protocol.ClientCapabilities{
+	err = c.Initialize(ctx, protocol.ClientCapabilities{
 		Sampling: &protocol.SamplingCapability{},
 	})
 	if err != nil {

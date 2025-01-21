@@ -13,9 +13,9 @@ import (
 // Transport represents a client transport mechanism
 type Transport interface {
 	// Send sends a request and returns the response
-	Send(request *protocol.Request) (*protocol.Response, error)
+	Send(ctx context.Context, request *protocol.Request) (*protocol.Response, error)
 	// Close closes the transport connection
-	Close() error
+	Close(ctx context.Context) error
 }
 
 // Client represents an MCP client that can use different transports
@@ -42,7 +42,7 @@ func NewClient(logger zerolog.Logger, transport Transport) *Client {
 }
 
 // Initialize initializes the connection with the server
-func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
+func (c *Client) Initialize(ctx context.Context, capabilities protocol.ClientCapabilities) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to send initialize request: %w", err)
 	}
@@ -96,7 +96,7 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 		JSONRPC: "2.0",
 		Method:  "notifications/initialized",
 	}
-	_, err = c.transport.Send(notification)
+	_, err = c.transport.Send(ctx, notification)
 	if err != nil {
 		return fmt.Errorf("failed to send initialized notification: %w", err)
 	}
@@ -105,7 +105,7 @@ func (c *Client) Initialize(capabilities protocol.ClientCapabilities) error {
 }
 
 // ListPrompts retrieves the list of available prompts from the server
-func (c *Client) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
+func (c *Client) ListPrompts(ctx context.Context, cursor string) ([]protocol.Prompt, string, error) {
 	if !c.initialized {
 		return nil, "", fmt.Errorf("client not initialized")
 	}
@@ -122,7 +122,7 @@ func (c *Client) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to send prompts/list request: %w", err)
 	}
@@ -143,7 +143,7 @@ func (c *Client) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
 }
 
 // GetPrompt retrieves a specific prompt from the server
-func (c *Client) GetPrompt(name string, arguments map[string]string) (*protocol.PromptMessage, error) {
+func (c *Client) GetPrompt(ctx context.Context, name string, arguments map[string]string) (*protocol.PromptMessage, error) {
 	if !c.initialized {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -163,7 +163,7 @@ func (c *Client) GetPrompt(name string, arguments map[string]string) (*protocol.
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send prompts/get request: %w", err)
 	}
@@ -187,7 +187,7 @@ func (c *Client) GetPrompt(name string, arguments map[string]string) (*protocol.
 }
 
 // ListResources retrieves the list of available resources from the server
-func (c *Client) ListResources(cursor string) ([]protocol.Resource, string, error) {
+func (c *Client) ListResources(ctx context.Context, cursor string) ([]protocol.Resource, string, error) {
 	if !c.initialized {
 		return nil, "", fmt.Errorf("client not initialized")
 	}
@@ -204,7 +204,7 @@ func (c *Client) ListResources(cursor string) ([]protocol.Resource, string, erro
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to send resources/list request: %w", err)
 	}
@@ -225,7 +225,7 @@ func (c *Client) ListResources(cursor string) ([]protocol.Resource, string, erro
 }
 
 // ReadResource retrieves the content of a specific resource from the server
-func (c *Client) ReadResource(uri string) (*protocol.ResourceContent, error) {
+func (c *Client) ReadResource(ctx context.Context, uri string) (*protocol.ResourceContent, error) {
 	if !c.initialized {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -243,7 +243,7 @@ func (c *Client) ReadResource(uri string) (*protocol.ResourceContent, error) {
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send resources/read request: %w", err)
 	}
@@ -267,7 +267,7 @@ func (c *Client) ReadResource(uri string) (*protocol.ResourceContent, error) {
 }
 
 // ListTools retrieves the list of available tools from the server
-func (c *Client) ListTools(cursor string) ([]protocol.Tool, string, error) {
+func (c *Client) ListTools(ctx context.Context, cursor string) ([]protocol.Tool, string, error) {
 	if !c.initialized {
 		return nil, "", fmt.Errorf("client not initialized")
 	}
@@ -284,7 +284,7 @@ func (c *Client) ListTools(cursor string) ([]protocol.Tool, string, error) {
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to send tools/list request: %w", err)
 	}
@@ -325,7 +325,7 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments map[string
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send tools/call request: %w", err)
 	}
@@ -343,7 +343,7 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments map[string
 }
 
 // CreateMessage sends a sampling request to create a message
-func (c *Client) CreateMessage(messages []protocol.Message, modelPreferences protocol.ModelPreferences, systemPrompt string, maxTokens int) (*protocol.Message, error) {
+func (c *Client) CreateMessage(ctx context.Context, messages []protocol.Message, modelPreferences protocol.ModelPreferences, systemPrompt string, maxTokens int) (*protocol.Message, error) {
 	if !c.initialized {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -367,7 +367,7 @@ func (c *Client) CreateMessage(messages []protocol.Message, modelPreferences pro
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send sampling/createMessage request: %w", err)
 	}
@@ -385,14 +385,14 @@ func (c *Client) CreateMessage(messages []protocol.Message, modelPreferences pro
 }
 
 // Ping sends a ping request to the server
-func (c *Client) Ping() error {
+func (c *Client) Ping(ctx context.Context) error {
 	request := &protocol.Request{
 		JSONRPC: "2.0",
 		Method:  "ping",
 	}
 	c.setRequestID(request)
 
-	response, err := c.transport.Send(request)
+	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to send ping request: %w", err)
 	}
@@ -405,9 +405,9 @@ func (c *Client) Ping() error {
 }
 
 // Close closes the client connection
-func (c *Client) Close() error {
+func (c *Client) Close(ctx context.Context) error {
 	c.logger.Debug().Msg("closing client")
-	return c.transport.Close()
+	return c.transport.Close(ctx)
 }
 
 // setRequestID sets a unique ID for the request

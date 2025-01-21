@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -80,7 +81,7 @@ func NewCommandStdioTransport(command string, args ...string) (*StdioTransport, 
 }
 
 // Send sends a request and returns the response
-func (t *StdioTransport) Send(request *protocol.Request) (*protocol.Response, error) {
+func (t *StdioTransport) Send(ctx context.Context, request *protocol.Request) (*protocol.Response, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -97,31 +98,62 @@ func (t *StdioTransport) Send(request *protocol.Request) (*protocol.Response, er
 
 	t.logger.Debug().Msg("Waiting for response")
 
-	// Read response
-	if !t.scanner.Scan() {
-		if err := t.scanner.Err(); err != nil {
-			t.logger.Error().Err(err).Msg("Failed to read response")
-			return nil, fmt.Errorf("failed to read response: %w", err)
+	// Create a channel for the response
+	responseCh := make(chan struct {
+		response *protocol.Response
+		err      error
+	}, 1)
+
+	// Read response in a goroutine
+	go func() {
+		if !t.scanner.Scan() {
+			var err error
+			if scanErr := t.scanner.Err(); scanErr != nil {
+				err = fmt.Errorf("failed to read response: %w", scanErr)
+				t.logger.Error().Err(err).Msg("Failed to read response")
+			} else {
+				err = io.EOF
+				t.logger.Debug().Msg("EOF while reading response")
+			}
+			responseCh <- struct {
+				response *protocol.Response
+				err      error
+			}{nil, err}
+			return
 		}
-		t.logger.Debug().Msg("EOF while reading response")
-		return nil, io.EOF
+
+		t.logger.Debug().
+			RawJSON("response", t.scanner.Bytes()).
+			Msg("Received response")
+
+		var response protocol.Response
+		if err := json.Unmarshal(t.scanner.Bytes(), &response); err != nil {
+			t.logger.Error().Err(err).Msg("Failed to parse response")
+			responseCh <- struct {
+				response *protocol.Response
+				err      error
+			}{nil, fmt.Errorf("failed to parse response: %w", err)}
+			return
+		}
+
+		responseCh <- struct {
+			response *protocol.Response
+			err      error
+		}{&response, nil}
+	}()
+
+	// Wait for either response or context cancellation
+	select {
+	case result := <-responseCh:
+		return result.response, result.err
+	case <-ctx.Done():
+		t.logger.Debug().Msg("Context cancelled while waiting for response")
+		return nil, ctx.Err()
 	}
-
-	t.logger.Debug().
-		RawJSON("response", t.scanner.Bytes()).
-		Msg("Received response")
-
-	var response protocol.Response
-	if err := json.Unmarshal(t.scanner.Bytes(), &response); err != nil {
-		t.logger.Error().Err(err).Msg("Failed to parse response")
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return &response, nil
 }
 
 // Close closes the transport
-func (t *StdioTransport) Close() error {
+func (t *StdioTransport) Close(ctx context.Context) error {
 	t.logger.Debug().Msg("Closing transport")
 	if t.cmd != nil {
 		t.logger.Debug().
@@ -171,26 +203,35 @@ func (t *StdioTransport) Close() error {
 			}
 		}
 
-		// Wait for the process to exit
-		t.logger.Debug().Msg("Waiting for command to exit")
-		err = t.cmd.Wait()
-		if err != nil {
-			// Check if it's an expected exit error (like signal kill)
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				t.logger.Debug().
-					Err(err).
-					Int("exit_code", exitErr.ExitCode()).
-					Msg("Command exited with error (expected for signal termination)")
-				return nil
-			}
-			t.logger.Error().
-				Err(err).
-				Msg("Command exited with unexpected error")
-			return err
-		}
+		// Create a channel to receive the wait result
+		waitCh := make(chan error, 1)
+		go func() {
+			waitCh <- t.cmd.Wait()
+		}()
 
-		t.logger.Debug().Msg("Command exited successfully")
-		return nil
+		// Wait for either the process to exit or context to be cancelled
+		select {
+		case err := <-waitCh:
+			if err != nil {
+				// Check if it's an expected exit error (like signal kill)
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					t.logger.Debug().
+						Err(err).
+						Int("exit_code", exitErr.ExitCode()).
+						Msg("Command exited with error (expected for signal termination)")
+					return nil
+				}
+				t.logger.Error().
+					Err(err).
+					Msg("Command exited with unexpected error")
+				return err
+			}
+			t.logger.Debug().Msg("Command exited successfully")
+			return nil
+		case <-ctx.Done():
+			t.logger.Debug().Msg("Context cancelled while waiting for command to exit")
+			return ctx.Err()
+		}
 	}
 	t.logger.Debug().Msg("No command to close")
 	return nil
