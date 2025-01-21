@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 
@@ -35,7 +36,7 @@ func NewSSEServer(logger zerolog.Logger, registry *pkg.ProviderRegistry, port in
 }
 
 // Start begins the SSE server
-func (s *SSEServer) Start() error {
+func (s *SSEServer) Start(ctx context.Context) error {
 	r := mux.NewRouter()
 
 	// SSE endpoint for clients to establish connection
@@ -47,14 +48,32 @@ func (s *SSEServer) Start() error {
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
 		Handler: r,
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx
+		},
 	}
 
-	s.logger.Info().Int("port", s.port).Msg("Starting SSE server")
-	return s.server.ListenAndServe()
+	// Create a channel to capture server errors
+	errChan := make(chan error, 1)
+	go func() {
+		s.logger.Info().Int("port", s.port).Msg("Starting SSE server")
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Wait for context cancellation or server error
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		return s.Stop(ctx)
+	}
 }
 
 // Stop gracefully stops the SSE server
-func (s *SSEServer) Stop() error {
+func (s *SSEServer) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -66,7 +85,7 @@ func (s *SSEServer) Stop() error {
 			close(ch)
 			delete(s.clients, sessionID)
 		}
-		return s.server.Shutdown(context.Background())
+		return s.server.Shutdown(ctx)
 	}
 	return nil
 }
@@ -83,6 +102,7 @@ func (s *SSEServer) marshalJSON(v interface{}) (json.RawMessage, error) {
 
 // handleSSE handles new SSE connections
 func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	s.logger.Debug().
 		Str("remote_addr", r.RemoteAddr).
 		Str("user_agent", r.UserAgent()).
@@ -168,10 +188,10 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
 			w.(http.Flusher).Flush()
 
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			s.logger.Debug().
 				Str("session_id", sessionID).
-				Msg("Client context done, closing connection")
+				Msg("Context done, closing connection")
 			return
 		}
 	}

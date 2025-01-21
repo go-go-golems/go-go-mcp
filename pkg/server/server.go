@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
@@ -12,10 +13,10 @@ import (
 
 // Transport represents a server transport mechanism
 type Transport interface {
-	// Start starts the transport
-	Start() error
-	// Stop gracefully stops the transport
-	Stop() error
+	// Start starts the transport with the given context
+	Start(ctx context.Context) error
+	// Stop gracefully stops the transport with the given context
+	Stop(ctx context.Context) error
 }
 
 // Server represents an MCP server that can use different transports
@@ -58,25 +59,25 @@ func (s *Server) GetRegistry() *pkg.ProviderRegistry {
 }
 
 // StartStdio starts the server with stdio transport
-func (s *Server) StartStdio() error {
+func (s *Server) StartStdio(ctx context.Context) error {
 	s.mu.Lock()
 	stdioServer := stdio.NewServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService)
 	s.transport = stdioServer
 	s.mu.Unlock()
-	return stdioServer.Start()
+	return stdioServer.Start(ctx)
 }
 
 // StartSSE starts the server with SSE transport on the specified port
-func (s *Server) StartSSE(port int) error {
+func (s *Server) StartSSE(ctx context.Context, port int) error {
 	s.mu.Lock()
 	sseServer := NewSSEServer(s.logger, s.registry, port)
 	s.transport = sseServer
 	s.mu.Unlock()
-	return sseServer.Start()
+	return sseServer.Start(ctx)
 }
 
 // Stop gracefully stops the server
-func (s *Server) Stop() error {
+func (s *Server) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -85,5 +86,5 @@ func (s *Server) Stop() error {
 	}
 
 	s.logger.Info().Msg("Stopping server")
-	return s.transport.Stop()
+	return s.transport.Stop(ctx)
 }

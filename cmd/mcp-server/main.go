@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,6 +141,10 @@ Available transports:
 			srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
 			srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
+			// Create root context with cancellation
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			// Set up signal handling
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -152,10 +157,10 @@ Available transports:
 				switch transport {
 				case "stdio":
 					logger.Info().Msg("Starting server with stdio transport")
-					err = srv.StartStdio()
+					err = srv.StartStdio(ctx)
 				case "sse":
 					logger.Info().Int("port", port).Msg("Starting server with SSE transport")
-					err = srv.StartSSE(port)
+					err = srv.StartSSE(ctx, port)
 				default:
 					err = fmt.Errorf("invalid transport type: %s", transport)
 				}
@@ -172,7 +177,12 @@ Available transports:
 				return nil
 			case sig := <-sigChan:
 				logger.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown")
-				if err := srv.Stop(); err != nil {
+				// Cancel context to initiate shutdown
+				cancel()
+				// Create a timeout context for shutdown
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer shutdownCancel()
+				if err := srv.Stop(shutdownCtx); err != nil {
 					logger.Error().Err(err).Msg("Error during shutdown")
 					return err
 				}

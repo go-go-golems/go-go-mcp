@@ -43,14 +43,16 @@ func NewServer(logger zerolog.Logger, ps services.PromptService, rs services.Res
 }
 
 // Start begins listening for and handling messages on stdio
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	s.logger.Info().Msg("Starting stdio server...")
 
-	// Process messages until stdin is closed or stop is called
+	// Process messages until stdin is closed, stop is called, or context is cancelled
 	for s.scanner.Scan() {
 		select {
 		case <-s.done:
 			return nil
+		case <-ctx.Done():
+			return ctx.Err()
 		default:
 			line := s.scanner.Text()
 			s.logger.Debug().Str("line", line).Msg("Received line")
@@ -69,7 +71,7 @@ func (s *Server) Start() error {
 }
 
 // Stop gracefully stops the stdio server
-func (s *Server) Stop() error {
+func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info().Msg("Stopping stdio server")
 	close(s.done)
 	return nil

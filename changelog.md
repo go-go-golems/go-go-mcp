@@ -95,3 +95,13 @@ Added graceful shutdown support to handle interrupt signals (SIGINT, SIGTERM) pr
 - Added graceful shutdown for stdio server
 - Updated main program to handle interrupt signals and coordinate shutdown
 - Added proper error handling during shutdown process 
+
+# Context-Based Server Control
+
+Refactored the server to use context.Context for better control over server lifecycle and cancellation.
+
+- Added context support to Transport interface methods (Start and Stop)
+- Updated SSE server to use context for connection handling and shutdown
+- Updated stdio server to handle context cancellation
+- Added context with timeout for graceful shutdown in main program
+- Improved error handling with context cancellation 
