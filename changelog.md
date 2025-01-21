@@ -279,4 +279,16 @@ Enhanced SSE client to properly handle endpoint events and session management:
 
 Ensure list operations return empty arrays instead of null when no results are available. This fixes type validation errors in the client.
 
-- Modified SSE server to convert nil results to empty arrays for list operations 
+- Added structured response types (ListPromptsResult, ListResourcesResult, ListToolsResult) for list operations
+- Improved type handling for list operation results with proper interface conversions
+- Ensured empty arrays are always returned instead of null
+
+## Structured List Operation Responses
+
+Added proper response types for list operations to ensure consistent JSON encoding:
+
+- Created ListPromptsResult, ListResourcesResult, and ListToolsResult types with correct protocol types
+- Fixed type mismatches between service interfaces and response types
+- Improved type handling with proper interface conversions
+- Ensured empty arrays are always returned instead of null
+- Fixed JSON response structure to match API specification 

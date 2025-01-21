@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +39,21 @@ type SSEClient struct {
 	createdAt   time.Time
 	remoteAddr  string
 	userAgent   string
+}
+
+type ListPromptsResult struct {
+	Prompts    []protocol.Prompt `json:"prompts"`
+	NextCursor string            `json:"nextCursor"`
+}
+
+type ListResourcesResult struct {
+	Resources  []protocol.Resource `json:"resources"`
+	NextCursor string              `json:"nextCursor"`
+}
+
+type ListToolsResult struct {
+	Tools      []protocol.Tool `json:"tools"`
+	NextCursor string          `json:"nextCursor"`
 }
 
 // NewSSEServer creates a new SSE server instance
@@ -395,48 +409,12 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			cursor = params.Cursor
 		}
 
-		var result interface{}
-		var nextCursor string
-		var err error
+		var resultJSON json.RawMessage
+		var marshalErr error
 
 		switch request.Method {
 		case "prompts/list":
-			result, nextCursor, err = s.promptService.ListPrompts(ctx, cursor)
-		case "resources/list":
-			result, nextCursor, err = s.resourceService.ListResources(ctx, cursor)
-		case "tools/list":
-			result, nextCursor, err = s.toolService.ListTools(ctx, cursor)
-		}
-
-		if err != nil {
-			data, _ := json.Marshal(err.Error())
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-					Data:    json.RawMessage(data),
-				},
-			}
-		} else {
-			// Ensure we have an empty array instead of null for empty results
-			if result == nil {
-				switch request.Method {
-				case "prompts/list":
-					result = []interface{}{}
-				case "resources/list":
-					result = []interface{}{}
-				case "tools/list":
-					result = []interface{}{}
-				}
-			}
-
-			resultMap := map[string]interface{}{
-				strings.TrimSuffix(request.Method, "/list"): result,
-				"nextCursor": nextCursor,
-			}
-			resultJSON, err := s.marshalJSON(resultMap)
+			prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
 			if err != nil {
 				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
@@ -448,12 +426,79 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 						Data:    json.RawMessage(data),
 					},
 				}
-			} else {
+				break
+			}
+			if prompts == nil {
+				prompts = []protocol.Prompt{}
+			}
+			resultJSON, marshalErr = s.marshalJSON(ListPromptsResult{
+				Prompts:    prompts,
+				NextCursor: nextCursor,
+			})
+
+		case "resources/list":
+			resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
+			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
 					ID:      request.ID,
-					Result:  resultJSON,
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+						Data:    json.RawMessage(data),
+					},
 				}
+				break
+			}
+			if resources == nil {
+				resources = []protocol.Resource{}
+			}
+			resultJSON, marshalErr = s.marshalJSON(ListResourcesResult{
+				Resources:  resources,
+				NextCursor: nextCursor,
+			})
+
+		case "tools/list":
+			tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
+			if err != nil {
+				data, _ := json.Marshal(err.Error())
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+						Data:    json.RawMessage(data),
+					},
+				}
+				break
+			}
+			if tools == nil {
+				tools = []protocol.Tool{}
+			}
+			resultJSON, marshalErr = s.marshalJSON(ListToolsResult{
+				Tools:      tools,
+				NextCursor: nextCursor,
+			})
+		}
+
+		if marshalErr != nil {
+			data, _ := json.Marshal(marshalErr.Error())
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				ID:      request.ID,
+				Error: &protocol.Error{
+					Code:    -32603,
+					Message: "Internal error",
+					Data:    json.RawMessage(data),
+				},
+			}
+		} else if response == nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				ID:      request.ID,
+				Result:  resultJSON,
 			}
 		}
 

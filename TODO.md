@@ -14,6 +14,7 @@
 - [X] Add debug logging
 - [ ] make web ui to easily debug / interact
 - [ ] add notification handler
+- [ ] add resource templates
 
 ### Bugs
 - [x] BUG: figure out why closing the client seems to hang
@@ -25,6 +26,7 @@
 - [ ] allow config file for all settings
 - [ ] figure out how to easily register bash commands to the MCP
 - [ ] dynamic loading / enabling / removing servers
+- [ ] add resource templates
 
 - [X] Allow debug logging
 - [x] Implement missing SSE methods
