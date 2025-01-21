@@ -12,7 +12,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 )
@@ -123,8 +122,11 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Create unique session ID
-	sessionID := uuid.New().String()
+	// Create unique session ID or use default
+	sessionID := "default"
+	if r.URL.Query().Get("session_id") != "" {
+		sessionID = r.URL.Query().Get("session_id")
+	}
 	messageChan := make(chan *protocol.Response, 100)
 
 	// Register client
@@ -196,21 +198,19 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		Str("remote_addr", r.RemoteAddr).
 		Msg("Received message request")
 
+	// Use default session if none provided
 	if sessionID == "" {
-		s.logger.Error().Msg("Missing session_id in request")
-		http.Error(w, "session_id is required", http.StatusBadRequest)
-		return
+		sessionID = "default"
+		s.logger.Debug().Msg("Using default session")
 	}
 
 	s.mu.RLock()
-	messageChan, exists := s.clients[sessionID]
+	messageChan, ok := s.clients[sessionID]
 	s.mu.RUnlock()
 
-	if !exists {
-		s.logger.Error().
-			Str("session_id", sessionID).
-			Msg("Session not found")
-		http.Error(w, "session not found", http.StatusNotFound)
+	if !ok {
+		s.logger.Error().Str("session_id", sessionID).Msg("Invalid session_id")
+		http.Error(w, "Invalid session_id", http.StatusBadRequest)
 		return
 	}
 

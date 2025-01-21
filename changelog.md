@@ -216,3 +216,12 @@ Refactored all transports to use context.Context for better control over cancell
 - Updated stdio transport to use context for command execution and response handling
 - Removed channel-based cancellation in favor of context
 - Added proper context propagation throughout the client API 
+
+## Optional Session ID and Request ID Handling
+
+Made session ID optional in SSE transport by using a default session when none is provided. Also ensured request ID handling follows the MCP specification.
+
+- Made session ID optional in server and client SSE transport
+- Added default session support in server
+- Removed session ID requirement from client
+- Updated request ID handling to follow MCP spec 

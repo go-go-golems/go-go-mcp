@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // Transport represents a client transport mechanism
@@ -70,6 +71,7 @@ func (c *Client) Initialize(ctx context.Context, capabilities protocol.ClientCap
 	}
 	c.setRequestID(request)
 
+	log.Debug().Msgf("Sending initialize request")
 	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to send initialize request: %w", err)
@@ -416,13 +418,14 @@ func (c *Client) setRequestID(request *protocol.Request) {
 		return // notifications don't have IDs
 	}
 
-	id := json.RawMessage(fmt.Sprintf("%d", c.nextID))
-	request.ID = id
+	// According to MCP spec, request IDs can be either numbers or strings
+	// We'll use numbers for simplicity and compatibility
+	request.ID = json.RawMessage(fmt.Sprintf("%d", c.nextID))
 	c.nextID++
 
 	c.logger.Debug().
 		Str("method", request.Method).
-		RawJSON("id", id).
+		RawJSON("id", request.ID).
 		Msg("set request ID")
 }
 

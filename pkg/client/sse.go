@@ -13,6 +13,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/r3labs/sse/v2"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // SSETransport implements Transport using Server-Sent Events
@@ -22,7 +23,6 @@ type SSETransport struct {
 	client      *http.Client
 	sseClient   *sse.Client
 	events      chan *sse.Event
-	sessionID   string
 	closeOnce   sync.Once
 	logger      zerolog.Logger
 	initialized bool
@@ -137,24 +137,14 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 	go func() {
 		defer cancel()
 
+		log.Debug().Msgf("Subscribing to SSE")
 		err := t.sseClient.SubscribeWithContext(subCtx, "", func(msg *sse.Event) {
-			// Handle session ID event
-			if string(msg.Event) == "session" {
-				t.mu.Lock()
-				t.sessionID = string(msg.Data)
-				t.initialized = true
-				t.mu.Unlock()
-				t.logger.Debug().Str("sessionID", t.sessionID).Msg("Received session ID")
-				initDone <- nil
-				return
-			}
-
 			t.logger.Debug().
 				Str("event", string(msg.Event)).
 				RawJSON("data", msg.Data).
 				Msg("Received SSE event")
 
-			// Forward other events to the events channel
+			// Forward events to the events channel
 			select {
 			case t.events <- msg:
 				t.logger.Debug().Msg("Forwarded event to channel")
@@ -172,15 +162,7 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 		}
 	}()
 
-	// Wait for initialization or context cancellation
-	select {
-	case err := <-initDone:
-		close(initDone)
-		return err
-	case <-ctx.Done():
-		cancel()
-		return ctx.Err()
-	}
+	return nil
 }
 
 // Close closes the transport
