@@ -132,49 +132,81 @@ The server implements the MCP specification methods:
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
 
-## Usage
+## Running
 
-### Running the Server
+### Building the Client and Server
 
-Build and run the example stdio server:
+First, build both the client and server:
 
 ```bash
-go build -o stdio-server cmd/stdio-server/main.go
-./stdio-server
+# Build the client
+go build -o mcp-client ./cmd/mcp-client/main.go
+
+# Build the server
+go build -o mcp-server ./cmd/mcp-server/main.go
 ```
 
-### Client Connection
+### Basic Usage
 
-The server accepts JSON-RPC messages on stdin and writes responses to stdout. Example initialization:
+The client supports two transport types:
+- `command` (default): Launch and communicate with an MCP server process
+- `sse`: Server-Sent Events over HTTP for web applications
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "initialize",
-  "params": {
-    "protocolVersion": "2024-11-05",
-    "capabilities": {
-      "prompts": {
-        "listChanged": true
-      },
-      "resources": {
-        "subscribe": true,
-        "listChanged": true
-      },
-      "tools": {
-        "listChanged": true
-      }
-    },
-    "clientInfo": {
-      "name": "example-client",
-      "version": "1.0.0"
-    }
-  }
-}
+#### Using Command Transport (Default)
+
+The command transport is the default way to interact with an MCP server:
+
+```bash
+# List available prompts
+./mcp-client prompts list
+
+# List available tools
+./mcp-client tools list
+
+# Execute a prompt with arguments
+./mcp-client prompts execute hello --args '{"name":"World"}'
+
+# Call a tool with arguments
+./mcp-client tools call echo --args '{"message":"Hello, MCP!"}'
 ```
 
-## Development
+You can customize the server command and arguments if needed:
+
+```bash
+# Use a different server binary
+./mcp-client --command ./custom-server prompts list
+
+# Pass custom arguments to the server
+./mcp-client --args start,--debug,--port,8001 prompts list
+```
+
+#### Using SSE Transport
+
+For web-based applications, use the SSE transport:
+
+```bash
+# Start the server with SSE transport
+./mcp-server start --transport sse --port 8000
+
+# In another terminal, connect using the client
+./mcp-client --transport sse --server http://localhost:8000 prompts list
+```
+
+### Debug Mode
+
+Add the `--debug` flag to enable detailed logging:
+
+```bash
+./mcp-client --debug prompts list
+```
+
+### Version Information
+
+Check the version of the client:
+
+```bash
+./mcp-client version
+```
 
 ### Project Structure
 
@@ -185,11 +217,14 @@ The server accepts JSON-RPC messages on stdin and writes responses to stdout. Ex
   - `tools/` - Tool registry and handlers
   - `server/` - Server implementation
   - `doc/` - Documentation
-- `cmd/stdio-server/` - Example stdio server implementation
+- `cmd/`
+  - `mcp-client/` - MCP client implementation
+  - `mcp-server/` - MCP server implementation
 
 ### Dependencies
 
 - `github.com/rs/zerolog` - Structured logging
+- `github.com/spf13/cobra` - Command-line interface
 - Standard Go libraries
 
 ## Contributing
