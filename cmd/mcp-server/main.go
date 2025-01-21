@@ -14,6 +14,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/cursor"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -129,6 +130,10 @@ Available transports:
 			}
 			if err := tools.RegisterSQLiteTool(toolRegistry); err != nil {
 				log.Error().Err(err).Msg("Error registering sqlite tool")
+				return err
+			}
+			if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
+				log.Error().Err(err).Msg("Error registering cursor tools")
 				return err
 			}
 

@@ -335,3 +335,10 @@ Changed SQLite tool output format from JSON to YAML for better readability.
 - Changed output format to YAML
 - Added gopkg.in/yaml.v3 dependency
 - Updated tool description to clarify SQLite dot command limitations
+
+# Cursor Database Tools
+
+Added tools for analyzing and querying the Cursor database:
+- Added conversation management tools for retrieving and searching conversations
+- Added code analysis tools for extracting and tracking code blocks
+- Added context management tools for accessing file references and conversation context
