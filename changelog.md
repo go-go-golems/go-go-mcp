@@ -122,3 +122,12 @@ Enhanced command server logging:
 - Forward command server's stderr to client's stderr
 - Allows seeing server logs directly in client's terminal
 - Helps with debugging command server issues 
+
+# Improved Command Shutdown
+
+Enhanced command server shutdown handling:
+
+- Added fallback to Process.Kill() if interrupt signal fails
+- Improved error handling for process termination
+- Added detailed debug logging with process IDs
+- Fixed issue with programmatic interrupt signals not working 

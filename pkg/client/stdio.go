@@ -116,19 +116,48 @@ func (t *StdioTransport) Send(request *protocol.Request) (*protocol.Response, er
 func (t *StdioTransport) Close() error {
 	t.logger.Debug().Msg("Closing transport")
 	if t.cmd != nil {
-		t.logger.Debug().Msg("Sending interrupt signal to command")
+		t.logger.Debug().
+			Int("pid", t.cmd.Process.Pid).
+			Msg("Attempting to send interrupt signal to command")
+
+		// First try to send an interrupt signal
 		if err := t.cmd.Process.Signal(os.Interrupt); err != nil {
-			t.logger.Error().Err(err).Msg("Failed to send interrupt signal")
-			return fmt.Errorf("failed to send interrupt signal: %w", err)
+			t.logger.Warn().
+				Err(err).
+				Int("pid", t.cmd.Process.Pid).
+				Msg("Failed to send interrupt signal, falling back to Kill")
+
+			// If interrupt fails, try to kill the process
+			if err := t.cmd.Process.Kill(); err != nil {
+				t.logger.Error().
+					Err(err).
+					Int("pid", t.cmd.Process.Pid).
+					Msg("Failed to kill process")
+				return fmt.Errorf("failed to kill process: %w", err)
+			}
 		}
+
+		// Wait for the process to exit
+		t.logger.Debug().Msg("Waiting for command to exit")
 		err := t.cmd.Wait()
 		if err != nil {
-			t.logger.Debug().Err(err).Msg("Command exited with error")
-		} else {
-			t.logger.Debug().Msg("Command exited successfully")
+			// Check if it's an expected exit error (like signal kill)
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				t.logger.Debug().
+					Err(err).
+					Int("exit_code", exitErr.ExitCode()).
+					Msg("Command exited with error (expected for signal termination)")
+				return nil
+			}
+			t.logger.Error().
+				Err(err).
+				Msg("Command exited with unexpected error")
+			return err
 		}
-		return err
+
+		t.logger.Debug().Msg("Command exited successfully")
+		return nil
 	}
 	t.logger.Debug().Msg("No command to close")
-	return nil // Nothing to close for stdio
+	return nil
 }
