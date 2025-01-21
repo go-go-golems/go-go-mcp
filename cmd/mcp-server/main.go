@@ -16,6 +16,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -53,16 +54,8 @@ providing a framework for building MCP servers and clients.`,
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			}
 			if withCaller {
-				zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-					short := file
-					for i := len(file) - 1; i > 0; i-- {
-						if file[i] == '/' {
-							short = file[i+1:]
-							break
-						}
-					}
-					return fmt.Sprintf("%s:%d", short, line)
-				}
+				log.Debug().Msgf("Setting caller")
+				log.Logger = log.With().Caller().Logger()
 			}
 		},
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // Transport represents a client transport mechanism
@@ -71,7 +70,7 @@ func (c *Client) Initialize(ctx context.Context, capabilities protocol.ClientCap
 	}
 	c.setRequestID(request)
 
-	log.Debug().Msgf("Sending initialize request")
+	c.logger.Debug().Msg("Sending initialize request")
 	response, err := c.transport.Send(ctx, request)
 	if err != nil {
 		return fmt.Errorf("failed to send initialize request: %w", err)

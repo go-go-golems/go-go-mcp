@@ -225,3 +225,18 @@ Made session ID optional in SSE transport by using a default session when none i
 - Added default session support in server
 - Removed session ID requirement from client
 - Updated request ID handling to follow MCP spec 
+
+# Simplified zerolog caller configuration
+
+Replaced custom caller marshaler with zerolog's built-in Caller() for simpler and more maintainable code.
+
+- Removed custom caller marshaler function in both client and server
+- Using zerolog's built-in Caller() functionality
+- Added proper zerolog/log import in server
+
+## Logger Consolidation
+
+Consolidated logging setup to use a consistent logger throughout the application:
+- Set up global logger with console writer in main.go
+- Removed duplicate logger creation in createClient
+- Ensured client.go uses the local logger consistently

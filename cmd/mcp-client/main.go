@@ -45,21 +45,18 @@ Supports both stdio and SSE transports for client-server communication.`,
 				fmt.Fprintf(os.Stderr, "Invalid log level %s, defaulting to info\n", logLevel)
 				level = zerolog.InfoLevel
 			}
+
+			// Set up console writer for colored output
+			consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
+			logger := zerolog.New(consoleWriter).With().Timestamp()
+			if withCaller {
+				logger = logger.Caller()
+			}
+			log.Logger = logger.Logger()
+
 			zerolog.SetGlobalLevel(level)
 			if debug {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
-			}
-			if withCaller {
-				zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-					short := file
-					for i := len(file) - 1; i > 0; i-- {
-						if file[i] == '/' {
-							short = file[i+1:]
-							break
-						}
-					}
-					return fmt.Sprintf("%s:%d", short, line)
-				}
 			}
 		},
 	}
@@ -320,10 +317,6 @@ Supports both stdio and SSE transports for client-server communication.`,
 }
 
 func createClient(ctx context.Context) (*client.Client, error) {
-	// Use ConsoleWriter for colored output
-	consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-	logger := zerolog.New(consoleWriter).With().Timestamp().Logger()
-
 	var t client.Transport
 	var err error
 
@@ -345,7 +338,7 @@ func createClient(ctx context.Context) (*client.Client, error) {
 	}
 
 	// Create and initialize client
-	c := client.NewClient(logger, t)
+	c := client.NewClient(log.Logger, t)
 	log.Debug().Msgf("Initializing client")
 	err = c.Initialize(ctx, protocol.ClientCapabilities{
 		Sampling: &protocol.SamplingCapability{},
