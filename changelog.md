@@ -140,3 +140,13 @@ Enhanced signal handling in stdio server:
 - Fixed issue with signals not breaking scanner reads
 - Added detailed debug logging for signal flow
 - Improved shutdown coordination between scanner and signals 
+
+# Improved Process Group Handling
+
+Enhanced process group and signal handling in stdio transport:
+
+- Set up command server in its own process group
+- Send signals to entire process group instead of just the main process
+- Added fallback to direct process signals if process group handling fails
+- Improved debug logging for process and signal management
+- Fixed issue with signals not being properly received by the server 
