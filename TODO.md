@@ -32,3 +32,5 @@
 - [X] Allow debug logging
 - [x] Implement missing SSE methods
 - [x] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
+
+- [ ] Register commands using go introspection, like in pinocchio's tools
