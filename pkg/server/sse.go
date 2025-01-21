@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/services"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -17,21 +18,28 @@ import (
 
 // SSEServer handles SSE transport for MCP protocol
 type SSEServer struct {
-	mu       sync.RWMutex
-	logger   zerolog.Logger
-	registry *pkg.ProviderRegistry
-	clients  map[string]chan *protocol.Response
-	server   *http.Server
-	port     int
+	mu                sync.RWMutex
+	logger            zerolog.Logger
+	registry          *pkg.ProviderRegistry
+	clients           map[string]chan *protocol.Response
+	server            *http.Server
+	port              int
+	promptService     services.PromptService
+	resourceService   services.ResourceService
+	toolService       services.ToolService
+	initializeService services.InitializeService
 }
 
 // NewSSEServer creates a new SSE server instance
-func NewSSEServer(logger zerolog.Logger, registry *pkg.ProviderRegistry, port int) *SSEServer {
+func NewSSEServer(logger zerolog.Logger, ps services.PromptService, rs services.ResourceService, ts services.ToolService, is services.InitializeService, port int) *SSEServer {
 	return &SSEServer{
-		logger:   logger,
-		registry: registry,
-		clients:  make(map[string]chan *protocol.Response),
-		port:     port,
+		logger:            logger,
+		clients:           make(map[string]chan *protocol.Response),
+		port:              port,
+		promptService:     ps,
+		resourceService:   rs,
+		toolService:       ts,
+		initializeService: is,
 	}
 }
 
@@ -241,6 +249,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Process the request based on method
 	var response *protocol.Response
+	ctx := r.Context()
 
 	switch request.Method {
 	case "initialize":
@@ -265,28 +274,308 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 				Interface("capabilities", params.Capabilities).
 				Msg("Processing initialize request")
 
-			// Handle initialization
-			result := protocol.InitializeResult{
-				ProtocolVersion: params.ProtocolVersion,
-				Capabilities: protocol.ServerCapabilities{
-					Logging: &protocol.LoggingCapability{},
-					Prompts: &protocol.PromptsCapability{
-						ListChanged: true,
+			result, err := s.initializeService.Initialize(ctx, params)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Initialize failed",
 					},
-					Resources: &protocol.ResourcesCapability{
-						Subscribe:   true,
-						ListChanged: true,
+				}
+			} else {
+				resultJSON, err := s.marshalJSON(result)
+				if err != nil {
+					response = &protocol.Response{
+						JSONRPC: "2.0",
+						Error: &protocol.Error{
+							Code:    -32603,
+							Message: "Internal error",
+						},
+					}
+				} else {
+					response = &protocol.Response{
+						JSONRPC: "2.0",
+						Result:  resultJSON,
+					}
+				}
+			}
+		}
+
+	case "ping":
+		response = &protocol.Response{
+			JSONRPC: "2.0",
+			Result:  json.RawMessage("{}"),
+		}
+
+	case "prompts/list":
+		var cursor string
+		if request.Params != nil {
+			var params struct {
+				Cursor string `json:"cursor"`
+			}
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32602,
+						Message: "Invalid params",
 					},
-					Tools: &protocol.ToolsCapability{
-						ListChanged: true,
-					},
-				},
-				ServerInfo: protocol.ServerInfo{
-					Name:    "go-mcp-server",
-					Version: "1.0.0",
+				}
+				break
+			}
+			cursor = params.Cursor
+		}
+
+		prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32603,
+					Message: "Internal error",
 				},
 			}
+		} else {
+			result := map[string]interface{}{
+				"prompts":    prompts,
+				"nextCursor": nextCursor,
+			}
+			resultJSON, err := s.marshalJSON(result)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+					},
+				}
+			} else {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Result:  resultJSON,
+				}
+			}
+		}
 
+	case "prompts/get":
+		var params struct {
+			Name      string            `json:"name"`
+			Arguments map[string]string `json:"arguments"`
+		}
+		if err := json.Unmarshal(request.Params, &params); err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32602,
+					Message: "Invalid params",
+				},
+			}
+			break
+		}
+
+		message, err := s.promptService.GetPrompt(ctx, params.Name, params.Arguments)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32602,
+					Message: "Prompt not found",
+				},
+			}
+		} else {
+			result := map[string]interface{}{
+				"description": "Prompt from provider",
+				"messages":    []protocol.PromptMessage{*message},
+			}
+			resultJSON, err := s.marshalJSON(result)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+					},
+				}
+			} else {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Result:  resultJSON,
+				}
+			}
+		}
+
+	case "resources/list":
+		var cursor string
+		if request.Params != nil {
+			var params struct {
+				Cursor string `json:"cursor"`
+			}
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32602,
+						Message: "Invalid params",
+					},
+				}
+				break
+			}
+			cursor = params.Cursor
+		}
+
+		resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32603,
+					Message: "Internal error",
+				},
+			}
+		} else {
+			result := map[string]interface{}{
+				"resources":  resources,
+				"nextCursor": nextCursor,
+			}
+			resultJSON, err := s.marshalJSON(result)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+					},
+				}
+			} else {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Result:  resultJSON,
+				}
+			}
+		}
+
+	case "resources/read":
+		var params struct {
+			URI string `json:"uri"`
+		}
+		if err := json.Unmarshal(request.Params, &params); err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32602,
+					Message: "Invalid params",
+				},
+			}
+			break
+		}
+
+		content, err := s.resourceService.ReadResource(ctx, params.URI)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32002,
+					Message: "Resource not found",
+				},
+			}
+		} else {
+			result := map[string]interface{}{
+				"contents": []protocol.ResourceContent{*content},
+			}
+			resultJSON, err := s.marshalJSON(result)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+					},
+				}
+			} else {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Result:  resultJSON,
+				}
+			}
+		}
+
+	case "tools/list":
+		var cursor string
+		if request.Params != nil {
+			var params struct {
+				Cursor string `json:"cursor"`
+			}
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32602,
+						Message: "Invalid params",
+					},
+				}
+				break
+			}
+			cursor = params.Cursor
+		}
+
+		tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32603,
+					Message: "Internal error",
+				},
+			}
+		} else {
+			result := map[string]interface{}{
+				"tools":      tools,
+				"nextCursor": nextCursor,
+			}
+			resultJSON, err := s.marshalJSON(result)
+			if err != nil {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Error: &protocol.Error{
+						Code:    -32603,
+						Message: "Internal error",
+					},
+				}
+			} else {
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					Result:  resultJSON,
+				}
+			}
+		}
+
+	case "tools/call":
+		var params struct {
+			Name      string                 `json:"name"`
+			Arguments map[string]interface{} `json:"arguments"`
+		}
+		if err := json.Unmarshal(request.Params, &params); err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32602,
+					Message: "Invalid params",
+				},
+			}
+			break
+		}
+
+		result, err := s.toolService.CallTool(ctx, params.Name, params.Arguments)
+		if err != nil {
+			response = &protocol.Response{
+				JSONRPC: "2.0",
+				Error: &protocol.Error{
+					Code:    -32602,
+					Message: "Tool not found",
+				},
+			}
+		} else {
 			resultJSON, err := s.marshalJSON(result)
 			if err != nil {
 				response = &protocol.Response{

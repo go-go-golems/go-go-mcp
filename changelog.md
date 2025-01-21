@@ -177,3 +177,10 @@ Made Tool an interface with accessors and context-aware Call method for better e
 - Added ToolImpl as a basic implementation of the Tool interface
 - Updated Registry, Client and CLI to use the new Tool interface
 - Added context support throughout the tool invocation chain 
+
+# SSE Server Message Handling
+
+Added support for all MCP protocol methods in the SSE server implementation:
+- Updated SSEServer to use all services (prompt, resource, tool, initialize)
+- Added handlers for all protocol methods (prompts/list, prompts/get, resources/list, resources/read, tools/list, tools/call)
+- Improved error handling and response formatting 

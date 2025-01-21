@@ -85,7 +85,7 @@ func (s *Server) StartStdio(ctx context.Context) error {
 func (s *Server) StartSSE(ctx context.Context, port int) error {
 	s.mu.Lock()
 	s.logger.Debug().Int("port", port).Msg("Creating SSE transport")
-	sseServer := NewSSEServer(s.logger, s.registry, port)
+	sseServer := NewSSEServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService, port)
 	s.transport = sseServer
 	s.mu.Unlock()
 
