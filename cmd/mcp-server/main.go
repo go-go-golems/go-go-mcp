@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -84,6 +85,32 @@ Available transports:
 					},
 				},
 			})
+
+			schemaJson := `{
+				"type": "object",
+				"properties": {
+					"message": {
+						"type": "string"
+					}
+				}
+			}`
+			toolRegistry.RegisterToolWithHandler(
+				protocol.Tool{
+					Name:        "echo",
+					Description: "Echo the input arguments",
+					InputSchema: json.RawMessage(schemaJson),
+				},
+				func(tool protocol.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+					message, ok := arguments["message"].(string)
+					if !ok {
+						return protocol.NewToolResult(
+							protocol.WithError("message argument must be a string"),
+						), nil
+					}
+					return protocol.NewToolResult(
+						protocol.WithText(message),
+					), nil
+				})
 
 			// Register registries with the server
 			srv.GetRegistry().RegisterPromptProvider(promptRegistry)

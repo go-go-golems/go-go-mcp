@@ -22,6 +22,8 @@ var (
 	transport string
 	serverURL string
 	debug     bool
+	command   string
+	cmdArgs   []string
 
 	// Operation flags
 	promptArgs string
@@ -44,8 +46,10 @@ Supports both stdio and SSE transports for client-server communication.`,
 
 	// Add persistent flags
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
-	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "stdio", "Transport type (stdio or sse)")
+	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "stdio", "Transport type (stdio, sse, or command)")
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://localhost:8000", "Server URL for SSE transport")
+	rootCmd.PersistentFlags().StringVarP(&command, "command", "c", "", "Command to run for command transport")
+	rootCmd.PersistentFlags().StringSliceVarP(&cmdArgs, "args", "a", []string{}, "Command arguments for command transport")
 
 	// Prompts command group
 	promptsCmd := &cobra.Command{
@@ -307,6 +311,14 @@ func createClient() (*client.Client, error) {
 		t = client.NewStdioTransport()
 	case "sse":
 		t = client.NewSSETransport(serverURL)
+	case "command":
+		if command == "" {
+			return nil, fmt.Errorf("command is required for command transport")
+		}
+		t, err = client.NewCommandStdioTransport(command, cmdArgs...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create command transport: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("invalid transport type: %s", transport)
 	}
