@@ -10,6 +10,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/client"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -331,11 +332,13 @@ func createClient(ctx context.Context) (*client.Client, error) {
 		if len(cmdArgs) == 0 {
 			return nil, fmt.Errorf("command is required for command transport")
 		}
+		log.Debug().Msgf("Creating command transport with args: %v", cmdArgs)
 		t, err = client.NewCommandStdioTransport(cmdArgs[0], cmdArgs[1:]...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create command transport: %w", err)
 		}
 	case "sse":
+		log.Debug().Msgf("Creating SSE transport with server URL: %s", serverURL)
 		t = client.NewSSETransport(serverURL)
 	default:
 		return nil, fmt.Errorf("invalid transport type: %s", transport)
@@ -343,12 +346,15 @@ func createClient(ctx context.Context) (*client.Client, error) {
 
 	// Create and initialize client
 	c := client.NewClient(logger, t)
+	log.Debug().Msgf("Initializing client")
 	err = c.Initialize(ctx, protocol.ClientCapabilities{
 		Sampling: &protocol.SamplingCapability{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize client: %w", err)
 	}
+
+	log.Debug().Msgf("Client initialized")
 
 	return c, nil
 }
