@@ -53,6 +53,9 @@ func NewCommandStdioTransport(command string, args ...string) (*StdioTransport, 
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	// Forward stderr to client's stderr
+	cmd.Stderr = os.Stderr
+
 	if err := cmd.Start(); err != nil {
 		logger.Error().Err(err).Msg("Failed to start command")
 		return nil, fmt.Errorf("failed to start command: %w", err)

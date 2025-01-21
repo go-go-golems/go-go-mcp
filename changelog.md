@@ -114,3 +114,11 @@ Improved server logging when running as a command:
 - Configured stderr output to be forwarded to client
 - Preserved log level and timestamp formatting
 - Improved log message readability for debugging 
+
+# Command Server Logging
+
+Enhanced command server logging:
+
+- Forward command server's stderr to client's stderr
+- Allows seeing server logs directly in client's terminal
+- Helps with debugging command server issues 
