@@ -185,6 +185,15 @@ Added support for all MCP protocol methods in the SSE server implementation:
 - Added handlers for all protocol methods (prompts/list, prompts/get, resources/list, resources/read, tools/list, tools/call)
 - Improved error handling and response formatting 
 
+# Improved JSON-RPC Error Handling
+
+Enhanced error handling in SSE server to better comply with JSON-RPC 2.0 specification:
+
+- Added proper error codes for different error types (parse error, invalid request, method not found, invalid params, internal error)
+- Improved error message formatting and consistency
+- Added error data field with detailed error information
+- Fixed JSON-RPC version validation
+
 # SSE Protocol Compliance
 
 Removed non-standard endpoint event from SSE server to better align with the official protocol specification.

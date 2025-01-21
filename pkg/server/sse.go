@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
@@ -219,7 +220,30 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			Err(err).
 			Str("session_id", sessionID).
 			Msg("Invalid request body")
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		response := &protocol.Response{
+			JSONRPC: "2.0",
+			Error: &protocol.Error{
+				Code:    -32700,
+				Message: "Parse error",
+			},
+		}
+		messageChan <- response
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+
+	if request.JSONRPC != "2.0" {
+		data, _ := json.Marshal("Invalid JSON-RPC version")
+		response := &protocol.Response{
+			JSONRPC: "2.0",
+			Error: &protocol.Error{
+				Code:    -32600,
+				Message: "Invalid Request",
+				Data:    json.RawMessage(data),
+			},
+		}
+		messageChan <- response
+		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
@@ -237,47 +261,44 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	case "initialize":
 		var params protocol.InitializeParams
 		if err := json.Unmarshal(request.Params, &params); err != nil {
-			s.logger.Error().
-				Err(err).
-				Str("session_id", sessionID).
-				RawJSON("params", request.Params).
-				Msg("Invalid initialize params")
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
 					Code:    -32602,
 					Message: "Invalid params",
 				},
 			}
 		} else {
-			s.logger.Debug().
-				Str("session_id", sessionID).
-				Str("protocol_version", params.ProtocolVersion).
-				Interface("capabilities", params.Capabilities).
-				Msg("Processing initialize request")
-
 			result, err := s.initializeService.Initialize(ctx, params)
 			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32603,
-						Message: "Initialize failed",
+						Message: "Internal error",
+						Data:    json.RawMessage(data),
 					},
 				}
 			} else {
 				resultJSON, err := s.marshalJSON(result)
 				if err != nil {
+					data, _ := json.Marshal(err.Error())
 					response = &protocol.Response{
 						JSONRPC: "2.0",
+						ID:      request.ID,
 						Error: &protocol.Error{
 							Code:    -32603,
 							Message: "Internal error",
+							Data:    json.RawMessage(data),
 						},
 					}
 				} else {
 					response = &protocol.Response{
 						JSONRPC: "2.0",
+						ID:      request.ID,
 						Result:  resultJSON,
 					}
 				}
@@ -287,10 +308,11 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 	case "ping":
 		response = &protocol.Response{
 			JSONRPC: "2.0",
+			ID:      request.ID,
 			Result:  json.RawMessage("{}"),
 		}
 
-	case "prompts/list":
+	case "prompts/list", "resources/list", "tools/list":
 		var cursor string
 		if request.Params != nil {
 			var params struct {
@@ -299,6 +321,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			if err := json.Unmarshal(request.Params, &params); err != nil {
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32602,
 						Message: "Invalid params",
@@ -309,32 +332,51 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			cursor = params.Cursor
 		}
 
-		prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
+		var result interface{}
+		var nextCursor string
+		var err error
+
+		switch request.Method {
+		case "prompts/list":
+			result, nextCursor, err = s.promptService.ListPrompts(ctx, cursor)
+		case "resources/list":
+			result, nextCursor, err = s.resourceService.ListResources(ctx, cursor)
+		case "tools/list":
+			result, nextCursor, err = s.toolService.ListTools(ctx, cursor)
+		}
+
 		if err != nil {
+			data, _ := json.Marshal(err.Error())
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
 					Code:    -32603,
 					Message: "Internal error",
+					Data:    json.RawMessage(data),
 				},
 			}
 		} else {
-			result := map[string]interface{}{
-				"prompts":    prompts,
+			resultMap := map[string]interface{}{
+				strings.TrimSuffix(request.Method, "/list"): result,
 				"nextCursor": nextCursor,
 			}
-			resultJSON, err := s.marshalJSON(result)
+			resultJSON, err := s.marshalJSON(resultMap)
 			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32603,
 						Message: "Internal error",
+						Data:    json.RawMessage(data),
 					},
 				}
 			} else {
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Result:  resultJSON,
 				}
 			}
@@ -348,6 +390,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
 					Code:    -32602,
 					Message: "Invalid params",
@@ -358,11 +401,14 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 		message, err := s.promptService.GetPrompt(ctx, params.Name, params.Arguments)
 		if err != nil {
+			data, _ := json.Marshal(err.Error())
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Prompt not found",
+					Code:    -32603,
+					Message: "Internal error",
+					Data:    json.RawMessage(data),
 				},
 			}
 		} else {
@@ -372,66 +418,20 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			}
 			resultJSON, err := s.marshalJSON(result)
 			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32603,
 						Message: "Internal error",
+						Data:    json.RawMessage(data),
 					},
 				}
 			} else {
 				response = &protocol.Response{
 					JSONRPC: "2.0",
-					Result:  resultJSON,
-				}
-			}
-		}
-
-	case "resources/list":
-		var cursor string
-		if request.Params != nil {
-			var params struct {
-				Cursor string `json:"cursor"`
-			}
-			if err := json.Unmarshal(request.Params, &params); err != nil {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					Error: &protocol.Error{
-						Code:    -32602,
-						Message: "Invalid params",
-					},
-				}
-				break
-			}
-			cursor = params.Cursor
-		}
-
-		resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
-		if err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-				},
-			}
-		} else {
-			result := map[string]interface{}{
-				"resources":  resources,
-				"nextCursor": nextCursor,
-			}
-			resultJSON, err := s.marshalJSON(result)
-			if err != nil {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-					},
-				}
-			} else {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
+					ID:      request.ID,
 					Result:  resultJSON,
 				}
 			}
@@ -444,6 +444,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
 					Code:    -32602,
 					Message: "Invalid params",
@@ -454,11 +455,14 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 		content, err := s.resourceService.ReadResource(ctx, params.URI)
 		if err != nil {
+			data, _ := json.Marshal(err.Error())
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
-					Code:    -32002,
-					Message: "Resource not found",
+					Code:    -32603,
+					Message: "Internal error",
+					Data:    json.RawMessage(data),
 				},
 			}
 		} else {
@@ -467,66 +471,20 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			}
 			resultJSON, err := s.marshalJSON(result)
 			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32603,
 						Message: "Internal error",
+						Data:    json.RawMessage(data),
 					},
 				}
 			} else {
 				response = &protocol.Response{
 					JSONRPC: "2.0",
-					Result:  resultJSON,
-				}
-			}
-		}
-
-	case "tools/list":
-		var cursor string
-		if request.Params != nil {
-			var params struct {
-				Cursor string `json:"cursor"`
-			}
-			if err := json.Unmarshal(request.Params, &params); err != nil {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					Error: &protocol.Error{
-						Code:    -32602,
-						Message: "Invalid params",
-					},
-				}
-				break
-			}
-			cursor = params.Cursor
-		}
-
-		tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
-		if err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-				},
-			}
-		} else {
-			result := map[string]interface{}{
-				"tools":      tools,
-				"nextCursor": nextCursor,
-			}
-			resultJSON, err := s.marshalJSON(result)
-			if err != nil {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-					},
-				}
-			} else {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
+					ID:      request.ID,
 					Result:  resultJSON,
 				}
 			}
@@ -540,6 +498,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
 					Code:    -32602,
 					Message: "Invalid params",
@@ -550,26 +509,33 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 		result, err := s.toolService.CallTool(ctx, params.Name, params.Arguments)
 		if err != nil {
+			data, _ := json.Marshal(err.Error())
 			response = &protocol.Response{
 				JSONRPC: "2.0",
+				ID:      request.ID,
 				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Tool not found",
+					Code:    -32603,
+					Message: "Internal error",
+					Data:    json.RawMessage(data),
 				},
 			}
 		} else {
 			resultJSON, err := s.marshalJSON(result)
 			if err != nil {
+				data, _ := json.Marshal(err.Error())
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Error: &protocol.Error{
 						Code:    -32603,
 						Message: "Internal error",
+						Data:    json.RawMessage(data),
 					},
 				}
 			} else {
 				response = &protocol.Response{
 					JSONRPC: "2.0",
+					ID:      request.ID,
 					Result:  resultJSON,
 				}
 			}
@@ -582,15 +548,12 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 			Msg("Method not found")
 		response = &protocol.Response{
 			JSONRPC: "2.0",
+			ID:      request.ID,
 			Error: &protocol.Error{
 				Code:    -32601,
 				Message: "Method not found",
 			},
 		}
-	}
-
-	if request.ID != nil {
-		response.ID = request.ID
 	}
 
 	// Send response through the client's message channel
