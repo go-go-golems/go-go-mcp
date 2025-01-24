@@ -1,4 +1,4 @@
-package tools
+package examples
 
 import (
 	"context"
@@ -7,13 +7,14 @@ import (
 	"fmt"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v3"
 )
 
 const defaultDBPath = "/home/manuel/.config/Cursor/User/globalStorage/state.vscdb"
 
-func RegisterSQLiteTool(registry *Registry) error {
+func RegisterSQLiteTool(registry *tools.Registry) error {
 	schemaJson := `{
 		"type": "object",
 		"properties": {
@@ -25,7 +26,7 @@ func RegisterSQLiteTool(registry *Registry) error {
 		"required": ["query"]
 	}`
 
-	tool, err := NewToolImpl(
+	tool, err := tools.NewToolImpl(
 		"sqlite",
 		"Execute SQL queries against the Cursor IDE's SQLite database and output results as YAML. This tool provides direct access to Cursor's underlying data storage, allowing complex queries for conversation analysis, usage patterns, and IDE state. Useful for advanced data analysis or when the higher-level conversation tools are insufficient.",
 		json.RawMessage(schemaJson))
@@ -35,7 +36,7 @@ func RegisterSQLiteTool(registry *Registry) error {
 
 	registry.RegisterToolWithHandler(
 		tool,
-		func(ctx context.Context, tool Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+		func(ctx context.Context, tool tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 			query, ok := arguments["query"].(string)
 			if !ok {
 				return protocol.NewToolResult(

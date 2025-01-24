@@ -1,13 +1,14 @@
-package tools
+package examples
 
 import (
 	"context"
 	"encoding/json"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 )
 
-func RegisterEchoTool(registry *Registry) error {
+func RegisterEchoTool(registry *tools.Registry) error {
 	schemaJson := `{
 		"type": "object",
 		"properties": {
@@ -17,14 +18,14 @@ func RegisterEchoTool(registry *Registry) error {
 		}
 	}`
 
-	tool, err := NewToolImpl("echo", "Echo the input arguments", json.RawMessage(schemaJson))
+	tool, err := tools.NewToolImpl("echo", "Echo the input arguments", json.RawMessage(schemaJson))
 	if err != nil {
 		return err
 	}
 
 	registry.RegisterToolWithHandler(
 		tool,
-		func(ctx context.Context, tool Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+		func(ctx context.Context, tool tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 			message, ok := arguments["message"].(string)
 			if !ok {
 				return protocol.NewToolResult(

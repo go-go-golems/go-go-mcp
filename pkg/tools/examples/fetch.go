@@ -1,4 +1,4 @@
-package tools
+package examples
 
 import (
 	"context"
@@ -9,9 +9,10 @@ import (
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 )
 
-func RegisterFetchTool(registry *Registry) error {
+func RegisterFetchTool(registry *tools.Registry) error {
 	fetchSchemaJson := `{
 		"type": "object",
 		"properties": {
@@ -23,7 +24,7 @@ func RegisterFetchTool(registry *Registry) error {
 		"required": ["url"]
 	}`
 
-	fetchTool, err := NewToolImpl(
+	fetchTool, err := tools.NewToolImpl(
 		"fetch", `Fetch content from a URL and convert to markdown.
 				
 Fetches a URL from the internet and optionally extracts its
@@ -39,7 +40,7 @@ fetch the most up-to-date information and let the user know that.  `,
 
 	registry.RegisterToolWithHandler(
 		fetchTool,
-		func(ctx context.Context, tool Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+		func(ctx context.Context, tool tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 			url, ok := arguments["url"].(string)
 			if !ok {
 				return protocol.NewToolResult(

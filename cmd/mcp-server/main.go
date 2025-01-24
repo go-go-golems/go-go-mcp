@@ -14,7 +14,8 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/cursor"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples/cursor"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -120,15 +121,15 @@ Available transports:
 			srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
 			// Register tools
-			if err := tools.RegisterEchoTool(toolRegistry); err != nil {
+			if err := examples.RegisterEchoTool(toolRegistry); err != nil {
 				log.Error().Err(err).Msg("Error registering echo tool")
 				return err
 			}
-			if err := tools.RegisterFetchTool(toolRegistry); err != nil {
+			if err := examples.RegisterFetchTool(toolRegistry); err != nil {
 				log.Error().Err(err).Msg("Error registering fetch tool")
 				return err
 			}
-			if err := tools.RegisterSQLiteTool(toolRegistry); err != nil {
+			if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
 				log.Error().Err(err).Msg("Error registering sqlite tool")
 				return err
 			}
