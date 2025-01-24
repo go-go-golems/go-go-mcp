@@ -9,10 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/glazed/pkg/settings"
+	"github.com/go-go-golems/go-go-mcp/pkg/cmds/shell"
 	"github.com/go-go-golems/go-go-mcp/pkg/prompts"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
@@ -25,8 +28,9 @@ import (
 )
 
 type StartCommandSettings struct {
-	Transport string `glazed.parameter:"transport"`
-	Port      int    `glazed.parameter:"port"`
+	Transport    string   `glazed.parameter:"transport"`
+	Port         int      `glazed.parameter:"port"`
+	Repositories []string `glazed.parameter:"repositories"`
 }
 
 type StartCommand struct {
@@ -60,6 +64,12 @@ Available transports:
 					parameters.ParameterTypeInteger,
 					parameters.WithHelp("Port to listen on for SSE transport"),
 					parameters.WithDefault(3001),
+				),
+				parameters.NewParameterDefinition(
+					"repositories",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("List of directories containing shell command repositories"),
+					parameters.WithDefault([]string{}),
 				),
 			),
 			cmds.WithLayersList(
@@ -123,6 +133,49 @@ func (c *StartCommand) Run(
 	if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
 		log.Error().Err(err).Msg("Error registering cursor tools")
 		return err
+	}
+
+	// Load shell commands from repositories
+	if len(s.Repositories) > 0 {
+		loader := &shell.ShellCommandLoader{}
+		directories := []repositories.Directory{}
+
+		for _, repoPath := range s.Repositories {
+			dir := os.ExpandEnv(repoPath)
+			// check if dir exists
+			if fi, err := os.Stat(dir); os.IsNotExist(err) || !fi.IsDir() {
+				log.Warn().Str("path", dir).Msg("Repository directory does not exist or is not a directory")
+				continue
+			}
+			directories = append(directories, repositories.Directory{
+				FS:               os.DirFS(dir),
+				RootDirectory:    ".",
+				RootDocDirectory: "doc",
+				WatchDirectory:   dir,
+				Name:             dir,
+				SourcePrefix:     "file",
+			})
+		}
+
+		if len(directories) > 0 {
+			repo := repositories.NewRepository(
+				repositories.WithDirectories(directories...),
+				repositories.WithCommandLoader(loader),
+			)
+
+			helpSystem := help.NewHelpSystem()
+			err := repo.LoadCommands(helpSystem)
+			if err != nil {
+				log.Error().Err(err).Msg("Error loading shell commands from repositories")
+				return err
+			}
+
+			commands := repo.CollectCommands([]string{}, true)
+			log.Info().Int("count", len(commands)).Msg("Loaded shell commands from repositories")
+			for _, cmd := range commands {
+				log.Debug().Str("name", cmd.Description().Name).Msg("Loaded shell command")
+			}
+		}
 	}
 
 	// Create root context with cancellation

@@ -410,3 +410,12 @@ Added proper settings struct for schema command to better handle parameter initi
 - Created SchemaCommandSettings struct with file parameter
 - Updated schema command to use settings struct
 - Improved error handling for file parameter
+
+# Command Loading Documentation
+
+Added comprehensive documentation for loading commands from YAML files and repositories:
+
+- Added command loader interface explanation
+- Added examples for loading single files and repositories
+- Added best practices and troubleshooting guide
+- Added example shell command YAML format

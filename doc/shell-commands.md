@@ -118,19 +118,76 @@ flags:
     required: true
     
   - name: mode
-    type: string
+    type: choice
     help: Operation mode
     choices: [fast, safe, debug]
     default: safe
 ```
 
 Supported flag types:
-- `string`: Text values
-- `int`: Integer numbers
-- `float`: Floating point numbers
-- `bool`: True/false values
-- `[]string`: String arrays
-- `map[string]string`: Key-value maps
+- `string`: Text values (e.g., `--name=value`)
+- `int`: Integer numbers (e.g., `--count=10`)
+- `float`: Floating point numbers (e.g., `--threshold=0.75`)
+- `bool`: True/false values (e.g., `--verbose` or `--verbose=false`)
+- `date`: Date values (e.g., `--from=2024-01-01`)
+- `stringList`: List of strings (e.g., `--tags=a,b,c` or multiple `--tags=a --tags=b`)
+- `intList`: List of integers (e.g., `--numbers=1,2,3`)
+- `floatList`: List of floating point numbers
+- `choice`: Single selection from predefined options
+- `choiceList`: Multiple selections from predefined options
+- `keyValue`: Key-value pairs (e.g., `--header='Content-Type:application/json'`)
+- `file`: Single file input
+- `fileList`: Multiple file inputs
+- `stringFromFile`: String content read from a file
+- `objectFromFile`: Structured data read from a file
+- `stringListFromFile`: List of strings read from a file
+- `objectListFromFile`: List of structured data read from a file
+
+Each flag definition supports these fields:
+- `name`: (required) The parameter name used in CLI
+- `type`: (required) One of the types listed above
+- `help`: Short description of the parameter
+- `default`: Default value if not provided
+- `required`: Set to true if the parameter must be provided
+- `choices`: List of valid options (for `choice` and `choiceList` types)
+
+Examples of different flag types:
+
+```yaml
+flags:
+  # Date range with defaults
+  - name: from
+    type: date
+    help: Start date (inclusive)
+    default: 2024-01-01
+  
+  # Choice from predefined options
+  - name: group-by
+    type: choice
+    help: Result grouping
+    choices: [year, month, all-time]
+    default: month
+  
+  # List of allowed statuses
+  - name: status
+    type: stringList
+    help: Order statuses to include
+    default: ['pending', 'processing']
+  
+  # File input
+  - name: config
+    type: file
+    help: Configuration file
+    required: true
+  
+  # Key-value pairs
+  - name: labels
+    type: keyValue
+    help: Resource labels
+    default:
+      env: dev
+      team: backend
+```
 
 ### Arguments
 
