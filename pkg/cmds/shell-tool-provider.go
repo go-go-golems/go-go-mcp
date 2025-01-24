@@ -99,8 +99,9 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 	// Create a buffer to capture the command output
 	buf := &strings.Builder{}
 
+	dataMap := parsedLayers.GetDataMap()
 	// Run the command with parsed parameters
-	err = tool.cmd.ExecuteCommand(ctx, parsedLayers.GetDataMap(), buf)
+	err = tool.cmd.ExecuteCommand(ctx, dataMap, buf)
 	if err != nil {
 		return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
 	}

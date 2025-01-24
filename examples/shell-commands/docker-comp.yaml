@@ -5,7 +5,7 @@ long: |
   configurable compose file location.
 
 flags:
-  - name: compose-file
+  - name: compose_file
     type: string
     help: Path to docker-compose.yml
     default: docker-compose.yml

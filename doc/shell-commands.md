@@ -31,7 +31,7 @@ long: |
   Detailed description that can
   span multiple lines
 flags:
-  - name: flag-name
+  - name: flag_name
     type: string
     help: Flag description
     required: true
@@ -162,7 +162,7 @@ flags:
     default: 2024-01-01
   
   # Choice from predefined options
-  - name: group-by
+  - name: group_by
     type: choice
     help: Result grouping
     choices: [year, month, all-time]
@@ -297,7 +297,7 @@ A log processing script with multiple options:
 name: analyze-logs
 short: Analyze application logs
 flags:
-  - name: log-dir
+  - name: log_dir
     type: string
     help: Log directory
     required: true

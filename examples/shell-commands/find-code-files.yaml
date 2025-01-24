@@ -43,7 +43,7 @@ flags:
       Use "." for current directory.
     default: "."
 
-  - name: modified-after
+  - name: modified_after
     type: string
     help: |
       Filter files modified after specified time.
@@ -54,7 +54,7 @@ flags:
       - "24 hours ago"
       - "2023-12-31"
     
-  - name: min-size
+  - name: min_size
     type: string
     help: |
       Minimum file size filter.
@@ -64,7 +64,7 @@ flags:
       - "1M" (1 megabyte)
       - "2G" (2 gigabytes)
 
-  - name: max-size
+  - name: max_size
     type: string
     help: |
       Maximum file size filter.
@@ -74,7 +74,7 @@ flags:
       - "1M" (1 megabyte)
       - "2G" (2 gigabytes)
 
-  - name: exclude-dir
+  - name: exclude_dir
     type: stringList
     help: |
       Directories to exclude from search.
@@ -134,4 +134,5 @@ shell-script: |
   done
 
   # Execute find command with extension pattern
+  echo "$find_cmd \( $ext_pattern \) -type f"
   eval "$find_cmd \( $ext_pattern \) -type f"

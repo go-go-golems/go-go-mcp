@@ -5,7 +5,7 @@ long: |
   and optionally pushing local changes.
 
 flags:
-  - name: repos-dir
+  - name: repos_dir
     type: string
     help: Base directory containing git repositories
     required: true

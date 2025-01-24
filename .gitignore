@@ -19,3 +19,4 @@ dist/
 .env
 .envrc
 .history
+__debug*
