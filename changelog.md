@@ -352,3 +352,35 @@ Refactored SSE and stdio servers to use a common protocol dispatcher to handle M
 - Unifying error handling and response creation
 - Adding proper context handling for session IDs
 - Reducing code duplication between transport implementations
+
+## Embed Static Files in Prompto Server Binary
+
+Improved deployment by embedding static files into the binary instead of serving from disk.
+
+- Updated serve.go to use Go's embed package for static files
+
+# Refactor prompts commands to use glazed framework
+
+Refactored the prompts list and execute commands to use the glazed framework for better structured data output and consistent command line interface.
+
+- Converted ListPrompts to a GlazeCommand for structured output
+- Converted ExecutePrompt to a WriterCommand for formatted text output
+- Added proper parameter handling using glazed parameter layers
+- Improved error handling and command initialization
+
+# Change prompt name from argument to flag
+
+Changed the execute prompt command to use a --prompt-name flag instead of a positional argument for better usability and consistency with glazed framework.
+
+- Added --prompt-name flag to execute command
+- Removed positional argument requirement
+- Updated command help text to reflect new usage
+
+# Add client settings layer
+
+Added a dedicated settings layer for MCP client configuration to improve reusability and consistency:
+
+- Created new ClientParameterLayer for transport and server settings
+- Updated client helper to use settings layer instead of cobra flags
+- Updated list and execute commands to use the new layer
+- Improved error handling and configuration management
