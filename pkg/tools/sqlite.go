@@ -19,13 +19,16 @@ func RegisterSQLiteTool(registry *Registry) error {
 		"properties": {
 			"query": {
 				"type": "string",
-				"description": "The SQL query to execute. Note: SQLite dot commands like .tables are not supported as they are CLI-specific features."
+				"description": "An SQL query to execute against Cursor's SQLite database. The database contains AI conversation history, IDE state, and other Cursor-related data. Common tables include 'cursorDiskKV' for conversation storage. Note: SQLite dot commands like .tables are not supported as they are CLI-specific features. Use standard SQL queries instead."
 			}
 		},
 		"required": ["query"]
 	}`
 
-	tool, err := NewToolImpl("sqlite", "Execute SQL queries against the Cursor SQLite database and output results as YAML", json.RawMessage(schemaJson))
+	tool, err := NewToolImpl(
+		"sqlite",
+		"Execute SQL queries against the Cursor IDE's SQLite database and output results as YAML. This tool provides direct access to Cursor's underlying data storage, allowing complex queries for conversation analysis, usage patterns, and IDE state. Useful for advanced data analysis or when the higher-level conversation tools are insufficient.",
+		json.RawMessage(schemaJson))
 	if err != nil {
 		return err
 	}

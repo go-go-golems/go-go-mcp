@@ -33,4 +33,9 @@
 - [x] Implement missing SSE methods
 - [x] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
 
+- [ ] Allow logging to separate file (to debug claude for example)
+
 - [ ] Register commands using go introspection, like in pinocchio's tools
+- [ ] Make it easy to register a struct with multiple tool handlers (say, to keep a single handle to a resource), linked to the session_id
+- [ ] Pass the session id to the tool  (maybe as part of the context?)o
+- [ ] Track crashes in a log file
