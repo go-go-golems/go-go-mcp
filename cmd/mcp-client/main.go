@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
+	clay "github.com/go-go-golems/clay/pkg"
+	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/go-go-mcp/pkg/client"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 )
 
 var (
@@ -41,40 +40,23 @@ func main() {
 		Long: `A Model Context Protocol (MCP) client CLI implementation.
 Supports both stdio and SSE transports for client-server communication.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			level, err := zerolog.ParseLevel(logLevel)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Invalid log level %s, defaulting to info\n", logLevel)
-				level = zerolog.InfoLevel
-			}
+			// reinitialize the logger because we can now parse --log-level and co
+			// from the command line flag
+			err := clay.InitLogger()
+			cobra.CheckErr(err)
 
-			var writer zerolog.ConsoleWriter
-			if term.IsTerminal(int(os.Stderr.Fd())) {
-				writer = zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-			} else {
-				writer = zerolog.ConsoleWriter{
-					Out:        os.Stderr,
-					TimeFormat: time.RFC3339,
-					NoColor:    true,
-				}
-			}
-
-			logger := zerolog.New(writer).With().Timestamp()
-			if withCaller {
-				logger = logger.Caller()
-			}
-			log.Logger = logger.Logger()
-
-			zerolog.SetGlobalLevel(level)
-			if debug {
-				zerolog.SetGlobalLevel(zerolog.DebugLevel)
-			}
 		},
 	}
 
+	helpSystem := help.NewHelpSystem()
+	helpSystem.SetupCobraRootCommand(rootCmd)
+
+	err := clay.InitViper("mcp", rootCmd)
+	cobra.CheckErr(err)
+	err = clay.InitLogger()
+	cobra.CheckErr(err)
+
 	// Add persistent flags
-	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
-	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "l", "info", "Log level (trace, debug, info, warn, error, fatal, panic)")
-	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", true, "Show caller information in logs")
 	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "command", "Transport type (command or sse)")
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "http://localhost:3001", "Server URL for SSE transport")
 	rootCmd.PersistentFlags().StringSliceVarP(&cmdArgs, "command", "c", []string{"mcp-server", "start", "--transport", "stdio"}, "Command and arguments for command transport (first argument is the command)")
