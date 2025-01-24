@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/server/dispatcher"
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -19,19 +20,16 @@ import (
 
 // SSEServer handles SSE transport for MCP protocol
 type SSEServer struct {
-	mu                sync.RWMutex
-	logger            zerolog.Logger
-	registry          *pkg.ProviderRegistry
-	clients           map[string]*SSEClient
-	server            *http.Server
-	port              int
-	promptService     services.PromptService
-	resourceService   services.ResourceService
-	toolService       services.ToolService
-	initializeService services.InitializeService
-	nextClientID      int
-	wg                sync.WaitGroup
-	cancel            context.CancelFunc
+	mu           sync.RWMutex
+	logger       zerolog.Logger
+	registry     *pkg.ProviderRegistry
+	clients      map[string]*SSEClient
+	server       *http.Server
+	port         int
+	dispatcher   *dispatcher.Dispatcher
+	nextClientID int
+	wg           sync.WaitGroup
+	cancel       context.CancelFunc
 }
 
 type SSEClient struct {
@@ -43,16 +41,36 @@ type SSEClient struct {
 	userAgent   string
 }
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey struct{}
+
+var (
+	// sessionIDKey is the key used to store the session ID in context
+	sessionIDKey = contextKey{}
+)
+
+// GetSessionID retrieves the session ID from the context
+func GetSessionID(ctx context.Context) (string, bool) {
+	sessionID, ok := ctx.Value(sessionIDKey).(string)
+	return sessionID, ok
+}
+
+// MustGetSessionID retrieves the session ID from the context, panicking if not found
+func MustGetSessionID(ctx context.Context) string {
+	sessionID, ok := GetSessionID(ctx)
+	if !ok {
+		panic("sessionId not found in context")
+	}
+	return sessionID
+}
+
 // NewSSEServer creates a new SSE server instance
 func NewSSEServer(logger zerolog.Logger, ps services.PromptService, rs services.ResourceService, ts services.ToolService, is services.InitializeService, port int) *SSEServer {
 	return &SSEServer{
-		logger:            logger,
-		clients:           make(map[string]*SSEClient),
-		port:              port,
-		promptService:     ps,
-		resourceService:   rs,
-		toolService:       ts,
-		initializeService: is,
+		logger:     logger,
+		clients:    make(map[string]*SSEClient),
+		port:       port,
+		dispatcher: dispatcher.NewDispatcher(logger, ps, rs, ts, is),
 	}
 }
 
@@ -151,6 +169,11 @@ func (s *SSEServer) marshalJSON(v interface{}) (json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 	return data, nil
+}
+
+// withSessionID adds a session ID to the context
+func withSessionID(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, sessionIDKey, sessionID)
 }
 
 // handleSSE handles new SSE connections
@@ -277,6 +300,9 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug().Msg("Using default session")
 	}
 
+	// Add sessionId to context
+	ctx = dispatcher.WithSessionID(ctx, sessionID)
+
 	// Find all clients for this session
 	s.mu.RLock()
 	var sessionClients []*SSEClient
@@ -297,17 +323,7 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	var request protocol.Request
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		s.logger.Error().
-			Err(err).
-			Str("sessionId", sessionID).
-			Msg("Invalid request body")
-		response := &protocol.Response{
-			JSONRPC: "2.0",
-			Error: &protocol.Error{
-				Code:    -32700,
-				Message: "Parse error",
-			},
-		}
+		response, _ := dispatcher.NewErrorResponse(nil, -32700, "Parse error", err)
 		// Send error to all session clients
 		for _, client := range sessionClients {
 			select {
@@ -323,396 +339,29 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if request.JSONRPC != "2.0" {
-		data, _ := json.Marshal("Invalid JSON-RPC version")
-		response := &protocol.Response{
-			JSONRPC: "2.0",
-			Error: &protocol.Error{
-				Code:    -32600,
-				Message: "Invalid Request",
-				Data:    json.RawMessage(data),
-			},
-		}
-		// Send error to all session clients
+	// Use the dispatcher to handle the request
+	response, err := s.dispatcher.Dispatch(ctx, request)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Error dispatching request")
+		response, _ = dispatcher.NewErrorResponse(request.ID, -32603, "Internal error", err)
+	}
+
+	// Send response to all session clients if it's not nil (notifications don't have responses)
+	if response != nil {
 		for _, client := range sessionClients {
 			select {
 			case client.messageChan <- response:
+				s.logger.Debug().
+					Str("client_id", client.id).
+					Str("sessionId", sessionID).
+					Interface("response", response).
+					Msg("Response sent to client")
 			default:
 				s.logger.Error().
 					Str("client_id", client.id).
 					Str("sessionId", sessionID).
-					Msg("Failed to send error response to client")
+					Msg("Failed to send response to client")
 			}
-		}
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-
-	s.logger.Debug().
-		Str("sessionId", sessionID).
-		Str("method", request.Method).
-		Interface("params", request.Params).
-		Msg("Processing request")
-
-	// Process the request based on method
-	var response *protocol.Response
-
-	switch request.Method {
-	case "initialize":
-		var params protocol.InitializeParams
-		if err := json.Unmarshal(request.Params, &params); err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Invalid params",
-				},
-			}
-		} else {
-			result, err := s.initializeService.Initialize(ctx, params)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-			} else {
-				resultJSON, err := s.marshalJSON(result)
-				if err != nil {
-					data, _ := json.Marshal(err.Error())
-					response = &protocol.Response{
-						JSONRPC: "2.0",
-						ID:      request.ID,
-						Error: &protocol.Error{
-							Code:    -32603,
-							Message: "Internal error",
-							Data:    json.RawMessage(data),
-						},
-					}
-				} else {
-					response = &protocol.Response{
-						JSONRPC: "2.0",
-						ID:      request.ID,
-						Result:  resultJSON,
-					}
-				}
-			}
-		}
-
-	case "ping":
-		response = &protocol.Response{
-			JSONRPC: "2.0",
-			ID:      request.ID,
-			Result:  json.RawMessage("{}"),
-		}
-
-	case "prompts/list", "resources/list", "tools/list":
-		var cursor string
-		if request.Params != nil {
-			var params struct {
-				Cursor string `json:"cursor"`
-			}
-			if err := json.Unmarshal(request.Params, &params); err != nil {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32602,
-						Message: "Invalid params",
-					},
-				}
-				break
-			}
-			cursor = params.Cursor
-		}
-
-		var resultJSON json.RawMessage
-		var marshalErr error
-
-		switch request.Method {
-		case "prompts/list":
-			prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-				break
-			}
-			if prompts == nil {
-				prompts = []protocol.Prompt{}
-			}
-			resultJSON, marshalErr = s.marshalJSON(ListPromptsResult{
-				Prompts:    prompts,
-				NextCursor: nextCursor,
-			})
-
-		case "resources/list":
-			resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-				break
-			}
-			if resources == nil {
-				resources = []protocol.Resource{}
-			}
-			resultJSON, marshalErr = s.marshalJSON(ListResourcesResult{
-				Resources:  resources,
-				NextCursor: nextCursor,
-			})
-
-		case "tools/list":
-			tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-				break
-			}
-			if tools == nil {
-				tools = []protocol.Tool{}
-			}
-			resultJSON, marshalErr = s.marshalJSON(ListToolsResult{
-				Tools:      tools,
-				NextCursor: nextCursor,
-			})
-		}
-
-		if marshalErr != nil {
-			data, _ := json.Marshal(marshalErr.Error())
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-					Data:    json.RawMessage(data),
-				},
-			}
-		} else if response == nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Result:  resultJSON,
-			}
-		}
-
-	case "prompts/get":
-		var params struct {
-			Name      string            `json:"name"`
-			Arguments map[string]string `json:"arguments"`
-		}
-		if err := json.Unmarshal(request.Params, &params); err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Invalid params",
-				},
-			}
-			break
-		}
-
-		message, err := s.promptService.GetPrompt(ctx, params.Name, params.Arguments)
-		if err != nil {
-			data, _ := json.Marshal(err.Error())
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-					Data:    json.RawMessage(data),
-				},
-			}
-		} else {
-			result := map[string]interface{}{
-				"description": "Prompt from provider",
-				"messages":    []protocol.PromptMessage{*message},
-			}
-			resultJSON, err := s.marshalJSON(result)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-			} else {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Result:  resultJSON,
-				}
-			}
-		}
-
-	case "resources/read":
-		var params struct {
-			URI string `json:"uri"`
-		}
-		if err := json.Unmarshal(request.Params, &params); err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Invalid params",
-				},
-			}
-			break
-		}
-
-		content, err := s.resourceService.ReadResource(ctx, params.URI)
-		if err != nil {
-			data, _ := json.Marshal(err.Error())
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-					Data:    json.RawMessage(data),
-				},
-			}
-		} else {
-			result := map[string]interface{}{
-				"contents": []protocol.ResourceContent{*content},
-			}
-			resultJSON, err := s.marshalJSON(result)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-			} else {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Result:  resultJSON,
-				}
-			}
-		}
-
-	case "tools/call":
-		var params struct {
-			Name      string                 `json:"name"`
-			Arguments map[string]interface{} `json:"arguments"`
-		}
-		if err := json.Unmarshal(request.Params, &params); err != nil {
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32602,
-					Message: "Invalid params",
-				},
-			}
-			break
-		}
-
-		result, err := s.toolService.CallTool(ctx, params.Name, params.Arguments)
-		if err != nil {
-			data, _ := json.Marshal(err.Error())
-			response = &protocol.Response{
-				JSONRPC: "2.0",
-				ID:      request.ID,
-				Error: &protocol.Error{
-					Code:    -32603,
-					Message: "Internal error",
-					Data:    json.RawMessage(data),
-				},
-			}
-		} else {
-			resultJSON, err := s.marshalJSON(result)
-			if err != nil {
-				data, _ := json.Marshal(err.Error())
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Error: &protocol.Error{
-						Code:    -32603,
-						Message: "Internal error",
-						Data:    json.RawMessage(data),
-					},
-				}
-			} else {
-				response = &protocol.Response{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Result:  resultJSON,
-				}
-			}
-		}
-
-	default:
-		s.logger.Warn().
-			Str("sessionId", sessionID).
-			Str("method", request.Method).
-			Msg("Method not found")
-		response = &protocol.Response{
-			JSONRPC: "2.0",
-			ID:      request.ID,
-			Error: &protocol.Error{
-				Code:    -32601,
-				Message: "Method not found",
-			},
-		}
-	}
-
-	// Send response to all session clients
-	for _, client := range sessionClients {
-		select {
-		case client.messageChan <- response:
-			s.logger.Debug().
-				Str("client_id", client.id).
-				Str("sessionId", sessionID).
-				Interface("response", response).
-				Msg("Response sent to client")
-		default:
-			s.logger.Error().
-				Str("client_id", client.id).
-				Str("sessionId", sessionID).
-				Msg("Failed to send response to client")
 		}
 	}
 

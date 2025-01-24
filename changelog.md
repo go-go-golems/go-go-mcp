@@ -342,3 +342,13 @@ Added tools for analyzing and querying the Cursor database:
 - Added conversation management tools for retrieving and searching conversations
 - Added code analysis tools for extracting and tracking code blocks
 - Added context management tools for accessing file references and conversation context
+
+# Changelog
+
+## Unified Protocol Dispatcher
+
+Refactored SSE and stdio servers to use a common protocol dispatcher to handle MCP protocol methods. This improves code reuse and maintainability by:
+- Creating a central dispatcher package for handling all protocol methods
+- Unifying error handling and response creation
+- Adding proper context handling for session IDs
+- Reducing code duplication between transport implementations
