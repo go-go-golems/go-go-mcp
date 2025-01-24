@@ -384,3 +384,29 @@ Added a dedicated settings layer for MCP client configuration to improve reusabi
 - Updated client helper to use settings layer instead of cobra flags
 - Updated list and execute commands to use the new layer
 - Improved error handling and configuration management
+
+# Convert start and schema commands to Glazed commands
+
+Refactored the start and schema commands to use the Glazed command framework for better parameter handling and consistency.
+
+- Converted start command to BareCommand
+- Converted schema command to WriterCommand
+- Added proper parameter definitions and settings structs
+- Improved error handling and command organization
+
+# Extract start and schema commands to separate files
+
+Moved start and schema commands to their own files in cmd/mcp-server/cmds for better code organization and maintainability.
+
+- Created cmd/mcp-server/cmds/start.go for start command
+- Created cmd/mcp-server/cmds/schema.go for schema command
+- Updated main.go to use the extracted commands
+- Improved code organization and readability
+
+# Add settings struct for schema command
+
+Added proper settings struct for schema command to better handle parameter initialization:
+
+- Created SchemaCommandSettings struct with file parameter
+- Updated schema command to use settings struct
+- Improved error handling for file parameter
