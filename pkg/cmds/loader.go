@@ -1,4 +1,4 @@
-package shell
+package cmds
 
 import (
 	"io"
@@ -8,7 +8,6 @@ import (
 	glazed_cmds "github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
-	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/pkg/errors"
 )
 
@@ -33,7 +32,7 @@ func (l *ShellCommandLoader) LoadCommands(
 		return nil, errors.Wrapf(err, "could not read file %s", filePath)
 	}
 
-	cmd, err := cmds.LoadShellCommandFromYAML(data)
+	cmd, err := LoadShellCommandFromYAML(data)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not load shell command from file %s", filePath)
 	}

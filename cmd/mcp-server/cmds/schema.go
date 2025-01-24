@@ -13,7 +13,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
-	"github.com/go-go-golems/go-go-mcp/pkg/cmds/shell"
 	"github.com/pkg/errors"
 )
 
@@ -66,7 +65,7 @@ func (c *SchemaCommand) RunIntoWriter(
 	}
 
 	// Load the command
-	loader := &shell.ShellCommandLoader{}
+	loader := &mcp_cmds.ShellCommandLoader{}
 	fs_, filePath, err := loaders.FileNameToFsFilePath(s.File)
 	if err != nil {
 		return fmt.Errorf("could not get absolute path: %w", err)

@@ -125,8 +125,8 @@ func (c *ShellCommand) processTemplate(
 	return buf.String(), nil
 }
 
-// executeCommand handles the actual command execution
-func (c *ShellCommand) executeCommand(
+// ExecuteCommand handles the actual command execution
+func (c *ShellCommand) ExecuteCommand(
 	ctx context.Context,
 	args map[string]interface{},
 	w io.Writer,
@@ -212,7 +212,7 @@ func (c *ShellCommand) RunIntoWriter(
 	// Get arguments from parsed layers
 	args := parsedLayers.GetDefaultParameterLayer().Parameters.ToMap()
 
-	return c.executeCommand(ctx, args, w)
+	return c.ExecuteCommand(ctx, args, w)
 }
 
 // LoadShellCommandFromYAML creates a new ShellCommand from YAML data

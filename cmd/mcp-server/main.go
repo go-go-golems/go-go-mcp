@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"os"
 
 	clay "github.com/go-go-golems/clay/pkg"
@@ -11,7 +12,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
 	"github.com/go-go-golems/glazed/pkg/help"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/mcp-server/cmds"
-	"github.com/go-go-golems/go-go-mcp/pkg/cmds/shell"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -106,7 +106,7 @@ func main() {
 	// we need to do this before cobra, because we don't know which flags to load yet
 	if len(os.Args) >= 3 && os.Args[1] == "run-command" && os.Args[2] != "--help" {
 		// load the command
-		loader := &shell.ShellCommandLoader{}
+		loader := &cmds.ShellCommandLoader{}
 		fs_, filePath, err := loaders.FileNameToFsFilePath(os.Args[2])
 		if err != nil {
 			fmt.Printf("Could not get absolute path: %v\n", err)

@@ -105,6 +105,7 @@ shell-script: |
   find_cmd="find {{ .Args.dir }}"
 
   # Add exclude directories
+  echo "exclude_dir: {{ .Args.exclude_dir }}"
   for dir in {{ range .Args.exclude_dir }}"{{ . }}" {{ end }}; do
     find_cmd+=" -not -path '*/$dir/*'"
   done

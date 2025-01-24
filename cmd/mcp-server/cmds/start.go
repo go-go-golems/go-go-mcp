@@ -9,21 +9,17 @@ import (
 	"syscall"
 	"time"
 
+	cmds2 "github.com/go-go-golems/go-go-mcp/pkg/cmds"
+
 	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/help"
-	"github.com/go-go-golems/glazed/pkg/settings"
-	"github.com/go-go-golems/go-go-mcp/pkg/cmds/shell"
 	"github.com/go-go-golems/go-go-mcp/pkg/prompts"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples/cursor"
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
@@ -38,10 +34,6 @@ type StartCommand struct {
 }
 
 func NewStartCommand() (*StartCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not create glazed parameter layer")
-	}
 
 	return &StartCommand{
 		CommandDescription: cmds.NewCommandDescription(
@@ -72,9 +64,7 @@ Available transports:
 					parameters.WithDefault([]string{}),
 				),
 			),
-			cmds.WithLayersList(
-				glazedParameterLayer,
-			),
+			cmds.WithLayersList(),
 		),
 	}, nil
 }
@@ -92,7 +82,7 @@ func (c *StartCommand) Run(
 	srv := server.NewServer(log.Logger)
 	promptRegistry := prompts.NewRegistry()
 	resourceRegistry := resources.NewRegistry()
-	toolRegistry := tools.NewRegistry()
+	// toolRegistry := tools.NewRegistry()
 
 	// Register a simple prompt directly
 	promptRegistry.RegisterPrompt(protocol.Prompt{
@@ -115,29 +105,28 @@ func (c *StartCommand) Run(
 	// Register registries with the server
 	srv.GetRegistry().RegisterPromptProvider(promptRegistry)
 	srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
-	srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
 	// Register tools
-	if err := examples.RegisterEchoTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering echo tool")
-		return err
-	}
-	if err := examples.RegisterFetchTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering fetch tool")
-		return err
-	}
-	if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering sqlite tool")
-		return err
-	}
-	if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering cursor tools")
-		return err
-	}
+	// if err := examples.RegisterEchoTool(toolRegistry); err != nil {
+	// 	log.Error().Err(err).Msg("Error registering echo tool")
+	// 	return err
+	// }
+	// if err := examples.RegisterFetchTool(toolRegistry); err != nil {
+	// 	log.Error().Err(err).Msg("Error registering fetch tool")
+	// 	return err
+	// }
+	// if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
+	// 	log.Error().Err(err).Msg("Error registering sqlite tool")
+	// 	return err
+	// }
+	// if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
+	// 	log.Error().Err(err).Msg("Error registering cursor tools")
+	// 	return err
+	// }
 
 	// Load shell commands from repositories
 	if len(s.Repositories) > 0 {
-		loader := &shell.ShellCommandLoader{}
+		loader := &cmds2.ShellCommandLoader{}
 		directories := []repositories.Directory{}
 
 		for _, repoPath := range s.Repositories {
@@ -175,6 +164,13 @@ func (c *StartCommand) Run(
 			for _, cmd := range commands {
 				log.Debug().Str("name", cmd.Description().Name).Msg("Loaded shell command")
 			}
+
+			toolProvider, err := cmds2.NewShellToolProvider(commands)
+			if err != nil {
+				log.Error().Err(err).Msg("Error creating shell tool provider")
+				return err
+			}
+			srv.GetRegistry().RegisterToolProvider(toolProvider)
 		}
 	}
 
