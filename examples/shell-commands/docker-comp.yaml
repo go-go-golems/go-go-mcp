@@ -1,0 +1,42 @@
+name: docker-comp
+short: Run docker-compose with environment variables
+long: |
+  Run docker-compose with templated environment variables and
+  configurable compose file location.
+
+flags:
+  - name: compose-file
+    type: string
+    help: Path to docker-compose.yml
+    default: docker-compose.yml
+  - name: project
+    type: string
+    help: Project name
+    required: true
+  - name: environment
+    type: string
+    help: Deployment environment
+    default: development
+    choices: [development, staging, production]
+  - name: action
+    type: string
+    help: Docker compose action
+    required: true
+    choices: [up, down, restart, logs]
+
+command:
+  - docker-compose
+  - -f
+  - "{{ .Args.compose_file }}"
+  - -p
+  - "{{ .Args.project }}"
+  - "{{ .Args.action }}"
+  - -d
+
+environment:
+  COMPOSE_PROJECT_NAME: "{{ .Args.project }}"
+  ENV: "{{ .Args.environment }}"
+  DB_HOST: "db.{{ .Args.environment }}.local"
+  REDIS_HOST: "redis.{{ .Args.environment }}.local"
+
+capture-stderr: true 

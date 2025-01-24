@@ -1,0 +1,37 @@
+name: process-logs
+short: Process application logs
+long: |
+  Process application log files in a directory, extracting error messages
+  and optionally filtering by severity level.
+
+flags:
+  - name: log_dir
+    type: string
+    help: Directory containing log files
+    required: true
+  - name: output
+    type: string
+    help: Output file for collected errors
+    default: errors.log
+  - name: severity
+    type: string
+    help: Minimum error severity to include
+    default: ERROR
+    choices: [DEBUG, INFO, WARN, ERROR, FATAL]
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Clear output file
+  > {{ .Args.output }}
+
+  # Process each log file
+  for f in {{ .Args.log_dir }}/*.log; do
+    echo "Processing $f..."
+    grep "{{ .Args.severity }}" "$f" >> {{ .Args.output }} || true
+  done
+
+  echo "Done! Errors collected in {{ .Args.output }}"
+
+capture-stderr: true 

@@ -1,0 +1,33 @@
+name: backup-db
+short: Backup a database to S3
+long: |
+  Backup a database file to an S3 bucket using the AWS CLI.
+  The command supports specifying the database file, target bucket,
+  and AWS profile to use.
+
+flags:
+  - name: database
+    type: string
+    help: Path to the database file to backup
+    required: true
+  - name: bucket
+    type: string
+    help: S3 bucket name
+    required: true
+  - name: profile
+    type: string
+    help: AWS profile to use
+    default: default
+
+command:
+  - aws
+  - s3
+  - cp
+  - "{{ .Args.database }}"
+  - "s3://{{ .Args.bucket }}/backups/{{ .Args.database | base }}"
+
+environment:
+  AWS_PROFILE: "{{ .Args.profile }}"
+
+cwd: /var/lib/postgresql
+capture-stderr: true 

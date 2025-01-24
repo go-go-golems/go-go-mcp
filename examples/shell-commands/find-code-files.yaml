@@ -1,0 +1,136 @@
+name: find-code-files
+short: Find source code files of specified programming languages
+long: |
+  This command searches for and lists source code files in a directory based on their programming language.
+  INPUT: Specify programming languages and optional filters
+  OUTPUT: List of file paths matching the criteria
+  
+  Example outputs:
+  ./src/main.go
+  ./pkg/utils/helper.go
+  ./tests/test_api.py
+  
+  Common use cases:
+  1. Find all Python and JavaScript files: --languages python,javascript
+  2. Find recently modified Go files: --languages go --modified-after "2 days ago"
+  3. Find large Java files: --languages java --min-size 1M
+  4. Search in specific directory: --languages typescript --dir ./src
+
+flags:
+  - name: languages
+    type: choiceList
+    help: |
+      Programming languages to search for. Multiple languages can be specified as comma-separated values.
+      Example: --languages go,python,javascript
+    choices: 
+      - go         # Files with .go extension
+      - python     # Files with .py extension
+      - javascript # Files with .js extension
+      - typescript # Files with .ts extension
+      - java       # Files with .java extension
+      - cpp        # Files with .cpp, .hpp, .cc, or .h extensions
+      - rust       # Files with .rs extension
+      - ruby       # Files with .rb extension
+      - php        # Files with .php extension
+      - swift      # Files with .swift extension
+    required: true
+  
+  - name: dir
+    type: string
+    help: |
+      Directory path to start the search from.
+      Example: --dir ./src or --dir /home/user/project
+      Use "." for current directory.
+    default: "."
+
+  - name: modified-after
+    type: string
+    help: |
+      Filter files modified after specified time.
+      Accepts human-readable time formats.
+      Examples:
+      - "2 days ago"
+      - "1 week ago"
+      - "24 hours ago"
+      - "2023-12-31"
+    
+  - name: min-size
+    type: string
+    help: |
+      Minimum file size filter.
+      Accepts units: k (kilobytes), M (megabytes), G (gigabytes)
+      Examples:
+      - "500k" (500 kilobytes)
+      - "1M" (1 megabyte)
+      - "2G" (2 gigabytes)
+
+  - name: max-size
+    type: string
+    help: |
+      Maximum file size filter.
+      Accepts units: k (kilobytes), M (megabytes), G (gigabytes)
+      Examples:
+      - "500k" (500 kilobytes)
+      - "1M" (1 megabyte)
+      - "2G" (2 gigabytes)
+
+  - name: exclude-dir
+    type: stringList
+    help: |
+      Directories to exclude from search.
+      Specify multiple directories as comma-separated values.
+      Example: --exclude-dir vendor,node_modules,dist
+      Common directories to exclude: vendor, node_modules, .git, dist, build
+    default: ["vendor", "node_modules", ".git", "dist", "build", ".history"]
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Map of language to file extensions
+  declare -A extensions=(
+    [go]=".go"
+    [python]=".py"
+    [javascript]=".js"
+    [typescript]=".ts"
+    [java]=".java"
+    [cpp]=".cpp,.hpp,.cc,.h"
+    [rust]=".rs"
+    [ruby]=".rb"
+    [php]=".php"
+    [swift]=".swift"
+  )
+
+  # Build find command
+  find_cmd="find {{ .Args.dir }}"
+
+  # Add exclude directories
+  for dir in {{ range .Args.exclude_dir }}"{{ . }}" {{ end }}; do
+    find_cmd+=" -not -path '*/$dir/*'"
+  done
+
+  # Add time filter if specified
+  {{ if .Args.modified_after }}
+  find_cmd+=" -mtime -$(date -d '{{ .Args.modified_after }}' +%s)"
+  {{ end }}
+
+  # Add size filters if specified
+  {{ if .Args.min_size }}
+  find_cmd+=" -size +{{ .Args.min_size }}"
+  {{ end }}
+  {{ if .Args.max_size }}
+  find_cmd+=" -size -{{ .Args.max_size }}"
+  {{ end }}
+
+  # Build extension pattern
+  ext_pattern=""
+  for lang in {{ range .Args.languages }}"{{ . }}" {{ end }}; do
+    IFS=',' read -ra EXTS <<< "${extensions[$lang]}"
+    for ext in "${EXTS[@]}"; do
+      [[ -n "$ext_pattern" ]] && ext_pattern+="-o "
+      ext_pattern+="-name \"*$ext\" "
+    done
+  done
+
+  # Execute find command with extension pattern
+  eval "$find_cmd \( $ext_pattern \) -type f"

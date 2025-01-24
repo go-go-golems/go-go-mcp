@@ -1,0 +1,54 @@
+name: git-sync
+short: Sync git repositories
+long: |
+  Synchronize multiple git repositories by pulling latest changes
+  and optionally pushing local changes.
+
+flags:
+  - name: repos-dir
+    type: string
+    help: Base directory containing git repositories
+    required: true
+  - name: branch
+    type: string
+    help: Branch to sync
+    default: main
+  - name: push
+    type: bool
+    help: Also push local changes
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Function to sync a single repository
+  sync_repo() {
+    local repo=$1
+    echo "Syncing $repo..."
+    cd "$repo"
+    
+    # Fetch and checkout branch
+    git fetch origin
+    git checkout {{ .Args.branch }}
+    
+    # Pull changes
+    git pull origin {{ .Args.branch }}
+    
+    # Push if requested
+    if [[ "{{ .Args.push }}" == "true" ]]; then
+      echo "Pushing changes..."
+      git push origin {{ .Args.branch }}
+    fi
+  }
+
+  # Find and process all git repositories
+  find {{ .Args.repos_dir }} -type d -name ".git" | while read -r gitdir; do
+    repo_dir=$(dirname "$gitdir")
+    sync_repo "$repo_dir"
+  done
+
+environment:
+  GIT_TERMINAL_PROMPT: "0"
+  
+capture-stderr: true 
