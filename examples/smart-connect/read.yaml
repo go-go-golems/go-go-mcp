@@ -1,0 +1,37 @@
+name: read
+short: Read files
+long: |
+  Read files.
+
+flags:
+  - name: paths
+    type: stringList
+    help: A list of file paths to read.
+  - name: path
+    type: string
+    help: A single file path to read.
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: text
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build request body
+  {{ if .Args.paths }}
+  request_body='{"file_paths":[{{ range $i, $p := .Args.paths }}{{if $i}},{{end}}{{$p | printf "%q"}}{{end}}]}'
+  {{ else }}
+  request_body='{"file_path":{{.Args.path | printf "%q"}}}'
+  {{ end }}
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/read")
+
+    echo "$response"

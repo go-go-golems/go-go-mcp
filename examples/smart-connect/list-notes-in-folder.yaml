@@ -1,0 +1,31 @@
+name: list-notes-in-folder
+short: List notes in folder
+long: |
+  Provide the name of a folder for which to list notes. Lists all the notes in the provided folder.
+
+flags:
+  - name: folder
+    type: string
+    help: The path of the folder for which to list notes.
+    required: true
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: text
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build request body
+  request_body='{"folder":{{.Args.folder | printf "%q"}}}'
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/list-notes-in-folder")
+
+    echo "$response"

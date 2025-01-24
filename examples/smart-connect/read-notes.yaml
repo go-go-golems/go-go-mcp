@@ -1,0 +1,32 @@
+name: read-notes
+short: Retrieve notes
+long: |
+  Retrieves notes from a list of note paths. The exact file path of the note or else the closest partial match will be returned.
+
+flags:
+  - name: paths
+    type: stringList
+    help: |
+      The note paths of the notes to be retrieved. Retrieves notes from a list of note paths. The exact file path of the note or else the closest partial match will be returned.
+    required: true
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build request body with only set arguments
+  request_body='{"note_paths":[{{ range $i, $p := .Args.paths }}{{if $i}},{{end}}{{$p | printf "%q"}}{{end}}]}'
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/read-notes")
+
+    echo "$response"

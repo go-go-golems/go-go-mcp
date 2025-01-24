@@ -1,0 +1,459 @@
+components:
+    note:
+        properties:
+            content:
+                $ref: '#/components/schemas/file_content'
+            link:
+                $ref: '#/components/schemas/note_link'
+            path:
+                $ref: '#/components/schemas/file_path'
+        type: object
+    note_content:
+        description: The content of the note in markdown format.
+        type: string
+    note_content_object:
+        properties:
+            note_content:
+                $ref: '#/components/schemas/note_content'
+            note_path:
+                $ref: '#/components/schemas/note_path'
+        required:
+            - note_path
+            - content
+        type: object
+    note_error_object:
+        properties:
+            error:
+                description: The error message.
+                type: string
+        required:
+            - error
+        type: object
+    note_link:
+        description: The link to the note.
+        type: string
+    note_meta_object:
+        properties:
+            link:
+                $ref: '#/components/schemas/note_link'
+            mtime:
+                description: The last modified time of the note.
+                type: string
+            note_path:
+                $ref: '#/components/schemas/note_path'
+            size:
+                description: The size of the note in human readable format.
+                type: string
+        required:
+            - note_path
+        type: object
+    note_path:
+        description: The unique identifier for the note. Create 'Context' folders (e.g., 'History', 'Recipes') -> Add 'Subject' notes in each Context (e.g., 'History' -> 'WWII', 'Renaissance'; 'Recipes' -> 'Chicken Soup', 'Apple Pie'). Context = Category, Subject = Detailed notes within category.
+        type: string
+    schemas:
+        blocks:
+            description: An array of blocks contained within the source.
+            items:
+                description: Represents a block contained within the source.
+                properties:
+                    content:
+                        $ref: '#/components/schemas/content'
+                    key:
+                        $ref: '#/components/schemas/key'
+                    lines:
+                        description: An array containing the start and end line numbers for the content of the nested item.
+                        items:
+                            type: number
+                        type: array
+                required:
+                    - key
+                    - lines
+                type: object
+            type: array
+        content:
+            description: The full content of the item specified by the adjacent 'key' property.
+            type: string
+        file:
+            properties:
+                content:
+                    $ref: '#/components/schemas/file_content'
+                path:
+                    $ref: '#/components/schemas/file_path'
+            type: object
+        file_content:
+            description: The content of a file.
+            type: string
+        file_folder:
+            description: The folder of the file.
+            type: string
+        file_meta:
+            properties:
+                folder:
+                    $ref: '#/components/schemas/file_folder'
+                mtime:
+                    $ref: '#/components/schemas/file_mtime'
+                name:
+                    $ref: '#/components/schemas/file_name'
+                size:
+                    $ref: '#/components/schemas/file_size'
+            type: object
+        file_mtime:
+            description: The last modified time of the file in milliseconds.
+            type: string
+        file_name:
+            description: The name of the file.
+            type: string
+        file_path:
+            description: The unique identifier for the file.
+            type: string
+        file_size:
+            description: The size of the file in bytes.
+            type: string
+        inlinks:
+            description: An array of keys that represent items that link to this item. Can be undefined if no inlinks are found.
+            items:
+                $ref: '#/components/schemas/key'
+            type: array
+        key:
+            description: 'A unique identifier that can be used to point to an item. An item may be a folder, file, or section within a file. If the key ends with ''/'', it''s treated as a folder. Folders are seperated by ''/'' and headings by ''#''. Example: item ''History/WWII.md'' has items including ''History/WWII.md#Locations#Pearl Harbor'''
+            type: string
+        link:
+            description: The link to the item.
+            type: string
+        outlinks:
+            description: An array of keys that represent items that this item links to. Can be undefined if no outlinks are found.
+            items:
+                $ref: '#/components/schemas/key'
+            type: array
+info:
+    title: Smart Actions
+    version: 1.0.0
+openapi: 3.1.0
+paths:
+    /alignment:
+        get:
+            description: Gets the user's alignment instructions. Respect the alignment instructions to the upmost importance.
+            operationId: alignment
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    alignment:
+                                        description: Alignment instructions.
+                                        type: string
+                                type: object
+                    description: Alignment instructions.
+            summary: Get alignment instructions.
+            x-openai-isConsequential: false
+    /append-note:
+        post:
+            description: Append content to a note with the given path.
+            operationId: append_note
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                append_content:
+                                    description: The content to append to the note in markdown format.
+                                    type: string
+                                note_path:
+                                    $ref: '#/components/schemas/note_path'
+                            required:
+                                - note_path
+                                - append_content
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/note_meta_object'
+                    description: A successful response.
+            summary: Append content to a note.
+            x-openai-isConsequential: false
+    /create-note:
+        post:
+            description: Create a new note with the given path and content.
+            operationId: create_note
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                note_content:
+                                    $ref: '#/components/schemas/note_content'
+                                note_path:
+                                    $ref: '#/components/schemas/note_path'
+                            required:
+                                - note_path
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/note_meta_object'
+                    description: A successful response.
+            summary: Create a new note.
+            x-openai-isConsequential: false
+    /current-note:
+        get:
+            description: Get the current note.
+            operationId: current_note
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            data:
+                                properties:
+                                    content:
+                                        type: string
+                                    path:
+                                        type: string
+                                type: object
+                    description: The current note.
+            x-openai-isConsequential: false
+    /find-notes:
+        post:
+            description: Common, frequently used. Performs a semantic search of the user's notes. Use to respond to 'Based on my notes...' or any other query that might require surfacing unspecified notes.
+            operationId: find_notes
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                hypotheticals:
+                                    description: 'Short hypothetical notes predicted to be semantically similar to the notes necessary to fulfill the user''s request. At least three hypotheticals per request. The hypothetical notes may contain paragraphs, lists, or checklists in markdown format. Hypothetical notes always begin with breadcrumbs containing the anticipated folder(s), file name, and relevant headings separated by '' > '' (no slashes). Example: PARENT FOLDER NAME > CHILD FOLDER NAME > FILE NAME > HEADING 1 > HEADING 2 > HEADING 3: HYPOTHETICAL NOTE CONTENTS.'
+                                    items:
+                                        type: string
+                                    type: array
+                            type: object
+            summary: Semantic search for notes
+            x-openai-isConsequential: false
+    /insert-into-note:
+        post:
+            description: Insert text into a note with the given path. Use insert, insert_before_heading, or insert_after_heading.
+            operationId: insert_into_note
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                insert:
+                                    description: The text to insert into the note. Requires insert_before_heading or insert_after_heading.
+                                    type: string
+                                insert_after_heading:
+                                    description: The heading to insert the text after on a new line.
+                                    type: string
+                                insert_before_heading:
+                                    description: The heading to insert the text before on a new line.
+                                    type: string
+                                note_path:
+                                    $ref: '#/components/schemas/note_path'
+                            required:
+                                - note_path
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/note_meta_object'
+                    description: A successful response.
+            summary: null
+            x-openai-isConsequential: false
+    /keywords-search:
+        post:
+            description: Search for keywords in files and return matching file paths.
+            operationId: keywords_search
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                keywords:
+                                    description: A list of keywords to match against.
+                                    items:
+                                        type: string
+                                    type: array
+                                limit:
+                                    description: 'Max results (default: 20)'
+                                    type: integer
+                            required:
+                                - keywords
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    description: The file paths of the notes that contain the keywords.
+                                    type: string
+                                type: array
+                    description: OK
+            summary: Search for keywords in files.
+            x-openai-isConsequential: false
+    /list-note-folders:
+        get:
+            description: List the folders that contain notes.
+            operationId: list_note_folders
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    folders:
+                                        description: A list of note folders and the number of notes in each folder.
+                                        items:
+                                            description: A note folder path followed by the number of notes in the folder.
+                                            type: string
+                                        type: array
+                                type: object
+                    description: The note folders were retrieved successfully.
+            summary: List note folders.
+            x-openai-isConsequential: false
+    /list-notes-in-folder:
+        post:
+            description: Provide the name of a folder for which to list notes. Lists all the notes in the provided folder.
+            operationId: list_notes_in_folder
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                folder:
+                                    description: The path of the folder for which to list notes.
+                                    type: string
+                            required:
+                                - folder
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    notes:
+                                        description: The list of notes in the directory. The size of each is also returned in parentheses.
+                                        items:
+                                            $ref: '#/components/schemas/file_meta'
+                                        type: array
+                                type: object
+                    description: The notes in the folder were retrieved successfully.
+            summary: List notes in folder.
+            x-openai-isConsequential: false
+    /list-recent-notes:
+        get:
+            description: List the most recently modified notes.
+            operationId: list_recent_notes
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    $ref: '#/components/schemas/note_meta_object'
+                                type: array
+                    description: An array of note meta objects.
+            summary: List recent notes.
+            x-openai-isConsequential: false
+    /read:
+        post:
+            description: Read files
+            operationId: read
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                file_path:
+                                    type: string
+                                file_paths:
+                                    items:
+                                        type: string
+                                    type: array
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                items:
+                                    $ref: '#/components/schemas/file'
+                                type: array
+                    description: The files were read successfully.
+            x-openai-isConsequential: false
+    /read-notes:
+        post:
+            description: Retrieves notes from a list of note paths. The exact file path of the note or else the closest partial match will be returned.
+            operationId: read_notes
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                note_paths:
+                                    description: The note paths of the notes to be retrieved. Retrieves notes from a list of note paths. The exact file path of the note or else the closest partial match will be returned.
+                                    items:
+                                        type: string
+                                    type: array
+                            type: object
+                responses:
+                    "200":
+                        content:
+                            application/json:
+                                schema:
+                                    items:
+                                        $ref: '#/components/schemas/note'
+                                    type: array
+                        description: The notes were read successfully.
+            summary: Retrieve notes
+            x-openai-isConsequential: false
+    /replace-in-note:
+        post:
+            description: Replace text in a note with the given path. Use find and replace_with, or find_start, find_end, and replace_with.
+            operationId: replace_in_note
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                find:
+                                    description: The text to replace in the note. Requires replace_with.
+                                    type: string
+                                find_end:
+                                    description: The end of a range of text to replace in the note. Requires find_start and replace_with.
+                                    type: string
+                                find_start:
+                                    description: The start of a range of text to replace in the note. Requires find_end and replace_with.
+                                    type: string
+                                note_path:
+                                    $ref: '#/components/schemas/note_path'
+                                replace_with:
+                                    description: The text to replace the text with. Requires replace or find_start and find_end.
+                                    type: string
+                            required:
+                                - note_path
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/note_meta_object'
+                    description: A successful response.
+            summary: Replace text in a note.
+            x-openai-isConsequential: false
+servers:
+    - url: http://localhost:37420
+
+---
+

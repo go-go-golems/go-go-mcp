@@ -1,0 +1,46 @@
+name: append-note
+short: Append content to a note
+long: |
+  Append content to a note with the given path.
+
+flags:
+  - name: path
+    type: string
+    help: |
+      The unique identifier for the note. Create 'Context' folders (e.g., 'History', 'Recipes') -> Add 'Subject' notes in each Context (e.g., 'History' -> 'WWII', 'Renaissance'; 'Recipes' -> 'Chicken Soup', 'Apple Pie'). Context = Category, Subject = Detailed notes within category.
+    required: true
+  - name: content
+    type: string
+    help: The content to append to the note in markdown format.
+    default: ""
+  - name: content_file
+    type: file
+    help: File containing content to append
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  # Build request body using go templating
+  request_body='{"note_path":{{.Args.path | printf "%q"}}'
+
+  # Get content from file if specified
+  {{ if .Args.content_file }}
+  content=$(cat "{{ .Args.content_file }}")
+  {{ else }}
+  content="{{ .Args.content }}"
+  {{ end }}
+  request_body="$request_body,\"append_content\":$(printf '%q' "$content")}"
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/append-note")
+
+    echo "$response"

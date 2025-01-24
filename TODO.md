@@ -25,17 +25,20 @@
 - [ ] plugin API to register servers
 - [ ] register glazed commands
 - [ ] allow config file for all settings
-- [ ] figure out how to easily register bash commands to the MCP
+- [x] figure out how to easily register bash commands to the MCP
 - [ ] dynamic loading / enabling / removing servers
 - [ ] add resource templates
+- [ ] add tools from openapi json
 
 - [X] Allow debug logging
 - [x] Implement missing SSE methods
 - [x] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
+- [ ] send out notifications
 
 - [ ] Allow logging to separate file (to debug claude for example)
+  - seems kind of broken, there is a different logger running after the initial logger is setup
 
 - [ ] Register commands using go introspection, like in pinocchio's tools
 - [ ] Make it easy to register a struct with multiple tool handlers (say, to keep a single handle to a resource), linked to the session_id
-- [ ] Pass the session id to the tool  (maybe as part of the context?)o
+- [x] Pass the session id to the tool  (maybe as part of the context?)
 - [ ] Track crashes in a log file

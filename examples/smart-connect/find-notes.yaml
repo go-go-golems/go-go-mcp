@@ -1,0 +1,49 @@
+name: find-notes
+short: Semantic search for notes
+long: |
+  Common, frequently used. Performs a semantic search of the user's notes. Use to respond to 'Based on my notes...' or any other query that might require surfacing unspecified notes.
+
+flags:
+  - name: hypotheticals
+    type: stringList
+    help: |
+      Short hypothetical notes predicted to be semantically similar to the
+      notes necessary to fulfill the user's request.
+      
+      At least three hypotheticals per request.
+
+      The hypothetical notes may contain paragraphs, lists, or
+      checklists in markdown format. Hypothetical notes always begin with
+      breadcrumbs containing the anticipated folder(s), file name, and relevant
+      headings separated by ' > ' (no slashes). Example: PARENT FOLDER NAME >
+      CHILD FOLDER NAME > FILE NAME > HEADING 1 > HEADING 2 > HEADING 3:
+      HYPOTHETICAL NOTE CONTENTS.
+
+      For example:
+      ["History > Ancient Civilizations > Egypt.md > Government > Pharaohs: The pharaohs of ancient Egypt were considered living gods and ruled with absolute power. They were responsible for maintaining order (ma'at) in society and acted as intermediaries between the gods and people. Notable pharaohs included Ramesses II who ruled for 66 years and built many monuments.",
+      
+      "Programming > Languages > Python > Best Practices.md > Code Organization > Project Structure: A well-organized Python project should have a clear directory structure with separate folders for source code, tests, documentation, and configuration files. Use virtual environments to manage dependencies. Follow PEP 8 style guidelines for consistent formatting. Break code into logical modules and packages.",
+      
+      "Research > Machine Learning > Neural Networks.md > Architecture > Layers > Activation Functions: Common activation functions include ReLU, sigmoid, and tanh. ReLU is most popular due to reduced vanishing gradient problems. Sigmoid is useful for binary classification output layers. Consider using LeakyReLU or ELU to prevent dying neurons."]
+    required: true
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build request body with only set arguments
+  request_body='{"hypotheticals":[{{ range $i, $h := .Args.hypotheticals }}{{if $i}},{{end}}{{$h | printf "%q"}}{{end}}]}'
+
+  # # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/find-notes")
+
+  echo "$response"

@@ -13,6 +13,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -139,6 +140,10 @@ func (c *ShellCommand) ExecuteCommand(
 		if err != nil {
 			return errors.Wrap(err, "failed to process shell script template")
 		}
+
+		fmt.Fprintln(os.Stderr, script)
+		// Debug log the processed script
+		log.Debug().Str("script", script).Msg("executing shell script")
 
 		// Create temporary script file
 		tmpFile, err := os.CreateTemp("", "shell-*.sh")

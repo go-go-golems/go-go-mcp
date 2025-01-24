@@ -20,6 +20,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 	"github.com/rs/zerolog/log"
 )
 
@@ -31,6 +32,27 @@ type StartCommandSettings struct {
 
 type StartCommand struct {
 	*cmds.CommandDescription
+}
+
+type WeatherData struct {
+	City        string  `json:"city"`
+	Temperature float64 `json:"temperature"`
+	WindSpeed   float64 `json:"windSpeed"`
+}
+
+func getWeather(city string, includeWind bool) WeatherData {
+	// This is a mock implementation - in a real app you'd call a weather API
+	return WeatherData{
+		City:        city,
+		Temperature: 23.0,
+		WindSpeed: func() float64 {
+			if includeWind {
+				return 10.0
+			} else {
+				return 0.0
+			}
+		}(),
+	}
 }
 
 func NewStartCommand() (*StartCommand, error) {
@@ -82,7 +104,7 @@ func (c *StartCommand) Run(
 	srv := server.NewServer(log.Logger)
 	promptRegistry := prompts.NewRegistry()
 	resourceRegistry := resources.NewRegistry()
-	// toolRegistry := tools.NewRegistry()
+	toolRegistry := tools.NewRegistry()
 
 	// Register a simple prompt directly
 	promptRegistry.RegisterPrompt(protocol.Prompt{
@@ -105,24 +127,37 @@ func (c *StartCommand) Run(
 	// Register registries with the server
 	srv.GetRegistry().RegisterPromptProvider(promptRegistry)
 	srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
+	srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
-	// Register tools
+	// Register tools (DON'T DELETE)
 	// if err := examples.RegisterEchoTool(toolRegistry); err != nil {
-	// 	log.Error().Err(err).Msg("Error registering echo tool")
-	// 	return err
+	//  log.Error().Err(err).Msg("Error registering echo tool")
+	//  return err
 	// }
 	// if err := examples.RegisterFetchTool(toolRegistry); err != nil {
-	// 	log.Error().Err(err).Msg("Error registering fetch tool")
-	// 	return err
+	//  log.Error().Err(err).Msg("Error registering fetch tool")
+	//  return err
 	// }
 	// if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
-	// 	log.Error().Err(err).Msg("Error registering sqlite tool")
-	// 	return err
+	//  log.Error().Err(err).Msg("Error registering sqlite tool")
+	//  return err
 	// }
 	// if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
-	// 	log.Error().Err(err).Msg("Error registering cursor tools")
+	//  log.Error().Err(err).Msg("Error registering cursor tools")
+	//  return err
+	// }
+
+	// Register the weather tool (DO NOT DELETE)
+	// weatherTool, err := tools.NewReflectTool(
+	// 	"getWeather",
+	// 	"Get weather information for a city",
+	// 	getWeather,
+	// )
+	// if err != nil {
+	// 	log.Error().Err(err).Msg("Error creating weather tool")
 	// 	return err
 	// }
+	// toolRegistry.RegisterTool(weatherTool)
 
 	// Load shell commands from repositories
 	if len(s.Repositories) > 0 {

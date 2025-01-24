@@ -1,0 +1,501 @@
+components:
+    schemas:
+        blocks:
+            description: An array of blocks contained within the source.
+            items:
+                description: Represents a block contained within the source.
+                properties:
+                    content:
+                        $ref: '#/components/schemas/content'
+                    key:
+                        $ref: '#/components/schemas/key'
+                    lines:
+                        description: An array containing the start and end line numbers for the content of the nested item.
+                        items:
+                            type: number
+                        type: array
+                required:
+                    - key
+                    - lines
+                type: object
+            type: array
+        content:
+            description: The full content of the item specified by the adjacent 'key' property.
+            type: string
+        error:
+            properties:
+                error:
+                    description: The error message.
+                    type: string
+            required:
+                - error
+            type: object
+        filter:
+            description: The filter to apply.
+            properties:
+                exclude_key:
+                    description: Exclude items with this specific key.
+                    type: string
+                exclude_key_starts_with:
+                    description: Exclude items with keys starting with this value.
+                    type: string
+                exclude_key_starts_with_any:
+                    description: Exclude items with keys starting with any of these values.
+                    items:
+                        type: string
+                    type: array
+                exclude_keys:
+                    description: Exclude items with keys matching any in this array.
+                    items:
+                        type: string
+                    type: array
+                key_ends_with:
+                    description: Include items with keys ending with this value.
+                    type: string
+                key_starts_with:
+                    description: Include items with keys starting with this value.
+                    type: string
+                key_starts_with_any:
+                    description: Include items with keys starting with any of these values.
+                    items:
+                        type: string
+                    type: array
+                limit:
+                    description: Limit the number of results to this value.
+                    type: number
+            type: object
+        inlinks:
+            description: An array of keys that represent items that link to this item. Can be undefined if no inlinks are found.
+            items:
+                $ref: '#/components/schemas/key'
+            type: array
+        key:
+            description: 'A unique identifier that can be used to point to an item. An item may be a folder, file, or section within a file. If the key ends with ''/'', it''s treated as a folder. Folders are seperated by ''/'' and headings by ''#''. Example: item ''History/WWII.md'' has items including ''History/WWII.md#Locations#Pearl Harbor'''
+            type: string
+        link:
+            description: The link to the item.
+            type: string
+        outlinks:
+            description: An array of keys that represent items that this item links to. Can be undefined if no outlinks are found.
+            items:
+                $ref: '#/components/schemas/key'
+            type: array
+        source:
+            description: Represents the item.
+            properties:
+                blocks:
+                    $ref: '#/components/schemas/blocks'
+                content:
+                    $ref: '#/components/schemas/content'
+                inlinks:
+                    $ref: '#/components/schemas/inlinks'
+                key:
+                    $ref: '#/components/schemas/key'
+                link:
+                    $ref: '#/components/schemas/link'
+                mtime:
+                    description: The last modified time of the item.
+                    type: string
+                outlinks:
+                    $ref: '#/components/schemas/outlinks'
+                size:
+                    description: The size of the item in human readable format.
+                    type: string
+            required:
+                - key
+            type: object
+info:
+    title: Smart Actions
+    version: 1.0.0
+openapi: 3.1.0
+paths:
+    /custom-1/add:
+        post:
+            description: Add content to an existing item or create a new item.
+            operationId: add
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                add:
+                                    description: The content to append to the current content.
+                                    type: string
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The key of the item to add content to or create.
+                            required:
+                                - key
+                                - add
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                oneOf:
+                                    - properties:
+                                        message:
+                                            description: Confirmation message for folder creation.
+                                            type: string
+                                      type: object
+                                    - $ref: '#/components/schemas/source'
+                    description: Content added successfully or new item created.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Bad Request
+            x-openai-isConsequential: false
+    /custom-1/alignment:
+        get:
+            description: Gets the user's alignment instructions, folder structure, and recent notes.
+            operationId: alignment
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    alignment:
+                                        description: Alignment instructions.
+                                        type: string
+                                    folder_structure:
+                                        description: Folder structure.
+                                        type: object
+                                    recent_notes:
+                                        description: Recent notes.
+                                        items:
+                                            $ref: '#/components/schemas/key'
+                                        type: array
+                                type: object
+                    description: Alignment instructions, folder structure, and recent notes.
+            summary: Get alignment instructions, folder structure, and recent notes.
+            x-openai-isConsequential: false
+    /custom-1/delete:
+        post:
+            description: Delete an existing item.
+            operationId: delete
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                delete:
+                                    description: If true, delete the item at key.
+                                    type: boolean
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The key of the item to delete.
+                            required:
+                                - key
+                                - delete
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    message:
+                                        description: Confirmation message for deletion.
+                                        type: string
+                                type: object
+                    description: Item deleted successfully.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Bad Request
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Item not found.
+            x-openai-isConsequential: false
+    /custom-1/find-connections:
+        post:
+            description: Find connections to an item using semantic search.
+            operationId: find_connections
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                exclude_filter:
+                                    description: Exclude entities with keys starting with this value. May be a comma separated list.
+                                    type: string
+                                exclude_inlinks:
+                                    description: Whether to exclude inlinks.
+                                    type: boolean
+                                exclude_outlinks:
+                                    description: Whether to exclude outlinks.
+                                    type: boolean
+                                filter:
+                                    $ref: '#/components/schemas/filter'
+                                include_filter:
+                                    description: Include entities with keys starting with this value. May be a comma separated list.
+                                    type: string
+                                key:
+                                    $ref: '#/components/schemas/key'
+                            required:
+                                - key
+                            type: object
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    connections:
+                                        items:
+                                            $ref: '#/components/schemas/source'
+                                        type: array
+                                type: object
+                    description: Successful operation
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Bad request
+            summary: Find connections to an item.
+            x-openai-isConsequential: false
+    /custom-1/lookup:
+        post:
+            description: 'Performs a semantic search of the user''s data. Required: hypothetical_1 and hypothetical_2. Optional: hypothetical_3.'
+            operationId: lookup
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                filter:
+                                    $ref: '#/components/schemas/filter'
+                                hypotheticals:
+                                    description: Short hypothetical notes predicted to be semantically similar to the notes necessary to fulfill the user's request. At least three hypotheticals per request. The hypothetical notes may contain paragraphs, lists, or checklists in markdown format. Hypothetical notes always begin with breadcrumbs containing the anticipated folder(s), file name, and relevant headings separated by ' > ' (no slashes).
+                                    items:
+                                        description: 'Use diverse hypotheticals to ensure a wide range of possible results. Example: PARENT FOLDER NAME > CHILD FOLDER NAME > FILE NAME > HEADING 1 > HEADING 2 > HEADING 3: HYPOTHETICAL NOTE CONTENTS.'
+                                        type: string
+                                    type: array
+                            required:
+                                - hypotheticals
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    results:
+                                        items:
+                                            properties:
+                                                entity:
+                                                    $ref: '#/components/schemas/source'
+                                                hypothetical_i:
+                                                    description: Index of the hypothetical that produced the result.
+                                                    type: integer
+                                                key:
+                                                    $ref: '#/components/schemas/key'
+                                                score:
+                                                    description: Similarity score of the result
+                                                    type: number
+                                            type: object
+                                        type: array
+                                type: object
+                    description: Successful response with search results
+            summary: Semantic search
+            x-openai-isConsequential: false
+    /custom-1/move:
+        post:
+            description: Move an item or folder to a new key or location.
+            operationId: move
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The key of the item or folder to move.
+                                move_to_key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The destination key where the item or folder will be moved.
+                            required:
+                                - key
+                                - move_to_key
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                oneOf:
+                                    - properties:
+                                        message:
+                                            description: Confirmation message for folder move.
+                                            type: string
+                                      type: object
+                                    - $ref: '#/components/schemas/source'
+                    description: Item or folder moved successfully.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Bad Request
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Source item not found.
+            x-openai-isConsequential: false
+    /custom-1/replace:
+        post:
+            description: Replace the content of an existing item.
+            operationId: replace
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The key of the item to replace content.
+                                replace:
+                                    description: The new content to replace the existing content.
+                                    type: string
+                            required:
+                                - key
+                                - replace
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/source'
+                    description: Content replaced successfully.
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Bad Request
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/error'
+                    description: Item not found.
+            x-openai-isConsequential: false
+    /custom-1/retrieve:
+        post:
+            description: Retrieves sources.
+            operationId: retrieve
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                filter:
+                                    $ref: '#/components/schemas/filter'
+                                folders:
+                                    description: Retrieve folder structure.
+                                    type: boolean
+                                include_references:
+                                    description: Include references (inlinks, outlinks) for each item.
+                                    type: boolean
+                                include_smart_connections:
+                                    description: Include smart connections for each item.
+                                    type: boolean
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                keys:
+                                    description: Keys for the items to retrieve.
+                                    items:
+                                        $ref: '#/components/schemas/key'
+                                    type: array
+                                keywords:
+                                    description: Keywords for lexical search.
+                                    items:
+                                        type: string
+                                    type: array
+                                open:
+                                    description: Retrieve notes currently open in Obsidian.
+                                    type: boolean
+                                recent:
+                                    description: Retrieve recently modified items. If a number is provided, it limits the number of recent items to retrieve, otherwise defaults to 10.
+                                    type:
+                                        - boolean
+                                        - number
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    retrieved:
+                                        items:
+                                            $ref: '#/components/schemas/source'
+                                        type: array
+                                type: object
+                    description: OK
+            x-openai-isConsequential: false
+    /custom-1/update:
+        post:
+            description: Suggests a change for the user to review. May add, replace, move, or delete. Creates source file at key if one does not exist.
+            operationId: update
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                add:
+                                    description: The content to append to the current content.
+                                    type: string
+                                delete:
+                                    description: If true, delete the item at key
+                                    type: boolean
+                                key:
+                                    $ref: '#/components/schemas/key'
+                                move_to_key:
+                                    $ref: '#/components/schemas/key'
+                                    description: The key of the item after the update. May also be a destination for where the item will be moved. May also be used to rename an item.
+                                replace:
+                                    description: The content to replace the current content with.
+                                    type: string
+                            required:
+                                - key
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                oneOf:
+                                    - properties:
+                                        message:
+                                            description: Confirmation message for deletion
+                                            type: string
+                                      type: object
+                                    - $ref: '#/components/schemas/source'
+                    description: Successful operation
+            x-openai-isConsequential: false
+servers:
+    - url: http://localhost:37420
+
+---
+

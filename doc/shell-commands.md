@@ -49,6 +49,8 @@ cwd: /path/to/working/dir
 capture-stderr: true
 ```
 
+IMPORTANT: flag names should use "_", not "-"!
+
 ## Command Types
 
 ### Command Lists
@@ -527,6 +529,7 @@ mcp-server run-command examples/db-backup.yaml \
    - Check flag names match template variables
    - Verify template syntax
    - Ensure required flags are provided
+   - Make sure that flag and argument names use _ and not -
 
 2. **Permission Issues**
    - Check file permissions

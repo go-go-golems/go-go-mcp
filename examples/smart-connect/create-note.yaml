@@ -1,0 +1,48 @@
+name: create-note
+short: Create a new note
+long: |
+  Create a new note with the given path and content.
+
+flags:
+  - name: path
+    type: string
+    help: |
+      The unique identifier for the note. Create 'Context' folders (e.g., 'History', 'Recipes') -> Add 'Subject' notes in each Context (e.g., 'History' -> 'WWII', 'Renaissance'; 'Recipes' -> 'Chicken Soup', 'Apple Pie'). Context = Category, Subject = Detailed notes within category.
+    required: true
+  - name: content
+    type: string
+    help: The content of the note in markdown format.
+    default: ""
+  - name: content_file
+    type: file
+    help: File containing note content
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Get content from file if specified
+  content="{{ .Args.content }}"
+  {{ if .Args.content_file }}
+  content=$(cat "{{ .Args.content_file }}")
+  {{ end }}
+
+  # Build request body
+  request_body="{\"note_path\":\"{{.Args.path | printf "%q"}}\",\"note_content\":\""
+  request_body+=$content
+  request_body+="\"}"
+  echo "$request_body"
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/create-note")
+
+    echo "$response"

@@ -1,0 +1,47 @@
+name: insert-into-note
+short: Insert text into a note
+long: |
+  Insert text into a note at a specific location, either before or after a heading.
+
+flags:
+  - name: path
+    type: string
+    help: Path of the note to modify
+    required: true
+  - name: insert
+    type: string
+    help: Text to insert
+    required: true
+  - name: before_heading
+    type: string
+    help: Insert before this heading
+  - name: after_heading
+    type: string
+    help: Insert after this heading
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Construct request body
+  request_body='{"note_path":{{.Args.path | printf "%q"}},"insert":{{.Args.insert | printf "%q"}}'
+  {{ if .Args.before_heading }}
+  request_body="$request_body,\"insert_before_heading\":{{.Args.before_heading | printf "%q"}}"
+  {{ else if .Args.after_heading }}
+  request_body="$request_body,\"insert_after_heading\":{{.Args.after_heading | printf "%q"}}"
+  {{ end }}
+  request_body="$request_body}"
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/insert-into-note")
+
+    echo "$response"

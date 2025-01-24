@@ -1,0 +1,50 @@
+name: replace-in-note
+short: Replace text in a note
+long: |
+  Replace text in a note using either a simple find/replace or a range replacement.
+
+flags:
+  - name: path
+    type: string
+    help: Path of the note to modify
+    required: true
+  - name: find
+    type: string
+    help: Text to find and replace
+  - name: find_start
+    type: string
+    help: Start of text range to replace
+  - name: find_end
+    type: string
+    help: End of text range to replace
+  - name: replace_with
+    type: string
+    help: Text to replace with
+    required: true
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: json
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Construct request body based on find type
+  request_body='{"note_path":{{.Args.path | printf "%q"}}'
+  {{ if .Args.find }}
+  request_body="$request_body,\"find\":{{.Args.find | printf "%q"}},\"replace_with\":{{.Args.replace_with | printf "%q"}}"
+  {{ else }}
+  request_body="$request_body,\"find_start\":{{.Args.find_start | printf "%q"}},\"find_end\":{{.Args.find_end | printf "%q"}},\"replace_with\":{{.Args.replace_with | printf "%q"}}"
+  {{ end }}
+  request_body="$request_body}"
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/replace-in-note")
+
+    echo "$response"

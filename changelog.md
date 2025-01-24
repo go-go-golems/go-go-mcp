@@ -419,3 +419,28 @@ Added comprehensive documentation for loading commands from YAML files and repos
 - Added examples for loading single files and repositories
 - Added best practices and troubleshooting guide
 - Added example shell command YAML format
+
+## Reflection-based Tool Implementation
+
+Added a new ReflectTool implementation that uses reflection to create tools from Go functions:
+- Added ReflectTool struct that implements the Tool interface
+- Added NewReflectTool constructor that generates JSON schema from function parameters
+- Implemented Call method that uses reflection to invoke functions and handle results
+- Added smart result type handling (text for primitives, JSON for complex types)
+- Uses protocol.ToolResult helpers for proper result handling
+
+## Tool Registration Documentation
+
+Added comprehensive documentation on registering tools with MCP:
+- Detailed guide on using ReflectTool for Go functions
+- Examples of implementing the Tool interface directly
+- Guide to YAML-based shell commands
+- Best practices and examples for all approaches
+- Added doc/registering-tools.md
+
+# Add Simple Weather Tool
+
+Added a simple weather tool using reflection to demonstrate tool registration.
+
+- Added getWeather reflect tool as an example
+- Added WeatherData struct for weather information

@@ -1,0 +1,55 @@
+name: keywords-search
+short: Search for keywords in files
+long: |
+  Search for keywords in files and return matching file paths.
+
+flags:
+  - name: keywords
+    type: stringList
+    help: A list of keywords to match against.
+    required: true
+  - name: limit
+    type: int
+    help: "Max results (default: 20)"
+    default: 20
+  - name: format
+    type: choice
+    help: Output format
+    choices: [json, text]
+    default: text
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build request body using go templating
+  request_body='{'
+  {{ if .Args.keywords }}
+  request_body="$request_body\"keywords\":["
+  first=true
+  for keyword in "${keywords[@]}"; do
+    if [ "$first" = true ]; then
+      first=false
+    else
+      request_body="$request_body,"
+    fi
+    request_body="$request_body$(printf '%q' "$keyword")"
+  done
+  request_body="$request_body]"
+  {{ end }}
+  {{ if .Args.limit }}
+  {{ if .Args.keywords }}
+  request_body="$request_body,"
+  {{ end }}
+  request_body="$request_body\"limit\":{{ .Args.limit }}"
+  {{ end }}
+  request_body="$request_body}"
+
+  # Make API request
+  response=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer default" \
+    -d "$request_body" \
+    "http://localhost:37420/notes-v1/keywords-search")
+
+  echo "$response"
