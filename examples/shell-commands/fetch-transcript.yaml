@@ -1,0 +1,92 @@
+name: fetch-transcript
+short: Download transcript/subtitles from a YouTube video
+long: |
+  This command downloads available transcripts/subtitles from a YouTube video using youtube-dl.
+  It's useful for getting text content from videos for analysis, reference, or archival purposes.
+  
+  INPUT: YouTube video URL and optional language preference
+  OUTPUT: Subtitle/transcript files in SRT format
+  
+  The command:
+  - Checks for available subtitles in the video
+  - Downloads either auto-generated or manually created subtitles
+  - Saves them in SRT format for easy reading
+  - Supports multiple language selection
+  
+  Common use cases:
+  1. Get English transcript: --url "https://youtube.com/watch?v=..." --lang en
+  2. List available languages: --url "https://youtube.com/watch?v=..." --list-langs
+  3. Download all available subtitles: --url "https://youtube.com/watch?v=..." --all-langs
+
+flags:
+  - name: url
+    type: string
+    help: |
+      The YouTube video URL to fetch transcripts from.
+      Must be a valid YouTube video URL.
+      Example: --url "https://youtube.com/watch?v=..."
+    required: true
+  
+  - name: lang
+    type: string
+    help: |
+      Language code for the subtitles to download.
+      Uses ISO 639-1 language codes (e.g., en, es, fr).
+      Example: --lang en
+    default: "en"
+  
+  - name: list_langs
+    type: bool
+    help: |
+      If true, only lists available subtitle languages for the video.
+      Useful to check what languages are available before downloading.
+      Example: --list-langs
+    default: false
+  
+  - name: all_langs
+    type: bool
+    help: |
+      If true, downloads subtitles in all available languages.
+      Example: --all-langs
+    default: false
+  
+  - name: auto_subs
+    type: bool
+    help: |
+      If true, includes auto-generated subtitles.
+      Example: --auto-subs
+    default: true
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  url="{{ .Args.url }}"
+  
+  # List available languages if requested
+  if [ "{{ .Args.list_langs }}" = "true" ]; then
+    echo "Available subtitle languages for video:"
+    youtube-dl --list-subs "$url"
+    exit 0
+  fi
+  
+  # Build youtube-dl command
+  yt_cmd="youtube-dl --skip-download"  # Don't download the video
+  
+  if [ "{{ .Args.all_langs }}" = "true" ]; then
+    yt_cmd+=" --all-subs"  # Download all available subtitles
+  else
+    yt_cmd+=" --sub-lang {{ .Args.lang }}"  # Download specific language
+  fi
+  
+  if [ "{{ .Args.auto_subs }}" = "true" ]; then
+    yt_cmd+=" --write-auto-sub"  # Include auto-generated subtitles
+  fi
+  
+  yt_cmd+=" --write-sub"  # Download subtitles
+  
+  # Execute command
+  echo "Downloading subtitles from $url..."
+  eval "$yt_cmd '$url'"
+  
+  echo "Subtitles downloaded successfully." 

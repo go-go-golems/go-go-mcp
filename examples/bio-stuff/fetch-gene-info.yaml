@@ -1,0 +1,57 @@
+# fetch info for foxp3 gene:
+# - https://www.genecards.org/cgi-bin/carddisp.pl?gene=FOXP3&keywords=foxp3
+
+# - papers: https://pubmed.ncbi.nlm.nih.gov/?term=foxp3
+
+# kagi command: pinocchio kagi fastgpt --query "foxp3 gene"
+
+# fetching page: lynx-dump
+
+name: fetch-gene-info
+short: Retrieve structured gene information for LLM analysis
+long: |
+  A tool designed for LLMs to fetch comprehensive gene information from authoritative sources.
+  Returns structured data about a gene from:
+  - GeneCards: Comprehensive gene database with function, expression, and clinical significance
+  - PubMed: Recent scientific publications and research findings
+  - Kagi AI: Additional context and summarized information
+  
+  The output is formatted with XML-like tags for easy parsing and section identification.
+  Each section contains specific information about the gene that can be used for:
+  - Understanding gene function and pathways
+  - Identifying disease associations
+  - Finding recent research developments
+  - Analyzing clinical significance
+flags:
+  - name: gene_symbol
+    type: string
+    help: Official gene symbol (e.g., FOXP3, TP53, BRCA1)
+    required: true
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  GENE="{{ .Args.gene_symbol }}"
+  
+  echo "<geneInformation gene=\"$GENE\" timestamp=\"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\">"
+  
+  echo "<genecardsInformation source=\"GeneCards\" description=\"Comprehensive gene database information\">"
+  curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+    "https://www.genecards.org/cgi-bin/carddisp.pl?gene=${GENE}" > "/tmp/genecards_${GENE}.html"
+  lynx -useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+    -nolist -dump "/tmp/genecards_${GENE}.html"
+  echo "</genecardsInformation>"
+  
+  echo "<pubmedInformation source=\"PubMed\" description=\"Recent scientific publications\">"
+  shot-scraper "https://pubmed.ncbi.nlm.nih.gov/?term=${GENE}" \
+    --wait 2000 \
+    --javascript "document.body.innerText" \
+    --output "/tmp/pubmed_${GENE}.txt"
+  cat "/tmp/pubmed_${GENE}.txt" | sed 's/^/  /'
+  echo "</pubmedInformation>"
+  
+  echo "<kagiInformation source=\"Kagi AI\" description=\"AI-processed gene information\">"
+  pinocchio kagi fastgpt --query "${GENE} gene function pathways disease clinical significance"
+  echo "</kagiInformation>"
+  
+  echo "</geneInformation>"

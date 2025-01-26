@@ -1,0 +1,67 @@
+name: fetch-url
+short: Fetch and extract text content from URLs using lynx
+long: |
+  This command fetches and extracts plain text content from one or more URLs using the lynx text browser.
+  It's particularly useful for automated content extraction, web scraping, and integration with LLM tools.
+  
+  INPUT: One or more URLs to fetch, with optional configuration for the output format and processing
+  OUTPUT: Plain text content from the specified URLs, with configurable formatting
+  
+  The command uses lynx's dump mode to convert HTML content to plain text while:
+  - Removing HTML formatting
+  - Preserving text structure and hierarchy
+  - Maintaining readable link references
+  - Handling various character encodings
+  
+  Common use cases:
+  1. Extract article content for summarization: --urls https://example.com/article
+  2. Batch process multiple URLs: --urls https://site1.com,https://site2.com
+  3. Custom formatting: --urls https://example.com --no-links
+  
+  Example outputs:
+  ```
+  Article Title
+  ============
+  
+  Main content text here...
+  
+  References
+  [1] http://reference1.com
+  [2] http://reference2.com
+  ```
+
+flags:
+  - name: urls
+    type: stringList
+    help: |
+      URLs to fetch content from. Multiple URLs can be specified as comma-separated values.
+      Each URL should be a valid HTTP/HTTPS URL.
+      Example: --urls https://example.com,https://another.com
+    required: true
+  
+  - name: no_links
+    type: bool
+    help: |
+      If true, removes the reference links section from the output.
+      Useful when you only want the main content without link references.
+      Example: --no-links
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Process each URL
+  for url in {{ range .Args.urls }}"{{ . }}" {{ end }}; do
+    echo "Fetching $url..."
+    
+    # Build lynx command
+    lynx_cmd="lynx -dump "
+    {{ if .Args.no_links }}
+    lynx_cmd+="--nolist "
+    {{ end }}
+    
+    # Execute fetch
+    eval "$lynx_cmd '$url'"
+    echo -e "\n---\n"
+  done 
