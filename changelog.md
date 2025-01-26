@@ -651,3 +651,8 @@ Added support for processing multiple HTML files and URLs in a single run:
 - Updated output format to include source information
 - Added proper error handling for each source
 - Improved template support to handle multiple sources
+
+## Add VSCode launch configuration for test-html-selector
+Added a new launch configuration to make it easier to debug the test-html-selector tool with example files.
+
+- Added Test HTML Selector launch configuration in .vscode/launch.json

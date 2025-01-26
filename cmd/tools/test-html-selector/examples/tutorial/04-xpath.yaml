@@ -1,0 +1,66 @@
+description: |
+  Example showing how to use XPath selectors for complex queries.
+  Demonstrates XPath's power for specific selections.
+
+selectors:
+  - name: second_paragraph
+    selector: //div[@class='article']/p[2]
+    type: xpath
+    description: |
+      Extracts the second paragraph specifically.
+      Shows how to use XPath position predicates.
+
+  - name: last_comment
+    selector: //div[@class='comments']/div[last()]
+    type: xpath
+    description: |
+      Extracts the last comment using XPath's last() function.
+      Demonstrates dynamic position selection.
+
+  - name: paragraphs_before_comments
+    selector: //div[@class='comments']/preceding-sibling::p
+    type: xpath
+    description: |
+      Extracts all paragraphs that come before the comments section.
+      Shows XPath's powerful axis navigation.
+
+  - name: recent_comments
+    selector: //div[@class='comment'][position() > last() - 2]
+    type: xpath
+    description: |
+      Extracts the two most recent comments.
+      Shows complex position calculations.
+
+  - name: comment_authors
+    selector: //span[@class='author'][../span[@class='date' and contains(text(), '2024')]]
+    type: xpath
+    description: |
+      Extracts authors of comments from 2024.
+      Shows how to use complex conditions and parent/child relationships.
+
+config:
+  sample_count: 5
+  context_chars: 100
+  template: |
+    {{- range . }}
+    {{ $ := .Data }}
+    # Article Structure
+
+    ## Second Paragraph
+    {{ index $.second_paragraph 0 }}
+
+    ## Paragraphs Before Comments
+    {{ range $.paragraphs_before_comments }}
+    * {{ . }}
+    {{- end }}
+
+    ## Recent Comments
+    {{ range $.recent_comments }}
+    * {{ . }}
+    {{- end }}
+
+    ## 2024 Comment Authors
+    {{ range $.comment_authors }}
+    * {{ . }}
+    {{- end }}
+    {{ end }} 

@@ -28,6 +28,21 @@
             "program": "${workspaceFolder}/cmd/tools/simplify-html",
             "args": ["simplify-html", "--file", "/tmp/foxp3.html", "--max-list-items", "5"],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Test HTML Selector",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/tools/test-html-selector",
+            "args": [
+                "test-html-selector",
+                "--config",
+                "cmd/tools/test-html-selector/examples/tutorial/01-basic-text.yaml",
+                "--files",
+                "cmd/tools/test-html-selector/examples/tutorial/01-basic-text.html"
+            ],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

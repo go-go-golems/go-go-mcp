@@ -40,7 +40,7 @@ type Selector struct {
 }
 
 type SimplifiedSample struct {
-	HTML    []htmlsimplifier.Document `yaml:"html,omitempty"`
+	HTML    interface{}               `yaml:"html,omitempty"`
 	Context []htmlsimplifier.Document `yaml:"context,omitempty"`
 	Path    string                    `yaml:"path,omitempty"`
 }
@@ -54,8 +54,8 @@ type SimplifiedResult struct {
 }
 
 type SourceResult struct {
-	Source string                   `yaml:"source"`
-	Data   map[string][]interface{} `yaml:"data"`
+	Source  string             `yaml:"source"`
+	Results []SimplifiedResult `yaml:"results"`
 }
 
 type TestHTMLSelectorCommand struct {
@@ -339,33 +339,7 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return yaml.NewEncoder(w).Encode(sourceResults)
 	}
 
-	// Convert results to use Document structure for normal output
-	var newResults []SimplifiedResult
-	for _, sourceResult := range sourceResults {
-		for selectorName, matches := range sourceResult.Data {
-			var samples []SimplifiedSample
-			for _, match := range matches {
-				if doc, ok := match.(htmlsimplifier.Document); ok {
-					sample := SimplifiedSample{
-						HTML: []htmlsimplifier.Document{doc},
-					}
-					if s.ShowPath {
-						sample.Path = sourceResult.Source
-					}
-					samples = append(samples, sample)
-				}
-			}
-			newResults = append(newResults, SimplifiedResult{
-				Name:     selectorName,
-				Selector: findSelectorByName(selectors, selectorName).Selector,
-				Type:     findSelectorByName(selectors, selectorName).Type,
-				Count:    len(matches),
-				Samples:  samples,
-			})
-		}
-	}
-
-	return yaml.NewEncoder(w).Encode(newResults)
+	return yaml.NewEncoder(w).Encode(sourceResults)
 }
 
 func findSelectorByName(selectors []Selector, name string) Selector {
@@ -426,25 +400,28 @@ func processSource(ctx context.Context, source string, selectors []Selector, s *
 		return result, fmt.Errorf("failed to run tests: %w", err)
 	}
 
-	result.Data = make(map[string][]interface{})
 	for _, r := range results {
-		var matches []interface{}
+		simplifiedResult := SimplifiedResult{
+			Name:     r.Name,
+			Selector: r.Selector,
+			Type:     r.Type,
+			Count:    r.Count,
+			Samples:  []SimplifiedSample{},
+		}
 		for _, sample := range r.Samples {
 			// Process HTML content
 			htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
 			if err == nil {
-				for _, doc := range htmlDocs {
-					if doc.Text != "" {
-						matches = append(matches, doc.Text)
-					} else if doc.Markdown != "" {
-						matches = append(matches, doc.Markdown)
-					} else {
-						matches = append(matches, doc)
-					}
+				simplifiedSample := SimplifiedSample{
+					HTML: htmlDocs,
 				}
+				if s.ShowPath {
+					simplifiedSample.Path = source
+				}
+				simplifiedResult.Samples = append(simplifiedResult.Samples, simplifiedSample)
 			}
 		}
-		result.Data[r.Name] = matches
+		result.Results = append(result.Results, simplifiedResult)
 	}
 
 	return result, nil

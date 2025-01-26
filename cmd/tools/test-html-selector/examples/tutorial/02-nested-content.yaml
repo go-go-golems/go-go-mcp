@@ -1,0 +1,64 @@
+description: |
+  Example showing how to extract nested content and handle parent-child relationships.
+  Demonstrates various ways to navigate and extract hierarchical data.
+
+selectors:
+  - name: article_titles
+    selector: article h2
+    description: |
+      Extracts article titles from h2 elements within article tags.
+      Shows how to target elements within a specific parent.
+
+  - name: article_metadata
+    selector: article .metadata
+    description: |
+      Extracts metadata sections from articles.
+      Shows how to get specific sections within containers.
+
+  - name: article_content
+    selector: article .content p
+    description: |
+      Extracts paragraphs from the content section of articles.
+      Shows how to get elements nested multiple levels deep.
+
+  - name: author_info
+    selector: article .author-bio
+    description: |
+      Extracts author biographies from articles.
+      Shows how to get specific subsections of content.
+
+  - name: related_links
+    selector: article .related ul li a
+    description: |
+      Extracts related article links.
+      Shows how to navigate through multiple levels of nesting.
+
+config:
+  sample_count: 5
+  context_chars: 150
+  template: |
+    {{- range . }}
+    {{ $ := .Data }}
+    # Articles Overview
+
+    {{ range $i, $title := $.article_titles }}
+    ## {{ $title }}
+
+    ### Metadata
+    {{ index $.article_metadata $i }}
+
+    ### Content
+    {{ range (index $.article_content $i) }}
+    {{ . }}
+    {{ end }}
+
+    ### Author
+    {{ index $.author_info $i }}
+
+    ### Related Articles
+    {{ range (index $.related_links $i) }}
+    * {{ . }}
+    {{ end }}
+    ---
+    {{ end }}
+    {{ end }} 

@@ -1,0 +1,68 @@
+description: |
+  Example showing how to extract data from tables and lists.
+  Demonstrates handling structured data formats.
+
+selectors:
+  - name: table_headers
+    selector: table.data-table th
+    description: |
+      Extracts all table headers.
+      Shows how to get column names from a table.
+
+  - name: table_rows
+    selector: table.data-table tbody tr
+    description: |
+      Extracts complete table rows.
+      Shows how to get structured data from tables.
+
+  - name: list_items
+    selector: ul.features li
+    description: |
+      Extracts items from an unordered list.
+      Shows basic list extraction.
+
+  - name: ordered_items
+    selector: ol.steps li
+    description: |
+      Extracts items from an ordered list.
+      Shows how to handle numbered lists.
+
+  - name: nested_list_items
+    selector: ul.categories li ul li
+    description: |
+      Extracts items from nested lists.
+      Shows how to handle hierarchical data.
+
+config:
+  sample_count: 10
+  context_chars: 100
+  template: |
+    {{- range . }}
+    {{ $ := .Data }}
+    # Data Structure
+
+    ## Table Headers
+    {{ range $.table_headers }}
+    * {{ . }}
+    {{- end }}
+
+    ## Table Data
+    {{ range $.table_rows }}
+    * {{ . }}
+    {{- end }}
+
+    ## Feature List
+    {{ range $.list_items }}
+    * {{ . }}
+    {{- end }}
+
+    ## Steps
+    {{ range $.ordered_items }}
+    {{ . }}
+    {{- end }}
+
+    ## Categories
+    {{ range $.nested_list_items }}
+    * {{ . }}
+    {{- end }}
+    {{ end }} 

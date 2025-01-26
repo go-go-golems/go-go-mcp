@@ -79,6 +79,10 @@ func (se *SelectorEngine) findWithXPath(ctx context.Context, selector string) ([
 }
 
 func (se *SelectorEngine) FindElements(ctx context.Context, sel Selector) ([]SelectorSample, error) {
+	if sel.Type == "" {
+		sel.Type = "css"
+	}
+
 	switch sel.Type {
 	case "css":
 		return se.findWithCSS(ctx, sel.Selector)
