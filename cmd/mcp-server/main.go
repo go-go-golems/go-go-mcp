@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"os"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 
 	clay "github.com/go-go-golems/clay/pkg"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/mcp-server/cmds"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	glazed_cmds "github.com/go-go-golems/glazed/pkg/cmds"
@@ -84,6 +86,9 @@ func initRootCmd() (*help.HelpSystem, error) {
 	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
+
+	bridgeCmd := server_cmds.NewBridgeCommand(log.Logger)
+	rootCmd.AddCommand(bridgeCmd)
 
 	// Add version command
 	versionCmd := &cobra.Command{
