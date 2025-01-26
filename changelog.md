@@ -562,3 +562,11 @@ Changed the HTML simplifier to return lists of documents instead of single docum
 ## Add Clay logging initialization to HTML tools
 
 Added proper Clay logging initialization to test-html-selector and simplify-html tools to match mcp-server's logging setup.
+
+# Added Show Context and Path Control Flags
+
+Added flags to control the display of context and paths in the HTML selector tool output for better customization:
+
+- Added --show-context flag to control display of context around matched elements (default: false)
+- Added --show-path flag to control display of element paths (default: true)
+- Updated documentation to reflect new options

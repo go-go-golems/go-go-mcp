@@ -54,6 +54,8 @@ type TestHTMLSelectorSettings struct {
 	ConfigFile   string `glazed.parameter:"config"`
 	InputFile    string `glazed.parameter:"input"`
 	Extract      bool   `glazed.parameter:"extract"`
+	ShowContext  bool   `glazed.parameter:"show-context"`
+	ShowPath     bool   `glazed.parameter:"show-path"`
 	SampleCount  int    `glazed.parameter:"sample-count"`
 	ContextChars int    `glazed.parameter:"context-chars"`
 	StripScripts bool   `glazed.parameter:"strip-scripts"`
@@ -92,6 +94,18 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Extract and print all matches for each selector"),
 					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"show-context",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Show context around matched elements"),
+					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"show-path",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Show path to matched elements"),
+					parameters.WithDefault(true),
 				),
 				parameters.NewParameterDefinition(
 					"sample-count",
@@ -227,8 +241,11 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		}
 
 		for _, sample := range result.Samples {
-			newSample := SimplifiedSample{
-				Path: sample.Path,
+			newSample := SimplifiedSample{}
+
+			// Only include path if ShowPath is true
+			if s.ShowPath {
+				newSample.Path = sample.Path
 			}
 
 			// Process HTML content
@@ -237,10 +254,12 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 				newSample.HTML = htmlDocs
 			}
 
-			// Process context
-			contextDocs, err := simplifier.ProcessHTML(sample.Context)
-			if err == nil {
-				newSample.Context = contextDocs
+			// Process context only if ShowContext is true
+			if s.ShowContext {
+				contextDocs, err := simplifier.ProcessHTML(sample.Context)
+				if err == nil {
+					newSample.Context = contextDocs
+				}
 			}
 
 			newResult.Samples = append(newResult.Samples, newSample)
