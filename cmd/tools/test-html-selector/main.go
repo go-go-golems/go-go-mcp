@@ -11,6 +11,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/help"
+	"github.com/go-go-golems/go-go-mcp/pkg/htmlsimplifier"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +31,20 @@ type Selector struct {
 	Type     string `yaml:"type"` // "css" or "xpath"
 }
 
+type SimplifiedSample struct {
+	HTML    []htmlsimplifier.Document `yaml:"html"`
+	Context []htmlsimplifier.Document `yaml:"context"`
+	Path    string                    `yaml:"path"`
+}
+
+type SimplifiedResult struct {
+	Name     string             `yaml:"name"`
+	Selector string             `yaml:"selector"`
+	Type     string             `yaml:"type"`
+	Count    int                `yaml:"count"`
+	Samples  []SimplifiedSample `yaml:"samples"`
+}
+
 type TestHTMLSelectorCommand struct {
 	*cmds.CommandDescription
 }
@@ -40,6 +55,15 @@ type TestHTMLSelectorSettings struct {
 	Extract      bool   `glazed.parameter:"extract"`
 	SampleCount  int    `glazed.parameter:"sample-count"`
 	ContextChars int    `glazed.parameter:"context-chars"`
+	StripScripts bool   `glazed.parameter:"strip-scripts"`
+	StripCSS     bool   `glazed.parameter:"strip-css"`
+	ShortenText  bool   `glazed.parameter:"shorten-text"`
+	CompactSVG   bool   `glazed.parameter:"compact-svg"`
+	StripSVG     bool   `glazed.parameter:"strip-svg"`
+	SimplifyText bool   `glazed.parameter:"simplify-text"`
+	Markdown     bool   `glazed.parameter:"markdown"`
+	MaxListItems int    `glazed.parameter:"max-list-items"`
+	MaxTableRows int    `glazed.parameter:"max-table-rows"`
 }
 
 func NewTestHTMLSelectorCommand() (*TestHTMLSelectorCommand, error) {
@@ -80,6 +104,60 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					parameters.WithHelp("Number of characters of context to include"),
 					parameters.WithDefault(100),
 				),
+				parameters.NewParameterDefinition(
+					"strip-scripts",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Remove <script> tags"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"strip-css",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Remove <style> tags and style attributes"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"shorten-text",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Shorten <span> and <p> elements longer than 200 characters"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"compact-svg",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Simplify SVG elements in output"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"strip-svg",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Remove all SVG elements"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"simplify-text",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Collapse nodes with only text/br children into a single text field"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"markdown",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Convert text with important elements to markdown format"),
+					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"max-list-items",
+					parameters.ParameterTypeInteger,
+					parameters.WithHelp("Maximum number of items to show in lists and select boxes (0 for unlimited)"),
+					parameters.WithDefault(4),
+				),
+				parameters.NewParameterDefinition(
+					"max-table-rows",
+					parameters.ParameterTypeInteger,
+					parameters.WithHelp("Maximum number of rows to show in tables (0 for unlimited)"),
+					parameters.WithDefault(4),
+				),
 			),
 		),
 	}, nil
@@ -104,6 +182,19 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 	config.Config.SampleCount = s.SampleCount
 	config.Config.ContextChars = s.ContextChars
 
+	// Create HTML simplifier
+	simplifier := htmlsimplifier.NewSimplifier(htmlsimplifier.Options{
+		StripScripts: s.StripScripts,
+		StripCSS:     s.StripCSS,
+		ShortenText:  s.ShortenText,
+		CompactSVG:   s.CompactSVG,
+		StripSVG:     s.StripSVG,
+		SimplifyText: s.SimplifyText,
+		Markdown:     s.Markdown,
+		MaxListItems: s.MaxListItems,
+		MaxTableRows: s.MaxTableRows,
+	})
+
 	tester, err := NewSelectorTester(&Config{
 		File:      s.InputFile,
 		Selectors: config.Selectors,
@@ -124,15 +215,53 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return fmt.Errorf("failed to run tests: %w", err)
 	}
 
+	// Convert results to use Document structure
+	var newResults []SimplifiedResult
+	for _, result := range results {
+		newResult := SimplifiedResult{
+			Name:     result.Name,
+			Selector: result.Selector,
+			Type:     result.Type,
+			Count:    result.Count,
+		}
+
+		for _, sample := range result.Samples {
+			newSample := SimplifiedSample{
+				Path: sample.Path,
+			}
+
+			// Process HTML content
+			htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
+			if err == nil {
+				newSample.HTML = htmlDocs
+			}
+
+			// Process context
+			contextDocs, err := simplifier.ProcessHTML(sample.Context)
+			if err == nil {
+				newSample.Context = contextDocs
+			}
+
+			newResult.Samples = append(newResult.Samples, newSample)
+		}
+		newResults = append(newResults, newResult)
+	}
+
 	if s.Extract {
-		for _, result := range results {
+		for _, result := range newResults {
 			fmt.Fprintf(w, "Selector: %s\n", result.Selector)
 			for _, sample := range result.Samples {
-				fmt.Fprintln(w, sample.HTML)
+				for _, doc := range sample.HTML {
+					if doc.Text != "" {
+						fmt.Fprintln(w, doc.Text)
+					} else if doc.Markdown != "" {
+						fmt.Fprintln(w, doc.Markdown)
+					}
+				}
 			}
 		}
 	} else {
-		return yaml.NewEncoder(w).Encode(results)
+		return yaml.NewEncoder(w).Encode(newResults)
 	}
 
 	return nil

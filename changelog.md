@@ -540,3 +540,21 @@ Converted the test-html-selector tool to use the glazed framework for better CLI
 - Removed file field from config file
 - Added --sample-count and --context-chars command line flags
 - Updated documentation to reflect new command structure
+
+# Enhanced HTML Selector Output
+
+Enhanced the test-html-selector tool to use the full HTML simplification structure:
+
+- Added HTML simplification options from simplify-html tool
+- Changed output format to use full Document structure for both HTML and context
+- Added support for markdown and text simplification
+- Updated documentation with new output format examples
+
+# HTML Simplifier Document List Support
+
+Changed the HTML simplifier to return lists of documents instead of single documents:
+
+- Modified ProcessHTML to return []Document instead of Document
+- Updated test-html-selector to handle document lists
+- Changed output format to show arrays of documents for HTML and context
+- Updated documentation with new output format examples

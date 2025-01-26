@@ -71,10 +71,10 @@ func NewSimplifier(opts Options) *Simplifier {
 }
 
 // ProcessHTML simplifies the given HTML content according to the configured options
-func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
+func (s *Simplifier) ProcessHTML(htmlContent string) ([]Document, error) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
 	if err != nil {
-		return Document{}, fmt.Errorf("failed to parse HTML: %w", err)
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	// Apply selector-based filtering if config is provided
@@ -99,7 +99,7 @@ func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
 				case "xpath":
 					nodes, err := htmlquery.QueryAll(doc.Get(0), sel.Selector)
 					if err != nil {
-						return Document{}, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
+						return nil, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
 					}
 					for _, node := range nodes {
 						// Add attribute to mark this node
@@ -139,7 +139,7 @@ func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
 				case "xpath":
 					nodes, err := htmlquery.QueryAll(doc.Get(0), sel.Selector)
 					if err != nil {
-						return Document{}, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
+						return nil, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
 					}
 					log.Debug().Int("removed_nodes", len(nodes)).Msg("Removed nodes by XPath selector")
 					for _, node := range nodes {
@@ -155,11 +155,7 @@ func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
 		doc.Find("[data-simplifier-keep]").RemoveAttr("data-simplifier-keep")
 	}
 
-	docs := s.processNode(doc.Get(0))
-	if len(docs) == 0 {
-		return Document{}, nil
-	}
-	return docs[0], nil
+	return s.processNode(doc.Get(0)), nil
 }
 
 func (s *Simplifier) processNode(node *html.Node) []Document {

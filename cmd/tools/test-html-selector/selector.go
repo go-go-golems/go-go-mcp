@@ -12,18 +12,18 @@ import (
 	"golang.org/x/net/html"
 )
 
-type Result struct {
-	Name     string   `yaml:"name"`
-	Selector string   `yaml:"selector"`
-	Type     string   `yaml:"type"`
-	Count    int      `yaml:"count"`
-	Samples  []Sample `yaml:"samples"`
-}
-
-type Sample struct {
+type SelectorSample struct {
 	HTML    string `yaml:"html"`
 	Context string `yaml:"context"`
 	Path    string `yaml:"path"`
+}
+
+type SelectorResult struct {
+	Name     string           `yaml:"name"`
+	Selector string           `yaml:"selector"`
+	Type     string           `yaml:"type"`
+	Count    int              `yaml:"count"`
+	Samples  []SelectorSample `yaml:"samples"`
 }
 
 type SelectorEngine struct {
@@ -38,14 +38,14 @@ func NewSelectorEngine(r io.Reader) (*SelectorEngine, error) {
 	return &SelectorEngine{doc: doc}, nil
 }
 
-func (se *SelectorEngine) findWithCSS(ctx context.Context, selector string) ([]Sample, error) {
-	var samples []Sample
+func (se *SelectorEngine) findWithCSS(ctx context.Context, selector string) ([]SelectorSample, error) {
+	var samples []SelectorSample
 	se.doc.Find(selector).Each(func(i int, s *goquery.Selection) {
 		html, _ := s.Html()
 		parent := s.Parent()
 		parentHtml, _ := parent.Html()
 
-		samples = append(samples, Sample{
+		samples = append(samples, SelectorSample{
 			HTML:    html,
 			Context: parentHtml,
 			Path:    generateDOMPath(s),
@@ -54,13 +54,13 @@ func (se *SelectorEngine) findWithCSS(ctx context.Context, selector string) ([]S
 	return samples, nil
 }
 
-func (se *SelectorEngine) findWithXPath(ctx context.Context, selector string) ([]Sample, error) {
+func (se *SelectorEngine) findWithXPath(ctx context.Context, selector string) ([]SelectorSample, error) {
 	nodes, err := htmlquery.QueryAll(se.doc.Get(0), selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute XPath query: %w", err)
 	}
 
-	var samples []Sample
+	var samples []SelectorSample
 	for _, node := range nodes {
 		html := htmlquery.OutputHTML(node, true)
 		parent := node.Parent
@@ -69,7 +69,7 @@ func (se *SelectorEngine) findWithXPath(ctx context.Context, selector string) ([
 			parentHtml = htmlquery.OutputHTML(parent, true)
 		}
 
-		samples = append(samples, Sample{
+		samples = append(samples, SelectorSample{
 			HTML:    html,
 			Context: parentHtml,
 			Path:    generateXPathDOMPath(node),
@@ -78,7 +78,7 @@ func (se *SelectorEngine) findWithXPath(ctx context.Context, selector string) ([
 	return samples, nil
 }
 
-func (se *SelectorEngine) FindElements(ctx context.Context, sel Selector) ([]Sample, error) {
+func (se *SelectorEngine) FindElements(ctx context.Context, sel Selector) ([]SelectorSample, error) {
 	switch sel.Type {
 	case "css":
 		return se.findWithCSS(ctx, sel.Selector)
@@ -157,8 +157,8 @@ func NewSelectorTester(config *Config) (*SelectorTester, error) {
 	}, nil
 }
 
-func (st *SelectorTester) Run(ctx context.Context) ([]Result, error) {
-	var results []Result
+func (st *SelectorTester) Run(ctx context.Context) ([]SelectorResult, error) {
+	var results []SelectorResult
 
 	for _, sel := range st.config.Selectors {
 		samples, err := st.engine.FindElements(ctx, sel)
@@ -171,7 +171,7 @@ func (st *SelectorTester) Run(ctx context.Context) ([]Result, error) {
 			samples = samples[:st.config.Config.SampleCount]
 		}
 
-		results = append(results, Result{
+		results = append(results, SelectorResult{
 			Name:     sel.Name,
 			Selector: sel.Selector,
 			Type:     sel.Type,
