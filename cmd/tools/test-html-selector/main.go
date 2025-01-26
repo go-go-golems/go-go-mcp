@@ -7,6 +7,7 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
@@ -305,7 +306,9 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		// First try command line template
 		if s.ExtractTemplate != "" {
 			// Load and execute template
-			tmpl, err := template.ParseFiles(s.ExtractTemplate)
+			tmpl, err := template.New(s.ExtractTemplate).
+				Funcs(sprig.TxtFuncMap()).
+				ParseFiles(s.ExtractTemplate)
 			if err != nil {
 				return fmt.Errorf("failed to parse template file: %w", err)
 			}
@@ -315,7 +318,9 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		// Then try config file template if extract mode is on
 		if config != nil && config.Config.Template != "" {
 			// Parse and execute template from config
-			tmpl, err := template.New("config").Parse(config.Config.Template)
+			tmpl, err := template.New("config").
+				Funcs(sprig.TxtFuncMap()).
+				Parse(config.Config.Template)
 			if err != nil {
 				return fmt.Errorf("failed to parse template from config: %w", err)
 			}

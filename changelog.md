@@ -606,3 +606,12 @@ Fixed the selector match count to show the total number of matches instead of th
 - Count now shows total number of matches before sample truncation
 - Sample count limit only affects displayed samples, not the total count
 - Provides more accurate match statistics while keeping output manageable
+
+# Added Sprig Template Functions
+
+Added Sprig template functions to enhance template capabilities:
+
+- Added full set of Sprig text template functions
+- Available in both file templates and config templates
+- Includes string manipulation, math, date formatting, and more
+- Removed custom add function in favor of Sprig's math functions
