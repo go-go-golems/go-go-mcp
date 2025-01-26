@@ -166,6 +166,8 @@ func (st *SelectorTester) Run(ctx context.Context) ([]SelectorResult, error) {
 			return nil, fmt.Errorf("selector '%s' failed: %w", sel.Name, err)
 		}
 
+		totalCount := len(samples)
+
 		// Limit samples to configured count
 		if len(samples) > st.config.Config.SampleCount {
 			samples = samples[:st.config.Config.SampleCount]
@@ -175,7 +177,7 @@ func (st *SelectorTester) Run(ctx context.Context) ([]SelectorResult, error) {
 			Name:     sel.Name,
 			Selector: sel.Selector,
 			Type:     sel.Type,
-			Count:    len(samples),
+			Count:    totalCount,
 			Samples:  samples,
 		})
 	}

@@ -598,3 +598,11 @@ Simplified data extraction by merging --extract and --extract-data flags:
 - Removed redundant --extract-data flag
 - Maintained template support with --extract-template and config file templates
 - Improved consistency in data output formats
+
+# Fixed Selector Match Count
+
+Fixed the selector match count to show the total number of matches instead of the truncated sample count:
+
+- Count now shows total number of matches before sample truncation
+- Sample count limit only affects displayed samples, not the total count
+- Provides more accurate match statistics while keeping output manageable

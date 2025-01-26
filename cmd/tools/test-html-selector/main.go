@@ -35,9 +35,9 @@ type Selector struct {
 }
 
 type SimplifiedSample struct {
-	HTML    []htmlsimplifier.Document `yaml:"html"`
-	Context []htmlsimplifier.Document `yaml:"context"`
-	Path    string                    `yaml:"path"`
+	HTML    []htmlsimplifier.Document `yaml:"html,omitempty"`
+	Context []htmlsimplifier.Document `yaml:"context,omitempty"`
+	Path    string                    `yaml:"path,omitempty"`
 }
 
 type SimplifiedResult struct {
@@ -281,9 +281,9 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 
 	// If using extract or extract-template, process all matches without sample limit
 	if s.Extract || s.ExtractTemplate != "" {
-		extractedData := make(map[string][]string)
+		extractedData := make(map[string][]interface{})
 		for _, result := range results {
-			var matches []string
+			var matches []interface{}
 			for _, sample := range result.Samples {
 				// Process HTML content
 				htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
@@ -293,6 +293,8 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 							matches = append(matches, doc.Text)
 						} else if doc.Markdown != "" {
 							matches = append(matches, doc.Markdown)
+						} else {
+							matches = append(matches, doc)
 						}
 					}
 				}
