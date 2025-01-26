@@ -46,8 +46,9 @@ config:
   template: |
     {{- range . }}
     {{ $ := .Data }}
+    # Search Results for "{{ .Source }}"
     {{- with $.result_count }}
-    # Search Results: {{ index . 0 }}
+    Search Results: {{ index . 0 }}
     {{ end }}
     
     {{- range $i, $title := $.paper_titles }}
