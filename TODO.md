@@ -1,3 +1,8 @@
+## Features
+
+- [ ] Add tool/prompt profiles to switch between different collections of prompts and resources and other things
+- [ ] Add environment variable pass through / .env loading to shell script tools
+
 ## Tool API
 
 - [x] Add context to the tool call
@@ -44,6 +49,7 @@
 - [ ] Make it easy to register a struct with multiple tool handlers (say, to keep a single handle to a resource), linked to the session_id
 - [x] Pass the session id to the tool  (maybe as part of the context?)
 - [ ] Track crashes in a log file
+
 
 
 ## MCP ideas

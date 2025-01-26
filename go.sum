@@ -59,8 +59,6 @@ github.com/go-go-golems/geppetto v0.4.31 h1:E13mLrNLFvdCG1Sa1TODBXPZ+kmr/zrUFmEw
 github.com/go-go-golems/geppetto v0.4.31/go.mod h1:PV0rpDexAL0njw0jpc5Ru1RovoqOp6FvNafcG5QNjvo=
 github.com/go-go-golems/glazed v0.5.24 h1:0jMavScvwdh7MIhoTOZ2hLNjVX06bPirjWS8o6YfzQo=
 github.com/go-go-golems/glazed v0.5.24/go.mod h1:px67s8RtyjXsKGuSBWJt6HNny53e2tP9Ew6rRcZHe8k=
-github.com/go-go-golems/go-go-mcp v0.0.0-20250124151211-78bb7804fe3a h1:5BZsC55xTGhWKMRc+fjI6h0XK/nJr+udppaesQJFcXM=
-github.com/go-go-golems/go-go-mcp v0.0.0-20250124151211-78bb7804fe3a/go.mod h1:i3ezyyFMRYRLxjV02FZwmhjEG505H+Qf1hogGpkF0kQ=
 github.com/go-openapi/errors v0.22.0 h1:c4xY/OLxUBSTiepAg3j/MHuAv5mJhnf53LLMWFB+u/w=
 github.com/go-openapi/errors v0.22.0/go.mod h1:J3DmZScxCDufmIMsdOuDHxJbdOGC0xtUynjIx092vXE=
 github.com/go-openapi/strfmt v0.23.0 h1:nlUS6BCqcnAk0pyhi9Y+kdDVZdZMHfEKQiS4HaMgO/c=
