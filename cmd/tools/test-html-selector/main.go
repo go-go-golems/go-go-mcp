@@ -40,7 +40,7 @@ type Selector struct {
 }
 
 type SimplifiedSample struct {
-	HTML    interface{}               `yaml:"html,omitempty"`
+	HTML    []htmlsimplifier.Document `yaml:"html,omitempty"`
 	Context []htmlsimplifier.Document `yaml:"context,omitempty"`
 	Path    string                    `yaml:"path,omitempty"`
 }
@@ -54,8 +54,8 @@ type SimplifiedResult struct {
 }
 
 type SourceResult struct {
-	Source  string             `yaml:"source"`
-	Results []SimplifiedResult `yaml:"results"`
+	Source string                   `yaml:"source"`
+	Data   map[string][]interface{} `yaml:"data"`
 }
 
 type TestHTMLSelectorCommand struct {
@@ -339,7 +339,33 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return yaml.NewEncoder(w).Encode(sourceResults)
 	}
 
-	return yaml.NewEncoder(w).Encode(sourceResults)
+	// Convert results to use Document structure for normal output
+	var newResults []SimplifiedResult
+	for _, sourceResult := range sourceResults {
+		for selectorName, matches := range sourceResult.Data {
+			var samples []SimplifiedSample
+			for _, match := range matches {
+				if doc, ok := match.(htmlsimplifier.Document); ok {
+					sample := SimplifiedSample{
+						HTML: []htmlsimplifier.Document{doc},
+					}
+					if s.ShowPath {
+						sample.Path = sourceResult.Source
+					}
+					samples = append(samples, sample)
+				}
+			}
+			newResults = append(newResults, SimplifiedResult{
+				Name:     selectorName,
+				Selector: findSelectorByName(selectors, selectorName).Selector,
+				Type:     findSelectorByName(selectors, selectorName).Type,
+				Count:    len(matches),
+				Samples:  samples,
+			})
+		}
+	}
+
+	return yaml.NewEncoder(w).Encode(newResults)
 }
 
 func findSelectorByName(selectors []Selector, name string) Selector {
@@ -390,7 +416,7 @@ func processSource(ctx context.Context, source string, selectors []Selector, s *
 			ContextChars: s.ContextChars,
 			Template:     "",
 		},
-	})
+	}, f)
 	if err != nil {
 		return result, fmt.Errorf("failed to create tester: %w", err)
 	}
@@ -400,28 +426,25 @@ func processSource(ctx context.Context, source string, selectors []Selector, s *
 		return result, fmt.Errorf("failed to run tests: %w", err)
 	}
 
+	result.Data = make(map[string][]interface{})
 	for _, r := range results {
-		simplifiedResult := SimplifiedResult{
-			Name:     r.Name,
-			Selector: r.Selector,
-			Type:     r.Type,
-			Count:    r.Count,
-			Samples:  []SimplifiedSample{},
-		}
+		var matches []interface{}
 		for _, sample := range r.Samples {
 			// Process HTML content
 			htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
 			if err == nil {
-				simplifiedSample := SimplifiedSample{
-					HTML: htmlDocs,
+				for _, doc := range htmlDocs {
+					if doc.Text != "" {
+						matches = append(matches, doc.Text)
+					} else if doc.Markdown != "" {
+						matches = append(matches, doc.Markdown)
+					} else {
+						matches = append(matches, doc)
+					}
 				}
-				if s.ShowPath {
-					simplifiedSample.Path = source
-				}
-				simplifiedResult.Samples = append(simplifiedResult.Samples, simplifiedSample)
 			}
 		}
-		result.Results = append(result.Results, simplifiedResult)
+		result.Data[r.Name] = matches
 	}
 
 	return result, nil

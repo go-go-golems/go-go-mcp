@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -143,13 +142,7 @@ type SelectorTester struct {
 	config *Config
 }
 
-func NewSelectorTester(config *Config) (*SelectorTester, error) {
-	f, err := os.Open(config.File)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open HTML file: %w", err)
-	}
-	defer f.Close()
-
+func NewSelectorTester(config *Config, f io.Reader) (*SelectorTester, error) {
 	engine, err := NewSelectorEngine(f)
 	if err != nil {
 		return nil, err
