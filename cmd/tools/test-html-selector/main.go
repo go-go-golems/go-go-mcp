@@ -60,8 +60,8 @@ type SimplifiedResult struct {
 
 type SourceResult struct {
 	Source          string                   `yaml:"source"`
-	Data            map[string][]interface{} `yaml:"data"`
-	SelectorResults []SelectorResult         `yaml:"selector_results"`
+	Data            map[string][]interface{} `yaml:"data,omitempty"`
+	SelectorResults []SelectorResult         `yaml:"selector_results,omitempty"`
 }
 
 type HTMLSelectorCommand struct {
@@ -79,6 +79,7 @@ type HTMLSelectorSettings struct {
 	ExtractTemplate string   `glazed.parameter:"extract-template"`
 	ShowContext     bool     `glazed.parameter:"show-context"`
 	ShowPath        bool     `glazed.parameter:"show-path"`
+	ShowSimplified  bool     `glazed.parameter:"show-simplified"`
 	SampleCount     int      `glazed.parameter:"sample-count"`
 	ContextChars    int      `glazed.parameter:"context-chars"`
 	StripScripts    bool     `glazed.parameter:"strip-scripts"`
@@ -154,6 +155,12 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Show path to matched elements"),
 					parameters.WithDefault(true),
+				),
+				parameters.NewParameterDefinition(
+					"show-simplified",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Show simplified HTML in output"),
+					parameters.WithDefault(false),
 				),
 				parameters.NewParameterDefinition(
 					"sample-count",
@@ -290,7 +297,7 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 		MaxTableRows: s.MaxTableRows,
 	})
 
-	var sourceResults []SourceResult
+	var sourceResults []*SourceResult
 
 	// Process files
 	for _, file := range s.Files {
@@ -312,6 +319,11 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 
 	// If using extract or extract-template, process all matches without sample limit
 	if s.Extract || s.ExtractTemplate != "" {
+		// clear the selector results
+		for _, sourceResult := range sourceResults {
+			sourceResult.SelectorResults = []SelectorResult{}
+		}
+
 		// If extract-data is true, output raw data regardless of templates
 		if s.ExtractData {
 			return yaml.NewEncoder(w).Encode(sourceResults)
@@ -373,9 +385,12 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 				}
 
 				sample := SimplifiedSample{
-					SimplifiedHTML: htmlDocs,
-					HTML:           selectorSample.HTML,
-					Markdown:       markdown,
+					HTML:     selectorSample.HTML,
+					Markdown: markdown,
+				}
+
+				if s.ShowSimplified {
+					sample.SimplifiedHTML = htmlDocs
 				}
 
 				if s.ShowPath {
@@ -386,7 +401,9 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 					if err != nil {
 						return fmt.Errorf("failed to process HTML: %w", err)
 					}
-					sample.SimplifiedContext = htmlDocs
+					if s.ShowSimplified {
+						sample.SimplifiedContext = htmlDocs
+					}
 					sample.Context = selectorSample.Context
 				}
 				newResults[selectorResult.Name].Samples = append(newResults[selectorResult.Name].Samples, sample)
@@ -413,9 +430,10 @@ func processSource(
 	selectors []Selector,
 	s *HTMLSelectorSettings,
 	simplifier *htmlsimplifier.Simplifier,
-) (SourceResult, error) {
-	var result SourceResult
-	result.Source = source
+) (*SourceResult, error) {
+	result := &SourceResult{
+		Source: source,
+	}
 
 	var f io.ReadCloser
 	var err error
@@ -468,20 +486,22 @@ func processSource(
 	for _, r := range results {
 		var matches []interface{}
 		for _, selectorSample := range r.Samples {
-			// Process HTML content
-			htmlDocs, err := simplifier.ProcessHTML(selectorSample.HTML)
-			if err == nil {
+			// Convert sample to markdown if requested
+			if s.Markdown {
+				// Create markdown converter
+				converter := md.NewConverter("", true, nil)
+				var markdown string
 
-				for _, doc := range htmlDocs {
-					if doc.Text != "" {
-						matches = append(matches, doc.Text)
-					} else if doc.Markdown != "" {
-						matches = append(matches, doc.Markdown)
-					} else {
-						matches = append(matches, doc)
+				// Convert HTML to markdown if present
+				if selectorSample.HTML != "" {
+					markdown, err = converter.ConvertString(selectorSample.HTML)
+					if err == nil {
+						matches = append(matches, markdown)
+						continue
 					}
 				}
 			}
+			matches = append(matches, selectorSample.HTML)
 		}
 		result.Data[r.Name] = matches
 	}

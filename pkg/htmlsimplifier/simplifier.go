@@ -255,6 +255,12 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 				}}
 			}
 		}
+
+		// If node has class or id, fall through to default processing
+		if len(classes) > 0 || id != "" {
+			break
+		}
+
 		// If text simplification fails or is disabled, extract text normally
 		text := s.textSimplifier.ExtractText(node)
 		if text != "" {

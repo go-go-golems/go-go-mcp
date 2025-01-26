@@ -98,6 +98,7 @@
                 "hn.html",
                 "--log-level",
                 "DEBUG",
+                "--show-simplified",
                 "--config",
                 "/tmp/html-extraction-2025-01-26-17-42-34.yaml"
             ],

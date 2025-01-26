@@ -133,6 +133,13 @@ func (h *NodeHandler) IsTextOnly(node *html.Node) bool {
 		return false
 	}
 
+	// Nodes with class or id attributes that are text-only strategy are not text-only
+	for _, attr := range node.Attr {
+		if attr.Key == "class" || attr.Key == "id" {
+			return false
+		}
+	}
+
 	// Check all children
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		if !h.IsTextOnly(child) {
@@ -166,6 +173,12 @@ func (h *NodeHandler) IsMarkdownable(node *html.Node) bool {
 
 	// For non-markdown elements that are text-only, we need to check if they contain any non-markdown elements
 	if strategy == StrategyTextOnly {
+		// Nodes with class or id attributes that are text-only strategy are not markdownable
+		for _, attr := range node.Attr {
+			if attr.Key == "class" || attr.Key == "id" {
+				return false
+			}
+		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
 			if child.Type == html.ElementNode {
 				childStrategy := h.GetStrategy(child)

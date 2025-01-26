@@ -691,3 +691,18 @@ Added debug mode and tracing capabilities to ShellToolProvider for better debugg
 - Added tracing directory support to save input/output JSON files for each tool call
 - Implemented functional options pattern for configuration
 - Added timestamp-based file naming for trace files
+
+# Switch to html-to-markdown Library
+
+Replaced manual markdown conversion with html-to-markdown library for better and more consistent HTML to Markdown conversion:
+- Removed manual markdown conversion code and maps
+- Added html-to-markdown library integration
+- Simplified TextSimplifier implementation
+- Maintained existing logging and error handling
+
+# HTML Selector Show Simplified Flag
+
+Added a new flag to control whether simplified HTML is shown in the output to reduce verbosity.
+
+- Added `--show-simplified` flag (default: false) to control whether simplified HTML is included in output
+- Modified output to only include simplified HTML and context when explicitly requested
