@@ -624,3 +624,12 @@ Added description fields to improve configuration documentation:
 - Added per-selector description field to document each selector's purpose
 - Updated example configurations with detailed descriptions
 - Improved self-documentation of configuration files
+
+HTML Selector Tutorial Examples
+Added comprehensive tutorial examples to demonstrate HTML selector usage:
+- Basic text extraction examples showing simple selectors
+- Nested content examples showing parent-child relationships
+- Tables and lists examples showing structured data extraction
+- XPath examples showing advanced selection techniques
+
+Each example includes both HTML and YAML files with detailed descriptions and comments.
