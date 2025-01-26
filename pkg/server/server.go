@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/server/transports/sse"
 	"github.com/go-go-golems/go-go-mcp/pkg/server/transports/stdio"
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
 	"github.com/go-go-golems/go-go-mcp/pkg/services/defaults"
@@ -85,7 +86,7 @@ func (s *Server) StartStdio(ctx context.Context) error {
 func (s *Server) StartSSE(ctx context.Context, port int) error {
 	s.mu.Lock()
 	s.logger.Debug().Int("port", port).Msg("Creating SSE transport")
-	sseServer := NewSSEServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService, port)
+	sseServer := sse.NewSSEServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService, port)
 	s.transport = sseServer
 	s.mu.Unlock()
 

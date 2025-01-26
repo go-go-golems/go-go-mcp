@@ -1,0 +1,38 @@
+name: html-extraction
+short: Extract data from HTML using selectors
+long: |
+  Extract data from HTML documents using CSS or XPath selectors.
+  IMPORTANT: Run get-html-extraction-tutorial first to understand how to create selector configurations.
+  NEVER RUN THIS TOOL WITHOUT HAVING READ THE TUTORIAL FIRST.
+
+flags:
+  - name: config
+    type: string
+    help: YAML configuration string containing selectors and extraction rules
+    required: true
+  - name: urls
+    type: stringList
+    help: List of URLs to extract data from
+    required: true
+  - name: show_context
+    type: bool
+    help: Show context around matches
+    default: false
+  - name: show_path
+    type: bool
+    help: Show element path in results
+    default: false
+  - name: extract_template
+    type: string
+    help: Optional template file for formatting results
+
+command:
+  - html-selector
+  - select
+  - --urls
+  - "{{ range .Args.urls }}{{ . }} {{ end }}"
+  - --config-string
+  - "{{ .Args.config }}"
+  - "{{ if .Args.show_context }}--show-context{{ end }}"
+  - "{{ if .Args.show_path }}--show-path{{ end }}"
+  - "{{ if .Args.extract_template }}--extract --extract-template {{ .Args.extract_template }}{{ end }}" 

@@ -1,0 +1,11 @@
+name: get-html-extraction-tutorial
+short: Get the full HTML extraction tutorial and documentation
+long: |
+  This command should be run before using html-extraction for the first time.
+  It provides comprehensive documentation on how to create selector configurations
+  and use the html-selector tool effectively.
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  html-selector help css-selector-tutorial 2>&1 

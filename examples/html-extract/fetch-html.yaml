@@ -1,0 +1,41 @@
+name: fetch-html
+short: Fetch and simplify HTML content from URLs.
+long: |
+  Fetches HTML content from URLs and simplifies it by removing unnecessary elements
+  and limiting the size of lists and tables. This is useful for getting a cleaner,
+  more readable version of web content.
+
+flags:
+  - name: urls
+    type: stringList
+    help: List of URLs to fetch and simplify
+    required: true
+  - name: max_list_items
+    type: int
+    help: Maximum number of items to show in lists and select boxes (0 for unlimited)
+    default: 4
+  - name: max_table_rows
+    type: int
+    help: Maximum number of rows to show in tables (0 for unlimited)
+    default: 4
+
+command:
+  - simplify-html
+  - simplify
+  - --urls
+  - "{{ range $i, $url := .Args.urls }}{{ if $i }},{{ end }}{{ $url }}{{ end }}"
+  - --max-list-items
+  - "{{ .Args.max_list_items }}"
+  - --max-table-rows
+  - "{{ .Args.max_table_rows }}"
+
+# shell-script: |
+  
+#   #!/bin/bash
+#   set -euo pipefail
+  
+#   # Process each URL
+#   for url in {{ range .Args.urls }}"{{ . }}" {{ end }}; do
+#     echo "Fetching $url..."
+#     simplify-html simplify --urls "$url" --max-list-items "{{ .Args.max_list_items }}" --max-table-rows "{{ .Args.max_table_rows }}"
+#   done
