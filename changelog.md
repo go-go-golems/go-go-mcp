@@ -496,3 +496,23 @@ Added support for converting HTML to Markdown format:
 - Preserves links with proper markdown link syntax
 - Supports various markdown formatting (bold, italic, code, etc.)
 - Reduces token usage while maintaining readability
+
+## Test Organization and Cleanup
+
+Improved test organization and readability:
+- Reorganized text_simplifier_test.go into focused test functions
+- Created common test struct and helper function
+- Improved test case naming and organization
+
+## HTML Simplification Strategy Improvements
+
+Added new TryText strategy for HTML simplification that attempts text simplification without falling back to ExtractText, providing more control over text extraction behavior.
+
+## Add Complete HTML Document Test Cases
+
+Added test cases to verify the HTML simplifier's handling of complete HTML documents including DOCTYPE and top-level elements.
+
+- Added TestSimplifier_ProcessHTML_CompleteDocument test function
+- Test covers DOCTYPE, html, head, and body elements
+- Verifies handling of meta tags and document attributes
+- Tests both simple and complex document structures

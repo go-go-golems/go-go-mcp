@@ -23,28 +23,6 @@ func NewTextSimplifier(markdownEnabled bool) *TextSimplifier {
 	}
 }
 
-// StructuralElements defines HTML elements that should preserve their structure
-var StructuralElements = map[string]bool{
-	"ul":     true, // Unordered lists
-	"ol":     true, // Ordered lists
-	"li":     true, // List items
-	"table":  true, // Tables
-	"tr":     true, // Table rows
-	"td":     true, // Table cells
-	"th":     true, // Table headers
-	"nav":    true, // Navigation sections
-	"header": true, // Header sections
-	"footer": true, // Footer sections
-	"div":    true, // Generic divisions
-}
-
-// SimplifiableElements defines HTML elements that can be simplified to text/markdown
-var SimplifiableElements = map[string]bool{
-	"p":    true, // Paragraphs
-	"span": true, // Spans
-	"br":   true, // Line breaks
-}
-
 // MarkdownElements defines HTML elements that can be converted to markdown
 var MarkdownElements = map[string]bool{
 	"a":      true, // Links (only within p or span)
@@ -268,6 +246,9 @@ func (t *TextSimplifier) ConvertToMarkdown(node *html.Node) (string, bool) {
 		log.Trace().Msg("ConvertToMarkdown: empty result")
 		return "", false
 	}
+
+	// replace ' \n ' with '\n'
+	result = strings.ReplaceAll(result, " \n ", "\n")
 
 	log.Trace().Str("result", result).Msg("ConvertToMarkdown: final result")
 	return result, true

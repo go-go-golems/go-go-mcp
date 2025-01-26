@@ -31,14 +31,9 @@ func TestSimplifier_ProcessHTML_Footer(t *testing.T) {
 			expected: Document{
 				Tag:   "div",
 				Attrs: "class=col-lg-3 col-12 centered-lg",
-				Children: []Document{
-					{
-						Tag: "p",
-						Markdown: "[Web Policies](https://www.nlm.nih.gov/web_policies.html)\n" +
-							"[FOIA](https://www.nih.gov/institutes-nih/nih-office-director/office-communications-public-liaison/freedom-information-act-office)\n" +
-							"[HHS Vulnerability Disclosure](https://www.hhs.gov/vulnerability-disclosure-policy/index.html)",
-					},
-				},
+				Markdown: "[Web Policies](https://www.nlm.nih.gov/web_policies.html)\n" +
+					"[FOIA](https://www.nih.gov/institutes-nih/nih-office-director/office-communications-public-liaison/freedom-information-act-office)\n" +
+					"[HHS Vulnerability Disclosure](https://www.hhs.gov/vulnerability-disclosure-policy/index.html)",
 			},
 		},
 		{
@@ -60,30 +55,8 @@ func TestSimplifier_ProcessHTML_Footer(t *testing.T) {
 				Attrs: "class=col-lg-3 col-12 centered-lg",
 				Children: []Document{
 					{
-						Tag: "p",
-						Children: []Document{
-							{
-								Tag:   "a",
-								Attrs: "href=https://www.nlm.nih.gov/web_policies.html class=text-white",
-								Text:  "Web Policies",
-							},
-							{
-								Tag: "br",
-							},
-							{
-								Tag:   "a",
-								Attrs: "href=https://www.nih.gov/institutes-nih/nih-office-director/office-communications-public-liaison/freedom-information-act-office class=text-white",
-								Text:  "FOIA",
-							},
-							{
-								Tag: "br",
-							},
-							{
-								Tag:   "a",
-								Attrs: "href=https://www.hhs.gov/vulnerability-disclosure-policy/index.html class=text-white id=vdp",
-								Text:  "HHS Vulnerability Disclosure",
-							},
-						},
+						Tag:  "p",
+						Text: "Web Policies\n\n\nFOIA\n\n\nHHS Vulnerability Disclosure",
 					},
 				},
 			},
@@ -105,14 +78,9 @@ func TestSimplifier_ProcessHTML_Footer(t *testing.T) {
 			expected: Document{
 				Tag:   "div",
 				Attrs: "class=col-lg-3 col-12 centered-lg",
-				Children: []Document{
-					{
-						Tag: "p",
-						Markdown: "**Important:** Please read our " +
-							"[Web Policies](https://www.nlm.nih.gov/web_policies.html) " +
-							"and *privacy guidelines*.",
-					},
-				},
+				Markdown: "**Important:** Please read our " +
+					"[Web Policies](https://www.nlm.nih.gov/web_policies.html) " +
+					"and *privacy guidelines* .",
 			},
 		},
 	}
@@ -134,6 +102,19 @@ func TestSimplifier_ProcessHTML_Lists(t *testing.T) {
 		opts     Options
 		expected Document
 	}{
+		// single li + a element should have markdown field
+		{
+			name: "single li + a element",
+			html: `<li><a href="https://www.nlm.nih.gov/">NLM</a></li>`,
+			opts: Options{
+				SimplifyText: true,
+				Markdown:     true,
+			},
+			expected: Document{
+				Tag:      "li",
+				Markdown: "[NLM](https://www.nlm.nih.gov/)",
+			},
+		},
 		{
 			name: "navigation list with links",
 			html: `
@@ -212,6 +193,181 @@ func TestSimplifier_ProcessHTML_Lists(t *testing.T) {
 							},
 							{
 								Text: "...",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSimplifier(tt.opts)
+			result, err := s.ProcessHTML(tt.html)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSimplifier_ProcessHTML_SectionContainer(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		opts     Options
+		expected Document
+	}{
+		{
+			name: "section with container and multiple columns",
+			html: `
+				<section>
+					<div class="container">
+						<div class="row">
+							<div class="col-lg-3 col-12 centered-lg">
+								<p>
+									<a href="https://www.nlm.nih.gov/web_policies.html" class="text-white">Web Policies</a><br>
+									<a href="https://www.nih.gov/institutes-nih/nih-office-director/office-communications-public-liaison/freedom-information-act-office" class="text-white">FOIA</a><br>
+									<a href="https://www.hhs.gov/vulnerability-disclosure-policy/index.html" class="text-white" id="vdp">HHS Vulnerability Disclosure</a>
+								</p>
+							</div>
+							<div class="col-lg-3 col-12 centered-lg">
+								<p>
+									<a class="supportLink text-white" href="https://support.nlm.nih.gov/">Help</a><br>
+									<a href="https://www.nlm.nih.gov/accessibility.html" class="text-white">Accessibility</a><br>
+									<a href="https://www.nlm.nih.gov/careers/careers.html" class="text-white">Careers</a>
+								</p>
+							</div>
+						</div>
+					</div>
+				</section>`,
+			opts: Options{
+				SimplifyText: true,
+				Markdown:     true,
+			},
+			expected: Document{
+				Tag: "section",
+				Children: []Document{
+					{
+						Tag:   "div",
+						Attrs: "class=container",
+						Children: []Document{
+							{
+								Tag:   "div",
+								Attrs: "class=row",
+								Children: []Document{
+									{
+										Tag:   "div",
+										Attrs: "class=col-lg-3 col-12 centered-lg",
+										Markdown: "[Web Policies](https://www.nlm.nih.gov/web_policies.html)\n" +
+											"[FOIA](https://www.nih.gov/institutes-nih/nih-office-director/office-communications-public-liaison/freedom-information-act-office)\n" +
+											"[HHS Vulnerability Disclosure](https://www.hhs.gov/vulnerability-disclosure-policy/index.html)",
+									},
+									{
+										Tag:   "div",
+										Attrs: "class=col-lg-3 col-12 centered-lg",
+										Markdown: "[Help](https://support.nlm.nih.gov/)\n" +
+											"[Accessibility](https://www.nlm.nih.gov/accessibility.html)\n" +
+											"[Careers](https://www.nlm.nih.gov/careers/careers.html)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSimplifier(tt.opts)
+			result, err := s.ProcessHTML(tt.html)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestSimplifier_ProcessHTML_CompleteDocument(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		opts     Options
+		expected Document
+	}{
+		{
+			name: "complete html document with doctype",
+			html: `<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+</head>
+<body>
+    <div class="content">
+        <p>Hello <a href="https://example.com">World</a></p>
+    </div>
+</body>
+</html>`,
+			opts: Options{
+				SimplifyText: true,
+				Markdown:     true,
+			},
+			expected: Document{
+				Tag: "body",
+				Children: []Document{
+					{
+						Tag:      "div",
+						Attrs:    "class=content",
+						Markdown: "Hello [World](https://example.com)",
+					},
+				},
+			},
+		},
+		{
+			name: "complete html document with complex content",
+			html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Complex Page</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome</h1>
+        <div class="row">
+            <div class="col">
+                <p>Visit our <a href="https://example.com/about">About</a> page</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`,
+			opts: Options{
+				SimplifyText: true,
+				Markdown:     true,
+			},
+			expected: Document{
+				Tag: "body",
+				Children: []Document{
+					{
+						Tag:   "div",
+						Attrs: "class=container",
+						Children: []Document{
+							{
+								Tag:  "h1",
+								Text: "Welcome",
+							},
+							{
+								Tag:   "div",
+								Attrs: "class=row",
+								Children: []Document{
+									{
+										Tag:      "div",
+										Attrs:    "class=col",
+										Markdown: "Visit our [About](https://example.com/about) page",
+									},
+								},
 							},
 						},
 					},

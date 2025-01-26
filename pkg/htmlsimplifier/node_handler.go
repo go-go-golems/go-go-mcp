@@ -49,8 +49,8 @@ func NewNodeHandler(opts Options) *NodeHandler {
 
 	// Configure default strategies
 	h.tagStrategies["html"] = StrategyUnwrap
-	h.tagStrategies["head"] = StrategyUnwrap
-	h.tagStrategies["body"] = StrategyUnwrap
+	h.tagStrategies["head"] = StrategyFilter
+	h.tagStrategies["body"] = StrategyDefault
 
 	if opts.StripScripts {
 		h.tagStrategies["script"] = StrategyFilter
@@ -66,6 +66,7 @@ func NewNodeHandler(opts Options) *NodeHandler {
 	h.tagStrategies["p"] = StrategyTextOnly
 	h.tagStrategies["span"] = StrategyTextOnly
 	h.tagStrategies["br"] = StrategyTextOnly
+	h.tagStrategies["title"] = StrategyTextOnly
 
 	// Pre-formatted text
 	h.tagStrategies["pre"] = StrategyPreserveWhitespace

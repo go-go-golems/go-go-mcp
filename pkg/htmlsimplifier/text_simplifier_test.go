@@ -7,28 +7,30 @@ import (
 	"golang.org/x/net/html"
 )
 
-func TestTextSimplifier_SimplifyText(t *testing.T) {
-	tests := []struct {
-		name         string
-		html         string
-		markdown     bool
-		expectedText string
-		canSimplify  bool
-	}{
-		// {
-		// 	name:         "simple text node",
-		// 	html:         "Hello World",
-		// 	markdown:     false,
-		// 	expectedText: "Hello World",
-		// 	canSimplify:  true,
-		// },
-		// {
-		// 	name:         "paragraph with text",
-		// 	html:         "<p>Hello World</p>",
-		// 	markdown:     false,
-		// 	expectedText: "Hello World",
-		// 	canSimplify:  true,
-		// },
+type textSimplifierTest struct {
+	name         string
+	html         string
+	markdown     bool
+	expectedText string
+	canSimplify  bool
+}
+
+func TestTextSimplifier_SimpleText(t *testing.T) {
+	tests := []textSimplifierTest{
+		{
+			name:         "simple text node",
+			html:         "Hello World",
+			markdown:     false,
+			expectedText: "Hello World",
+			canSimplify:  true,
+		},
+		{
+			name:         "paragraph with text",
+			html:         "<p>Hello World</p>",
+			markdown:     false,
+			expectedText: "Hello World",
+			canSimplify:  true,
+		},
 		{
 			name:         "text with line break",
 			html:         "<p>Hello<br>World</p>",
@@ -36,6 +38,13 @@ func TestTextSimplifier_SimplifyText(t *testing.T) {
 			expectedText: "Hello\nWorld",
 			canSimplify:  true,
 		},
+	}
+
+	runTextSimplifierTests(t, tests)
+}
+
+func TestTextSimplifier_Links(t *testing.T) {
+	tests := []textSimplifierTest{
 		{
 			name:         "link in div without markdown",
 			html:         `<div><a href="https://example.com">Click here</a></div>`,
@@ -64,6 +73,13 @@ func TestTextSimplifier_SimplifyText(t *testing.T) {
 			expectedText: "",
 			canSimplify:  false,
 		},
+	}
+
+	runTextSimplifierTests(t, tests)
+}
+
+func TestTextSimplifier_Formatting(t *testing.T) {
+	tests := []textSimplifierTest{
 		{
 			name:         "bold text in div without markdown",
 			html:         "<div><strong>Important</strong></div>",
@@ -92,6 +108,13 @@ func TestTextSimplifier_SimplifyText(t *testing.T) {
 			expectedText: "",
 			canSimplify:  false,
 		},
+	}
+
+	runTextSimplifierTests(t, tests)
+}
+
+func TestTextSimplifier_StructuralElements(t *testing.T) {
+	tests := []textSimplifierTest{
 		{
 			name:         "footer with links should not be simplified",
 			html:         `<footer><a href="https://example.com">Terms</a> | <a href="https://example.com">Privacy</a></footer>`,
@@ -122,6 +145,31 @@ func TestTextSimplifier_SimplifyText(t *testing.T) {
 		},
 	}
 
+	runTextSimplifierTests(t, tests)
+}
+
+func TestTextSimplifier_Multiline(t *testing.T) {
+	tests := []textSimplifierTest{
+		{
+			name:         "p with multiline text with br",
+			html:         "<p>First line<br>Second line</p>",
+			markdown:     true,
+			expectedText: "First line\nSecond line",
+			canSimplify:  true,
+		},
+		{
+			name:         "p with multiline text with br and newlines",
+			html:         "<p>First line\n<br>\nSecond line</p>",
+			markdown:     true,
+			expectedText: "First line\nSecond line",
+			canSimplify:  true,
+		},
+	}
+
+	runTextSimplifierTests(t, tests)
+}
+
+func runTextSimplifierTests(t *testing.T, tests []textSimplifierTest) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := parseHTML(t, tt.html)
@@ -143,7 +191,7 @@ func TestTextSimplifier_SimplifyText(t *testing.T) {
 	}
 }
 
-func TestTextSimplifier_ProcessMarkdownElement(t *testing.T) {
+func TestTextSimplifier_MarkdownElements(t *testing.T) {
 	tests := []struct {
 		name         string
 		html         string

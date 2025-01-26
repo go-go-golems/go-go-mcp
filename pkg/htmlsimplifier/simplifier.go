@@ -50,11 +50,16 @@ type Simplifier struct {
 
 // NewSimplifier creates a new HTML simplifier with the given options
 func NewSimplifier(opts Options) *Simplifier {
-	return &Simplifier{
+	ret := &Simplifier{
 		opts:           opts,
 		textSimplifier: NewTextSimplifier(opts.Markdown),
 		nodeHandler:    NewNodeHandler(opts),
 	}
+	// only output markdown if markdown is requested
+	if opts.SimplifyText && opts.Markdown {
+		opts.SimplifyText = false
+	}
+	return ret
 }
 
 // ProcessHTML simplifies the given HTML content according to the configured options
@@ -87,77 +92,136 @@ func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
 		}
 	}
 
-	result := s.processNode(doc.Get(0))
-	return result, nil
+	docs := s.processNode(doc.Get(0))
+	if len(docs) == 0 {
+		return Document{}, nil
+	}
+	return docs[0], nil
 }
 
-func (s *Simplifier) processNode(node *html.Node) Document {
+func (s *Simplifier) processNode(node *html.Node) []Document {
 	if node == nil {
-		return Document{}
+		return nil
 	}
 
 	strategy := s.nodeHandler.GetStrategy(node)
 	log.Trace().Str("tag", node.Data).Str("strategy", strategy.String()).Msg("Processing node")
 
-	switch strategy {
-	case StrategyFilter:
-		return Document{}
-
-	case StrategyUnwrap:
-		// Process children and combine them
-		var children []Document
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
-			if childDoc := s.processNode(child); !childDoc.IsEmpty() {
-				children = append(children, childDoc)
-			}
-		}
-		if len(children) == 1 {
-			return children[0]
-		}
-		return Document{Children: children}
-
-	case StrategyTextOnly:
-		if s.nodeHandler.IsTextOnly(node) {
-			text := s.textSimplifier.ExtractText(node)
-			return Document{Text: text}
-		}
-		// Fall through to default if not all children are text
-
-	case StrategyPreserveWhitespace:
-		if node.Type == html.TextNode {
-			return Document{Text: node.Data}
-		}
-		// Fall through to default for element nodes
-
-	case StrategyMarkdown:
-		if s.nodeHandler.IsMarkdownable(node) {
-			markdown, ok := s.textSimplifier.ConvertToMarkdown(node)
-			if ok {
-				return Document{Markdown: markdown}
-			}
-		}
-		// Fall through to default if not all children are markdownable
-	}
-
-	// Default processing: keep the node and process children
-	doc := Document{
-		Tag:   node.Data,
-		IsSVG: node.Data == "svg" || (node.Parent != nil && node.Parent.Data == "svg"),
-	}
-
-	// Process attributes
+	// Process attributes for all nodes
 	var attrs []string
 	for _, attr := range node.Attr {
 		if s.opts.StripCSS && attr.Key == "style" {
 			continue
 		}
-		if s.opts.CompactSVG && doc.IsSVG && (attr.Key == "d" || attr.Key == "viewBox" || attr.Key == "transform") {
+		if s.opts.CompactSVG && (node.Data == "svg" || (node.Parent != nil && node.Parent.Data == "svg")) &&
+			(attr.Key == "d" || attr.Key == "viewBox" || attr.Key == "transform") {
 			continue
 		}
 		attrs = append(attrs, fmt.Sprintf("%s=%s", attr.Key, attr.Val))
 	}
-	if len(attrs) > 0 {
-		doc.Attrs = strings.Join(attrs, " ")
+	attrsStr := strings.Join(attrs, " ")
+
+	// Handle text nodes first
+	if node.Type == html.TextNode {
+		// Skip pure whitespace nodes unless in preserve whitespace mode
+		if strategy != StrategyPreserveWhitespace && strings.TrimSpace(node.Data) == "" {
+			return nil
+		}
+		return []Document{{
+			Tag:   "#text",
+			Attrs: attrsStr,
+			Text:  node.Data,
+		}}
+	}
+
+	switch strategy {
+	case StrategyFilter:
+		return nil
+
+	case StrategyUnwrap:
+		// Process children and combine them
+		var result []Document
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			result = append(result, s.processNode(child)...)
+		}
+		return result
+
+	case StrategyTextOnly:
+		if s.opts.Markdown && s.nodeHandler.IsMarkdownable(node) {
+			if markdown, ok := s.textSimplifier.ConvertToMarkdown(node); ok {
+				return []Document{{
+					Tag:      node.Data,
+					Attrs:    attrsStr,
+					Markdown: markdown,
+				}}
+			}
+		}
+
+		if s.opts.SimplifyText && s.nodeHandler.IsTextOnly(node) {
+			if text, ok := s.textSimplifier.SimplifyText(node); ok {
+				return []Document{{
+					Tag:   node.Data,
+					Attrs: attrsStr,
+					Text:  text,
+				}}
+			}
+		}
+		// If text simplification fails or is disabled, extract text normally
+		text := s.textSimplifier.ExtractText(node)
+		if text != "" {
+			return []Document{{
+				Tag:   node.Data,
+				Attrs: attrsStr,
+				Text:  text,
+			}}
+		}
+		// Fall through to default if text extraction yields nothing
+
+	case StrategyPreserveWhitespace:
+		if node.Type == html.TextNode {
+			return []Document{{
+				Tag:   "#text",
+				Attrs: attrsStr,
+				Text:  node.Data,
+			}}
+		}
+		// For element nodes with preserved whitespace, process children normally
+		// but maintain the original structure
+
+	case StrategyMarkdown:
+		if s.opts.Markdown && s.nodeHandler.IsMarkdownable(node) {
+			if markdown, ok := s.textSimplifier.ConvertToMarkdown(node); ok {
+				return []Document{{
+					Tag:      node.Data,
+					Attrs:    attrsStr,
+					Markdown: markdown,
+				}}
+			}
+		}
+		// Fall through to default if markdown conversion fails
+
+	case StrategyDefault:
+		// Check if all children are markdown-able
+		if s.opts.Markdown {
+			if docs, ok := s.tryMarkdownConversion(node, attrsStr); ok {
+				return docs
+			}
+		}
+
+		// Check if all children are text-only
+		if s.opts.SimplifyText {
+			if docs, ok := s.tryTextSimplification(node, attrsStr); ok {
+				return docs
+			}
+		}
+		// Fall through to default if text simplification fails
+	}
+
+	// Default processing: keep the node and process children
+	doc := Document{
+		Tag:   node.Data,
+		Attrs: attrsStr,
+		IsSVG: node.Data == "svg" || (node.Parent != nil && node.Parent.Data == "svg"),
 	}
 
 	// Process children
@@ -167,18 +231,22 @@ func (s *Simplifier) processNode(node *html.Node) Document {
 	isTable := node.Data == "table" || node.Data == "tbody"
 
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		childDoc := s.processNode(child)
-		if !childDoc.IsEmpty() {
-			if (isList || isTable) && s.opts.MaxListItems > 0 {
-				itemCount++
-				if itemCount > s.opts.MaxListItems {
-					if itemCount == s.opts.MaxListItems+1 {
-						children = append(children, Document{Text: "..."})
+		childDocs := s.processNode(child)
+		for _, childDoc := range childDocs {
+			if !childDoc.IsEmpty() {
+				if (isList || isTable) && s.opts.MaxListItems > 0 {
+					itemCount++
+					if itemCount > s.opts.MaxListItems {
+						if itemCount == s.opts.MaxListItems+1 {
+							children = append(children, Document{
+								Text: "...",
+							})
+						}
+						continue
 					}
-					continue
 				}
+				children = append(children, childDoc)
 			}
-			children = append(children, childDoc)
 		}
 	}
 
@@ -186,7 +254,50 @@ func (s *Simplifier) processNode(node *html.Node) Document {
 		doc.Children = children
 	}
 
-	return doc
+	return []Document{doc}
+}
+
+func (s *Simplifier) tryMarkdownConversion(node *html.Node, attrsStr string) ([]Document, bool) {
+	allMarkdownable := true
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if !s.nodeHandler.IsMarkdownable(child) {
+			allMarkdownable = false
+			break
+		}
+	}
+	if allMarkdownable {
+		markdown, ok := s.textSimplifier.ConvertToMarkdown(node)
+		if ok {
+			return []Document{{
+				Tag:      node.Data,
+				Attrs:    attrsStr,
+				Markdown: markdown,
+			}}, true
+		}
+	}
+	return nil, false
+}
+
+func (s *Simplifier) tryTextSimplification(node *html.Node, attrsStr string) ([]Document, bool) {
+	allTextable := true
+	var textParts []string
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		if !s.nodeHandler.IsTextOnly(child) {
+			allTextable = false
+			break
+		}
+		if text, ok := s.textSimplifier.SimplifyText(child); ok {
+			textParts = append(textParts, text)
+		}
+	}
+	if allTextable && len(textParts) > 0 {
+		return []Document{{
+			Tag:   node.Data,
+			Attrs: attrsStr,
+			Text:  strings.Join(textParts, " "),
+		}}, true
+	}
+	return nil, false
 }
 
 // IsEmpty returns true if the document is empty (no content)

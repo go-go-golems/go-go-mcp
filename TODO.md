@@ -41,6 +41,8 @@
 - [x] Implement missing SSE methods
 - [x] BUG: killing server doesn't seem to kill hanging connections (when using inspector, for example)
 - [ ] send out notifications
+- [ ] pass session id as environment variable
+- [ ] cancelling running shell scripts through KILL
 
 - [ ] Allow logging to separate file (to debug claude for example)
   - seems kind of broken, there is a different logger running after the initial logger is setup
