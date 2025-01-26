@@ -77,6 +77,7 @@ type HTMLSelectorSettings struct {
 	Extract         bool     `glazed.parameter:"extract"`
 	ExtractData     bool     `glazed.parameter:"extract-data"`
 	ExtractTemplate string   `glazed.parameter:"extract-template"`
+	NoTemplate      bool     `glazed.parameter:"no-template"`
 	ShowContext     bool     `glazed.parameter:"show-context"`
 	ShowPath        bool     `glazed.parameter:"show-path"`
 	ShowSimplified  bool     `glazed.parameter:"show-simplified"`
@@ -91,6 +92,13 @@ type HTMLSelectorSettings struct {
 	Markdown        bool     `glazed.parameter:"markdown"`
 	MaxListItems    int      `glazed.parameter:"max-list-items"`
 	MaxTableRows    int      `glazed.parameter:"max-table-rows"`
+}
+
+func (s *HTMLSelectorSettings) ShouldTemplate() bool {
+	if s.NoTemplate {
+		return false
+	}
+	return s.ExtractData || s.ExtractTemplate != "" || (s.ConfigFile != "" && s.ConfigFile != "-")
 }
 
 func NewHTMLSelectorCommand() (*HTMLSelectorCommand, error) {
@@ -143,6 +151,12 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					"extract-template",
 					parameters.ParameterTypeString,
 					parameters.WithHelp("Go template file to render with extracted data"),
+				),
+				parameters.NewParameterDefinition(
+					"no-template",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Do not use templates"),
+					parameters.WithDefault(false),
 				),
 				parameters.NewParameterDefinition(
 					"show-context",
@@ -301,7 +315,7 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 
 	// Process files
 	for _, file := range s.Files {
-		result, err := processSource(ctx, file, selectors, s, simplifier)
+		result, err := processSource(ctx, file, selectors, s)
 		if err != nil {
 			return fmt.Errorf("failed to process file %s: %w", file, err)
 		}
@@ -310,15 +324,14 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 
 	// Process URLs
 	for _, url := range s.URLs {
-		result, err := processSource(ctx, url, selectors, s, simplifier)
+		result, err := processSource(ctx, url, selectors, s)
 		if err != nil {
 			return fmt.Errorf("failed to process URL %s: %w", url, err)
 		}
 		sourceResults = append(sourceResults, result)
 	}
 
-	// If using extract or extract-template, process all matches without sample limit
-	if s.ExtractData || s.ExtractTemplate != "" || (config != nil && config.Template != "") {
+	if s.ShouldTemplate() {
 		// clear the selector results
 		for _, sourceResult := range sourceResults {
 			sourceResult.SelectorResults = []SelectorResult{}
@@ -415,21 +428,11 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 	return yaml.NewEncoder(w).Encode(newResults)
 }
 
-func findSelectorByName(selectors []Selector, name string) Selector {
-	for _, s := range selectors {
-		if s.Name == name {
-			return s
-		}
-	}
-	return Selector{}
-}
-
 func processSource(
 	ctx context.Context,
 	source string,
 	selectors []Selector,
 	s *HTMLSelectorSettings,
-	simplifier *htmlsimplifier.Simplifier,
 ) (*SourceResult, error) {
 	result := &SourceResult{
 		Source: source,
@@ -454,7 +457,7 @@ func processSource(
 	}
 
 	sampleCount := s.SampleCount
-	if s.Extract || s.ExtractTemplate != "" {
+	if s.ShouldTemplate() {
 		sampleCount = 0
 	}
 
@@ -524,14 +527,25 @@ func loadConfig(path string) (*Config, error) {
 
 // executeTemplate handles template execution and provides a subset of data on error
 func executeTemplate(w io.Writer, tmpl *template.Template, sourceResults []*SourceResult) error {
+	// First try executing the template with all source results
 	err := tmpl.Execute(w, sourceResults)
-	if err != nil {
-		// Create a subset of the data for error reporting
-		subset := make([]*SourceResult, 0)
-		for i, sr := range sourceResults {
-			if i >= 3 {
-				break
-			}
+	if err == nil {
+		return nil
+	}
+
+	// If that fails, try executing individually for each source
+	fmt.Fprintf(os.Stderr, "Error executing combined template: %v\n", err)
+	fmt.Fprintf(os.Stderr, "Trying individual execution...\n")
+
+	for i, sr := range sourceResults {
+		if i > 0 {
+			fmt.Fprintf(w, "\n---\n")
+		}
+		fmt.Fprintf(w, "# Source: %s\n", sr.Source)
+
+		err := tmpl.Execute(w, sr)
+		if err != nil {
+			// Create subset of failed source result for error reporting
 			subsetResult := &SourceResult{
 				Source: sr.Source,
 				Data:   make(map[string][]interface{}),
@@ -545,19 +559,19 @@ func executeTemplate(w io.Writer, tmpl *template.Template, sourceResults []*Sour
 					subsetResult.Data[name] = matches
 				}
 			}
-			subset = append(subset, subsetResult)
-		}
 
-		// Print the error and data subset
-		fmt.Fprintf(os.Stderr, "Error executing template: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Here is a subset of the input data:\n")
-		enc := yaml.NewEncoder(os.Stderr)
-		enc.SetIndent(2)
-		if err := enc.Encode(subset); err != nil {
-			fmt.Fprintf(os.Stderr, "Error encoding data subset: %v\n", err)
+			// Print the error and data subset
+			fmt.Fprintf(os.Stderr, "Error executing template for source %s: %v\n", sr.Source, err)
+			fmt.Fprintf(os.Stderr, "Here is a subset of the input data:\n")
+			enc := yaml.NewEncoder(os.Stderr)
+			enc.SetIndent(2)
+			if err := enc.Encode(subsetResult); err != nil {
+				fmt.Fprintf(os.Stderr, "Error encoding data subset: %v\n", err)
+			}
+			return fmt.Errorf("template execution failed for source %s: %w", sr.Source, err)
 		}
-		return fmt.Errorf("template execution failed: %w", err)
 	}
+
 	return nil
 }
 

@@ -706,3 +706,9 @@ Added a new flag to control whether simplified HTML is shown in the output to re
 
 - Added `--show-simplified` flag (default: false) to control whether simplified HTML is included in output
 - Modified output to only include simplified HTML and context when explicitly requested
+
+HTML Selector Template Control
+Added ability to disable template rendering in the HTML selector tool.
+
+- Added --no-template flag to disable template rendering
+- Template rendering can now be explicitly disabled even when config file or extract options are used

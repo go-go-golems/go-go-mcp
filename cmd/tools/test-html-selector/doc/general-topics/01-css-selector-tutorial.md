@@ -142,6 +142,17 @@ selectors:
       Extracts the introduction paragraph.
       Uses a class selector to find paragraphs with class "intro".
 
+# Template iterates over a list of documents, where each document contains
+# the source (file/URL) and its extracted data
+template: |
+  # Content from {{ .Source }}
+  
+  ## Page Title
+  {{ index .Data.page_title 0 }}
+  
+  ## Introduction
+  {{ index .Data.intro_text 0 }}
+
 config:
   sample_count: 5
   context_chars: 100
@@ -190,6 +201,18 @@ selectors:
     description: |
       Extracts prices from product blocks.
       Shows how to target deeply nested elements.
+
+# Template iterates over a list of documents, where each document contains
+# the source (file/URL) and its extracted data
+template: |
+  # Products from {{ .Source }}
+  
+  {{ $ := . }}
+  {{- range $index, $name := .Data.product_names }}
+  ## Product {{ add $index 1 }}
+  - Name: {{ $name }}
+  - Price: {{ index $.Data.prices $index }}
+  {{- end }}
 
 config:
   sample_count: 5
@@ -245,8 +268,25 @@ selectors:
       Extracts items from the features list.
       Simple example of list extraction.
 
+# Template iterates over a list of documents, where each document contains
+# the source (file/URL) and its extracted data
+template: |
+  # Data from {{ .Source }}
+  
+  ## Table Data
+  | Row | Content |
+  |-----|---------|
+  {{- range .Data.table_cells }}
+  | {{ . }} |
+  {{- end }}
+  
+  ## Features
+  {{- range .Data.list_items }}
+  - {{ . }}
+  {{- end }}
+
 config:
-  sample_count: 10  # Increased to show more rows
+  sample_count: 10
   context_chars: 100
 ```
 
@@ -292,6 +332,22 @@ selectors:
     description: |
       Extracts all paragraphs that come before the comments section.
       Shows XPath's powerful axis navigation.
+
+# Template iterates over a list of documents, where each document contains
+# the source (file/URL) and its extracted data
+template: |
+  # Content Analysis from {{ .Source }}
+  
+  ## Second Paragraph
+  {{ index .Data.second_paragraph 0 }}
+  
+  ## Last Comment
+  {{ index .Data.last_comment 0 }}
+  
+  ## Paragraphs Before Comments
+  {{- range .Data.paragraphs_before_comments }}
+  - {{ . }}
+  {{- end }}
 
 config:
   sample_count: 5
@@ -348,7 +404,6 @@ selectors:
       Extracts the user's skills.
 
 template: |
-  {{- range . }}
   # Profile from {{ .Source }}
 
   **Name**: {{ index .Data.user_name 0 }}
@@ -359,7 +414,6 @@ template: |
   {{- range .Data.user_skills }}
   - {{ . }}
   {{- end }}
-  {{ end }}
 
 config:
   sample_count: 5
