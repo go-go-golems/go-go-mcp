@@ -172,12 +172,22 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 
 	// Process attributes for all nodes
 	var attrs []string
+	var classes []string
+	var id string
 	for _, attr := range node.Attr {
 		if s.opts.StripCSS && attr.Key == "style" {
 			continue
 		}
 		if s.opts.CompactSVG && (node.Data == "svg" || (node.Parent != nil && node.Parent.Data == "svg")) &&
 			(attr.Key == "d" || attr.Key == "viewBox" || attr.Key == "transform") {
+			continue
+		}
+		if attr.Key == "class" {
+			classes = strings.Fields(attr.Val)
+			continue
+		}
+		if attr.Key == "id" {
+			id = attr.Val
 			continue
 		}
 		attrs = append(attrs, fmt.Sprintf("%s=%s", attr.Key, attr.Val))
@@ -197,6 +207,15 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 		}}
 	}
 
+	// Build tag name with id and classes
+	tagName := node.Data
+	if id != "" {
+		tagName = fmt.Sprintf("%s#%s", tagName, id)
+	}
+	for _, class := range classes {
+		tagName = fmt.Sprintf("%s.%s", tagName, class)
+	}
+
 	switch strategy {
 	case StrategyFilter:
 		return nil
@@ -213,7 +232,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 		if s.opts.Markdown && s.nodeHandler.IsMarkdownable(node) {
 			if markdown, ok := s.textSimplifier.ConvertToMarkdown(node); ok {
 				return []Document{{
-					Tag:      node.Data,
+					Tag:      tagName,
 					Attrs:    attrsStr,
 					Markdown: markdown,
 				}}
@@ -223,7 +242,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 		if s.opts.SimplifyText && s.nodeHandler.IsTextOnly(node) {
 			if text, ok := s.textSimplifier.SimplifyText(node); ok {
 				return []Document{{
-					Tag:   node.Data,
+					Tag:   tagName,
 					Attrs: attrsStr,
 					Text:  text,
 				}}
@@ -233,7 +252,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 		text := s.textSimplifier.ExtractText(node)
 		if text != "" {
 			return []Document{{
-				Tag:   node.Data,
+				Tag:   tagName,
 				Attrs: attrsStr,
 				Text:  text,
 			}}
@@ -255,7 +274,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 		if s.opts.Markdown && s.nodeHandler.IsMarkdownable(node) {
 			if markdown, ok := s.textSimplifier.ConvertToMarkdown(node); ok {
 				return []Document{{
-					Tag:      node.Data,
+					Tag:      tagName,
 					Attrs:    attrsStr,
 					Markdown: markdown,
 				}}
@@ -266,14 +285,14 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 	case StrategyDefault:
 		// Check if all children are markdown-able
 		if s.opts.Markdown {
-			if docs, ok := s.tryMarkdownConversion(node, attrsStr); ok {
+			if docs, ok := s.tryMarkdownConversion(node, tagName, attrsStr); ok {
 				return docs
 			}
 		}
 
 		// Check if all children are text-only
 		if s.opts.SimplifyText {
-			if docs, ok := s.tryTextSimplification(node, attrsStr); ok {
+			if docs, ok := s.tryTextSimplification(node, tagName, attrsStr); ok {
 				return docs
 			}
 		}
@@ -282,7 +301,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 
 	// Default processing: keep the node and process children
 	doc := Document{
-		Tag:   node.Data,
+		Tag:   tagName,
 		Attrs: attrsStr,
 		IsSVG: node.Data == "svg" || (node.Parent != nil && node.Parent.Data == "svg"),
 	}
@@ -320,7 +339,7 @@ func (s *Simplifier) processNode(node *html.Node) []Document {
 	return []Document{doc}
 }
 
-func (s *Simplifier) tryMarkdownConversion(node *html.Node, attrsStr string) ([]Document, bool) {
+func (s *Simplifier) tryMarkdownConversion(node *html.Node, tagName string, attrsStr string) ([]Document, bool) {
 	allMarkdownable := true
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		if !s.nodeHandler.IsMarkdownable(child) {
@@ -332,7 +351,7 @@ func (s *Simplifier) tryMarkdownConversion(node *html.Node, attrsStr string) ([]
 		markdown, ok := s.textSimplifier.ConvertToMarkdown(node)
 		if ok {
 			return []Document{{
-				Tag:      node.Data,
+				Tag:      tagName,
 				Attrs:    attrsStr,
 				Markdown: markdown,
 			}}, true
@@ -341,7 +360,7 @@ func (s *Simplifier) tryMarkdownConversion(node *html.Node, attrsStr string) ([]
 	return nil, false
 }
 
-func (s *Simplifier) tryTextSimplification(node *html.Node, attrsStr string) ([]Document, bool) {
+func (s *Simplifier) tryTextSimplification(node *html.Node, tagName string, attrsStr string) ([]Document, bool) {
 	allTextable := true
 	var textParts []string
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -355,7 +374,7 @@ func (s *Simplifier) tryTextSimplification(node *html.Node, attrsStr string) ([]
 	}
 	if allTextable && len(textParts) > 0 {
 		return []Document{{
-			Tag:   node.Data,
+			Tag:   tagName,
 			Attrs: attrsStr,
 			Text:  strings.Join(textParts, " "),
 		}}, true

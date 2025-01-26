@@ -524,3 +524,10 @@ Added support for both select and filter modes in HTML simplification:
 - Select mode keeps only matching elements and their parents
 - Filter mode removes matching elements
 - Selectors are applied in order: first selects, then filters
+
+HTML Simplifier Tag Format Enhancement
+Enhanced the HTML simplifier to include id and class attributes in the tag name for better readability and CSS-like format.
+
+- Modified tag format to include id and classes (e.g. div#myid.class1.class2)
+- Removed id and class from regular attributes list
+- Improved readability of HTML structure in YAML output
