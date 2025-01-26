@@ -20,9 +20,10 @@ import (
 )
 
 type Config struct {
-	File      string     `yaml:"file"`
-	Selectors []Selector `yaml:"selectors"`
-	Config    struct {
+	File        string     `yaml:"file"`
+	Description string     `yaml:"description"`
+	Selectors   []Selector `yaml:"selectors"`
+	Config      struct {
 		SampleCount  int    `yaml:"sample_count"`
 		ContextChars int    `yaml:"context_chars"`
 		Template     string `yaml:"template"`
@@ -30,9 +31,10 @@ type Config struct {
 }
 
 type Selector struct {
-	Name     string `yaml:"name"`
-	Selector string `yaml:"selector"`
-	Type     string `yaml:"type"` // "css" or "xpath"
+	Name        string `yaml:"name"`
+	Selector    string `yaml:"selector"`
+	Type        string `yaml:"type"` // "css" or "xpath"
+	Description string `yaml:"description"`
 }
 
 type SimplifiedSample struct {

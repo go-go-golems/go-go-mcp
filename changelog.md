@@ -615,3 +615,12 @@ Added Sprig template functions to enhance template capabilities:
 - Available in both file templates and config templates
 - Includes string manipulation, math, date formatting, and more
 - Removed custom add function in favor of Sprig's math functions
+
+# Added Configuration Descriptions
+
+Added description fields to improve configuration documentation:
+
+- Added top-level description field to describe the overall configuration purpose
+- Added per-selector description field to document each selector's purpose
+- Updated example configurations with detailed descriptions
+- Improved self-documentation of configuration files
