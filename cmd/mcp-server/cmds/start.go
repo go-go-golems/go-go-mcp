@@ -29,6 +29,8 @@ type StartCommandSettings struct {
 	Transport    string   `glazed.parameter:"transport"`
 	Port         int      `glazed.parameter:"port"`
 	Repositories []string `glazed.parameter:"repositories"`
+	Debug        bool     `glazed.parameter:"debug"`
+	TracingDir   string   `glazed.parameter:"tracing-dir"`
 }
 
 type StartCommand struct {
@@ -57,7 +59,6 @@ func getWeather(city string, includeWind bool) WeatherData {
 }
 
 func NewStartCommand() (*StartCommand, error) {
-
 	return &StartCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"start",
@@ -85,6 +86,18 @@ Available transports:
 					parameters.ParameterTypeStringList,
 					parameters.WithHelp("List of directories containing shell command repositories"),
 					parameters.WithDefault([]string{}),
+				),
+				parameters.NewParameterDefinition(
+					"debug",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Enable debug mode for shell tool provider"),
+					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"tracing-dir",
+					parameters.ParameterTypeString,
+					parameters.WithHelp("Directory to store tool call traces"),
+					parameters.WithDefault(""),
 				),
 			),
 			cmds.WithLayersList(),
@@ -201,7 +214,10 @@ func (c *StartCommand) Run(
 				log.Debug().Str("name", cmd.Description().Name).Msg("Loaded shell command")
 			}
 
-			toolProvider, err := cmds2.NewShellToolProvider(commands)
+			toolProvider, err := cmds2.NewShellToolProvider(commands,
+				cmds2.WithDebug(s.Debug),
+				cmds2.WithTracingDir(s.TracingDir),
+			)
 			if err != nil {
 				log.Error().Err(err).Msg("Error creating shell tool provider")
 				return err

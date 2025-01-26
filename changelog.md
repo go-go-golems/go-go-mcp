@@ -1,3 +1,10 @@
+# Added Shell Tool Provider Debug Flags
+
+Added command line flags to control ShellToolProvider debugging and tracing:
+- Added --debug flag to enable detailed logging of tool calls and arguments
+- Added --tracing-dir flag to save tool call input/output as JSON files
+- Updated start command to pass debug settings to ShellToolProvider
+
 ## Tool Result Helper Methods
 
 Added helper methods to easily create ToolResults with different content types (text, JSON, images, resources).
