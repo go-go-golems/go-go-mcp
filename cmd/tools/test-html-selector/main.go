@@ -58,11 +58,11 @@ type SourceResult struct {
 	Data   map[string][]interface{} `yaml:"data"`
 }
 
-type TestHTMLSelectorCommand struct {
+type HTMLSelectorCommand struct {
 	*cmds.CommandDescription
 }
 
-type TestHTMLSelectorSettings struct {
+type HTMLSelectorSettings struct {
 	ConfigFile      string   `glazed.parameter:"config"`
 	SelectCSS       []string `glazed.parameter:"select-css"`
 	SelectXPath     []string `glazed.parameter:"select-xpath"`
@@ -86,10 +86,10 @@ type TestHTMLSelectorSettings struct {
 	MaxTableRows    int      `glazed.parameter:"max-table-rows"`
 }
 
-func NewTestHTMLSelectorCommand() (*TestHTMLSelectorCommand, error) {
-	return &TestHTMLSelectorCommand{
+func NewHTMLSelectorCommand() (*HTMLSelectorCommand, error) {
+	return &HTMLSelectorCommand{
 		CommandDescription: cmds.NewCommandDescription(
-			"test-html-selector",
+			"select",
 			cmds.WithShort("Test HTML/XPath selectors against HTML documents"),
 			cmds.WithLong(`A tool for testing CSS and XPath selectors against HTML documents.
 It provides match counts and contextual examples to verify selector accuracy.`),
@@ -220,12 +220,12 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 	}, nil
 }
 
-func (c *TestHTMLSelectorCommand) RunIntoWriter(
+func (c *HTMLSelectorCommand) RunIntoWriter(
 	ctx context.Context,
 	parsedLayers *layers.ParsedLayers,
 	w io.Writer,
 ) error {
-	s := &TestHTMLSelectorSettings{}
+	s := &HTMLSelectorSettings{}
 	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
 		return err
 	}
@@ -377,7 +377,7 @@ func findSelectorByName(selectors []Selector, name string) Selector {
 	return Selector{}
 }
 
-func processSource(ctx context.Context, source string, selectors []Selector, s *TestHTMLSelectorSettings, simplifier *htmlsimplifier.Simplifier) (SourceResult, error) {
+func processSource(ctx context.Context, source string, selectors []Selector, s *HTMLSelectorSettings, simplifier *htmlsimplifier.Simplifier) (SourceResult, error) {
 	var result SourceResult
 	result.Source = source
 
@@ -467,8 +467,8 @@ func loadConfig(path string) (*Config, error) {
 
 func main() {
 	var rootCmd = &cobra.Command{
-		Use:   "test-html-selector",
-		Short: "Test HTML/XPath selectors against HTML documents",
+		Use:   "html-selector",
+		Short: "Run HTML/XPath selectors against HTML documents",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// reinitialize the logger because we can now parse --log-level and co
 			// from the command line flag
@@ -477,15 +477,16 @@ func main() {
 		},
 	}
 
-	err := clay.InitViper("test-html-selector", rootCmd)
+	err := clay.InitViper("html-selector", rootCmd)
 	cobra.CheckErr(err)
 	err = clay.InitLogger()
 	cobra.CheckErr(err)
 
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
+	AddDocToHelpSystem(helpSystem)
 
-	cmd, err := NewTestHTMLSelectorCommand()
+	cmd, err := NewHTMLSelectorCommand()
 	cobra.CheckErr(err)
 
 	cobraCmd, err := cli.BuildCobraCommandFromWriterCommand(cmd)

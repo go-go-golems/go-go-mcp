@@ -656,3 +656,9 @@ Added support for processing multiple HTML files and URLs in a single run:
 Added a new launch configuration to make it easier to debug the test-html-selector tool with example files.
 
 - Added Test HTML Selector launch configuration in .vscode/launch.json
+
+## HTML Extraction Commands
+
+Added two new MCP commands for HTML data extraction:
+- `get-html-extraction-tutorial`: Command to display comprehensive HTML extraction documentation
+- `html-extraction`: Command to extract data from HTML documents using selectors
