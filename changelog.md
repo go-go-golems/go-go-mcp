@@ -516,3 +516,11 @@ Added test cases to verify the HTML simplifier's handling of complete HTML docum
 - Test covers DOCTYPE, html, head, and body elements
 - Verifies handling of meta tags and document attributes
 - Tests both simple and complex document structures
+
+Enhanced HTML Selector Modes
+
+Added support for both select and filter modes in HTML simplification:
+- New `mode` field in selectors config: "select" or "filter"
+- Select mode keeps only matching elements and their parents
+- Filter mode removes matching elements
+- Selectors are applied in order: first selects, then filters

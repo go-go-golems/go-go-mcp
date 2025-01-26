@@ -44,21 +44,32 @@ simplify-html --config filters.yaml input.html > output.yaml
 
 ## Configuration File Format
 
-The configuration file uses YAML format and supports both CSS and XPath selectors:
+The configuration file uses YAML format and supports both CSS and XPath selectors with two modes:
+- `select`: Keep only these elements and their parents
+- `filter`: Remove these elements from the document
+
+The selectors are applied in order:
+1. First, all `select` selectors are applied - only elements matching these selectors (and their parents) are kept
+2. Then, all `filter` selectors are applied to remove unwanted elements from the selected ones
+3. If no `select` selectors are provided, the entire document is processed with just the `filter` selectors
 
 ```yaml
 selectors:
-  # CSS selectors
+  # Select only these elements and their parents
   - type: css
-    selector: ".advertisement"
+    mode: select
+    selector: "main, article"
   - type: css
-    selector: "#sidebar"
+    mode: select
+    selector: "h1, h2, h3"
 
-  # XPath selectors
+  # Then filter out these elements from the selected ones
+  - type: css
+    mode: filter
+    selector: ".advertisement"
   - type: xpath
+    mode: filter
     selector: "//*[@data-analytics]"
-  - type: xpath
-    selector: "//div[contains(@class, 'social-media')]"
 ```
 
 ## Output Format

@@ -1,20 +1,34 @@
 # Example configuration file for HTML simplification
 # List of CSS and XPath selectors to remove from the HTML before processing
 selectors:
+  # Select only these elements and their parents
+  - type: css
+    mode: select
+    selector: "main, article"
+  - type: css
+    mode: select
+    selector: "h1, h2, h3"
+
+  # Then filter out these elements from the selected ones
+  - type: css
+    mode: filter
+    selector: ".advertisement"
+  - type: css
+    mode: filter
+    selector: "#sidebar"
+  - type: xpath
+    mode: filter
+    selector: "//*[@data-analytics]"
+  - type: xpath
+    mode: filter
+    selector: "//div[contains(@class, 'social-media')]"
+
   # CSS selectors
-  - type: css
-    selector: ".advertisement"           # Remove elements with class 'advertisement'
-  - type: css
-    selector: "#sidebar"                # Remove element with ID 'sidebar'
   - type: css
     selector: "div.navigation"          # Remove div elements with class 'navigation'
   - type: css
     selector: "footer"                  # Remove footer elements
   
   # XPath selectors
-  - type: xpath
-    selector: "//*[@data-analytics]"    # Remove elements with data-analytics attribute
-  - type: xpath
-    selector: "//div[contains(@class, 'social-media')]"  # Remove social media divs
   - type: xpath
     selector: "//script[contains(@src, 'analytics')]"    # Remove analytics scripts 

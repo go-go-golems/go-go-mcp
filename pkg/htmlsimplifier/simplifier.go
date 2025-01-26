@@ -10,9 +10,17 @@ import (
 	"golang.org/x/net/html"
 )
 
+type SelectorMode string
+
+const (
+	SelectorModeSelect SelectorMode = "select"
+	SelectorModeFilter SelectorMode = "filter"
+)
+
 type Selector struct {
-	Type     string `yaml:"type"`     // "css" or "xpath"
-	Selector string `yaml:"selector"` // The actual selector string
+	Type     string       `yaml:"type"`     // "css" or "xpath"
+	Mode     SelectorMode `yaml:"mode"`     // "select" or "filter"
+	Selector string       `yaml:"selector"` // The actual selector string
 }
 
 type FilterConfig struct {
@@ -72,24 +80,79 @@ func (s *Simplifier) ProcessHTML(htmlContent string) (Document, error) {
 	// Apply selector-based filtering if config is provided
 	if s.opts.FilterConfig != nil {
 		log.Debug().Msg("Applying selector-based filtering")
+
+		// First apply select selectors - mark all matching elements
+		hasSelects := false
 		for _, sel := range s.opts.FilterConfig.Selectors {
-			log.Debug().Str("type", sel.Type).Str("selector", sel.Selector).Msg("Applying selector")
-			switch sel.Type {
-			case "css":
-				doc.Find(sel.Selector).Remove()
-			case "xpath":
-				nodes, err := htmlquery.QueryAll(doc.Get(0), sel.Selector)
-				if err != nil {
-					return Document{}, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
-				}
-				log.Debug().Int("removed_nodes", len(nodes)).Msg("Removed nodes by XPath selector")
-				for _, node := range nodes {
-					if node.Parent != nil {
-						node.Parent.RemoveChild(node)
+			if sel.Mode == SelectorModeSelect {
+				hasSelects = true
+				log.Debug().Str("type", sel.Type).Str("selector", sel.Selector).Msg("Marking selected elements")
+				switch sel.Type {
+				case "css":
+					doc.Find(sel.Selector).Each(func(i int, s *goquery.Selection) {
+						s.SetAttr("data-simplifier-keep", "true")
+						// Mark all parents as well
+						s.Parents().Each(func(i int, p *goquery.Selection) {
+							p.SetAttr("data-simplifier-keep", "true")
+						})
+					})
+				case "xpath":
+					nodes, err := htmlquery.QueryAll(doc.Get(0), sel.Selector)
+					if err != nil {
+						return Document{}, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
+					}
+					for _, node := range nodes {
+						// Add attribute to mark this node
+						for n := node; n != nil && n.Type == html.ElementNode; n = n.Parent {
+							found := false
+							for i := range n.Attr {
+								if n.Attr[i].Key == "data-simplifier-keep" {
+									found = true
+									break
+								}
+							}
+							if !found {
+								n.Attr = append(n.Attr, html.Attribute{Key: "data-simplifier-keep", Val: "true"})
+							}
+						}
 					}
 				}
 			}
 		}
+
+		// If we have any select selectors, remove everything that wasn't marked
+		if hasSelects {
+			doc.Find("*").Each(func(i int, s *goquery.Selection) {
+				if _, exists := s.Attr("data-simplifier-keep"); !exists {
+					s.Remove()
+				}
+			})
+		}
+
+		// Then apply filter selectors
+		for _, sel := range s.opts.FilterConfig.Selectors {
+			if sel.Mode == SelectorModeFilter {
+				log.Debug().Str("type", sel.Type).Str("selector", sel.Selector).Msg("Applying filter selector")
+				switch sel.Type {
+				case "css":
+					doc.Find(sel.Selector).Remove()
+				case "xpath":
+					nodes, err := htmlquery.QueryAll(doc.Get(0), sel.Selector)
+					if err != nil {
+						return Document{}, fmt.Errorf("failed to execute XPath selector '%s': %w", sel.Selector, err)
+					}
+					log.Debug().Int("removed_nodes", len(nodes)).Msg("Removed nodes by XPath selector")
+					for _, node := range nodes {
+						if node.Parent != nil {
+							node.Parent.RemoveChild(node)
+						}
+					}
+				}
+			}
+		}
+
+		// Clean up temporary attributes
+		doc.Find("[data-simplifier-keep]").RemoveAttr("data-simplifier-keep")
 	}
 
 	docs := s.processNode(doc.Get(0))
