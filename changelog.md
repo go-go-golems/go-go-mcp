@@ -444,3 +444,30 @@ Added a simple weather tool using reflection to demonstrate tool registration.
 
 - Added getWeather reflect tool as an example
 - Added WeatherData struct for weather information
+
+## URL Content Fetching Command
+
+Added a new shell command `fetch-url` that uses lynx to fetch and extract text content from URLs. This command is designed to be LLM-friendly with detailed descriptions and supports multiple URLs and link handling options.
+
+- Added `examples/shell-commands/fetch-url.yaml` with comprehensive documentation
+- Supports batch URL processing
+- Optional link reference removal
+- Simple stdout output with URL separators
+
+## Simple Diary Command
+
+Added a new shell command `diary-append` that appends timestamped entries to a diary file in markdown format.
+
+- Added `examples/shell-commands/diary-append.yaml` with markdown formatting
+- Automatically adds timestamps as headings
+- Supports markdown in messages
+- Maintains clean formatting with proper spacing
+
+## YouTube Transcript Fetching Command
+
+Added a new shell command `fetch-transcript` that downloads transcripts/subtitles from YouTube videos using youtube-dl.
+
+- Added `examples/shell-commands/fetch-transcript.yaml` with comprehensive options
+- Supports multiple languages and auto-generated subtitles
+- Includes language listing capability
+- Downloads in SRT format for easy reading

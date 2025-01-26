@@ -29,6 +29,8 @@
 - [ ] dynamic loading / enabling / removing servers
 - [ ] add resource templates
 - [ ] add tools from openapi json
+- [ ] support openai actions protocol
+- [ ] Add type field to CommandDescription to allow go-go-mcp to load any number of them (escuse-me, sqleton, pinocchio, etc...)
 
 - [X] Allow debug logging
 - [x] Implement missing SSE methods
@@ -42,3 +44,9 @@
 - [ ] Make it easy to register a struct with multiple tool handlers (say, to keep a single handle to a resource), linked to the session_id
 - [x] Pass the session id to the tool  (maybe as part of the context?)
 - [ ] Track crashes in a log file
+
+
+## MCP ideas
+
+- [ ] Diary entries / summary
+- [ ] Arduino connection

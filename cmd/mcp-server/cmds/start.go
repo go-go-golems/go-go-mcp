@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cmds2 "github.com/go-go-golems/go-go-mcp/pkg/cmds"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
 
 	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
@@ -130,18 +131,18 @@ func (c *StartCommand) Run(
 	srv.GetRegistry().RegisterToolProvider(toolRegistry)
 
 	// Register tools (DON'T DELETE)
-	// if err := examples.RegisterEchoTool(toolRegistry); err != nil {
-	//  log.Error().Err(err).Msg("Error registering echo tool")
-	//  return err
-	// }
-	// if err := examples.RegisterFetchTool(toolRegistry); err != nil {
-	//  log.Error().Err(err).Msg("Error registering fetch tool")
-	//  return err
-	// }
-	// if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
-	//  log.Error().Err(err).Msg("Error registering sqlite tool")
-	//  return err
-	// }
+	if err := examples.RegisterEchoTool(toolRegistry); err != nil {
+		log.Error().Err(err).Msg("Error registering echo tool")
+		return err
+	}
+	if err := examples.RegisterFetchTool(toolRegistry); err != nil {
+		log.Error().Err(err).Msg("Error registering fetch tool")
+		return err
+	}
+	if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
+		log.Error().Err(err).Msg("Error registering sqlite tool")
+		return err
+	}
 	// if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
 	//  log.Error().Err(err).Msg("Error registering cursor tools")
 	//  return err
