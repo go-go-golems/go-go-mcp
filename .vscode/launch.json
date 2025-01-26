@@ -26,7 +26,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/tools/simplify-html",
-            "args": ["simplify-html", "--file", "/tmp/foxp3.html", "--max-list-items", "5"],
+            "args": ["simplify", "--files", "/tmp/foxp3.html", "--max-list-items", "5"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -36,7 +36,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/tools/test-html-selector",
             "args": [
-                "test-html-selector",
+                "select",
                 "--config",
                 "cmd/tools/test-html-selector/examples/tutorial/01-basic-text.yaml",
                 "--files",
@@ -51,7 +51,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/tools/test-html-selector",
             "args": [
-                "test-html-selector",
+                "select",
                 "--config",
                 "cmd/tools/test-html-selector/examples/pubmed.yaml",
                 "--urls",
@@ -67,6 +67,23 @@
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/mcp-server",
             "args": ["run-command", "examples/html-extract/fetch-html.yaml", "--urls", "https://news.ycombinator.com/"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "HTML Selector - CSS Select",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/tools/test-html-selector",
+            "args": [
+                "select",
+                "--files",
+                "hn.html",
+                "--log-level",
+                "DEBUG",
+                "--select-css",
+                "td.title"
+            ],
             "cwd": "${workspaceFolder}"
         }
     ]

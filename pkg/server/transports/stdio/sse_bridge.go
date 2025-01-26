@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -42,6 +43,9 @@ func NewSSEBridgeServer(logger zerolog.Logger, sseURL string) *SSEBridgeServer {
 
 	// Create a new logger that writes to the tagged stderr
 	taggedLogger := logger.Output(consoleWriter)
+
+	// Strip trailing slashes from the SSE URL
+	sseURL = strings.TrimRight(sseURL, "/")
 
 	return &SSEBridgeServer{
 		scanner:    scanner,

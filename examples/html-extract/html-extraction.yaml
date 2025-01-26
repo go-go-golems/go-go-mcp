@@ -26,13 +26,18 @@ flags:
     type: string
     help: Optional template file for formatting results
 
-command:
-  - html-selector
-  - select
-  - --urls
-  - "{{ range .Args.urls }}{{ . }} {{ end }}"
-  - --config-string
-  - "{{ .Args.config }}"
-  - "{{ if .Args.show_context }}--show-context{{ end }}"
-  - "{{ if .Args.show_path }}--show-path{{ end }}"
-  - "{{ if .Args.extract_template }}--extract --extract-template {{ .Args.extract_template }}{{ end }}" 
+shell-script: |
+  CONFIG_FILE=$(mktemp)
+  trap 'rm -f $CONFIG_FILE' EXIT
+  echo '{{ .Args.config }}' > $CONFIG_FILE
+
+  # Log config file with timestamp for replay
+  LOG_FILE="/tmp/html-extraction-$(date '+%Y-%m-%d-%H-%M-%S').yaml"
+  cp "$CONFIG_FILE" "$LOG_FILE"
+
+  html-selector select \
+    --urls {{ range .Args.urls }}{{ . }} {{ end }} \
+    --config $CONFIG_FILE \
+    {{ if .Args.show_context }}--show-context{{ end }} \
+    {{ if .Args.show_path }}--show-path{{ end }} \
+    {{ if .Args.extract_template }}--extract --extract-template {{ .Args.extract_template }}{{ end }} 

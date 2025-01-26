@@ -54,8 +54,9 @@ type SimplifiedResult struct {
 }
 
 type SourceResult struct {
-	Source string                   `yaml:"source"`
-	Data   map[string][]interface{} `yaml:"data"`
+	Source          string                   `yaml:"source"`
+	Data            map[string][]interface{} `yaml:"data"`
+	SelectorResults []SelectorResult         `yaml:"selector_results"`
 }
 
 type HTMLSelectorCommand struct {
@@ -340,28 +341,42 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 	}
 
 	// Convert results to use Document structure for normal output
-	var newResults []SimplifiedResult
+	newResults := make(map[string]*SimplifiedResult)
 	for _, sourceResult := range sourceResults {
-		for selectorName, matches := range sourceResult.Data {
-			var samples []SimplifiedSample
-			for _, match := range matches {
-				if doc, ok := match.(htmlsimplifier.Document); ok {
-					sample := SimplifiedSample{
-						HTML: []htmlsimplifier.Document{doc},
-					}
-					if s.ShowPath {
-						sample.Path = sourceResult.Source
-					}
-					samples = append(samples, sample)
+		for _, selectorResult := range sourceResult.SelectorResults {
+			if _, ok := newResults[selectorResult.Name]; !ok {
+				newResults[selectorResult.Name] = &SimplifiedResult{
+					Name:     selectorResult.Name,
+					Selector: selectorResult.Selector,
+					Type:     selectorResult.Type,
+					Count:    selectorResult.Count,
+					Samples:  []SimplifiedSample{},
 				}
 			}
-			newResults = append(newResults, SimplifiedResult{
-				Name:     selectorName,
-				Selector: findSelectorByName(selectors, selectorName).Selector,
-				Type:     findSelectorByName(selectors, selectorName).Type,
-				Count:    len(matches),
-				Samples:  samples,
-			})
+
+			for _, selectorSample := range selectorResult.Samples {
+				htmlDocs, err := simplifier.ProcessHTML(selectorSample.HTML)
+				if err != nil {
+					return fmt.Errorf("failed to process HTML: %w", err)
+				}
+
+				sample := SimplifiedSample{
+					HTML: htmlDocs,
+				}
+
+				if s.ShowPath {
+					sample.Path = selectorSample.Path
+				}
+				if s.ShowContext {
+					htmlDocs, err := simplifier.ProcessHTML(selectorSample.Context)
+					if err != nil {
+						return fmt.Errorf("failed to process HTML: %w", err)
+					}
+					sample.Context = htmlDocs
+				}
+				newResults[selectorResult.Name].Samples = append(newResults[selectorResult.Name].Samples, sample)
+			}
+
 		}
 	}
 
@@ -377,7 +392,13 @@ func findSelectorByName(selectors []Selector, name string) Selector {
 	return Selector{}
 }
 
-func processSource(ctx context.Context, source string, selectors []Selector, s *HTMLSelectorSettings, simplifier *htmlsimplifier.Simplifier) (SourceResult, error) {
+func processSource(
+	ctx context.Context,
+	source string,
+	selectors []Selector,
+	s *HTMLSelectorSettings,
+	simplifier *htmlsimplifier.Simplifier,
+) (SourceResult, error) {
 	var result SourceResult
 	result.Source = source
 
@@ -427,11 +448,12 @@ func processSource(ctx context.Context, source string, selectors []Selector, s *
 	}
 
 	result.Data = make(map[string][]interface{})
+	result.SelectorResults = results
 	for _, r := range results {
 		var matches []interface{}
-		for _, sample := range r.Samples {
+		for _, selectorSample := range r.Samples {
 			// Process HTML content
-			htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
+			htmlDocs, err := simplifier.ProcessHTML(selectorSample.HTML)
 			if err == nil {
 				for _, doc := range htmlDocs {
 					if doc.Text != "" {

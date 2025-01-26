@@ -114,7 +114,7 @@ in a structured YAML format.`),
 					"max-table-rows",
 					parameters.ParameterTypeInteger,
 					parameters.WithHelp("Maximum number of rows to show in tables (0 for unlimited)"),
-					parameters.WithDefault(4),
+					parameters.WithDefault(8),
 				),
 				parameters.NewParameterDefinition(
 					"config",
