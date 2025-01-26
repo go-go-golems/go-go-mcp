@@ -22,9 +22,6 @@ flags:
     type: bool
     help: Show element path in results
     default: false
-  - name: extract_template
-    type: string
-    help: Optional template file for formatting results
 
 shell-script: |
   CONFIG_FILE=$(mktemp)
@@ -40,4 +37,3 @@ shell-script: |
     --config $CONFIG_FILE \
     {{ if .Args.show_context }}--show-context{{ end }} \
     {{ if .Args.show_path }}--show-path{{ end }} \
-    {{ if .Args.extract_template }}--extract --extract-template {{ .Args.extract_template }}{{ end }} 

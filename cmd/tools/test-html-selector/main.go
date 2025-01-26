@@ -19,6 +19,8 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/htmlsimplifier"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	md "github.com/JohannesKaufmann/html-to-markdown"
 )
 
 type Config struct {
@@ -40,9 +42,12 @@ type Selector struct {
 }
 
 type SimplifiedSample struct {
-	HTML    []htmlsimplifier.Document `yaml:"html,omitempty"`
-	Context []htmlsimplifier.Document `yaml:"context,omitempty"`
-	Path    string                    `yaml:"path,omitempty"`
+	SimplifiedHTML    []htmlsimplifier.Document `yaml:"simplified_html,omitempty"`
+	HTML              string                    `yaml:"html,omitempty"`
+	SimplifiedContext []htmlsimplifier.Document `yaml:"simplified_context,omitempty"`
+	Context           string                    `yaml:"context,omitempty"`
+	Markdown          string                    `yaml:"markdown,omitempty"`
+	Path              string                    `yaml:"path,omitempty"`
 }
 
 type SimplifiedResult struct {
@@ -340,6 +345,9 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 		return yaml.NewEncoder(w).Encode(sourceResults)
 	}
 
+	// Create markdown converter
+	converter := md.NewConverter("", true, nil)
+
 	// Convert results to use Document structure for normal output
 	newResults := make(map[string]*SimplifiedResult)
 	for _, sourceResult := range sourceResults {
@@ -360,8 +368,14 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 					return fmt.Errorf("failed to process HTML: %w", err)
 				}
 
+				markdown, err := converter.ConvertString(selectorSample.HTML)
+				if err == nil {
+				}
+
 				sample := SimplifiedSample{
-					HTML: htmlDocs,
+					SimplifiedHTML: htmlDocs,
+					HTML:           selectorSample.HTML,
+					Markdown:       markdown,
 				}
 
 				if s.ShowPath {
@@ -372,7 +386,8 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 					if err != nil {
 						return fmt.Errorf("failed to process HTML: %w", err)
 					}
-					sample.Context = htmlDocs
+					sample.SimplifiedContext = htmlDocs
+					sample.Context = selectorSample.Context
 				}
 				newResults[selectorResult.Name].Samples = append(newResults[selectorResult.Name].Samples, sample)
 			}
@@ -449,12 +464,14 @@ func processSource(
 
 	result.Data = make(map[string][]interface{})
 	result.SelectorResults = results
+
 	for _, r := range results {
 		var matches []interface{}
 		for _, selectorSample := range r.Samples {
 			// Process HTML content
 			htmlDocs, err := simplifier.ProcessHTML(selectorSample.HTML)
 			if err == nil {
+
 				for _, doc := range htmlDocs {
 					if doc.Text != "" {
 						matches = append(matches, doc.Text)

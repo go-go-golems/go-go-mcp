@@ -85,6 +85,23 @@
                 "td.title"
             ],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "HTML Selector - Config File",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/tools/test-html-selector",
+            "args": [
+                "select",
+                "--files",
+                "hn.html",
+                "--log-level",
+                "DEBUG",
+                "--config",
+                "/tmp/html-extraction-2025-01-26-17-42-34.yaml"
+            ],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

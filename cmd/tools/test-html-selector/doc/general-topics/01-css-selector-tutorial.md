@@ -347,23 +347,24 @@ selectors:
     description: |
       Extracts the user's skills.
 
+template: |
+  {{- range . }}
+  {{ $ := .Data }}
+  # User Profile
+
+  **Name**: {{ index $.user_name 0 }}
+  **Email**: {{ index $.user_email 0 }}
+  **Location**: {{ index $.user_location 0 }}
+
+  ## Skills
+  {{- range $.user_skills }}
+  - {{ . }}
+  {{- end }}
+  {{ end }}
+
 config:
   sample_count: 5
   context_chars: 100
-  template: |
-    {{- range . }}
-    {{ $ := .Data }}
-    # User Profile
-
-    **Name**: {{ index $.user_name 0 }}
-    **Email**: {{ index $.user_email 0 }}
-    **Location**: {{ index $.user_location 0 }}
-
-    ## Skills
-    {{- range $.user_skills }}
-    - {{ . }}
-    {{- end }}
-    {{ end }}
 ```
 
 ## Best Practices
