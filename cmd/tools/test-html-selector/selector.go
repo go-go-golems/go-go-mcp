@@ -169,7 +169,7 @@ func (st *SelectorTester) Run(ctx context.Context) ([]SelectorResult, error) {
 		totalCount := len(samples)
 
 		// Limit samples to configured count
-		if len(samples) > st.config.Config.SampleCount {
+		if st.config.Config.SampleCount > 0 && len(samples) > st.config.Config.SampleCount {
 			samples = samples[:st.config.Config.SampleCount]
 		}
 

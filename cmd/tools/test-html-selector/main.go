@@ -61,6 +61,7 @@ type TestHTMLSelectorSettings struct {
 	SelectXPath     []string `glazed.parameter:"select-xpath"`
 	InputFile       string   `glazed.parameter:"input"`
 	Extract         bool     `glazed.parameter:"extract"`
+	ExtractData     bool     `glazed.parameter:"extract-data"`
 	ExtractTemplate string   `glazed.parameter:"extract-template"`
 	ShowContext     bool     `glazed.parameter:"show-context"`
 	ShowPath        bool     `glazed.parameter:"show-path"`
@@ -111,6 +112,12 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					"extract",
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Extract all matches into a YAML map of selector name to matches"),
+					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"extract-data",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Extract raw data without applying any templates"),
 					parameters.WithDefault(false),
 				),
 				parameters.NewParameterDefinition(
@@ -260,6 +267,10 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		MaxTableRows: s.MaxTableRows,
 	})
 
+	sampleCount := s.SampleCount
+	if s.Extract || s.ExtractTemplate != "" {
+		sampleCount = 0
+	}
 	tester, err := NewSelectorTester(&Config{
 		File:      s.InputFile,
 		Selectors: selectors,
@@ -268,7 +279,7 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 			ContextChars int    `yaml:"context_chars"`
 			Template     string `yaml:"template"`
 		}{
-			SampleCount:  s.SampleCount,
+			SampleCount:  sampleCount,
 			ContextChars: s.ContextChars,
 			Template:     "",
 		},
@@ -303,6 +314,11 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 				}
 			}
 			extractedData[result.Name] = matches
+		}
+
+		// If extract-data is true, output raw data regardless of templates
+		if s.ExtractData {
+			return yaml.NewEncoder(w).Encode(extractedData)
 		}
 
 		// First try command line template

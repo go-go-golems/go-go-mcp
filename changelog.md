@@ -633,3 +633,11 @@ Added comprehensive tutorial examples to demonstrate HTML selector usage:
 - XPath examples showing advanced selection techniques
 
 Each example includes both HTML and YAML files with detailed descriptions and comments.
+
+# Raw Data Extraction Option
+
+Added a new flag to allow extracting raw data without applying templates.
+
+- Added --extract-data flag to skip template processing and output raw YAML data
+- Updated documentation to reflect new option
+- Maintains backwards compatibility with existing template functionality
