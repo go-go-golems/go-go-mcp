@@ -44,7 +44,7 @@ type SimplifyHTMLSettings struct {
 func NewSimplifyHTMLCommand() (*SimplifyHTMLCommand, error) {
 	return &SimplifyHTMLCommand{
 		CommandDescription: cmds.NewCommandDescription(
-			"simplify-html",
+			"simplify",
 			cmds.WithShort("Simplify and minimize HTML documents"),
 			cmds.WithLong(`A tool to simplify and minimize HTML documents by removing unnecessary elements 
 and attributes, and shortening overly long text content. The output is provided 

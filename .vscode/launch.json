@@ -17,7 +17,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/mcp-server",
-            "args": ["start", "--transport", "sse", "--repositories", "examples/shell-commands", "--log-level", "debug"],
+            "args": ["start", "--transport", "sse", "--repositories", "examples/html-extract", "--log-level", "debug"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -58,6 +58,15 @@
                 "https://pubmed.ncbi.nlm.nih.gov/?term=foxp3",
                 "--extract"
             ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run HTML Extract - HN",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/mcp-server",
+            "args": ["run-command", "examples/html-extract/fetch-html.yaml", "--urls", "https://news.ycombinator.com/"],
             "cwd": "${workspaceFolder}"
         }
     ]

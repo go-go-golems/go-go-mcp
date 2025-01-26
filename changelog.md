@@ -676,3 +676,11 @@ Added support for processing multiple files and URLs in the simplify-html comman
 - Multiple files via --files flag (including stdin with -)
 - Multiple URLs via --urls flag
 - Outputs results as a list of source and data pairs
+
+# Enhanced ShellToolProvider Debugging and Tracing
+
+Added debug mode and tracing capabilities to ShellToolProvider for better debugging and audit capabilities:
+- Added debug mode to log detailed information about tool calls and arguments
+- Added tracing directory support to save input/output JSON files for each tool call
+- Implemented functional options pattern for configuration
+- Added timestamp-based file naming for trace files
