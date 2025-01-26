@@ -471,3 +471,28 @@ Added a new shell command `fetch-transcript` that downloads transcripts/subtitle
 - Supports multiple languages and auto-generated subtitles
 - Includes language listing capability
 - Downloads in SRT format for easy reading
+
+# Add Logging Support
+
+Added comprehensive logging support using zerolog:
+- Added `--debug` flag to enable logging (disabled by default)
+- Added `--log-level` flag to control log level (default: debug)
+- Logs are written to stderr with timestamp and caller information
+- Added detailed logging throughout HTML processing for better debugging
+
+# Fix Text Simplification for Important Elements
+
+Fixed text simplification to preserve important HTML elements:
+- Added detection of important elements (links, formatting, etc.)
+- Prevented collapsing of nodes containing important elements
+- Added more detailed trace logging for debugging
+- Improved handling of inline formatting elements
+
+# Add Markdown Conversion Support
+
+Added support for converting HTML to Markdown format:
+- Added `--markdown` flag to enable markdown conversion
+- Converts important elements (links, formatting) to markdown syntax
+- Preserves links with proper markdown link syntax
+- Supports various markdown formatting (bold, italic, code, etc.)
+- Reduces token usage while maintaining readability
