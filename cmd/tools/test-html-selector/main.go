@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"text/template"
 
 	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli"
@@ -51,22 +52,26 @@ type TestHTMLSelectorCommand struct {
 }
 
 type TestHTMLSelectorSettings struct {
-	ConfigFile   string `glazed.parameter:"config"`
-	InputFile    string `glazed.parameter:"input"`
-	Extract      bool   `glazed.parameter:"extract"`
-	ShowContext  bool   `glazed.parameter:"show-context"`
-	ShowPath     bool   `glazed.parameter:"show-path"`
-	SampleCount  int    `glazed.parameter:"sample-count"`
-	ContextChars int    `glazed.parameter:"context-chars"`
-	StripScripts bool   `glazed.parameter:"strip-scripts"`
-	StripCSS     bool   `glazed.parameter:"strip-css"`
-	ShortenText  bool   `glazed.parameter:"shorten-text"`
-	CompactSVG   bool   `glazed.parameter:"compact-svg"`
-	StripSVG     bool   `glazed.parameter:"strip-svg"`
-	SimplifyText bool   `glazed.parameter:"simplify-text"`
-	Markdown     bool   `glazed.parameter:"markdown"`
-	MaxListItems int    `glazed.parameter:"max-list-items"`
-	MaxTableRows int    `glazed.parameter:"max-table-rows"`
+	ConfigFile      string   `glazed.parameter:"config"`
+	SelectCSS       []string `glazed.parameter:"select-css"`
+	SelectXPath     []string `glazed.parameter:"select-xpath"`
+	InputFile       string   `glazed.parameter:"input"`
+	Extract         bool     `glazed.parameter:"extract"`
+	ExtractData     bool     `glazed.parameter:"extract-data"`
+	ExtractTemplate string   `glazed.parameter:"extract-template"`
+	ShowContext     bool     `glazed.parameter:"show-context"`
+	ShowPath        bool     `glazed.parameter:"show-path"`
+	SampleCount     int      `glazed.parameter:"sample-count"`
+	ContextChars    int      `glazed.parameter:"context-chars"`
+	StripScripts    bool     `glazed.parameter:"strip-scripts"`
+	StripCSS        bool     `glazed.parameter:"strip-css"`
+	ShortenText     bool     `glazed.parameter:"shorten-text"`
+	CompactSVG      bool     `glazed.parameter:"compact-svg"`
+	StripSVG        bool     `glazed.parameter:"strip-svg"`
+	SimplifyText    bool     `glazed.parameter:"simplify-text"`
+	Markdown        bool     `glazed.parameter:"markdown"`
+	MaxListItems    int      `glazed.parameter:"max-list-items"`
+	MaxTableRows    int      `glazed.parameter:"max-table-rows"`
 }
 
 func NewTestHTMLSelectorCommand() (*TestHTMLSelectorCommand, error) {
@@ -81,7 +86,17 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					"config",
 					parameters.ParameterTypeString,
 					parameters.WithHelp("Path to YAML config file containing selectors"),
-					parameters.WithRequired(true),
+					parameters.WithRequired(false),
+				),
+				parameters.NewParameterDefinition(
+					"select-css",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("CSS selectors to test (can be specified multiple times)"),
+				),
+				parameters.NewParameterDefinition(
+					"select-xpath",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("XPath selectors to test (can be specified multiple times)"),
 				),
 				parameters.NewParameterDefinition(
 					"input",
@@ -94,6 +109,17 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Extract and print all matches for each selector"),
 					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"extract-data",
+					parameters.ParameterTypeBool,
+					parameters.WithHelp("Extract all matches into a YAML map of selector name to matches"),
+					parameters.WithDefault(false),
+				),
+				parameters.NewParameterDefinition(
+					"extract-template",
+					parameters.ParameterTypeString,
+					parameters.WithHelp("Go template file to render with extracted data"),
 				),
 				parameters.NewParameterDefinition(
 					"show-context",
@@ -111,7 +137,7 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					"sample-count",
 					parameters.ParameterTypeInteger,
 					parameters.WithHelp("Maximum number of examples to show"),
-					parameters.WithDefault(5),
+					parameters.WithDefault(3),
 				),
 				parameters.NewParameterDefinition(
 					"context-chars",
@@ -188,14 +214,39 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return err
 	}
 
-	config, err := loadConfig(s.ConfigFile)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+	var selectors []Selector
+
+	// Load selectors from config file if provided
+	if s.ConfigFile != "" {
+		config, err := loadConfig(s.ConfigFile)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		selectors = config.Selectors
 	}
 
-	// Override config settings with command line parameters
-	config.Config.SampleCount = s.SampleCount
-	config.Config.ContextChars = s.ContextChars
+	// Add CSS selectors from command line
+	for i, css := range s.SelectCSS {
+		selectors = append(selectors, Selector{
+			Name:     fmt.Sprintf("css_%d", i+1),
+			Selector: css,
+			Type:     "css",
+		})
+	}
+
+	// Add XPath selectors from command line
+	for i, xpath := range s.SelectXPath {
+		selectors = append(selectors, Selector{
+			Name:     fmt.Sprintf("xpath_%d", i+1),
+			Selector: xpath,
+			Type:     "xpath",
+		})
+	}
+
+	// Ensure at least one selector is provided
+	if len(selectors) == 0 {
+		return fmt.Errorf("no selectors provided: use either --config or --select-css/--select-xpath")
+	}
 
 	// Create HTML simplifier
 	simplifier := htmlsimplifier.NewSimplifier(htmlsimplifier.Options{
@@ -212,7 +263,7 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 
 	tester, err := NewSelectorTester(&Config{
 		File:      s.InputFile,
-		Selectors: config.Selectors,
+		Selectors: selectors,
 		Config: struct {
 			SampleCount  int `yaml:"sample_count"`
 			ContextChars int `yaml:"context_chars"`
@@ -230,7 +281,42 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return fmt.Errorf("failed to run tests: %w", err)
 	}
 
-	// Convert results to use Document structure
+	// If using extract-data or extract-template, process all matches without sample limit
+	if s.ExtractData || s.ExtractTemplate != "" {
+		extractedData := make(map[string][]string)
+		for _, result := range results {
+			var matches []string
+			for _, sample := range result.Samples {
+				// Process HTML content
+				htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
+				if err == nil {
+					for _, doc := range htmlDocs {
+						if doc.Text != "" {
+							matches = append(matches, doc.Text)
+						} else if doc.Markdown != "" {
+							matches = append(matches, doc.Markdown)
+						}
+					}
+				}
+			}
+			extractedData[result.Name] = matches
+		}
+
+		if s.ExtractTemplate != "" {
+			// Load and execute template
+			tmpl, err := template.ParseFiles(s.ExtractTemplate)
+			if err != nil {
+				return fmt.Errorf("failed to parse template: %w", err)
+			}
+			return tmpl.Execute(w, extractedData)
+		}
+
+		if s.ExtractData {
+			return yaml.NewEncoder(w).Encode(extractedData)
+		}
+	}
+
+	// Convert results to use Document structure for normal output
 	var newResults []SimplifiedResult
 	for _, result := range results {
 		newResult := SimplifiedResult{
@@ -280,11 +366,10 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 				}
 			}
 		}
-	} else {
-		return yaml.NewEncoder(w).Encode(newResults)
+		return nil
 	}
 
-	return nil
+	return yaml.NewEncoder(w).Encode(newResults)
 }
 
 func loadConfig(path string) (*Config, error) {

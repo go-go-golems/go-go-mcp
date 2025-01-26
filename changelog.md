@@ -570,3 +570,22 @@ Added flags to control the display of context and paths in the HTML selector too
 - Added --show-context flag to control display of context around matched elements (default: false)
 - Added --show-path flag to control display of element paths (default: true)
 - Updated documentation to reflect new options
+
+# Added Command Line Selector Support
+
+Added support for specifying selectors directly via command line flags, making the config file optional:
+
+- Added --select-css flag for specifying CSS selectors (can be used multiple times)
+- Added --select-xpath flag for specifying XPath selectors (can be used multiple times)
+- Made config file optional while ensuring at least one selector is provided
+- Selectors from both config file and command line are combined
+- Added automatic naming for command line selectors (css_1, css_2, xpath_1, etc.)
+
+# Added Enhanced Data Extraction Features
+
+Added new extraction modes to the HTML selector tool for more flexible data processing:
+
+- Added --extract-data flag to output all matches in a YAML map format (selector name -> matches)
+- Added --extract-template flag to render matches through a Go template
+- Both modes process all matches without sample count limits
+- Template mode allows for custom formatting of extracted data
