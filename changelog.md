@@ -531,3 +531,12 @@ Enhanced the HTML simplifier to include id and class attributes in the tag name 
 - Modified tag format to include id and classes (e.g. div#myid.class1.class2)
 - Removed id and class from regular attributes list
 - Improved readability of HTML structure in YAML output
+
+# Convert test-html-selector to glazed framework
+
+Converted the test-html-selector tool to use the glazed framework for better CLI integration and consistency with other tools. The file field has been removed from the config file and is now required as a command line argument.
+
+- Converted test-html-selector to use glazed framework
+- Removed file field from config file
+- Added --sample-count and --context-chars command line flags
+- Updated documentation to reflect new command structure

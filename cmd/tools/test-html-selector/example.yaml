@@ -1,4 +1,3 @@
-file: example.html
 selectors:
   - name: product_titles
     selector: .product-card h2

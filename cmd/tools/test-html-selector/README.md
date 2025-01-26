@@ -6,10 +6,9 @@ A command-line tool for testing CSS and XPath selectors against HTML documents. 
 
 - Support for both CSS and XPath selectors
 - Configurable sample count and context size
-- YAML configuration and output format
+- YAML configuration for selectors
 - DOM path visualization for matched elements
 - Parent context for each match
-- Command-line override for input file
 - Extract and print all matches for each selector
 
 ## Installation
@@ -23,7 +22,6 @@ go install ./cmd/tools/test-html-selector
 1. Create a YAML configuration file:
 
 ```yaml
-file: path/to/your.html  # Optional if using --input flag
 selectors:
   - name: product_titles
     selector: .product-card h2
@@ -39,15 +37,35 @@ config:
 2. Run the tool:
 
 ```bash
-# Using config file only
-test-html-selector -c config.yaml
+# Basic usage
+test-html-selector --config config.yaml --input path/to/input.html
 
-# Override input file from command line
-test-html-selector -c config.yaml -i path/to/different.html
+# Override sample count and context size
+test-html-selector --config config.yaml --input path/to/input.html --sample-count 10 --context-chars 200
 
 # Extract and print all matches
-test-html-selector -c config.yaml -e
+test-html-selector --config config.yaml --input path/to/input.html --extract
 ```
+
+## Configuration Options
+
+### Command Line Flags
+
+- `--config`: Path to YAML config file (required)
+- `--input`: Path to HTML input file (required)
+- `--extract`: Extract and print all matches for each selector
+- `--sample-count`: Maximum number of examples to show (default: 5)
+- `--context-chars`: Number of characters of context to include (default: 100)
+
+### YAML Configuration
+
+- `selectors`: List of selectors to test
+  - `name`: Friendly name for the selector
+  - `selector`: CSS or XPath selector string
+  - `type`: Either "css" or "xpath"
+- `config`:
+  - `sample_count`: Maximum number of examples to show (can be overridden by --sample-count)
+  - `context_chars`: Number of characters of context to include (can be overridden by --context-chars)
 
 ## Example Output
 
@@ -61,20 +79,3 @@ test-html-selector -c config.yaml -e
       path: "html > body > div > div > div > h2"
     # ... more samples ...
 ```
-
-## Configuration Options
-
-- `file`: Path to the HTML file to analyze (can be overridden by --input flag)
-- `selectors`: List of selectors to test
-  - `name`: Friendly name for the selector
-  - `selector`: CSS or XPath selector string
-  - `type`: Either "css" or "xpath"
-- `config`:
-  - `sample_count`: Maximum number of examples to show
-  - `context_chars`: Number of characters of context to include
-
-## Command Line Flags
-
-- `-c, --config`: Path to YAML config file (required)
-- `-i, --input`: Path to HTML input file (overrides config file)
-- `-e, --extract`: Extract and print all matches for each selector
