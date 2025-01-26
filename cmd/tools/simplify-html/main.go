@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 
 	clay "github.com/go-go-golems/clay/pkg"
@@ -24,19 +25,20 @@ type SimplifyHTMLCommand struct {
 }
 
 type SimplifyHTMLSettings struct {
-	StripScripts bool   `glazed.parameter:"strip-scripts"`
-	StripCSS     bool   `glazed.parameter:"strip-css"`
-	ShortenText  bool   `glazed.parameter:"shorten-text"`
-	CompactSVG   bool   `glazed.parameter:"compact-svg"`
-	StripSVG     bool   `glazed.parameter:"strip-svg"`
-	SimplifyText bool   `glazed.parameter:"simplify-text"`
-	Markdown     bool   `glazed.parameter:"markdown"`
-	MaxListItems int    `glazed.parameter:"max-list-items"`
-	MaxTableRows int    `glazed.parameter:"max-table-rows"`
-	ConfigFile   string `glazed.parameter:"config"`
-	Debug        bool   `glazed.parameter:"debug"`
-	LogLevel     string `glazed.parameter:"log-level"`
-	File         string `glazed.parameter:"file"`
+	StripScripts bool     `glazed.parameter:"strip-scripts"`
+	StripCSS     bool     `glazed.parameter:"strip-css"`
+	ShortenText  bool     `glazed.parameter:"shorten-text"`
+	CompactSVG   bool     `glazed.parameter:"compact-svg"`
+	StripSVG     bool     `glazed.parameter:"strip-svg"`
+	SimplifyText bool     `glazed.parameter:"simplify-text"`
+	Markdown     bool     `glazed.parameter:"markdown"`
+	MaxListItems int      `glazed.parameter:"max-list-items"`
+	MaxTableRows int      `glazed.parameter:"max-table-rows"`
+	ConfigFile   string   `glazed.parameter:"config"`
+	Debug        bool     `glazed.parameter:"debug"`
+	LogLevel     string   `glazed.parameter:"log-level"`
+	Files        []string `glazed.parameter:"files"`
+	URLs         []string `glazed.parameter:"urls"`
 }
 
 func NewSimplifyHTMLCommand() (*SimplifyHTMLCommand, error) {
@@ -49,10 +51,16 @@ and attributes, and shortening overly long text content. The output is provided
 in a structured YAML format.`),
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
-					"file",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("HTML file to process"),
-					parameters.WithRequired(true),
+					"files",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("HTML files to process (use - for stdin)"),
+					parameters.WithRequired(false),
+				),
+				parameters.NewParameterDefinition(
+					"urls",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("URLs to fetch and process"),
+					parameters.WithRequired(false),
 				),
 				parameters.NewParameterDefinition(
 					"strip-scripts",
@@ -161,6 +169,10 @@ func (c *SimplifyHTMLCommand) RunIntoWriter(
 		return err
 	}
 
+	if len(s.Files) == 0 && len(s.URLs) == 0 {
+		return fmt.Errorf("no input sources provided: use either --files or --urls")
+	}
+
 	setupLogging(s.Debug, s.LogLevel)
 	log.Debug().Msg("Starting HTML simplification")
 
@@ -185,16 +197,61 @@ func (c *SimplifyHTMLCommand) RunIntoWriter(
 	}
 
 	simplifier := htmlsimplifier.NewSimplifier(opts)
-	fileData, err := os.ReadFile(s.File)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-	result, err := simplifier.ProcessHTML(string(fileData))
-	if err != nil {
-		return fmt.Errorf("failed to process HTML: %w", err)
+	var results []map[string]interface{}
+
+	// Process files
+	for _, file := range s.Files {
+		var fileData []byte
+		var err error
+
+		if file == "-" {
+			fileData, err = io.ReadAll(os.Stdin)
+			if err != nil {
+				return fmt.Errorf("failed to read from stdin: %w", err)
+			}
+		} else {
+			fileData, err = os.ReadFile(file)
+			if err != nil {
+				return fmt.Errorf("failed to read file %s: %w", file, err)
+			}
+		}
+
+		result, err := simplifier.ProcessHTML(string(fileData))
+		if err != nil {
+			return fmt.Errorf("failed to process HTML from %s: %w", file, err)
+		}
+
+		results = append(results, map[string]interface{}{
+			"source": file,
+			"data":   result,
+		})
 	}
 
-	yamlData, err := yaml.Marshal(result)
+	// Process URLs
+	for _, url := range s.URLs {
+		resp, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("failed to fetch URL %s: %w", url, err)
+		}
+		defer resp.Body.Close()
+
+		fileData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response from %s: %w", url, err)
+		}
+
+		result, err := simplifier.ProcessHTML(string(fileData))
+		if err != nil {
+			return fmt.Errorf("failed to process HTML from %s: %w", url, err)
+		}
+
+		results = append(results, map[string]interface{}{
+			"source": url,
+			"data":   result,
+		})
+	}
+
+	yamlData, err := yaml.Marshal(results)
 	if err != nil {
 		return fmt.Errorf("failed to convert to YAML: %w", err)
 	}

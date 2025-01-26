@@ -669,3 +669,10 @@ Added `fetch-html` command to simplify HTML content from URLs:
 - Supports fetching and simplifying multiple URLs
 - Configurable limits for list items and table rows
 - Optional markdown output format
+
+## Enhanced simplify-html command with multiple input sources
+
+Added support for processing multiple files and URLs in the simplify-html command. The command now accepts:
+- Multiple files via --files flag (including stdin with -)
+- Multiple URLs via --urls flag
+- Outputs results as a list of source and data pairs
