@@ -558,3 +558,7 @@ Changed the HTML simplifier to return lists of documents instead of single docum
 - Updated test-html-selector to handle document lists
 - Changed output format to show arrays of documents for HTML and context
 - Updated documentation with new output format examples
+
+## Add Clay logging initialization to HTML tools
+
+Added proper Clay logging initialization to test-html-selector and simplify-html tools to match mcp-server's logging setup.

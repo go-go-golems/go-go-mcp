@@ -155,7 +155,18 @@ func (s *Simplifier) ProcessHTML(htmlContent string) ([]Document, error) {
 		doc.Find("[data-simplifier-keep]").RemoveAttr("data-simplifier-keep")
 	}
 
-	return s.processNode(doc.Get(0)), nil
+	docs := s.processNode(doc.Get(0))
+	if len(docs) == 0 {
+		return nil, fmt.Errorf("no documents found")
+	}
+	if len(docs) == 1 && docs[0].Tag == "body" {
+		if len(docs[0].Children) > 0 {
+			return docs[0].Children, nil
+		}
+		docs[0].Tag = ""
+		return []Document{docs[0]}, nil
+	}
+	return docs, nil
 }
 
 func (s *Simplifier) processNode(node *html.Node) []Document {

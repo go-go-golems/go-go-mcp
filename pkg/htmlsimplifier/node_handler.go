@@ -50,7 +50,7 @@ func NewNodeHandler(opts Options) *NodeHandler {
 	// Configure default strategies
 	h.tagStrategies["html"] = StrategyUnwrap
 	h.tagStrategies["head"] = StrategyFilter
-	h.tagStrategies["body"] = StrategyUnwrap
+	h.tagStrategies["body"] = StrategyDefault
 
 	if opts.StripScripts {
 		h.tagStrategies["script"] = StrategyFilter
