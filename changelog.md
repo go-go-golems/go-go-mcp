@@ -589,3 +589,12 @@ Added new extraction modes to the HTML selector tool for more flexible data proc
 - Added --extract-template flag to render matches through a Go template
 - Both modes process all matches without sample count limits
 - Template mode allows for custom formatting of extracted data
+
+# Simplified Data Extraction
+
+Simplified data extraction by merging --extract and --extract-data flags:
+
+- Changed --extract to always output data in YAML format
+- Removed redundant --extract-data flag
+- Maintained template support with --extract-template and config file templates
+- Improved consistency in data output formats

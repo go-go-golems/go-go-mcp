@@ -22,8 +22,9 @@ type Config struct {
 	File      string     `yaml:"file"`
 	Selectors []Selector `yaml:"selectors"`
 	Config    struct {
-		SampleCount  int `yaml:"sample_count"`
-		ContextChars int `yaml:"context_chars"`
+		SampleCount  int    `yaml:"sample_count"`
+		ContextChars int    `yaml:"context_chars"`
+		Template     string `yaml:"template"`
 	} `yaml:"config"`
 }
 
@@ -57,7 +58,6 @@ type TestHTMLSelectorSettings struct {
 	SelectXPath     []string `glazed.parameter:"select-xpath"`
 	InputFile       string   `glazed.parameter:"input"`
 	Extract         bool     `glazed.parameter:"extract"`
-	ExtractData     bool     `glazed.parameter:"extract-data"`
 	ExtractTemplate string   `glazed.parameter:"extract-template"`
 	ShowContext     bool     `glazed.parameter:"show-context"`
 	ShowPath        bool     `glazed.parameter:"show-path"`
@@ -106,12 +106,6 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 				),
 				parameters.NewParameterDefinition(
 					"extract",
-					parameters.ParameterTypeBool,
-					parameters.WithHelp("Extract and print all matches for each selector"),
-					parameters.WithDefault(false),
-				),
-				parameters.NewParameterDefinition(
-					"extract-data",
 					parameters.ParameterTypeBool,
 					parameters.WithHelp("Extract all matches into a YAML map of selector name to matches"),
 					parameters.WithDefault(false),
@@ -217,8 +211,10 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 	var selectors []Selector
 
 	// Load selectors from config file if provided
+	var config *Config
+	var err error
 	if s.ConfigFile != "" {
-		config, err := loadConfig(s.ConfigFile)
+		config, err = loadConfig(s.ConfigFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
@@ -265,11 +261,13 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		File:      s.InputFile,
 		Selectors: selectors,
 		Config: struct {
-			SampleCount  int `yaml:"sample_count"`
-			ContextChars int `yaml:"context_chars"`
+			SampleCount  int    `yaml:"sample_count"`
+			ContextChars int    `yaml:"context_chars"`
+			Template     string `yaml:"template"`
 		}{
 			SampleCount:  s.SampleCount,
 			ContextChars: s.ContextChars,
+			Template:     "",
 		},
 	})
 	if err != nil {
@@ -281,8 +279,8 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return fmt.Errorf("failed to run tests: %w", err)
 	}
 
-	// If using extract-data or extract-template, process all matches without sample limit
-	if s.ExtractData || s.ExtractTemplate != "" {
+	// If using extract or extract-template, process all matches without sample limit
+	if s.Extract || s.ExtractTemplate != "" {
 		extractedData := make(map[string][]string)
 		for _, result := range results {
 			var matches []string
@@ -302,18 +300,28 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 			extractedData[result.Name] = matches
 		}
 
+		// First try command line template
 		if s.ExtractTemplate != "" {
 			// Load and execute template
 			tmpl, err := template.ParseFiles(s.ExtractTemplate)
 			if err != nil {
-				return fmt.Errorf("failed to parse template: %w", err)
+				return fmt.Errorf("failed to parse template file: %w", err)
 			}
 			return tmpl.Execute(w, extractedData)
 		}
 
-		if s.ExtractData {
-			return yaml.NewEncoder(w).Encode(extractedData)
+		// Then try config file template if extract mode is on
+		if config != nil && config.Config.Template != "" {
+			// Parse and execute template from config
+			tmpl, err := template.New("config").Parse(config.Config.Template)
+			if err != nil {
+				return fmt.Errorf("failed to parse template from config: %w", err)
+			}
+			return tmpl.Execute(w, extractedData)
 		}
+
+		// Default to YAML output
+		return yaml.NewEncoder(w).Encode(extractedData)
 	}
 
 	// Convert results to use Document structure for normal output
@@ -351,22 +359,6 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 			newResult.Samples = append(newResult.Samples, newSample)
 		}
 		newResults = append(newResults, newResult)
-	}
-
-	if s.Extract {
-		for _, result := range newResults {
-			fmt.Fprintf(w, "Selector: %s\n", result.Selector)
-			for _, sample := range result.Samples {
-				for _, doc := range sample.HTML {
-					if doc.Text != "" {
-						fmt.Fprintln(w, doc.Text)
-					} else if doc.Markdown != "" {
-						fmt.Fprintln(w, doc.Markdown)
-					}
-				}
-			}
-		}
-		return nil
 	}
 
 	return yaml.NewEncoder(w).Encode(newResults)
