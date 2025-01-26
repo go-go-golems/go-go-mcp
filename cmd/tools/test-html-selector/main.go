@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -51,6 +53,11 @@ type SimplifiedResult struct {
 	Samples  []SimplifiedSample `yaml:"samples"`
 }
 
+type SourceResult struct {
+	Source string                   `yaml:"source"`
+	Data   map[string][]interface{} `yaml:"data"`
+}
+
 type TestHTMLSelectorCommand struct {
 	*cmds.CommandDescription
 }
@@ -59,7 +66,8 @@ type TestHTMLSelectorSettings struct {
 	ConfigFile      string   `glazed.parameter:"config"`
 	SelectCSS       []string `glazed.parameter:"select-css"`
 	SelectXPath     []string `glazed.parameter:"select-xpath"`
-	InputFile       string   `glazed.parameter:"input"`
+	Files           []string `glazed.parameter:"files"`
+	URLs            []string `glazed.parameter:"urls"`
 	Extract         bool     `glazed.parameter:"extract"`
 	ExtractData     bool     `glazed.parameter:"extract-data"`
 	ExtractTemplate string   `glazed.parameter:"extract-template"`
@@ -103,10 +111,14 @@ It provides match counts and contextual examples to verify selector accuracy.`),
 					parameters.WithHelp("XPath selectors to test (can be specified multiple times)"),
 				),
 				parameters.NewParameterDefinition(
-					"input",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Path to HTML input file"),
-					parameters.WithRequired(true),
+					"files",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("HTML files to process (can be specified multiple times)"),
+				),
+				parameters.NewParameterDefinition(
+					"urls",
+					parameters.ParameterTypeStringList,
+					parameters.WithHelp("URLs to fetch and process (can be specified multiple times)"),
 				),
 				parameters.NewParameterDefinition(
 					"extract",
@@ -254,6 +266,11 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		return fmt.Errorf("no selectors provided: use either --config or --select-css/--select-xpath")
 	}
 
+	// Ensure at least one source is provided
+	if len(s.Files) == 0 && len(s.URLs) == 0 {
+		return fmt.Errorf("no input sources provided: use either --files or --urls")
+	}
+
 	// Create HTML simplifier
 	simplifier := htmlsimplifier.NewSimplifier(htmlsimplifier.Options{
 		StripScripts: s.StripScripts,
@@ -267,12 +284,128 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		MaxTableRows: s.MaxTableRows,
 	})
 
+	var sourceResults []SourceResult
+
+	// Process files
+	for _, file := range s.Files {
+		result, err := processSource(ctx, file, selectors, s, simplifier)
+		if err != nil {
+			return fmt.Errorf("failed to process file %s: %w", file, err)
+		}
+		sourceResults = append(sourceResults, result)
+	}
+
+	// Process URLs
+	for _, url := range s.URLs {
+		result, err := processSource(ctx, url, selectors, s, simplifier)
+		if err != nil {
+			return fmt.Errorf("failed to process URL %s: %w", url, err)
+		}
+		sourceResults = append(sourceResults, result)
+	}
+
+	// If using extract or extract-template, process all matches without sample limit
+	if s.Extract || s.ExtractTemplate != "" {
+		// If extract-data is true, output raw data regardless of templates
+		if s.ExtractData {
+			return yaml.NewEncoder(w).Encode(sourceResults)
+		}
+
+		// First try command line template
+		if s.ExtractTemplate != "" {
+			// Load and execute template
+			tmpl, err := template.New(s.ExtractTemplate).
+				Funcs(sprig.TxtFuncMap()).
+				ParseFiles(s.ExtractTemplate)
+			if err != nil {
+				return fmt.Errorf("failed to parse template file: %w", err)
+			}
+			return tmpl.Execute(w, sourceResults)
+		}
+
+		// Then try config file template if extract mode is on
+		if config != nil && config.Config.Template != "" {
+			// Parse and execute template from config
+			tmpl, err := template.New("config").
+				Funcs(sprig.TxtFuncMap()).
+				Parse(config.Config.Template)
+			if err != nil {
+				return fmt.Errorf("failed to parse template from config: %w", err)
+			}
+			return tmpl.Execute(w, sourceResults)
+		}
+
+		// Default to YAML output
+		return yaml.NewEncoder(w).Encode(sourceResults)
+	}
+
+	// Convert results to use Document structure for normal output
+	var newResults []SimplifiedResult
+	for _, sourceResult := range sourceResults {
+		for selectorName, matches := range sourceResult.Data {
+			var samples []SimplifiedSample
+			for _, match := range matches {
+				if doc, ok := match.(htmlsimplifier.Document); ok {
+					sample := SimplifiedSample{
+						HTML: []htmlsimplifier.Document{doc},
+					}
+					if s.ShowPath {
+						sample.Path = sourceResult.Source
+					}
+					samples = append(samples, sample)
+				}
+			}
+			newResults = append(newResults, SimplifiedResult{
+				Name:     selectorName,
+				Selector: findSelectorByName(selectors, selectorName).Selector,
+				Type:     findSelectorByName(selectors, selectorName).Type,
+				Count:    len(matches),
+				Samples:  samples,
+			})
+		}
+	}
+
+	return yaml.NewEncoder(w).Encode(newResults)
+}
+
+func findSelectorByName(selectors []Selector, name string) Selector {
+	for _, s := range selectors {
+		if s.Name == name {
+			return s
+		}
+	}
+	return Selector{}
+}
+
+func processSource(ctx context.Context, source string, selectors []Selector, s *TestHTMLSelectorSettings, simplifier *htmlsimplifier.Simplifier) (SourceResult, error) {
+	var result SourceResult
+	result.Source = source
+
+	var f io.ReadCloser
+	var err error
+
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		resp, err := http.Get(source)
+		if err != nil {
+			return result, fmt.Errorf("failed to fetch URL: %w", err)
+		}
+		defer resp.Body.Close()
+		f = resp.Body
+	} else {
+		f, err = os.Open(source)
+		if err != nil {
+			return result, fmt.Errorf("failed to open file: %w", err)
+		}
+		defer f.Close()
+	}
+
 	sampleCount := s.SampleCount
 	if s.Extract || s.ExtractTemplate != "" {
 		sampleCount = 0
 	}
+
 	tester, err := NewSelectorTester(&Config{
-		File:      s.InputFile,
+		File:      source,
 		Selectors: selectors,
 		Config: struct {
 			SampleCount  int    `yaml:"sample_count"`
@@ -285,108 +418,36 @@ func (c *TestHTMLSelectorCommand) RunIntoWriter(
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create tester: %w", err)
+		return result, fmt.Errorf("failed to create tester: %w", err)
 	}
 
 	results, err := tester.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to run tests: %w", err)
+		return result, fmt.Errorf("failed to run tests: %w", err)
 	}
 
-	// If using extract or extract-template, process all matches without sample limit
-	if s.Extract || s.ExtractTemplate != "" {
-		extractedData := make(map[string][]interface{})
-		for _, result := range results {
-			var matches []interface{}
-			for _, sample := range result.Samples {
-				// Process HTML content
-				htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
-				if err == nil {
-					for _, doc := range htmlDocs {
-						if doc.Text != "" {
-							matches = append(matches, doc.Text)
-						} else if doc.Markdown != "" {
-							matches = append(matches, doc.Markdown)
-						} else {
-							matches = append(matches, doc)
-						}
-					}
-				}
-			}
-			extractedData[result.Name] = matches
-		}
-
-		// If extract-data is true, output raw data regardless of templates
-		if s.ExtractData {
-			return yaml.NewEncoder(w).Encode(extractedData)
-		}
-
-		// First try command line template
-		if s.ExtractTemplate != "" {
-			// Load and execute template
-			tmpl, err := template.New(s.ExtractTemplate).
-				Funcs(sprig.TxtFuncMap()).
-				ParseFiles(s.ExtractTemplate)
-			if err != nil {
-				return fmt.Errorf("failed to parse template file: %w", err)
-			}
-			return tmpl.Execute(w, extractedData)
-		}
-
-		// Then try config file template if extract mode is on
-		if config != nil && config.Config.Template != "" {
-			// Parse and execute template from config
-			tmpl, err := template.New("config").
-				Funcs(sprig.TxtFuncMap()).
-				Parse(config.Config.Template)
-			if err != nil {
-				return fmt.Errorf("failed to parse template from config: %w", err)
-			}
-			return tmpl.Execute(w, extractedData)
-		}
-
-		// Default to YAML output
-		return yaml.NewEncoder(w).Encode(extractedData)
-	}
-
-	// Convert results to use Document structure for normal output
-	var newResults []SimplifiedResult
-	for _, result := range results {
-		newResult := SimplifiedResult{
-			Name:     result.Name,
-			Selector: result.Selector,
-			Type:     result.Type,
-			Count:    result.Count,
-		}
-
-		for _, sample := range result.Samples {
-			newSample := SimplifiedSample{}
-
-			// Only include path if ShowPath is true
-			if s.ShowPath {
-				newSample.Path = sample.Path
-			}
-
+	result.Data = make(map[string][]interface{})
+	for _, r := range results {
+		var matches []interface{}
+		for _, sample := range r.Samples {
 			// Process HTML content
 			htmlDocs, err := simplifier.ProcessHTML(sample.HTML)
 			if err == nil {
-				newSample.HTML = htmlDocs
-			}
-
-			// Process context only if ShowContext is true
-			if s.ShowContext {
-				contextDocs, err := simplifier.ProcessHTML(sample.Context)
-				if err == nil {
-					newSample.Context = contextDocs
+				for _, doc := range htmlDocs {
+					if doc.Text != "" {
+						matches = append(matches, doc.Text)
+					} else if doc.Markdown != "" {
+						matches = append(matches, doc.Markdown)
+					} else {
+						matches = append(matches, doc)
+					}
 				}
 			}
-
-			newResult.Samples = append(newResult.Samples, newSample)
 		}
-		newResults = append(newResults, newResult)
+		result.Data[r.Name] = matches
 	}
 
-	return yaml.NewEncoder(w).Encode(newResults)
+	return result, nil
 }
 
 func loadConfig(path string) (*Config, error) {

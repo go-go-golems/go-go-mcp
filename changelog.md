@@ -641,3 +641,13 @@ Added a new flag to allow extracting raw data without applying templates.
 - Added --extract-data flag to skip template processing and output raw YAML data
 - Updated documentation to reflect new option
 - Maintains backwards compatibility with existing template functionality
+
+# Multiple Source Support
+
+Added support for processing multiple HTML files and URLs in a single run:
+
+- Changed --input flag to --files for processing multiple files
+- Added --urls flag for processing multiple URLs
+- Updated output format to include source information
+- Added proper error handling for each source
+- Improved template support to handle multiple sources
