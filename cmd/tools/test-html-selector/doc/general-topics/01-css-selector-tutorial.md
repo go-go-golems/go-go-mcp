@@ -349,15 +349,14 @@ selectors:
 
 template: |
   {{- range . }}
-  {{ $ := .Data }}
-  # User Profile
+  # Profile from {{ .Source }}
 
-  **Name**: {{ index $.user_name 0 }}
-  **Email**: {{ index $.user_email 0 }}
-  **Location**: {{ index $.user_location 0 }}
+  **Name**: {{ index .Data.user_name 0 }}
+  **Email**: {{ index .Data.user_email 0 }}
+  **Location**: {{ index .Data.user_location 0 }}
 
   ## Skills
-  {{- range $.user_skills }}
+  {{- range .Data.user_skills }}
   - {{ . }}
   {{- end }}
   {{ end }}
@@ -366,6 +365,33 @@ config:
   sample_count: 5
   context_chars: 100
 ```
+
+The data structure passed to the template engine is a list of source results, where each source result has this structure:
+
+```yaml
+- source: "file.html"  # or URL
+  data:
+    selector_name:  # matches the name in your selector config
+      - "First match as markdown"
+      - "Second match as markdown"
+      - "..."
+    another_selector:
+      - "First match"
+      - "Second match"
+- source: "another-file.html"
+  data:
+    selector_name:
+      - "Matches from second file"
+      - "..."
+```
+
+You can access this data in your templates using:
+- `.Source` - the source file/URL
+- `.Data.$selector_name` - list of matches for a given selector
+- `index .Data.$selector_name 0` - first match for a selector
+- `range .Data.$selector_name` - iterate over all matches
+
+The template has access to all [Sprig template functions](http://masterminds.github.io/sprig/) for string manipulation, date formatting, etc.
 
 ## Best Practices
 
@@ -392,6 +418,7 @@ config:
    - Use templates for formatting when the default YAML output isn't suitable
    - Take advantage of Sprig functions for data manipulation
    - Consider creating reusable template snippets
+   - Make sure you are iterating over {.Source, .Data}[] as you could have multiple sources
 
 ## Common Patterns
 

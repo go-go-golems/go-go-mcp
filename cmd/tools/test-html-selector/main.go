@@ -28,10 +28,10 @@ type Config struct {
 	Description string     `yaml:"description"`
 	Selectors   []Selector `yaml:"selectors"`
 	Config      struct {
-		SampleCount  int    `yaml:"sample_count"`
-		ContextChars int    `yaml:"context_chars"`
-		Template     string `yaml:"template"`
+		SampleCount  int `yaml:"sample_count"`
+		ContextChars int `yaml:"context_chars"`
 	} `yaml:"config"`
+	Template string `yaml:"template"`
 }
 
 type Selector struct {
@@ -318,7 +318,7 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 	}
 
 	// If using extract or extract-template, process all matches without sample limit
-	if s.Extract || s.ExtractTemplate != "" {
+	if s.ExtractData || s.ExtractTemplate != "" || (config != nil && config.Template != "") {
 		// clear the selector results
 		for _, sourceResult := range sourceResults {
 			sourceResult.SelectorResults = []SelectorResult{}
@@ -338,19 +338,19 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 			if err != nil {
 				return fmt.Errorf("failed to parse template file: %w", err)
 			}
-			return tmpl.Execute(w, sourceResults)
+			return executeTemplate(w, tmpl, sourceResults)
 		}
 
 		// Then try config file template if extract mode is on
-		if config != nil && config.Config.Template != "" {
+		if config != nil && config.Template != "" {
 			// Parse and execute template from config
 			tmpl, err := template.New("config").
 				Funcs(sprig.TxtFuncMap()).
-				Parse(config.Config.Template)
+				Parse(config.Template)
 			if err != nil {
 				return fmt.Errorf("failed to parse template from config: %w", err)
 			}
-			return tmpl.Execute(w, sourceResults)
+			return executeTemplate(w, tmpl, sourceResults)
 		}
 
 		// Default to YAML output
@@ -462,13 +462,11 @@ func processSource(
 		File:      source,
 		Selectors: selectors,
 		Config: struct {
-			SampleCount  int    `yaml:"sample_count"`
-			ContextChars int    `yaml:"context_chars"`
-			Template     string `yaml:"template"`
+			SampleCount  int `yaml:"sample_count"`
+			ContextChars int `yaml:"context_chars"`
 		}{
 			SampleCount:  sampleCount,
 			ContextChars: s.ContextChars,
-			Template:     "",
 		},
 	}, f)
 	if err != nil {
@@ -522,6 +520,45 @@ func loadConfig(path string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// executeTemplate handles template execution and provides a subset of data on error
+func executeTemplate(w io.Writer, tmpl *template.Template, sourceResults []*SourceResult) error {
+	err := tmpl.Execute(w, sourceResults)
+	if err != nil {
+		// Create a subset of the data for error reporting
+		subset := make([]*SourceResult, 0)
+		for i, sr := range sourceResults {
+			if i >= 3 {
+				break
+			}
+			subsetResult := &SourceResult{
+				Source: sr.Source,
+				Data:   make(map[string][]interface{}),
+			}
+
+			// Take first 3 samples for each selector
+			for name, matches := range sr.Data {
+				if len(matches) > 3 {
+					subsetResult.Data[name] = matches[:3]
+				} else {
+					subsetResult.Data[name] = matches
+				}
+			}
+			subset = append(subset, subsetResult)
+		}
+
+		// Print the error and data subset
+		fmt.Fprintf(os.Stderr, "Error executing template: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Here is a subset of the input data:\n")
+		enc := yaml.NewEncoder(os.Stderr)
+		enc.SetIndent(2)
+		if err := enc.Encode(subset); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding data subset: %v\n", err)
+		}
+		return fmt.Errorf("template execution failed: %w", err)
+	}
+	return nil
 }
 
 func main() {

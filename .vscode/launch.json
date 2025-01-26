@@ -100,7 +100,7 @@
                 "DEBUG",
                 "--show-simplified",
                 "--config",
-                "/tmp/html-extraction-2025-01-26-17-42-34.yaml"
+                "/tmp/html-extraction-2025-01-26-18-20-00.yaml"
             ],
             "cwd": "${workspaceFolder}"
         }
