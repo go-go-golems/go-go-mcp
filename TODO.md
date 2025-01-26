@@ -52,6 +52,7 @@
 - [x] Pass the session id to the tool  (maybe as part of the context?)
 - [ ] Track crashes in a log file
 
+- [ ] Build stdio server that forwards to sse server
 
 
 ## MCP ideas

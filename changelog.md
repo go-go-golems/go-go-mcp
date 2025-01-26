@@ -662,3 +662,10 @@ Added a new launch configuration to make it easier to debug the test-html-select
 Added two new MCP commands for HTML data extraction:
 - `get-html-extraction-tutorial`: Command to display comprehensive HTML extraction documentation
 - `html-extraction`: Command to extract data from HTML documents using selectors
+
+## HTML Fetch Command
+
+Added `fetch-html` command to simplify HTML content from URLs:
+- Supports fetching and simplifying multiple URLs
+- Configurable limits for list items and table rows
+- Optional markdown output format
