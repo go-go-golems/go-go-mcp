@@ -344,10 +344,13 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 
 		// First try command line template
 		if s.ExtractTemplate != "" {
-			// Load and execute template
-			tmpl, err := template.New(s.ExtractTemplate).
-				Funcs(sprig.TxtFuncMap()).
-				ParseFiles(s.ExtractTemplate)
+			// Load template content
+			content, err := os.ReadFile(s.ExtractTemplate)
+			if err != nil {
+				return fmt.Errorf("failed to read template file: %w", err)
+			}
+
+			tmpl, err := parseTemplate(s.ExtractTemplate, string(content))
 			if err != nil {
 				return fmt.Errorf("failed to parse template file: %w", err)
 			}
@@ -356,10 +359,7 @@ func (c *HTMLSelectorCommand) RunIntoWriter(
 
 		// Then try config file template if extract mode is on
 		if config != nil && config.Template != "" {
-			// Parse and execute template from config
-			tmpl, err := template.New("config").
-				Funcs(sprig.TxtFuncMap()).
-				Parse(config.Template)
+			tmpl, err := parseTemplate("config", config.Template)
 			if err != nil {
 				return fmt.Errorf("failed to parse template from config: %w", err)
 			}
@@ -573,6 +573,21 @@ func executeTemplate(w io.Writer, tmpl *template.Template, sourceResults []*Sour
 	}
 
 	return nil
+}
+
+// Add this new function near the other helper functions
+func parseTemplate(name, content string) (*template.Template, error) {
+	return template.New(name).
+		Funcs(sprig.TxtFuncMap()).
+		Funcs(template.FuncMap{
+			"index": func(slice []interface{}, index int) interface{} {
+				if index < 0 || index >= len(slice) {
+					return nil
+				}
+				return slice[index]
+			},
+		}).
+		Parse(content)
 }
 
 func main() {
