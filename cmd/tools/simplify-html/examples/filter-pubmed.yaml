@@ -1,0 +1,40 @@
+selectors:
+  - type: css
+    mode: filter
+    selector: "div[role='banner']"
+  - type: css
+    mode: filter
+    selector: ".usa-banner"
+  - type: css
+    mode: filter
+    selector: ".ncbi-header"
+  - type: css
+    mode: filter
+    selector: "[role='navigation']"
+  - type: css
+    mode: filter
+    selector: ".search-form"
+  - type: css
+    mode: filter
+    selector: ".multiple-results-actions"
+  - type: css
+    mode: filter
+    selector: ".action-panel"
+  - type: css
+    mode: filter
+    selector: ".search-options"
+  - type: css
+    mode: filter
+    selector: ".sort-dropdown"
+  - type: css
+    mode: filter
+    selector: ".display-options"
+  - type: css
+    mode: filter
+    selector: ".inner-wrap .static-filters"
+  - type: css
+    mode: filter
+    selector: "footer"
+  - type: css
+    mode: filter
+    selector: ".results-amount-container"

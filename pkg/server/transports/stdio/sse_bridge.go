@@ -42,7 +42,7 @@ func NewSSEBridgeServer(logger zerolog.Logger, sseURL string) *SSEBridgeServer {
 	}
 
 	// Create a new logger that writes to the tagged stderr
-	taggedLogger := logger.Output(consoleWriter)
+	taggedLogger := logger.Output(consoleWriter).With().Caller().Logger()
 
 	// Strip trailing slashes from the SSE URL
 	sseURL = strings.TrimRight(sseURL, "/")

@@ -150,7 +150,13 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 		return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
 	}
 
-	result := protocol.NewToolResult(protocol.WithText(buf.String()))
+	text := buf.String()
+	l := 62 * 1024
+	if len(text) > l {
+		text = text[:l]
+	}
+
+	result := protocol.NewToolResult(protocol.WithText(text))
 
 	if p.tracingDir != "" {
 		timestamp := time.Now().Format("2006-01-02T15-04-05.000")

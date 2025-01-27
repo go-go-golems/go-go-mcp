@@ -26,8 +26,13 @@ type StdioTransport struct {
 
 // NewStdioTransport creates a new stdio transport
 func NewStdioTransport(logger zerolog.Logger) *StdioTransport {
+	scanner := bufio.NewScanner(os.Stdin)
+	// Set 1MB buffer size to avoid "token too long" errors
+	buf := make([]byte, 1024*1024)
+	scanner.Buffer(buf, len(buf))
+	
 	return &StdioTransport{
-		scanner: bufio.NewScanner(os.Stdin),
+		scanner: scanner,
 		writer:  json.NewEncoder(os.Stdout),
 		logger:  logger,
 	}

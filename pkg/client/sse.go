@@ -106,6 +106,7 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 			return nil, fmt.Errorf("server error: %s", string(event.Data))
 		}
 
+		t.logger.Debug().Int("dataLength", len(event.Data)).Msg("FOOBAR")
 		t.logger.Debug().
 			Str("event", string(event.Event)).
 			RawJSON("data", event.Data).
@@ -142,7 +143,10 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 		err := t.sseClient.SubscribeWithContext(subCtx, "", func(msg *sse.Event) {
 			t.logger.Debug().
 				Str("event", string(msg.Event)).
-				RawJSON("data", msg.Data).
+				Str("data", string(msg.Data)).
+				Str("retry", string(msg.Retry)).
+				Str("id", string(msg.ID)).
+				Str("comment", string(msg.Comment)).
 				Msg("Received SSE event")
 
 			// Handle endpoint event
