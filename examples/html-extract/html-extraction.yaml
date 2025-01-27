@@ -24,9 +24,17 @@ flags:
     default: false
 
 shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Create temporary config file
   CONFIG_FILE=$(mktemp)
-  trap 'rm -f $CONFIG_FILE' EXIT
-  echo '{{ .Args.config }}' > $CONFIG_FILE
+  trap 'rm -f "$CONFIG_FILE"' EXIT
+
+  # Generate config file with heredoc to handle special characters better
+  cat > "$CONFIG_FILE" << 'EOL'
+  {{ .Args.config }}
+  EOL
 
   # Log config file with timestamp for replay
   LOG_FILE="/tmp/html-extraction-$(date '+%Y-%m-%d-%H-%M-%S').yaml"
@@ -34,6 +42,6 @@ shell-script: |
 
   html-selector select \
     --urls {{ range .Args.urls }}{{ . }} {{ end }} \
-    --config $CONFIG_FILE \
+    --config "$CONFIG_FILE" \
     {{ if .Args.show_context }}--show-context{{ end }} \
     {{ if .Args.show_path }}--show-path{{ end }} \

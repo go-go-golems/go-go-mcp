@@ -5,6 +5,77 @@ long: |
   and limiting the size of lists and tables. This is useful for getting a cleaner,
   more readable version of web content.
 
+  The tool accepts input as JSON with the following structure:
+  ```json
+  {
+    "urls": ["https://example.com", "https://another-site.com"],
+    "max_list_items": 4,
+    "max_table_rows": 4,
+    "remove_selectors": [
+      "div[role='banner']",
+      ".usa-banner",
+      ".navigation-menu",
+      "footer"
+    ],
+    "keep_selectors": [
+      "article.main-content",
+      ".article-body"
+    ]
+  }
+  ```
+
+  Examples:
+
+  1. Basic usage - fetch a single URL:
+  ```json
+  {
+    "urls": ["https://example.com/article"]
+  }
+  ```
+
+  2. Remove navigation and UI elements:
+  ```json
+  {
+    "urls": ["https://news-site.com/story"],
+    "remove_selectors": [
+      "header",
+      "nav",
+      ".sidebar",
+      ".ads",
+      "footer",
+      ".social-share"
+    ]
+  }
+  ```
+
+  3. Keep only main content:
+  ```json
+  {
+    "urls": ["https://blog.com/post"],
+    "keep_selectors": [
+      "article.post-content",
+      ".post-body"
+    ]
+  }
+  ```
+
+  4. Complex filtering with list limits:
+  ```json
+  {
+    "urls": ["https://docs.example.com"],
+    "max_list_items": 5,
+    "max_table_rows": 3,
+    "remove_selectors": [
+      ".navigation",
+      ".search-box"
+    ],
+    "keep_selectors": [
+      ".documentation-content",
+      ".code-examples"
+    ]
+  }
+  ```
+
 flags:
   - name: urls
     type: stringList
@@ -18,24 +89,47 @@ flags:
     type: int
     help: Maximum number of rows to show in tables (0 for unlimited)
     default: 4
+  - name: remove_selectors
+    type: stringList
+    help: CSS selectors for elements to remove
+    default: []
+  - name: keep_selectors
+    type: stringList
+    help: CSS selectors for elements to keep (everything else will be removed)
+    default: []
 
-command:
-  - simplify-html
-  - simplify
-  - --urls
-  - "{{ range $i, $url := .Args.urls }}{{ if $i }},{{ end }}{{ $url }}{{ end }}"
-  - --max-list-items
-  - "{{ .Args.max_list_items }}"
-  - --max-table-rows
-  - "{{ .Args.max_table_rows }}"
 
-# shell-script: |
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
   
-#   #!/bin/bash
-#   set -euo pipefail
+  # Create temporary config file
+  CONFIG_FILE=$(mktemp)
+  trap 'rm -f "$CONFIG_FILE"' EXIT
   
-#   # Process each URL
-#   for url in {{ range .Args.urls }}"{{ . }}" {{ end }}; do
-#     echo "Fetching $url..."
-#     simplify-html simplify --urls "$url" --max-list-items "{{ .Args.max_list_items }}" --max-table-rows "{{ .Args.max_table_rows }}"
-#   done
+  # Generate filter config YAML
+  cat > "$CONFIG_FILE" << 'EOL'
+  selectors:
+  {{ range .Args.keep_selectors }}
+  - type: css
+    mode: select
+    selector: "{{ . }}"
+  {{ end }}
+  {{ range .Args.remove_selectors }}
+  - type: css
+    mode: filter
+    selector: "{{ . }}"
+  {{ end }}
+  EOL
+  
+  export RUNTIME_TEMP_CONFIG_FILE="$CONFIG_FILE"
+  
+  # Process each URL
+  for url in {{ range .Args.urls }}"{{ . }}" {{ end }}; do
+    echo "Fetching $url..."
+    simplify-html simplify \
+      --urls "$url" \
+      --max-list-items "{{ .Args.max_list_items }}" \
+      --max-table-rows "{{ .Args.max_table_rows }}" \
+      --config "$CONFIG_FILE"
+  done
