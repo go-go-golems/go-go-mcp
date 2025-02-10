@@ -66,10 +66,24 @@ func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
 
+	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "stdio", "Transport to use (stdio or sse)")
+	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 8080, "Port to listen on (for sse transport)")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug mode")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", false, "Log caller information")
+
 	err := clay.InitViper("mcp", rootCmd)
-	cobra.CheckErr(err)
-	err = clay.InitLogger()
-	cobra.CheckErr(err)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize commands
+	rootCmd.AddCommand(server_cmds.ClientCmd)
+
+	err = server_cmds.InitClientCommand(helpSystem)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not initialize client command")
+	}
 
 	rootCmd.AddCommand(runCommandCmd)
 
