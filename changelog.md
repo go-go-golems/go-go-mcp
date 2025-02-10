@@ -770,6 +770,29 @@ Fixed the join syntax in the GitHub issues list command template to use proper G
 
 Merged the MCP client functionality into the server as a subcommand for better code organization and maintainability.
 
-- Moved client commands to `cmd/go-go-mcp/cmds/client/`
+- Moved client commands to `cmd/mcp-server/cmds/client/`
 - Added client subcommand to server binary
 - Updated package names and imports
+
+## Update README for Merged Client/Server
+
+Updated the README.md to reflect the new unified client/server architecture:
+- Updated build instructions to show single binary build
+- Added documentation for server and client modes
+- Updated all command examples to use client subcommand
+- Updated project structure to show new organization
+
+## Rename Binary to go-go-mcp
+
+Renamed the binary from mcp-server to go-go-mcp for consistency:
+- Updated build instructions to use go-go-mcp as binary name
+- Updated all command examples to use new binary name
+- Updated configuration examples
+
+## Update README for Merged Client/Server
+
+Updated the README.md to reflect the new unified client/server architecture:
+- Updated build instructions to show single binary build
+- Added documentation for server and client modes
+- Updated all command examples to use client subcommand
+- Updated project structure to show new organization

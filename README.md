@@ -134,50 +134,58 @@ The server implements the MCP specification methods:
 
 ## Running
 
-### Building the Client and Server
+### Building the Binary
 
-First, build both the client and server:
+Build the binary which includes both server and client functionality:
 
 ```bash
-# Build the client
-go build -o mcp-client ./cmd/go-go-mcp/client/main.go
-
-# Build the server
-go build -o mcp-server ./cmd/go-go-mcp/main.go
+go build -o go-go-mcp ./cmd/mcp-server/main.go
 ```
 
 ### Basic Usage
 
-The client supports two transport types:
-- `command` (default): Launch and communicate with an MCP server process
-- `sse`: Server-Sent Events over HTTP for web applications
+The binary can be run in two modes:
+- Server mode (default): Run as an MCP server process
+- Client mode: Use client commands to interact with an MCP server
 
-#### Using Command Transport (Default)
+#### Server Mode
 
-The command transport is the default way to interact with an MCP server:
+Start the server with either stdio or SSE transport:
 
 ```bash
-# List available prompts (uses default command: mcp-server start --transport stdio)
-./mcp-client --command ./mcp-server prompts list
+# Start with stdio transport (default)
+./go-go-mcp start --transport stdio
+
+# Start with SSE transport
+./go-go-mcp start --transport sse --port 3001
+```
+
+#### Client Mode
+
+Use the client subcommand to interact with an MCP server:
+
+```bash
+# List available prompts (uses default server: go-go-mcp start --transport stdio)
+./go-go-mcp client prompts list
 
 # List available tools
-./mcp-client --command ./mcp-server tools list
+./go-go-mcp client tools list
 
 # Execute a prompt with arguments
-./mcp-client --command ./mcp-server prompts execute hello --args '{"name":"World"}'
+./go-go-mcp client prompts execute hello --args '{"name":"World"}'
 
 # Call a tool with arguments
-./mcp-client tools call echo --args '{"message":"Hello, MCP!"}'
+./go-go-mcp client tools call echo --args '{"message":"Hello, MCP!"}'
 ```
 
 You can customize the server command and arguments if needed:
 
 ```bash
 # Use a different server binary with custom arguments
-./mcp-client --command custom-server,start,--debug,--port,8001 prompts list
+./go-go-mcp client --command custom-server,start,--debug,--port,8001 prompts list
 
 # Use a server with a specific configuration
-./mcp-client -c mcp-server,start,--config,config.yaml prompts list
+./go-go-mcp client -c go-go-mcp,start,--config,config.yaml prompts list
 ```
 
 #### Using SSE Transport
@@ -186,10 +194,10 @@ For web-based applications, use the SSE transport:
 
 ```bash
 # Start the server with SSE transport
-./mcp-server start --transport sse --port 3001
+./go-go-mcp start --transport sse --port 3001
 
 # In another terminal, connect using the client
-./mcp-client --transport sse --server http://localhost:3001 prompts list
+./go-go-mcp client --transport sse --server http://localhost:3001 prompts list
 ```
 
 ### Debug Mode
@@ -197,15 +205,15 @@ For web-based applications, use the SSE transport:
 Add the `--debug` flag to enable detailed logging:
 
 ```bash
-./mcp-client --debug prompts list
+./go-go-mcp client --debug prompts list
 ```
 
 ### Version Information
 
-Check the version of the client:
+Check the version:
 
 ```bash
-./mcp-client version
+./go-go-mcp version
 ```
 
 ### Project Structure
@@ -218,8 +226,9 @@ Check the version of the client:
   - `server/` - Server implementation
   - `doc/` - Documentation
 - `cmd/`
-  - `mcp-client/` - MCP client implementation
-  - `mcp-server/` - MCP server implementation
+  - `mcp-server/` - MCP server and client implementation
+    - `cmds/` - Command implementations
+      - `client/` - Client subcommands
 
 ### Dependencies
 
