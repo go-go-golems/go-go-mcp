@@ -22,16 +22,7 @@ import (
 
 var (
 	// Version information
-	Version   = "dev"
-	BuildTime = "unknown"
-	GitCommit = "none"
-
-	// Command flags
-	transport  string
-	port       int
-	debug      bool
-	logLevel   string
-	withCaller bool
+	version = "dev"
 )
 
 var rootCmd = &cobra.Command{
@@ -48,6 +39,7 @@ providing a framework for building MCP servers and clients.`,
 		err := clay.InitLogger()
 		cobra.CheckErr(err)
 	},
+	Version: version,
 }
 
 var runCommandCmd = &cobra.Command{
@@ -97,18 +89,6 @@ func initRootCmd() (*help.HelpSystem, error) {
 
 	bridgeCmd := server_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
-
-	// Add version command
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("mcp-server version %s\n", Version)
-			fmt.Printf("  Build time: %s\n", BuildTime)
-			fmt.Printf("  Git commit: %s\n", GitCommit)
-		},
-	}
-	rootCmd.AddCommand(versionCmd)
 
 	return helpSystem, nil
 }
