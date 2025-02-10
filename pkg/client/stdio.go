@@ -30,7 +30,7 @@ func NewStdioTransport(logger zerolog.Logger) *StdioTransport {
 	// Set 1MB buffer size to avoid "token too long" errors
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, len(buf))
-	
+
 	return &StdioTransport{
 		scanner: scanner,
 		writer:  json.NewEncoder(os.Stdout),

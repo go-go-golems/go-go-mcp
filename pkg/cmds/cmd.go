@@ -248,13 +248,14 @@ func LoadShellCommandFromYAML(data []byte) (*ShellCommand, error) {
 
 // JsonSchemaProperty represents a property in the JSON Schema
 type JsonSchemaProperty struct {
-	Type        string                         `json:"type"`
-	Description string                         `json:"description,omitempty"`
-	Enum        []string                       `json:"enum,omitempty"`
-	Default     interface{}                    `json:"default,omitempty"`
-	Items       *JsonSchemaProperty            `json:"items,omitempty"`
-	Required    bool                           `json:"-"`
-	Properties  map[string]*JsonSchemaProperty `json:"properties,omitempty"`
+	Type                 string                         `json:"type"`
+	Description          string                         `json:"description,omitempty"`
+	Enum                 []string                       `json:"enum,omitempty"`
+	Default              interface{}                    `json:"default,omitempty"`
+	Items                *JsonSchemaProperty            `json:"items,omitempty"`
+	Required             bool                           `json:"-"`
+	Properties           map[string]*JsonSchemaProperty `json:"properties,omitempty"`
+	AdditionalProperties *JsonSchemaProperty            `json:"additionalProperties,omitempty"`
 }
 
 // CommandJsonSchema represents the root JSON Schema for a command
@@ -346,6 +347,40 @@ func parameterTypeToJsonSchema(param *parameters.ParameterDefinition) (*JsonSche
 			"value": {Type: "string"},
 		}
 
+	// File-based parameter types
+	case parameters.ParameterTypeStringFromFile:
+		prop.Type = "string"
+
+	case parameters.ParameterTypeStringFromFiles:
+		prop.Type = "array"
+		prop.Items = &JsonSchemaProperty{Type: "string"}
+
+	case parameters.ParameterTypeObjectFromFile:
+		prop.Type = "object"
+		prop.AdditionalProperties = &JsonSchemaProperty{Type: "string"}
+
+	case parameters.ParameterTypeObjectListFromFile:
+		prop.Type = "array"
+		prop.Items = &JsonSchemaProperty{
+			Type:                 "object",
+			AdditionalProperties: &JsonSchemaProperty{Type: "string"},
+		}
+
+	case parameters.ParameterTypeObjectListFromFiles:
+		prop.Type = "array"
+		prop.Items = &JsonSchemaProperty{
+			Type:                 "object",
+			AdditionalProperties: &JsonSchemaProperty{Type: "string"},
+		}
+
+	case parameters.ParameterTypeStringListFromFile:
+		prop.Type = "array"
+		prop.Items = &JsonSchemaProperty{Type: "string"}
+
+	case parameters.ParameterTypeStringListFromFiles:
+		prop.Type = "array"
+		prop.Items = &JsonSchemaProperty{Type: "string"}
+
 	default:
 		return nil, fmt.Errorf("unsupported parameter type: %s", param.Type)
 	}
@@ -363,7 +398,7 @@ func (c *ShellCommand) ToJsonSchema() (*CommandJsonSchema, error) {
 	}
 
 	// Process flags
-	c.CommandDescription.GetDefaultFlags().ForEachE(func(flag *parameters.ParameterDefinition) error {
+	err := c.CommandDescription.GetDefaultFlags().ForEachE(func(flag *parameters.ParameterDefinition) error {
 		prop, err := parameterTypeToJsonSchema(flag)
 		if err != nil {
 			return fmt.Errorf("error processing flag %s: %w", flag.Name, err)
@@ -374,9 +409,12 @@ func (c *ShellCommand) ToJsonSchema() (*CommandJsonSchema, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Process arguments
-	c.CommandDescription.GetDefaultArguments().ForEachE(func(arg *parameters.ParameterDefinition) error {
+	err = c.CommandDescription.GetDefaultArguments().ForEachE(func(arg *parameters.ParameterDefinition) error {
 		prop, err := parameterTypeToJsonSchema(arg)
 		if err != nil {
 			return fmt.Errorf("error processing argument %s: %w", arg.Name, err)
@@ -387,6 +425,9 @@ func (c *ShellCommand) ToJsonSchema() (*CommandJsonSchema, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return schema, nil
 }

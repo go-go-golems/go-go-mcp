@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/server/dispatcher"
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
@@ -22,7 +21,6 @@ import (
 type SSEServer struct {
 	mu           sync.RWMutex
 	logger       zerolog.Logger
-	registry     *pkg.ProviderRegistry
 	clients      map[string]*SSEClient
 	server       *http.Server
 	port         int
@@ -191,8 +189,10 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// Create unique session ID
 	sessionID := r.URL.Query().Get("sessionId")
 	if sessionID == "" {
-		sessionID = fmt.Sprintf("%s", uuid.New())
+		sessionID = uuid.New().String()
 	}
+
+	ctx = withSessionID(ctx, sessionID)
 
 	s.mu.Lock()
 	s.nextClientID++

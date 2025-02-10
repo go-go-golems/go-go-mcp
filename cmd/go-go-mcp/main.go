@@ -12,7 +12,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
 	"github.com/go-go-golems/glazed/pkg/help"
-	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/mcp-server/cmds"
+	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -22,22 +22,13 @@ import (
 
 var (
 	// Version information
-	Version   = "dev"
-	BuildTime = "unknown"
-	GitCommit = "none"
-
-	// Command flags
-	transport  string
-	port       int
-	debug      bool
-	logLevel   string
-	withCaller bool
+	version = "dev"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mcp-server",
-	Short: "MCP server implementation in Go",
-	Long: `A Model Context Protocol (MCP) server implementation in Go.
+	Use:   "go-go-mcp",
+	Short: "MCP client and server implementation in Go",
+	Long: `A Model Context Protocol (MCP) client and server implementation in Go.
 Supports both stdio and SSE transports for client-server communication.
 
 The server implements the Model Context Protocol (MCP) specification,
@@ -48,6 +39,7 @@ providing a framework for building MCP servers and clients.`,
 		err := clay.InitLogger()
 		cobra.CheckErr(err)
 	},
+	Version: version,
 }
 
 var runCommandCmd = &cobra.Command{
@@ -67,9 +59,17 @@ func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem.SetupCobraRootCommand(rootCmd)
 
 	err := clay.InitViper("mcp", rootCmd)
-	cobra.CheckErr(err)
-	err = clay.InitLogger()
-	cobra.CheckErr(err)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize commands
+	rootCmd.AddCommand(server_cmds.ClientCmd)
+
+	err = server_cmds.InitClientCommand(helpSystem)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not initialize client command")
+	}
 
 	rootCmd.AddCommand(runCommandCmd)
 
@@ -89,18 +89,6 @@ func initRootCmd() (*help.HelpSystem, error) {
 
 	bridgeCmd := server_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
-
-	// Add version command
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("mcp-server version %s\n", Version)
-			fmt.Printf("  Build time: %s\n", BuildTime)
-			fmt.Printf("  Git commit: %s\n", GitCommit)
-		},
-	}
-	rootCmd.AddCommand(versionCmd)
 
 	return helpSystem, nil
 }

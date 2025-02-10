@@ -70,6 +70,7 @@ func (t *ToolImpl) GetToolDefinition() protocol.Tool {
 		InputSchema: t.inputSchema,
 	}
 }
+
 // Call implements the Tool interface but panics as it should be overridden
 func (t *ToolImpl) Call(ctx context.Context, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 	panic("Call not implemented for ToolImpl - must be overridden")

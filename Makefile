@@ -2,7 +2,10 @@
 
 all: gifs
 
-VERSION=v0.1.14
+VERSION ?= $(shell svu)
+COMMIT ?= $(shell git rev-parse --short HEAD)
+DIRTY ?= $(shell git diff --quiet || echo "dirty")
+LDFLAGS=-ldflags "-X main.version=$(VERSION)-$(COMMIT)-$(DIRTY)"
 
 TAPES=$(shell ls doc/vhs/*tape)
 gifs: $(TAPES)
@@ -10,6 +13,9 @@ gifs: $(TAPES)
 
 docker-lint:
 	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.50.1 golangci-lint run -v
+
+ghcr-login:
+	op read "$(CR_PAT)" | docker login ghcr.io -u wesen --password-stdin
 
 lint:
 	golangci-lint run -v
@@ -35,14 +41,15 @@ tag-patch:
 
 release:
 	git push --tags
-	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp@$(shell svu current)
 
 bump-glazed:
 	go get github.com/go-go-golems/glazed@latest
 	go get github.com/go-go-golems/clay@latest
+	go get github.com/go-go-golems/geppetto@latest
 	go mod tidy
 
-XXX_BINARY=$(shell which XXX)
+go-go-mcp_BINARY=$(shell which go-go-mcp)
 install:
-	go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(XXX_BINARY)
+	go build -o ./dist/go-go-mcp ./cmd/go-go-mcp && \
+		cp ./dist/go-go-mcp $(go-go-mcp_BINARY)

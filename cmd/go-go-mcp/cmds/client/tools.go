@@ -1,4 +1,4 @@
-package cmds
+package client
 
 import (
 	"context"
@@ -13,14 +13,10 @@ import (
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
-	"github.com/go-go-golems/go-go-mcp/cmd/mcp-client/cmds/helpers"
-	"github.com/go-go-golems/go-go-mcp/cmd/mcp-client/cmds/layers"
+	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
+	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-)
-
-var (
-	toolArgs string
 )
 
 // ToolsCmd handles the "tools" command group
