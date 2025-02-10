@@ -2,7 +2,10 @@
 
 all: gifs
 
-VERSION=v0.1.14
+VERSION ?= $(shell svu)
+COMMIT ?= $(shell git rev-parse --short HEAD)
+DIRTY ?= $(shell git diff --quiet || echo "dirty")
+LDFLAGS=-ldflags "-X main.version=$(VERSION)-$(COMMIT)-$(DIRTY)"
 
 TAPES=$(shell ls doc/vhs/*tape)
 gifs: $(TAPES)
@@ -10,6 +13,9 @@ gifs: $(TAPES)
 
 docker-lint:
 	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.50.1 golangci-lint run -v
+
+ghcr-login:
+	op read "$(CR_PAT)" | docker login ghcr.io -u wesen --password-stdin
 
 lint:
 	golangci-lint run -v
