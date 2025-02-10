@@ -2,7 +2,7 @@ package cmds
 
 import (
 	"github.com/go-go-golems/glazed/pkg/help"
-	"github.com/go-go-golems/go-go-mcp/cmd/mcp-server/cmds/client"
+	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client"
 	"github.com/spf13/cobra"
 )
 

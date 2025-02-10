@@ -12,7 +12,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
 	"github.com/go-go-golems/glazed/pkg/help"
-	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/mcp-server/cmds"
+	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -35,9 +35,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "mcp-server",
-	Short: "MCP server implementation in Go",
-	Long: `A Model Context Protocol (MCP) server implementation in Go.
+	Use:   "go-go-mcp",
+	Short: "MCP client and server implementation in Go",
+	Long: `A Model Context Protocol (MCP) client and server implementation in Go.
 Supports both stdio and SSE transports for client-server communication.
 
 The server implements the Model Context Protocol (MCP) specification,
@@ -65,12 +65,6 @@ and either a command list or shell script to execute.`,
 func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
-
-	rootCmd.PersistentFlags().StringVarP(&transport, "transport", "t", "stdio", "Transport to use (stdio or sse)")
-	rootCmd.PersistentFlags().IntVarP(&port, "port", "p", 8080, "Port to listen on (for sse transport)")
-	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug mode")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
-	rootCmd.PersistentFlags().BoolVar(&withCaller, "with-caller", false, "Log caller information")
 
 	err := clay.InitViper("mcp", rootCmd)
 	if err != nil {

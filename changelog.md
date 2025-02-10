@@ -1,3 +1,10 @@
+# Added GitHub Pull Request Listing Command
+
+Added a new command to list pull requests from GitHub repositories:
+- Created list-github-pull-requests command with support for filtering by state, assignee, author, labels, and base branch
+- Added draft PR filtering support
+- Included comprehensive JSON output options for PR-specific fields
+
 # Added Shell Tool Provider Debug Flags
 
 Added command line flags to control ShellToolProvider debugging and tracing:
@@ -403,10 +410,10 @@ Refactored the start and schema commands to use the Glazed command framework for
 
 # Extract start and schema commands to separate files
 
-Moved start and schema commands to their own files in cmd/mcp-server/cmds for better code organization and maintainability.
+Moved start and schema commands to their own files in cmd/go-go-mcp/cmds for better code organization and maintainability.
 
-- Created cmd/mcp-server/cmds/start.go for start command
-- Created cmd/mcp-server/cmds/schema.go for schema command
+- Created cmd/go-go-mcp/cmds/start.go for start command
+- Created cmd/go-go-mcp/cmds/schema.go for schema command
 - Updated main.go to use the extracted commands
 - Improved code organization and readability
 
@@ -712,3 +719,57 @@ Added ability to disable template rendering in the HTML selector tool.
 
 - Added --no-template flag to disable template rendering
 - Template rendering can now be explicitly disabled even when config file or extract options are used
+
+## PubMed Search Command
+
+Added a new shell command for searching PubMed and extracting structured data from search results.
+
+- Added `examples/html-extract/pubmed.yaml` with search term and config file parameters
+- Support for configurable maximum pages to scrape
+
+## Prompto Shell Commands
+
+Added shell command wrappers for prompto CLI:
+- `prompto-list.yaml`: Lists all prompto entries
+- `prompto-get.yaml`: Retrieves a specific prompto entry
+
+## RAG Shell Commands
+
+Added shell command wrappers for mento-service RAG operations:
+- `rag-recent-documents.yaml`: Lists recent documents in the RAG system
+- `rag-search.yaml`: Searches documents in the RAG system with a query
+
+## Coaching Conversation Tools
+
+Added shell command wrappers for accessing coaching conversation history:
+- `recent-coaching-conversations.yaml`: Lists recent coaching conversations with detailed metadata
+- `search-coaching-conversations.yaml`: Performs semantic search through coaching conversation history
+
+These tools are specifically designed for LLMs to use in the context of coaching discussions.
+
+## Google Calendar Integration
+
+Added a new shell command for retrieving Google Calendar agenda using gcalcli with configurable date ranges.
+
+- Added `examples/google/get-calendar.yaml` with support for custom start and end dates
+- Added `examples/google/add-calendar-event.yaml` with comprehensive event creation options
+- Added `examples/google/search-calendar.yaml` with extensive search and display options
+
+## GitHub Issue Management
+
+Added shell command for listing GitHub issues with comprehensive filtering options:
+- Added `examples/github/list-issues.yaml` with support for filtering by state, assignee, author, labels, etc.
+- Added JSON output formatting and web browser viewing options
+
+# Fix string joining in GitHub issues list command
+Fixed the join syntax in the GitHub issues list command template to use proper Go template string joining.
+
+- Fixed join syntax in list-github-issues.yaml to use printf with join function
+
+## Merge MCP Client into Server
+
+Merged the MCP client functionality into the server as a subcommand for better code organization and maintainability.
+
+- Moved client commands to `cmd/go-go-mcp/cmds/client/`
+- Added client subcommand to server binary
+- Updated package names and imports

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/go-go-mcp/cmd/mcp-client/cmds/layers"
+	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
 	"github.com/go-go-golems/go-go-mcp/pkg/client"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/rs/zerolog/log"

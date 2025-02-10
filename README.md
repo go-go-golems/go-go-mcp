@@ -140,10 +140,10 @@ First, build both the client and server:
 
 ```bash
 # Build the client
-go build -o mcp-client ./cmd/mcp-client/main.go
+go build -o mcp-client ./cmd/go-go-mcp/client/main.go
 
 # Build the server
-go build -o mcp-server ./cmd/mcp-server/main.go
+go build -o mcp-server ./cmd/go-go-mcp/main.go
 ```
 
 ### Basic Usage

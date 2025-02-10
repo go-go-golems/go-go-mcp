@@ -1,5 +1,5 @@
 version: 2
-project_name: XXX
+project_name: go-go-mcp
 
 before:
   hooks:
@@ -10,8 +10,8 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/go-go-mcp
+    binary: go-go-mcp
     goos:
       - linux
 # I am not able to test windows at the time

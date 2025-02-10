@@ -16,8 +16,8 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/mcp-server",
-            "args": ["start", "--transport", "sse", "--repositories", "examples/html-extract", "--log-level", "debug"],
+            "program": "${workspaceFolder}/cmd/go-go-mcp",
+            "args": ["start", "--transport", "sse", "--repositories", "examples/prompto", "--log-level", "debug", "--port", "3000"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -65,7 +65,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/mcp-server",
+            "program": "${workspaceFolder}/cmd/go-go-mcp",
             "args": ["run-command", "examples/html-extract/fetch-html.yaml", "--urls", "https://news.ycombinator.com/"],
             "cwd": "${workspaceFolder}"
         },
