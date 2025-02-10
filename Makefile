@@ -41,7 +41,7 @@ tag-patch:
 
 release:
 	git push --tags
-	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp@$(shell svu current)
+	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/go-go-mcp@$(shell svu current)
 
 bump-glazed:
 	go get github.com/go-go-golems/glazed@latest
