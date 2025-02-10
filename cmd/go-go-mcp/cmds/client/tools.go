@@ -19,10 +19,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	toolArgs string
-)
-
 // ToolsCmd handles the "tools" command group
 var ToolsCmd = &cobra.Command{
 	Use:   "tools",

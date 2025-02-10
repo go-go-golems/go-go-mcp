@@ -37,27 +37,6 @@ type StartCommand struct {
 	*cmds.CommandDescription
 }
 
-type WeatherData struct {
-	City        string  `json:"city"`
-	Temperature float64 `json:"temperature"`
-	WindSpeed   float64 `json:"windSpeed"`
-}
-
-func getWeather(city string, includeWind bool) WeatherData {
-	// This is a mock implementation - in a real app you'd call a weather API
-	return WeatherData{
-		City:        city,
-		Temperature: 23.0,
-		WindSpeed: func() float64 {
-			if includeWind {
-				return 10.0
-			} else {
-				return 0.0
-			}
-		}(),
-	}
-}
-
 func NewStartCommand() (*StartCommand, error) {
 	return &StartCommand{
 		CommandDescription: cmds.NewCommandDescription(

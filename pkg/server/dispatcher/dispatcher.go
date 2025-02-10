@@ -2,8 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/services"
 	"github.com/rs/zerolog"
@@ -61,14 +59,4 @@ func MustGetSessionID(ctx context.Context) string {
 // WithSessionID adds a session ID to the context
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	return context.WithValue(ctx, sessionIDKey, sessionID)
-}
-
-// marshalJSON marshals data to JSON and returns any error
-func (d *Dispatcher) marshalJSON(v interface{}) (json.RawMessage, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		d.logger.Error().Err(err).Interface("value", v).Msg("Failed to marshal JSON")
-		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
-	}
-	return data, nil
 }

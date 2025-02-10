@@ -44,9 +44,12 @@ func NewReflectTool(name string, description string, fn interface{}) (*ReflectTo
 
 // isPrimitiveType checks if a value is a primitive type (string, number, bool)
 func isPrimitiveType(v interface{}) bool {
+
 	if v == nil {
 		return true
 	}
+
+	//nolint:exhaustive
 	switch reflect.TypeOf(v).Kind() {
 	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,

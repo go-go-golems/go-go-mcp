@@ -20,10 +20,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	promptArgs string
-)
-
 // PromptsCmd handles the "prompts" command group
 var PromptsCmd = &cobra.Command{
 	Use:   "prompts",
