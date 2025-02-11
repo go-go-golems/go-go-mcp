@@ -121,16 +121,21 @@ func (c *StartCommand) Run(
 	if s.ConfigFile != "" {
 		cfg, err := config.LoadFromFile(s.ConfigFile)
 		if err != nil {
-			return errors.Wrap(err, "failed to load configuration file")
-		}
+			if !os.IsNotExist(err) || len(s.Repositories) == 0 {
+				fmt.Fprintf(os.Stderr, "Run 'go-go-mcp config init' to create a starting configuration file, and further edit it with 'go-go-mcp config edit'\n")
+				return errors.Wrap(err, "failed to load configuration file")
+			}
+			// Config file doesn't exist but we have repositories, continue
+			log.Warn().Str("config", s.ConfigFile).Msg("Configuration file not found, continuing with provided repositories")
+		} else {
+			// Determine profile
+			profile := s.Profile
+			if profile == "" {
+				profile = cfg.DefaultProfile
+			}
 
-		// Determine profile
-		profile := s.Profile
-		if profile == "" {
-			profile = cfg.DefaultProfile
+			toolProviderOptions = append(toolProviderOptions, config.WithConfig(cfg, profile))
 		}
-
-		toolProviderOptions = append(toolProviderOptions, config.WithConfig(cfg, profile))
 	}
 
 	// Handle repository directories

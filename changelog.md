@@ -928,3 +928,12 @@ Added a helper package for managing profiles configuration paths:
 - Added GetProfilesPath to handle both default and custom paths
 - Updated all config commands to use the new helpers
 - Updated start command to use the new helpers
+
+# Update Configuration Documentation with CLI Tools
+
+Updated the configuration documentation to include the command-line configuration management tools:
+
+- Added config command examples to README.md
+- Updated configuration file tutorial with CLI tool usage
+- Added CLI-based configuration workflow to MCP in Practice guide
+- Improved documentation organization and clarity

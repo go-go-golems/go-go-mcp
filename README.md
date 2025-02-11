@@ -162,6 +162,39 @@ go-go-mcp can be configured using YAML configuration files that allow you to:
 - Control access through blacklists/whitelists
 - Manage security through parameter filtering
 
+### Command-Line Configuration Management
+
+The `config` command group provides tools to manage your configuration:
+
+```bash
+# Create a new configuration file
+go-go-mcp config init
+
+# Edit configuration in your default editor
+go-go-mcp config edit
+
+# List available profiles
+go-go-mcp config list-profiles
+
+# Show details of a specific profile
+go-go-mcp config show-profile default
+
+# Add a tool directory to a profile
+go-go-mcp config add-tool default --dir ./tools/system
+
+# Add a specific tool file to a profile
+go-go-mcp config add-tool default --file ./tools/special-tool.yaml
+
+# Create a new profile
+go-go-mcp config add-profile production "Production environment configuration"
+
+# Duplicate an existing profile
+go-go-mcp config duplicate-profile development staging "Staging environment configuration"
+
+# Set the default profile
+go-go-mcp config set-default-profile production
+```
+
 For detailed configuration documentation, use:
 ```bash
 # View configuration file documentation
