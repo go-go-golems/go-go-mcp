@@ -3,6 +3,7 @@ package cmds
 import (
 	"io"
 	"io/fs"
+	"os"
 	"strings"
 
 	glazed_cmds "github.com/go-go-golems/glazed/pkg/cmds"
@@ -56,3 +57,13 @@ func (l *ShellCommandLoader) GetName() string {
 func (l *ShellCommandLoader) IsFileSupported(f fs.FS, fileName string) bool {
 	return strings.HasSuffix(fileName, ".yaml") || strings.HasSuffix(fileName, ".yml")
 }
+
+func LoadShellCommand(path string) (*ShellCommand, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not read file %s", path)
+	}
+
+	return LoadShellCommandFromYAML(data)
+}
+	

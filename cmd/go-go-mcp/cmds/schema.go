@@ -85,7 +85,7 @@ func (c *SchemaCommand) RunIntoWriter(
 	}
 
 	// Convert to JSON schema
-	schema, err := shellCmd.ToJsonSchema()
+	schema, err := mcp_cmds.ToJsonSchema(shellCmd.Description())
 	if err != nil {
 		return fmt.Errorf("could not convert to JSON schema: %w", err)
 	}

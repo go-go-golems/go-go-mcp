@@ -389,16 +389,16 @@ func parameterTypeToJsonSchema(param *parameters.ParameterDefinition) (*JsonSche
 }
 
 // ToJsonSchema converts a ShellCommand to a JSON Schema representation
-func (c *ShellCommand) ToJsonSchema() (*CommandJsonSchema, error) {
+func ToJsonSchema(desc *cmds.CommandDescription) (*CommandJsonSchema, error) {
 	schema := &CommandJsonSchema{
 		Type:        "object",
-		Description: fmt.Sprintf("%s\n\n%s", c.Short, c.Long),
+		Description: fmt.Sprintf("%s\n\n%s", desc.Short, desc.Long),
 		Properties:  make(map[string]*JsonSchemaProperty),
 		Required:    []string{},
 	}
 
 	// Process flags
-	err := c.CommandDescription.GetDefaultFlags().ForEachE(func(flag *parameters.ParameterDefinition) error {
+	err := desc.GetDefaultFlags().ForEachE(func(flag *parameters.ParameterDefinition) error {
 		prop, err := parameterTypeToJsonSchema(flag)
 		if err != nil {
 			return fmt.Errorf("error processing flag %s: %w", flag.Name, err)
@@ -414,7 +414,7 @@ func (c *ShellCommand) ToJsonSchema() (*CommandJsonSchema, error) {
 	}
 
 	// Process arguments
-	err = c.CommandDescription.GetDefaultArguments().ForEachE(func(arg *parameters.ParameterDefinition) error {
+	err = desc.GetDefaultArguments().ForEachE(func(arg *parameters.ParameterDefinition) error {
 		prop, err := parameterTypeToJsonSchema(arg)
 		if err != nil {
 			return fmt.Errorf("error processing argument %s: %w", arg.Name, err)
