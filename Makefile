@@ -47,6 +47,7 @@ bump-glazed:
 	go get github.com/go-go-golems/glazed@latest
 	go get github.com/go-go-golems/clay@latest
 	go get github.com/go-go-golems/geppetto@latest
+	go get github.com/go-go-golems/parka@latest
 	go mod tidy
 
 go-go-mcp_BINARY=$(shell which go-go-mcp)

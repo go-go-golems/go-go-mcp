@@ -796,3 +796,102 @@ Updated the README.md to reflect the new unified client/server architecture:
 - Added documentation for server and client modes
 - Updated all command examples to use client subcommand
 - Updated project structure to show new organization
+
+Repository GetCommand Method
+Added a GetCommand method to the Repository struct to easily find a single command by its full path name.
+- Added GetCommand(name string) method that returns a single command by its full path name
+- Provides a convenient way to find commands without dealing with prefix slices directly
+
+Proper Command Type Handling
+- Added proper type checking for different command types (WriterCommand, BareCommand, GlazeCommand)
+- Implemented proper handling for WriterCommand
+- Added panic stubs for BareCommand and GlazeCommand for future implementation
+
+Parka Parameter Filter Integration
+- Replaced custom parameter filtering with Parka's parameter filter system
+- Improved middleware handling for parameter defaults, overrides, and filtering
+- Removed custom parameter manager in favor of Parka's implementation
+- Better consistency with other tools in the ecosystem
+
+# Multi-Profile Configuration
+
+Added a new configuration file with three profiles (all, github, google) to demonstrate profile-based tool loading from different directories.
+
+- Created config.yaml with three distinct profiles
+- Set up directory paths for GitHub and Google tools
+- Configured default profile as 'all' to load all available tools
+
+# XDG Config Path Support
+
+Added support for XDG config directory for configuration files:
+- Set default config file path to ~/.config/go-go-mcp/profiles.yaml
+- Maintains backward compatibility with explicit --config-file flag
+- Improved configuration file discovery and organization
+
+## CORS Support for SSE Messages Endpoint
+
+Added CORS headers and OPTIONS request handling to the /messages endpoint to fix cross-origin request issues.
+
+- Added CORS headers to /messages endpoint
+- Added support for OPTIONS preflight requests
+- Fixed 405 Method Not Allowed errors for cross-origin requests
+
+# Improved notification handling in SSE transport
+
+Improved the SSE transport to handle notifications more efficiently by not waiting for responses when handling notification messages.
+
+- Modified SSE transport to skip response waiting for notifications
+- Added support for both empty ID and notifications/ prefix detection
+
+# Improved SSE Notification Handling
+
+Enhanced the SSE transport to handle notifications and responses separately for better efficiency and clarity:
+
+- Added separate channels for notifications and responses
+- Added notification handler support to Transport interface
+- Updated SSE bridge to forward notifications to stdout
+- Added default notification logging in client
+- Improved notification detection and routing
+
+# Added Notification Support to Stdio Transport
+
+Added notification handling support to the stdio transport:
+- Added notification handler to StdioTransport struct
+- Implemented SetNotificationHandler method
+- Added notification detection and handling in Send method
+- Improved response handling to properly handle interleaved notifications
+
+## Documentation: Added Pinocchio Integration Instructions
+
+Added documentation about using Pinocchio to generate shell commands for go-go-mcp.
+
+- Added section about adding go-go-mcp as a Pinocchio repository
+- Added instructions for using the create-command template
+
+## Documentation: Added Run Command Usage Instructions
+
+Added documentation about using the run-command subcommand to execute shell commands directly as standalone command-line tools.
+
+- Added section about using run-command with shell command YAML files
+- Added examples for different types of commands (GitHub, Google Calendar, URL fetching)
+
+## Documentation: Added Example Commands Overview
+
+Added a comprehensive overview of example commands available in the examples directory.
+
+- Added categorized listing of example commands (GitHub, Google Calendar, Web Content, etc.)
+- Added brief descriptions for each command
+- Improved discoverability of available tools
+
+## Documentation: Added Schema Command and Improved Example Links
+
+Enhanced the example commands documentation:
+- Added information about using the schema command to view parameter documentation
+- Converted example command paths to clickable markdown links
+- Added examples of viewing command documentation using both schema and help
+
+## Fix: Resolve Predeclared Identifier Conflict
+
+Fixed linter error in randomInt function by renaming variables to avoid conflict with predeclared identifiers.
+
+- Renamed min to minVal and max to maxVal in randomInt function

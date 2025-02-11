@@ -1,0 +1,31 @@
+name: recent-coaching-conversations
+short: List recent coaching conversations from the knowledge base
+long: |
+  Retrieves a list of recent coaching conversations from the knowledge base.
+  This tool should only be used in the context of discussing coaching topics
+  or when needing to reference past coaching conversations for context.
+  
+  The tool provides:
+  - Titles and summaries of recent coaching conversations
+  - Timestamps of when the conversations occurred
+  - Key topics discussed in each conversation
+  
+  Note: This tool should be called when you need to:
+  - Reference recent coaching history
+  - Build context for current coaching discussions
+  - Check what topics have been recently discussed
+  - Ensure continuity between coaching sessions
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  cd /home/manuel/code/mento/go-go-mento
+  source /home/manuel/code/mento/go-go-mento/.envrc
+  cd /home/manuel/code/mento/go-go-mento/go
+  
+  
+  go run ./cmd/mento-service rag \
+    --job-config test/rag-jobs.yaml \
+    --job-prefix local-testing \
+    recent-documents
+capture-stderr: true 

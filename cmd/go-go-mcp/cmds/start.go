@@ -9,20 +9,15 @@ import (
 	"syscall"
 	"time"
 
-	cmds2 "github.com/go-go-golems/go-go-mcp/pkg/cmds"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
-
 	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
-	"github.com/go-go-golems/glazed/pkg/help"
-	"github.com/go-go-golems/go-go-mcp/pkg/prompts"
-	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
-	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/config"
 )
 
 type StartCommandSettings struct {
@@ -31,6 +26,8 @@ type StartCommandSettings struct {
 	Repositories []string `glazed.parameter:"repositories"`
 	Debug        bool     `glazed.parameter:"debug"`
 	TracingDir   string   `glazed.parameter:"tracing-dir"`
+	ConfigFile   string   `glazed.parameter:"config-file" help:"Path to the configuration file"`
+	Profile      string   `glazed.parameter:"profile" help:"Profile to use from the configuration file"`
 }
 
 type StartCommand struct {
@@ -38,6 +35,12 @@ type StartCommand struct {
 }
 
 func NewStartCommand() (*StartCommand, error) {
+	xdgConfigPath, err := os.UserConfigDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get user config directory")
+	}
+	defaultConfigFile := fmt.Sprintf("%s/go-go-mcp/profiles.yaml", xdgConfigPath)
+
 	return &StartCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"start",
@@ -78,8 +81,19 @@ Available transports:
 					parameters.WithHelp("Directory to store tool call traces"),
 					parameters.WithDefault(""),
 				),
+				parameters.NewParameterDefinition(
+					"config-file",
+					parameters.ParameterTypeString,
+					parameters.WithHelp("Path to the configuration file"),
+					parameters.WithDefault(defaultConfigFile),
+				),
+				parameters.NewParameterDefinition(
+					"profile",
+					parameters.ParameterTypeString,
+					parameters.WithHelp("Profile to use from the configuration file"),
+					parameters.WithDefault(""),
+				),
 			),
-			cmds.WithLayersList(),
 		),
 	}, nil
 }
@@ -95,68 +109,34 @@ func (c *StartCommand) Run(
 
 	// Create server
 	srv := server.NewServer(log.Logger)
-	promptRegistry := prompts.NewRegistry()
-	resourceRegistry := resources.NewRegistry()
-	toolRegistry := tools.NewRegistry()
 
-	// Register a simple prompt directly
-	promptRegistry.RegisterPrompt(protocol.Prompt{
-		Name:        "simple",
-		Description: "A simple prompt that can take optional context and topic arguments",
-		Arguments: []protocol.PromptArgument{
-			{
-				Name:        "context",
-				Description: "Additional context to consider",
-				Required:    false,
-			},
-			{
-				Name:        "topic",
-				Description: "Specific topic to focus on",
-				Required:    false,
-			},
-		},
-	})
-
-	// Register registries with the server
-	srv.GetRegistry().RegisterPromptProvider(promptRegistry)
-	srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
-	srv.GetRegistry().RegisterToolProvider(toolRegistry)
-
-	// Register tools (DON'T DELETE)
-	if err := examples.RegisterEchoTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering echo tool")
-		return err
+	// Create tool provider options
+	toolProviderOptions := []config.ConfigToolProviderOption{
+		config.WithDebug(s.Debug),
 	}
-	if err := examples.RegisterFetchTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering fetch tool")
-		return err
+	if s.TracingDir != "" {
+		toolProviderOptions = append(toolProviderOptions, config.WithTracingDir(s.TracingDir))
 	}
-	if err := examples.RegisterSQLiteTool(toolRegistry); err != nil {
-		log.Error().Err(err).Msg("Error registering sqlite tool")
-		return err
+
+	// Handle configuration file if provided
+	if s.ConfigFile != "" {
+		cfg, err := config.LoadFromFile(s.ConfigFile)
+		if err != nil {
+			return errors.Wrap(err, "failed to load configuration file")
+		}
+
+		// Determine profile
+		profile := s.Profile
+		if profile == "" {
+			profile = cfg.DefaultProfile
+		}
+
+		toolProviderOptions = append(toolProviderOptions, config.WithConfig(cfg, profile))
 	}
-	// if err := cursor.RegisterCursorTools(toolRegistry); err != nil {
-	//  log.Error().Err(err).Msg("Error registering cursor tools")
-	//  return err
-	// }
 
-	// Register the weather tool (DO NOT DELETE)
-	// weatherTool, err := tools.NewReflectTool(
-	// 	"getWeather",
-	// 	"Get weather information for a city",
-	// 	getWeather,
-	// )
-	// if err != nil {
-	// 	log.Error().Err(err).Msg("Error creating weather tool")
-	// 	return err
-	// }
-	// toolRegistry.RegisterTool(weatherTool)
-
-	// Load shell commands from repositories
+	// Handle repository directories
 	if len(s.Repositories) > 0 {
-		loader := &cmds2.ShellCommandLoader{}
 		directories := []repositories.Directory{}
-
 		for _, repoPath := range s.Repositories {
 			dir := os.ExpandEnv(repoPath)
 			// check if dir exists
@@ -175,35 +155,16 @@ func (c *StartCommand) Run(
 		}
 
 		if len(directories) > 0 {
-			repo := repositories.NewRepository(
-				repositories.WithDirectories(directories...),
-				repositories.WithCommandLoader(loader),
-			)
-
-			helpSystem := help.NewHelpSystem()
-			err := repo.LoadCommands(helpSystem)
-			if err != nil {
-				log.Error().Err(err).Msg("Error loading shell commands from repositories")
-				return err
-			}
-
-			commands := repo.CollectCommands([]string{}, true)
-			log.Info().Int("count", len(commands)).Msg("Loaded shell commands from repositories")
-			for _, cmd := range commands {
-				log.Debug().Str("name", cmd.Description().Name).Msg("Loaded shell command")
-			}
-
-			toolProvider, err := cmds2.NewShellToolProvider(commands,
-				cmds2.WithDebug(s.Debug),
-				cmds2.WithTracingDir(s.TracingDir),
-			)
-			if err != nil {
-				log.Error().Err(err).Msg("Error creating shell tool provider")
-				return err
-			}
-			srv.GetRegistry().RegisterToolProvider(toolProvider)
+			toolProviderOptions = append(toolProviderOptions, config.WithDirectories(directories))
 		}
 	}
+
+	// Create and register tool provider
+	toolProvider, err := config.NewConfigToolProvider(toolProviderOptions...)
+	if err != nil {
+		return errors.Wrap(err, "failed to create tool provider")
+	}
+	srv.GetRegistry().RegisterToolProvider(toolProvider)
 
 	// Create root context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())

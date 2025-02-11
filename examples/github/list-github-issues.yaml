@@ -1,0 +1,94 @@
+name: list-github-issues
+short: List GitHub issues from mento-playground
+long: |
+  Lists GitHub issues from the team-mento/mento-playground repository
+  using the GitHub CLI (gh). Supports various filtering options and output formats.
+  
+  For search query syntax, see:
+  https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+
+flags:
+  - name: state
+    type: choice
+    help: Filter by issue state
+    choices: [open, closed, all]
+    default: open
+
+  - name: assignee
+    type: string
+    help: Filter by assignee (use '@me' for your issues)
+
+  - name: author
+    type: string
+    help: Filter by author
+
+  - name: label
+    type: stringList
+    help: Filter by labels (can specify multiple)
+
+  - name: milestone
+    type: string
+    help: Filter by milestone number or title
+
+  - name: limit
+    type: int
+    help: Maximum number of issues to fetch
+    default: 30
+
+  - name: search
+    type: string
+    help: Search issues with query (e.g. 'error no:assignee sort:created-asc')
+
+  - name: json
+    type: stringList
+    help: Output JSON with specified fields (e.g. number,title,state)
+
+  - name: web
+    type: bool
+    help: Open issues list in web browser
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build the base command
+  CMD=(gh issue list -R team-mento/mento-playground)
+
+  # Add filters
+  {{ if ne .Args.state "open" }}
+  CMD+=(--state "{{ .Args.state }}")
+  {{ end }}
+
+  {{ if .Args.assignee }}
+  CMD+=(--assignee "{{ .Args.assignee }}")
+  {{ end }}
+
+  {{ if .Args.author }}
+  CMD+=(--author "{{ .Args.author }}")
+  {{ end }}
+
+  {{ range .Args.label }}
+  CMD+=(--label "{{ . }}")
+  {{ end }}
+
+  {{ if .Args.milestone }}
+  CMD+=(--milestone "{{ .Args.milestone }}")
+  {{ end }}
+
+  {{ if .Args.search }}
+  CMD+=(--search "{{ .Args.search }}")
+  {{ end }}
+
+  {{ if ne .Args.limit 30 }}
+  CMD+=(--limit "{{ .Args.limit }}")
+  {{ end }}
+
+  # Output formatting
+  {{ if .Args.web }}
+  CMD+=(--web)
+  {{ end }}
+
+  # Execute the command
+  echo "DEBUG: Executing: ${CMD[@]}"
+  "${CMD[@]}" 

@@ -3,16 +3,19 @@ package dispatcher
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 )
 
 // Dispatch handles an incoming request and returns a response
 func (d *Dispatcher) Dispatch(ctx context.Context, request protocol.Request) (*protocol.Response, error) {
-	d.logger.Debug().
-		Str("method", request.Method).
-		RawJSON("params", request.Params).
-		Msg("Dispatching request")
+	l := d.logger.Debug().
+		Str("method", request.Method)
+	if len(request.Params) > 0 {
+		l = l.RawJSON("params", request.Params)
+	}
+	l.Msg("Dispatching request")
 
 	// Validate JSON-RPC version
 	if request.JSONRPC != "2.0" {
@@ -20,7 +23,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, request protocol.Request) (*p
 	}
 
 	// Handle requests vs notifications based on ID presence
-	if len(request.ID) == 0 {
+	if len(request.ID) == 0 || string(request.ID) == "null" {
+		return d.handleNotification(ctx, request)
+	}
+
+	if strings.HasPrefix(request.Method, "notifications/") {
 		return d.handleNotification(ctx, request)
 	}
 
@@ -46,7 +53,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, request protocol.Request) (*p
 	}
 }
 
-func (d *Dispatcher) handleNotification(ctx context.Context, request protocol.Request) (*protocol.Response, error) {
+func (d *Dispatcher) handleNotification(_ context.Context, request protocol.Request) (*protocol.Response, error) {
 	switch request.Method {
 	case "notifications/initialized":
 		d.logger.Info().Msg("Client initialized")

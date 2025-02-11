@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -83,7 +84,7 @@ func (s *SSEServer) Start(ctx context.Context) error {
 	r.HandleFunc("/sse", s.handleSSE).Methods("GET")
 
 	// POST endpoint for receiving client messages
-	r.HandleFunc("/messages", s.handleMessages).Methods("POST")
+	r.HandleFunc("/messages", s.handleMessages).Methods("POST", "OPTIONS")
 
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
@@ -286,6 +287,17 @@ func (s *SSEServer) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 // handleMessages processes incoming client messages
 func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	// Handle preflight request
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	ctx := r.Context()
 	sessionID := r.URL.Query().Get("sessionId")
 	s.logger.Debug().
@@ -321,8 +333,15 @@ func (s *SSEServer) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("Error reading request body")
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+
 	var request protocol.Request
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	if err := json.Unmarshal(bodyBytes, &request); err != nil {
 		response, _ := dispatcher.NewErrorResponse(nil, -32700, "Parse error", err)
 		// Send error to all session clients
 		for _, client := range sessionClients {

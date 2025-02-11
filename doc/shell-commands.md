@@ -3,141 +3,74 @@
 Shell commands allow you to define executable commands and scripts in YAML files, with support for templated arguments, environment variables, and flexible execution options.
 
 ## Table of Contents
-1. [Basic Structure](#basic-structure)
-2. [Command Types](#command-types)
-   - [Command Lists](#command-lists)
-   - [Shell Scripts](#shell-scripts)
-3. [Parameters](#parameters)
-   - [Flags](#flags)
-   - [Arguments](#arguments)
-4. [Environment Variables](#environment-variables)
-5. [Working Directory](#working-directory)
-6. [Output Handling](#output-handling)
-7. [Examples](#examples)
-   - [Simple Command](#simple-command)
-   - [Complex Script](#complex-script)
-   - [Docker Operations](#docker-operations)
-   - [Git Operations](#git-operations)
-   - [Database Operations](#database-operations)
+1. [Command Structure](#command-structure)
+2. [Parameter Types](#parameter-types)
+3. [Templating System](#templating-system)
+4. [Examples](#examples)
+5. [Best Practices](#best-practices)
+6. [Troubleshooting](#troubleshooting)
 
-## Basic Structure
+## Command Structure
 
-A shell command YAML file has the following basic structure:
+A shell command YAML file has the following structure:
 
 ```yaml
-name: command-name
-short: Short description
-long: |
+# Metadata (Required)
+name: command-name           # Command name (use lowercase and underscores)
+short: Short description     # One-line description
+long: |                      # Optional: Detailed multi-line description
   Detailed description that can
   span multiple lines
-flags:
-  - name: flag_name
-    type: string
-    help: Flag description
-    required: true
-command:
-  - executable
+
+# Parameter Definition
+flags:                       # Optional: Command parameters
+  - name: flag_name         # Required: Parameter name (use underscores, not hyphens)
+    type: string            # Required: Parameter type
+    help: Description       # Required: Parameter description
+    required: true          # Optional: Whether the parameter is required
+    default: value          # Optional: Default value
+    choices: [a, b, c]      # Optional: For choice/choiceList types
+
+# Execution Configuration
+command:                    # Either command: or shell-script: is required
+  - executable             # List of command parts
   - arg1
   - "{{ .Args.flag_name }}"
+
 # OR
-shell-script: |
+
+shell-script: |             # For complex shell scripts
   #!/bin/bash
   echo "Using {{ .Args.flag_name }}"
-environment:
-  ENV_VAR: "{{ .Args.some_flag }}"
-cwd: /path/to/working/dir
-capture-stderr: true
+
+# Optional Configuration
+environment:                # Optional: Environment variables
+  ENV_VAR: "{{ .Args.flag_name }}"
+cwd: /path/to/working/dir  # Optional: Working directory
+capture-stderr: true       # Optional: Capture stderr in output
 ```
 
-IMPORTANT: flag names should use "_", not "-"!
+## Parameter Types
 
-## Command Types
+The following parameter types are supported:
 
-### Command Lists
-
-Command lists are useful for simple commands with fixed arguments:
-
-```yaml
-name: aws-s3-upload
-short: Upload a file to S3
-flags:
-  - name: file
-    type: string
-    help: File to upload
-    required: true
-  - name: bucket
-    type: string
-    help: Target bucket
-    required: true
-command:
-  - aws
-  - s3
-  - cp
-  - "{{ .Args.file }}"
-  - "s3://{{ .Args.bucket }}/"
-```
-
-### Shell Scripts
-
-Shell scripts are better for complex operations requiring logic:
-
-```yaml
-name: process-logs
-short: Process log files
-flags:
-  - name: pattern
-    type: string
-    help: Search pattern
-    required: true
-  - name: output
-    type: string
-    help: Output file
-    default: output.log
-shell-script: |
-  #!/bin/bash
-  set -euo pipefail
-  
-  echo "Searching for {{ .Args.pattern }}"
-  find . -type f -name "*.log" -exec grep -H "{{ .Args.pattern }}" {} \; > {{ .Args.output }}
-```
-
-## Parameters
-
-### Flags
-
-Flags are named parameters with types and options:
-
-```yaml
-flags:
-  - name: verbose
-    type: bool
-    help: Enable verbose output
-    default: false
-  
-  - name: count
-    type: int
-    help: Number of iterations
-    required: true
-    
-  - name: mode
-    type: choice
-    help: Operation mode
-    choices: [fast, safe, debug]
-    default: safe
-```
-
-Supported flag types:
+### Basic Types
 - `string`: Text values (e.g., `--name=value`)
 - `int`: Integer numbers (e.g., `--count=10`)
 - `float`: Floating point numbers (e.g., `--threshold=0.75`)
 - `bool`: True/false values (e.g., `--verbose` or `--verbose=false`)
 - `date`: Date values (e.g., `--from=2024-01-01`)
+
+### List Types
 - `stringList`: List of strings (e.g., `--tags=a,b,c` or multiple `--tags=a --tags=b`)
 - `intList`: List of integers (e.g., `--numbers=1,2,3`)
 - `floatList`: List of floating point numbers
+
+### Choice Types
 - `choice`: Single selection from predefined options
 - `choiceList`: Multiple selections from predefined options
-- `keyValue`: Key-value pairs (e.g., `--header='Content-Type:application/json'`)
+
+### File Types
 - `file`: Single file input
 - `fileList`: Multiple file inputs
 - `stringFromFile`: String content read from a file
@@ -145,116 +78,63 @@ Supported flag types:
 - `stringListFromFile`: List of strings read from a file
 - `objectListFromFile`: List of structured data read from a file
 
-Each flag definition supports these fields:
-- `name`: (required) The parameter name used in CLI
-- `type`: (required) One of the types listed above
-- `help`: Short description of the parameter
-- `default`: Default value if not provided
-- `required`: Set to true if the parameter must be provided
-- `choices`: List of valid options (for `choice` and `choiceList` types)
+### Special Types
+- `keyValue`: Key-value pairs (e.g., `--header='Content-Type:application/json'`)
 
-Examples of different flag types:
+## Templating System
 
-```yaml
-flags:
-  # Date range with defaults
-  - name: from
-    type: date
-    help: Start date (inclusive)
-    default: 2024-01-01
-  
-  # Choice from predefined options
-  - name: group_by
-    type: choice
-    help: Result grouping
-    choices: [year, month, all-time]
-    default: month
-  
-  # List of allowed statuses
-  - name: status
-    type: stringList
-    help: Order statuses to include
-    default: ['pending', 'processing']
-  
-  # File input
-  - name: config
-    type: file
-    help: Configuration file
-    required: true
-  
-  # Key-value pairs
-  - name: labels
-    type: keyValue
-    help: Resource labels
-    default:
-      env: dev
-      team: backend
-```
+Shell commands use Go's template language for variable interpolation and control flow. Additionally, all [Sprig template functions](http://masterminds.github.io/sprig/) are available for use.
 
-### Arguments
+### Variable Access
 
-Arguments are positional parameters:
+Access flag values using the `.Args` object:
 
 ```yaml
-arguments:
-  - name: source
-    type: string
-    help: Source file
-    required: true
-  
-  - name: destination
-    type: string
-    help: Destination path
-```
-
-## Environment Variables
-
-Environment variables can be templated using flag values:
-
-```yaml
-flags:
-  - name: environment
-    type: string
-    help: Deployment environment
-    choices: [dev, staging, prod]
-    default: dev
-
-environment:
-  NODE_ENV: "{{ .Args.environment }}"
-  DB_HOST: "db.{{ .Args.environment }}.internal"
-  LOG_LEVEL: "{{ if eq .Args.environment \"prod\" }}error{{ else }}debug{{ end }}"
-```
-
-## Working Directory
-
-Set the working directory for command execution:
-
-```yaml
-name: build
-short: Build project
-cwd: /path/to/project
 command:
-  - make
-  - build
+  - echo
+  - "{{ .Args.name }}"     # Access a flag value
 ```
 
-## Output Handling
+### Control Flow
 
-Control stderr capture:
+Use Go template syntax for control flow:
 
 ```yaml
-name: risky-operation
-short: Run risky operation
-capture-stderr: true  # Capture stderr in command output
+command:
+  - rsync
+  - "{{ if .Args.verbose }}-v{{ end }}"  # Conditional
+  - "{{ range .Args.files }}{{ . }} {{ end }}"  # Iteration
+```
+
+### Sprig Functions
+
+Examples of using Sprig functions:
+
+```yaml
 shell-script: |
   #!/bin/bash
-  set -e
   
-  if ! some_command; then
-    echo "Failed!" >&2
-    exit 1
-  fi
+  # String manipulation
+  NAME="{{ .Args.name | lower | trim }}"
+  
+  # Date formatting
+  DATE="{{ now | date "2006-01-02" }}"
+  
+  # List operations
+  ITEMS="{{ .Args.items | join "," }}"
+  
+  # Math operations
+  COUNT="{{ .Args.number | add 1 }}"
 ```
+
+Common Sprig functions:
+- String: `trim`, `upper`, `lower`, `title`, `indent`
+- Lists: `first`, `last`, `join`, `split`, `compact`
+- Math: `add`, `mul`, `div`, `mod`
+- Date: `now`, `date`, `dateInZone`
+- Encoding: `b64enc`, `b64dec`, `toJson`, `fromJson`
+
+For a complete list of available functions, visit the [Sprig documentation](http://masterminds.github.io/sprig/).
 
 ## Examples
 
@@ -286,11 +166,6 @@ command:
   - "{{ .Args.dest }}"
 ```
 
-Usage:
-```bash
-mcp-client run-command copy-file.yaml --source data.txt --dest backup/ --verbose
-```
-
 ### Complex Script
 
 A log processing script with multiple options:
@@ -312,7 +187,7 @@ flags:
     help: Process logs since timestamp
     default: "24h"
   - name: format
-    type: string
+    type: choice
     help: Output format
     choices: [text, json, csv]
     default: text
@@ -320,8 +195,8 @@ shell-script: |
   #!/bin/bash
   set -euo pipefail
   
-  # Convert time period to timestamp
-  since_time=$(date -d "{{ .Args.since }} ago" +%s)
+  # Convert time period to timestamp using Sprig's date functions
+  since_time=$(date -d "{{ .Args.since | duration "s" }} ago" +%s)
   
   # Process each log file
   find {{ .Args.log_dir }} -type f -name "*.log" | while read -r log; do
@@ -490,40 +365,7 @@ shell-script: |
    - Provide progress information
    - Format output for readability
 
-## Running Commands
-
-Commands can be run using the `run-command` subcommand:
-
-```bash
-mcp-server run-command path/to/command.yaml [flags]
-```
-
-Example:
-```bash
-mcp-server run-command examples/db-backup.yaml \
-  --database myapp \
-  --bucket backups.example.com \
-  --keep-local
-```
-
-## Debugging Tips
-
-1. Use `--help` to see available flags:
-   ```bash
-   mcp-server run-command example.yaml --help
-   ```
-
-2. Enable verbose output when available:
-   ```bash
-   mcp-server run-command example.yaml --verbose
-   ```
-
-3. Check script output:
-   ```bash
-   mcp-server run-command example.yaml --debug
-   ```
-
-## Common Issues
+## Troubleshooting
 
 1. **Template Errors**
    - Check flag names match template variables

@@ -1,0 +1,106 @@
+name: list-github-pull-requests
+short: List GitHub pull requests from mento-playground
+long: |
+  Lists GitHub pull requests from the team-mento/mento-playground repository
+  using the GitHub CLI (gh). Supports various filtering options and output formats.
+  
+  For search query syntax, see:
+  https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests
+
+flags:
+  - name: state
+    type: choice
+    help: Filter by PR state
+    choices: [open, closed, merged, all]
+    default: open
+
+  - name: assignee
+    type: string
+    help: Filter by assignee (use '@me' for your PRs)
+
+  - name: author
+    type: string
+    help: Filter by author
+
+  - name: label
+    type: stringList
+    help: Filter by labels (can specify multiple)
+
+  - name: base
+    type: string
+    help: Filter by base branch
+
+  - name: draft
+    type: choice
+    help: Filter by draft state
+    choices: [true, false]
+
+  - name: limit
+    type: int
+    help: Maximum number of pull requests to fetch
+    default: 30
+
+  - name: search
+    type: string
+    help: Search PRs with query (e.g. 'review-requested:@me sort:created-asc')
+
+  - name: json
+    type: stringList
+    help: Output JSON with specified fields (see docs for full list)
+    default: [number,title,state,author,url,createdAt,updatedAt,baseRefName,headRefName,isDraft,labels,assignees,reviewDecision,changedFiles,additions,deletions,comments]
+
+  - name: web
+    type: bool
+    help: Open pull requests list in web browser
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build the base command
+  CMD=(gh pr list -R team-mento/mento-playground)
+
+  # Add filters
+  {{ if ne .Args.state "open" }}
+  CMD+=(--state "{{ .Args.state }}")
+  {{ end }}
+
+  {{ if .Args.assignee }}
+  CMD+=(--assignee "{{ .Args.assignee }}")
+  {{ end }}
+
+  {{ if .Args.author }}
+  CMD+=(--author "{{ .Args.author }}")
+  {{ end }}
+
+  {{ range .Args.label }}
+  CMD+=(--label "{{ . }}")
+  {{ end }}
+
+  {{ if .Args.base }}
+  CMD+=(--base "{{ .Args.base }}")
+  {{ end }}
+
+  {{ if .Args.draft }}
+  CMD+=(--draft "{{ .Args.draft }}")
+  {{ end }}
+
+  {{ if .Args.search }}
+  CMD+=(--search "{{ .Args.search }}")
+  {{ end }}
+
+  CMD+=(--limit "{{ .Args.limit }}")
+
+  # Output formatting
+  {{ range .Args.json }}
+  CMD+=(--json "{{ . }}")
+  {{ end }}
+
+  {{ if .Args.web }}
+  CMD+=(--web)
+  {{ end }}
+
+  # Execute the command
+  echo "DEBUG: Executing: ${CMD[@]}"
+  "${CMD[@]}" 

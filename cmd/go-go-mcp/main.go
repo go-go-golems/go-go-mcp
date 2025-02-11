@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
+	"github.com/go-go-golems/go-go-mcp/pkg/doc"
 
 	clay "github.com/go-go-golems/clay/pkg"
 
@@ -58,7 +59,12 @@ func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
 
-	err := clay.InitViper("mcp", rootCmd)
+	err := doc.AddDocToHelpSystem(helpSystem)
+	if err != nil {
+		return nil, err
+	}
+
+	err = clay.InitViper("mcp", rootCmd)
 	if err != nil {
 		return nil, err
 	}
@@ -76,14 +82,14 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Create and add start command
 	startCmd, err := server_cmds.NewStartCommand()
 	cobra.CheckErr(err)
-	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd)
+	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraStartCmd)
 
 	// Create and add schema command
 	schemaCmd, err := server_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)
-	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd)
+	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 

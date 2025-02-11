@@ -16,6 +16,8 @@ type Transport interface {
 	Send(ctx context.Context, request *protocol.Request) (*protocol.Response, error)
 	// Close closes the transport connection
 	Close(ctx context.Context) error
+	// SetNotificationHandler sets a handler for notifications
+	SetNotificationHandler(handler func(*protocol.Response))
 }
 
 // Client represents an MCP client that can use different transports
@@ -34,11 +36,18 @@ type Client struct {
 
 // NewClient creates a new client instance
 func NewClient(logger zerolog.Logger, transport Transport) *Client {
-	return &Client{
+	client := &Client{
 		logger:    logger,
 		transport: transport,
 		nextID:    1,
 	}
+
+	// Set default notification handler to log notifications
+	transport.SetNotificationHandler(func(response *protocol.Response) {
+		logger.Debug().Interface("notification", response).Msg("Received notification")
+	})
+
+	return client
 }
 
 // Initialize initializes the connection with the server

@@ -17,27 +17,48 @@ import (
 
 // SSETransport implements Transport using Server-Sent Events
 type SSETransport struct {
-	mu          sync.Mutex
-	baseURL     string
-	client      *http.Client
-	sseClient   *sse.Client
-	events      chan *sse.Event
-	closeOnce   sync.Once
-	logger      zerolog.Logger
-	initialized bool
-	sessionID   string
-	endpoint    string
+	mu                  sync.Mutex
+	baseURL             string
+	client              *http.Client
+	sseClient           *sse.Client
+	events              chan *sse.Event
+	responses           chan *sse.Event
+	notifications       chan *sse.Event
+	closeOnce           sync.Once
+	logger              zerolog.Logger
+	initialized         bool
+	sessionID           string
+	endpoint            string
+	notificationHandler func(*protocol.Response)
 }
 
 // NewSSETransport creates a new SSE transport
 func NewSSETransport(baseURL string, logger zerolog.Logger) *SSETransport {
 	return &SSETransport{
-		baseURL:   baseURL,
-		client:    &http.Client{},
-		sseClient: sse.NewClient(baseURL + "/sse"),
-		events:    make(chan *sse.Event),
-		logger:    logger,
+		baseURL:       baseURL,
+		client:        &http.Client{},
+		sseClient:     sse.NewClient(baseURL + "/sse"),
+		events:        make(chan *sse.Event),
+		responses:     make(chan *sse.Event),
+		notifications: make(chan *sse.Event),
+		logger:        logger,
 	}
+}
+
+// SetNotificationHandler sets the handler for notifications
+func (t *SSETransport) SetNotificationHandler(handler func(*protocol.Response)) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.notificationHandler = handler
+}
+
+// isNotification checks if an event is a notification
+func isNotification(event *sse.Event) bool {
+	var response protocol.Response
+	if err := json.Unmarshal(event.Data, &response); err != nil {
+		return false
+	}
+	return len(response.ID) == 0 || string(response.ID) == "null"
 }
 
 // Send sends a request and returns the response
@@ -95,10 +116,16 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 		return nil, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// If this is a notification, don't wait for response
+	if len(request.ID) == 0 || string(request.ID) == "null" || strings.HasPrefix(request.Method, "notifications/") {
+		t.logger.Debug().Msg("Request is a notification, not waiting for response")
+		return nil, nil
+	}
+
 	// Wait for response event with context
 	t.logger.Debug().Msg("Waiting for response event")
 	select {
-	case event := <-t.events:
+	case event := <-t.responses:
 		if string(event.Event) == "error" {
 			t.logger.Error().
 				Str("error", string(event.Data)).
@@ -106,7 +133,6 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 			return nil, fmt.Errorf("server error: %s", string(event.Data))
 		}
 
-		t.logger.Debug().Int("dataLength", len(event.Data)).Msg("FOOBAR")
 		t.logger.Debug().
 			Str("event", string(event.Event)).
 			RawJSON("data", event.Data).
@@ -135,6 +161,25 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 
 	// Channel to wait for endpoint event
 	endpointCh := make(chan string, 1)
+
+	// Start notification handler goroutine
+	go func() {
+		for {
+			select {
+			case event := <-t.notifications:
+				if t.notificationHandler != nil {
+					var response protocol.Response
+					if err := json.Unmarshal(event.Data, &response); err != nil {
+						t.logger.Error().Err(err).Msg("Failed to parse notification")
+						continue
+					}
+					t.notificationHandler(&response)
+				}
+			case <-subCtx.Done():
+				return
+			}
+		}
+	}()
 
 	go func() {
 		defer cancel()
@@ -167,12 +212,21 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 				}
 			}
 
-			// Forward other events to the events channel
-			select {
-			case t.events <- msg:
-				t.logger.Debug().Msg("Forwarded event to channel")
-			case <-subCtx.Done():
-				t.logger.Debug().Msg("Context cancelled while forwarding event")
+			// Route event to appropriate channel
+			if isNotification(msg) {
+				select {
+				case t.notifications <- msg:
+					t.logger.Debug().Msg("Forwarded notification event")
+				case <-subCtx.Done():
+					t.logger.Debug().Msg("Context cancelled while forwarding notification")
+				}
+			} else {
+				select {
+				case t.responses <- msg:
+					t.logger.Debug().Msg("Forwarded response event")
+				case <-subCtx.Done():
+					t.logger.Debug().Msg("Context cancelled while forwarding response")
+				}
 			}
 		})
 

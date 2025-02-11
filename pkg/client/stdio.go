@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -17,11 +18,12 @@ import (
 
 // StdioTransport implements Transport using standard input/output
 type StdioTransport struct {
-	mu      sync.Mutex
-	scanner *bufio.Scanner
-	writer  *json.Encoder
-	cmd     *exec.Cmd
-	logger  zerolog.Logger
+	mu                  sync.Mutex
+	scanner             *bufio.Scanner
+	writer              *json.Encoder
+	cmd                 *exec.Cmd
+	logger              zerolog.Logger
+	notificationHandler func(*protocol.Response)
 }
 
 // NewStdioTransport creates a new stdio transport
@@ -37,6 +39,15 @@ func NewStdioTransport(logger zerolog.Logger) *StdioTransport {
 		logger:  logger,
 	}
 }
+
+// SetNotificationHandler sets the handler for notifications
+func (t *StdioTransport) SetNotificationHandler(handler func(*protocol.Response)) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.notificationHandler = handler
+}
+
+var _ Transport = &StdioTransport{}
 
 // NewCommandStdioTransport creates a new stdio transport that launches a command
 func NewCommandStdioTransport(logger zerolog.Logger, command string, args ...string) (*StdioTransport, error) {
@@ -100,6 +111,12 @@ func (t *StdioTransport) Send(ctx context.Context, request *protocol.Request) (*
 		return nil, fmt.Errorf("failed to write request: %w", err)
 	}
 
+	// If this is a notification, don't wait for response
+	if len(request.ID) == 0 || string(request.ID) == "null" || strings.HasPrefix(request.Method, "notifications/") {
+		t.logger.Debug().Msg("Request is a notification, not waiting for response")
+		return nil, nil
+	}
+
 	t.logger.Debug().Msg("Waiting for response")
 
 	// Create a channel for the response
@@ -110,40 +127,46 @@ func (t *StdioTransport) Send(ctx context.Context, request *protocol.Request) (*
 
 	// Read response in a goroutine
 	go func() {
-		if !t.scanner.Scan() {
-			var err error
-			if scanErr := t.scanner.Err(); scanErr != nil {
-				err = fmt.Errorf("failed to read response: %w", scanErr)
-				t.logger.Error().Err(err).Msg("Failed to read response")
-			} else {
-				err = io.EOF
-				t.logger.Debug().Msg("EOF while reading response")
+		for t.scanner.Scan() {
+			data := t.scanner.Bytes()
+			t.logger.Debug().RawJSON("data", data).Msg("Received data")
+
+			var response protocol.Response
+			if err := json.Unmarshal(data, &response); err != nil {
+				t.logger.Error().Err(err).Msg("Failed to parse response")
+				continue
 			}
+
+			// If this is a notification, handle it and continue scanning
+			if len(response.ID) == 0 || string(response.ID) == "null" {
+				t.mu.Lock()
+				if t.notificationHandler != nil {
+					t.notificationHandler(&response)
+				}
+				t.mu.Unlock()
+				continue
+			}
+
+			// This is a response, send it to the channel
 			responseCh <- struct {
 				response *protocol.Response
 				err      error
-			}{nil, err}
+			}{&response, nil}
 			return
 		}
 
-		t.logger.Debug().
-			RawJSON("response", t.scanner.Bytes()).
-			Msg("Received response")
-
-		var response protocol.Response
-		if err := json.Unmarshal(t.scanner.Bytes(), &response); err != nil {
-			t.logger.Error().Err(err).Msg("Failed to parse response")
+		// Handle scanner errors
+		if err := t.scanner.Err(); err != nil {
 			responseCh <- struct {
 				response *protocol.Response
 				err      error
-			}{nil, fmt.Errorf("failed to parse response: %w", err)}
-			return
+			}{nil, fmt.Errorf("failed to read response: %w", err)}
+		} else {
+			responseCh <- struct {
+				response *protocol.Response
+				err      error
+			}{nil, io.EOF}
 		}
-
-		responseCh <- struct {
-			response *protocol.Response
-			err      error
-		}{&response, nil}
 	}()
 
 	// Wait for either response or context cancellation

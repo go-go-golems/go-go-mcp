@@ -13,19 +13,15 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/middlewares"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
-// ShellTool is a wrapper around a shell command that implements the Tool interface
-type ShellTool struct {
-	cmd *ShellCommand
-}
-
 // ShellToolProvider is a ToolProvider that exposes shell commands as tools
 type ShellToolProvider struct {
-	commands   map[string]*ShellTool
+	commands   map[string]cmds.Command
 	debug      bool
 	tracingDir string
 }
@@ -44,10 +40,12 @@ func WithTracingDir(dir string) ShellToolProviderOption {
 	}
 }
 
+var _ pkg.ToolProvider = &ShellToolProvider{}
+
 // NewShellToolProvider creates a new ShellToolProvider with the given commands
 func NewShellToolProvider(commands []cmds.Command, options ...ShellToolProviderOption) (*ShellToolProvider, error) {
 	provider := &ShellToolProvider{
-		commands: make(map[string]*ShellTool),
+		commands: make(map[string]cmds.Command),
 	}
 
 	for _, option := range options {
@@ -56,7 +54,7 @@ func NewShellToolProvider(commands []cmds.Command, options ...ShellToolProviderO
 
 	for _, cmd := range commands {
 		if shellCmd, ok := cmd.(*ShellCommand); ok {
-			provider.commands[shellCmd.Description().Name] = &ShellTool{cmd: shellCmd}
+			provider.commands[shellCmd.Description().Name] = shellCmd
 		}
 	}
 
@@ -67,9 +65,9 @@ func NewShellToolProvider(commands []cmds.Command, options ...ShellToolProviderO
 func (p *ShellToolProvider) ListTools(cursor string) ([]protocol.Tool, string, error) {
 	tools := make([]protocol.Tool, 0, len(p.commands))
 
-	for _, tool := range p.commands {
-		desc := tool.cmd.Description()
-		schema, err := tool.cmd.ToJsonSchema()
+	for _, cmd := range p.commands {
+		desc := cmd.Description()
+		schema, err := ToJsonSchema(desc)
 		if err != nil {
 			return nil, "", errors.Wrap(err, "failed to generate JSON schema")
 		}
@@ -98,7 +96,7 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 			Msg("calling tool with arguments")
 	}
 
-	tool, ok := p.commands[name]
+	cmd, ok := p.commands[name]
 	if !ok {
 		return nil, fmt.Errorf("tool not found: %s", name)
 	}
@@ -112,7 +110,7 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 	}
 
 	// Get parameter layers from command description
-	parameterLayers := tool.cmd.Description().Layers
+	parameterLayers := cmd.Description().Layers
 
 	// Create empty parsed layers
 	parsedLayers := layers.NewParsedLayers()
@@ -122,9 +120,7 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 		layers.DefaultSlug: arguments,
 	}
 
-	// Execute middlewares in order:
-	// 1. Set defaults from parameter definitions
-	// 2. Update with provided arguments
+	// Execute middlewares in order
 	err := middlewares.ExecuteMiddlewares(
 		parameterLayers,
 		parsedLayers,
@@ -138,16 +134,18 @@ func (p *ShellToolProvider) CallTool(ctx context.Context, name string, arguments
 	// Create a buffer to capture the command output
 	buf := &strings.Builder{}
 
-	dataMap := parsedLayers.GetDataMap()
-
-	if p.debug {
-		log.Debug().Interface("dataMap", dataMap).Msg("processed arguments")
-	}
-
 	// Run the command with parsed parameters
-	err = tool.cmd.ExecuteCommand(ctx, dataMap, buf)
-	if err != nil {
-		return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
+	switch c := cmd.(type) {
+	case cmds.WriterCommand:
+		if err := c.RunIntoWriter(ctx, parsedLayers, buf); err != nil {
+			return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
+		}
+	case cmds.BareCommand:
+		panic("BareCommand not supported yet")
+	case cmds.GlazeCommand:
+		panic("GlazeCommand not supported yet")
+	default:
+		panic("Unknown command type")
 	}
 
 	text := buf.String()
