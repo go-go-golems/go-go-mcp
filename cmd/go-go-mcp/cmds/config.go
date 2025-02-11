@@ -89,32 +89,89 @@ func NewConfigInitCommand() *cobra.Command {
 				return fmt.Errorf("config file already exists at %s", configFile)
 			}
 
-			// Create minimal config
-			editor, err := config.NewConfigEditor(configFile)
-			if err != nil {
-				return fmt.Errorf("could not create config editor: %w", err)
-			}
+			// Create initial config with documentation
+			initialContent := `# Go Go MCP Configuration File
+#
+# This file contains configuration for different profiles, tools, and prompts.
+# Each profile can have its own set of tools and prompts with specific parameter settings.
+#
+# You can manage this file using the 'go-go-mcp config' commands:
+# - edit: Edit this file in your default editor
+# - list-profiles: List all available profiles
+# - show-profile: Show full configuration of a profile
+# - add-tool: Add tool directory or file to a profile
+# - add-profile: Create a new profile
+# - duplicate-profile: Create a new profile by duplicating an existing one
+# - set-default-profile: Set the default profile
 
-			err = editor.AddProfile("default", "Default profile with basic configuration")
-			if err != nil {
-				return fmt.Errorf("could not add default profile: %w", err)
-			}
+version: "1"
+defaultProfile: development
 
-			err = editor.SetDefaultProfile("default")
-			if err != nil {
-				return fmt.Errorf("could not set default profile: %w", err)
-			}
+profiles:
+  development:
+    description: "Development environment with debug tools"
+    tools:
+      directories:
+        - path: ./dev-tools
+          defaults:
+            default:
+              debug: true
+              verbose: true
+          blacklist:
+            default:
+              - api_key
+      
+      files:
+        - path: ./special-debug.yaml
+    
+    prompts:
+      directories:
+        - path: ./dev-prompts
 
-			err = editor.AddToolDirectory("default", "./tools", map[string]interface{}{
-				"debug":   false,
-				"verbose": false,
-			})
-			if err != nil {
-				return fmt.Errorf("could not add tool directory: %w", err)
-			}
+  production:
+    description: "Production environment with strict controls"
+    tools:
+      directories:
+        - path: /opt/go-go-mcp/tools
+          whitelist:
+            default:
+              - timeout
+              - retries
+          overrides:
+            default:
+              timeout: 5s
+              retries: 3
+      
+      files:
+        - path: /opt/go-go-mcp/tools/special.yaml
+    
+    prompts:
+      directories:
+        - path: /opt/go-go-mcp/prompts
+          overrides:
+            default:
+              temperature: 0.7
+              max_tokens: 1000
 
-			if err := editor.Save(); err != nil {
-				return fmt.Errorf("could not save config file: %w", err)
+# Parameter Management:
+#
+# Each tool can have multiple parameter layers, and each layer can have its own settings:
+# - defaults: Set default values for parameters
+# - overrides: Force specific parameter values
+# - whitelist: Only allow specific parameters
+# - blacklist: Prevent certain parameters from being used
+#
+# Common layer names:
+# - default: Main parameter layer used by most tools
+# - output: Parameters related to output formatting
+# - format: Parameters controlling data format options
+#
+# For more information, see the documentation:
+# go-go-mcp help config-file
+`
+
+			if err := os.WriteFile(configFile, []byte(initialContent), 0644); err != nil {
+				return fmt.Errorf("could not write config file: %w", err)
 			}
 
 			fmt.Printf("Created new config file at %s\n", configFile)
