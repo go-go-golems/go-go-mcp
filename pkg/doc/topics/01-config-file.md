@@ -192,43 +192,82 @@ prompts:
 
 ## Parameter Management
 
+MCP uses Glazed's parameter layer system to organize and manage parameters. Each tool can have multiple parameter layers, and each layer can have its own set of parameters. The configuration file allows you to control these parameters through several mechanisms:
+
+### Layer Structure
+
+Parameter management in the configuration file follows this structure:
+```yaml
+defaults:
+  layer_name:    # Name of the parameter layer (e.g., 'default', 'output', etc.)
+    param1: value1
+    param2: value2
+
+overrides:
+  layer_name:    # Same layer names as defined in the tools
+    param1: forced_value
+
+whitelist:
+  layer_name:    # Layer-specific parameter whitelisting
+    - allowed_param1
+    - allowed_param2
+
+blacklist:
+  layer_name:    # Layer-specific parameter blacklisting
+    - blocked_param1
+    - blocked_param2
+```
+
+Each tool in MCP can define multiple parameter layers (see [Parameter Layers and Parsed Layers](13-layers-and-parsed-layers.md) for more details). Common layer names include:
+- `default`: The main parameter layer used by most tools
+- `output`: Parameters related to output formatting
+- `format`: Parameters controlling data format options
+- And any other custom layers defined by tools
+
 ### Defaults
 
-Set default parameter values:
+Set default parameter values for specific layers:
 
 ```yaml
 defaults:
-  default:  # layer name
+  default:  # The 'default' parameter layer
     timeout: 30s
     retries: 3
     debug: false
+  output:   # The 'output' parameter layer
+    format: json
+    pretty: true
 ```
 
 ### Overrides
 
-Force specific parameter values:
+Force specific parameter values for particular layers:
 
 ```yaml
 overrides:
   default:
     model: gpt-4-turbo
     max_tokens: 2000
+  format:
+    encoding: utf-8
 ```
 
 ### Blacklist
 
-Prevent certain parameters from being used:
+Prevent certain parameters from being used in specific layers:
 
 ```yaml
 blacklist:
   default:
-    - system_prompt
-    - api_key
+    - system_prompt  # Block system_prompt in default layer
+    - api_key       # Block api_key in default layer
+  output:
+    - raw_format    # Block raw_format in output layer
 ```
 
 ### Whitelist
 
-Only allow specific parameters:
+Only allow specific parameters for particular layers:
 
 ```yaml
 whitelist:
@@ -236,6 +275,31 @@ whitelist:
     - timeout
     - retries
     - debug
+  output:
+    - format
+    - pretty
+```
+
+### Layer Inheritance
+
+When tools are loaded from directories, the parameter management settings cascade down:
+
+```yaml
+tools:
+  directories:
+    - path: ./tools/system
+      defaults:
+        default:     # Affects all tools' default layer in this directory
+          timeout: 30s
+        output:      # Affects all tools' output layer in this directory
+          format: json
+      
+    - path: ./tools/data
+      defaults:
+        default:     # Different defaults for tools in data directory
+          timeout: 60s
+        format:      # Affects format layer for data tools
+          encoding: utf-8
 ```
 
 ## Advanced Features

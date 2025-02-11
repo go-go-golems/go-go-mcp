@@ -44,117 +44,16 @@ Finally, install by downloading the binaries straight from [github](https://gith
 
 This project implements the [Model Context Protocol](https://github.com/modelcontextprotocol/specification), which enables standardized communication between AI applications and language models. The implementation includes:
 
+- MCP server and client
+- Support for SSE and stdio transports
+- Bridge to expose an SSE server as a stdio server
+- Templated shell scripts as MCP tools
+- Configuration files for profiles
+
 - Core protocol message types and interfaces
 - A modular registry system for managing prompts, resources, and tools
-- Thread-safe provider implementations
-- A stdio server implementation
 - Support for custom handlers and subscriptions
-
-## Architecture
-
-The project follows a modular, provider-based architecture with these main components:
-
-1. Protocol Types (`pkg/protocol/types.go`)
-2. Registry System
-   - Prompts Registry (`pkg/prompts/registry.go`)
-   - Resources Registry (`pkg/resources/registry.go`)
-   - Tools Registry (`pkg/tools/registry.go`)
-3. Server Implementation (`pkg/server/server.go`)
-4. Error Handling (`pkg/registry.go`)
-
-For detailed architecture documentation, see [Architecture Documentation](pkg/doc/architecture.md).
-
-## Features
-
-### Registry System
-
-The registry system provides thread-safe management of prompts, resources, and tools:
-
-```go
-// Create registries
-promptRegistry := prompts.NewRegistry()
-resourceRegistry := resources.NewRegistry()
-toolRegistry := tools.NewRegistry()
-
-// Register a prompt with custom handler
-promptRegistry.RegisterPromptWithHandler(protocol.Prompt{
-    Name: "hello",
-    Description: "A simple greeting prompt",
-    Arguments: []protocol.PromptArgument{
-        {
-            Name: "name",
-            Description: "Name to greet",
-            Required: false,
-        },
-    },
-}, func(prompt protocol.Prompt, args map[string]string) (*protocol.PromptMessage, error) {
-    return &protocol.PromptMessage{
-        Role: "user",
-        Content: protocol.PromptContent{
-            Type: "text",
-            Text: fmt.Sprintf("Hello, %s!", args["name"]),
-        },
-    }, nil
-})
-```
-
-### Custom Handlers
-
-Each registry supports custom handlers for flexible behavior:
-
-- **Prompts**: Custom message generation
-- **Resources**: Custom content providers with subscription support
-- **Tools**: Custom tool execution handlers
-
-### Error Handling
-
-Standardized error handling with JSON-RPC compatible error codes:
-
-```go
-var (
-    ErrPromptNotFound   = NewError("prompt not found", -32000)
-    ErrResourceNotFound = NewError("resource not found", -32001)
-    ErrToolNotFound     = NewError("tool not found", -32002)
-    ErrNotImplemented   = NewError("not implemented", -32003)
-)
-```
-
-## Example Server
-
-The project includes an example stdio server that demonstrates the registry system:
-
-```go
-package main
-
-import (
-    "io"
-
-    "github.com/go-go-golems/go-go-mcp/pkg/prompts"
-    "github.com/go-go-golems/go-go-mcp/pkg/protocol"
-    "github.com/go-go-golems/go-go-mcp/pkg/resources"
-    "github.com/go-go-golems/go-go-mcp/pkg/server"
-    "github.com/go-go-golems/go-go-mcp/pkg/tools"
-    "github.com/rs/zerolog/log"
-)
-
-func main() {
-    srv := server.NewServer()
-
-    // Create registries
-    promptRegistry := prompts.NewRegistry()
-    resourceRegistry := resources.NewRegistry()
-    toolRegistry := tools.NewRegistry()
-
-    // Register with server
-    srv.GetRegistry().RegisterPromptProvider(promptRegistry)
-    srv.GetRegistry().RegisterResourceProvider(resourceRegistry)
-    srv.GetRegistry().RegisterToolProvider(toolRegistry)
-
-    if err := srv.Start(); err != nil && err != io.EOF {
-        log.Fatal().Err(err).Msg("Server error")
-    }
-}
-```
+- 
 
 ### Supported Methods
 
@@ -166,25 +65,21 @@ The server implements the MCP specification methods:
 - `prompts/get` - Retrieve prompt content
 - `resources/list` - List available resources
 - `resources/read` - Read resource content
-- `resources/subscribe` - Subscribe to resource updates
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
 
+Not yet implemented:
+- notifications
+- `resources/subscribe` - Subscribe to resource updates
+
 ## Running
-
-### Building the Binary
-
-Build the binary which includes both server and client functionality:
-
-```bash
-go build -o go-go-mcp ./cmd/mcp-server/main.go
-```
 
 ### Basic Usage
 
-The binary can be run in two modes:
-- Server mode (default): Run as an MCP server process
+The binary can be run in a few different modes:
+- Server mode: Run as an MCP server process
 - Client mode: Use client commands to interact with an MCP server
+- Bridge mode: Expose an SSE server as a stdio server
 
 #### Server Mode
 
@@ -226,18 +121,6 @@ go-go-mcp client --command custom-server,start,--debug,--port,8001 prompts list
 go-go-mcp client -c go-go-mcp,start,--config,config.yaml prompts list
 ```
 
-#### Using SSE Transport
-
-For web-based applications, use the SSE transport:
-
-```bash
-# Start the server with SSE transport
-go-go-mcp start --transport sse --port 3001
-
-# In another terminal, connect using the client
-go-go-mcp client --transport sse --server http://localhost:3001 prompts list
-```
-
 #### Using go-go-mcp as a Bridge
 
 go-go-mcp can be used as a bridge to expose an SSE server as a stdio server. This is useful when you need to connect a stdio-based client to an SSE server:
@@ -259,7 +142,7 @@ This is particularly useful when integrating with tools that only support stdio 
 Add the `--debug` flag to enable detailed logging:
 
 ```bash
-go-go-mcp client --debug prompts list
+go-go-mcp start --debug 
 ```
 
 ### Version Information
@@ -267,7 +150,7 @@ go-go-mcp client --debug prompts list
 Check the version:
 
 ```bash
-go-go-mcp version
+go-go-mcp -v
 ```
 
 ## Configuration
@@ -385,5 +268,3 @@ go-go-mcp help <topic>
 # Show examples for a topic
 go-go-mcp help <topic> --example
 ```
-
-### Project Structure

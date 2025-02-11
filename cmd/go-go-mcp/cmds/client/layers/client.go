@@ -31,8 +31,8 @@ func NewClientParameterLayer() (layers.ParameterLayer, error) {
 			parameters.NewParameterDefinition(
 				"command",
 				parameters.ParameterTypeStringList,
-				parameters.WithHelp("Command and arguments for command transport"),
-				parameters.WithDefault([]string{"mcp-server", "start", "--transport", "stdio"}),
+				parameters.WithHelp("Command and arguments for command transport (starts go-go-mcp in stdio mode per default)"),
+				parameters.WithDefault([]string{"go-go-mcp", "start", "--transport", "stdio"}),
 			),
 		),
 	)
