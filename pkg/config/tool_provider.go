@@ -28,6 +28,7 @@ type ConfigToolProvider struct {
 	helpSystem    *help.HelpSystem
 	debug         bool
 	tracingDir    string
+	directories   []repositories.Directory
 }
 
 type ConfigToolProviderOption func(*ConfigToolProvider) error
@@ -48,7 +49,7 @@ func WithTracingDir(dir string) ConfigToolProviderOption {
 
 func WithDirectories(directories []repositories.Directory) ConfigToolProviderOption {
 	return func(p *ConfigToolProvider) error {
-		p.repository = repositories.NewRepository(repositories.WithDirectories(directories...))
+		p.directories = append(p.directories, directories...)
 		return nil
 	}
 }
@@ -64,8 +65,6 @@ func WithConfig(config *Config, profile string) ConfigToolProviderOption {
 			return nil
 		}
 
-		directories := []repositories.Directory{}
-
 		// Load directories using Clay's repository system
 		for _, dir := range profileConfig.Tools.Directories {
 			absPath, err := filepath.Abs(dir.Path)
@@ -73,14 +72,15 @@ func WithConfig(config *Config, profile string) ConfigToolProviderOption {
 				return errors.Wrapf(err, "failed to get absolute path for %s", dir.Path)
 			}
 
-			directories = append(directories, repositories.Directory{
-				FS:            os.DirFS(absPath),
-				RootDirectory: ".",
-				Name:          dir.Path,
+			p.directories = append(p.directories, repositories.Directory{
+				FS:               os.DirFS(absPath),
+				RootDirectory:    ".",
+				RootDocDirectory: "doc",
+				WatchDirectory:   absPath,
+				Name:             dir.Path,
+				SourcePrefix:     "file",
 			})
 		}
-
-		p.repository = repositories.NewRepository(repositories.WithDirectories(directories...))
 
 		// Load individual files as ShellCommands
 		for _, file := range profileConfig.Tools.Files {
@@ -106,10 +106,10 @@ func WithConfig(config *Config, profile string) ConfigToolProviderOption {
 // NewConfigToolProvider creates a new ConfigToolProvider with the given options
 func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	provider := &ConfigToolProvider{
-		repository:    repositories.NewRepository(),
 		shellCommands: make(map[string]cmds.Command),
 		toolConfigs:   make(map[string]*SourceConfig),
 		helpSystem:    help.NewHelpSystem(),
+		directories:   []repositories.Directory{},
 	}
 
 	for _, option := range options {
@@ -117,6 +117,12 @@ func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProv
 			return nil, err
 		}
 	}
+
+	// Create repository with collected directories and shell command loader
+	provider.repository = repositories.NewRepository(
+		repositories.WithDirectories(provider.directories...),
+		repositories.WithCommandLoader(&mcp_cmds.ShellCommandLoader{}),
+	)
 
 	// Load repository commands
 	if err := provider.repository.LoadCommands(provider.helpSystem); err != nil {

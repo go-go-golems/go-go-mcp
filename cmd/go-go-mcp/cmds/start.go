@@ -35,6 +35,12 @@ type StartCommand struct {
 }
 
 func NewStartCommand() (*StartCommand, error) {
+	xdgConfigPath, err := os.UserConfigDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get user config directory")
+	}
+	defaultConfigFile := fmt.Sprintf("%s/go-go-mcp/profiles.yaml", xdgConfigPath)
+
 	return &StartCommand{
 		CommandDescription: cmds.NewCommandDescription(
 			"start",
@@ -79,7 +85,7 @@ Available transports:
 					"config-file",
 					parameters.ParameterTypeString,
 					parameters.WithHelp("Path to the configuration file"),
-					parameters.WithDefault(""),
+					parameters.WithDefault(defaultConfigFile),
 				),
 				parameters.NewParameterDefinition(
 					"profile",

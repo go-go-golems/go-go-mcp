@@ -1,0 +1,69 @@
+name: comment-issue
+short: Add a comment to a GitHub issue
+long: |
+  Adds a comment to a GitHub issue in the team-mento/mento-playground repository.
+  If no body text is provided through flags, it will interactively prompt for the comment text.
+
+flags:
+  - name: issue
+    type: string
+    help: Issue number or URL to comment on
+    required: true
+
+  - name: body
+    type: string
+    help: The comment body text
+
+  - name: body_file
+    type: string
+    help: Read body text from file (use "-" to read from standard input)
+
+  - name: edit_last
+    type: bool
+    help: Edit the last comment of the same author
+    default: false
+
+  - name: editor
+    type: bool
+    help: Skip prompts and open the text editor to write the body
+    default: false
+
+  - name: web
+    type: bool
+    help: Open the web browser to write the comment
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Build the base command
+  CMD=(gh issue comment -R team-mento/mento-playground)
+
+  # Add issue number/URL
+  CMD+=("{{ .Args.issue }}")
+
+  # Add comment options
+  {{ if .Args.body }}
+  CMD+=(--body "{{ .Args.body }}")
+  {{ end }}
+
+  {{ if .Args.body_file }}
+  CMD+=(--body-file "{{ .Args.body_file }}")
+  {{ end }}
+
+  {{ if .Args.edit_last }}
+  CMD+=(--edit-last)
+  {{ end }}
+
+  {{ if .Args.editor }}
+  CMD+=(--editor)
+  {{ end }}
+
+  {{ if .Args.web }}
+  CMD+=(--web)
+  {{ end }}
+
+  # Execute the command
+  echo "DEBUG: Executing: ${CMD[@]}"
+  "${CMD[@]}" 

@@ -812,3 +812,33 @@ Parka Parameter Filter Integration
 - Improved middleware handling for parameter defaults, overrides, and filtering
 - Removed custom parameter manager in favor of Parka's implementation
 - Better consistency with other tools in the ecosystem
+
+# Multi-Profile Configuration
+
+Added a new configuration file with three profiles (all, github, google) to demonstrate profile-based tool loading from different directories.
+
+- Created config.yaml with three distinct profiles
+- Set up directory paths for GitHub and Google tools
+- Configured default profile as 'all' to load all available tools
+
+# XDG Config Path Support
+
+Added support for XDG config directory for configuration files:
+- Set default config file path to ~/.config/go-go-mcp/profiles.yaml
+- Maintains backward compatibility with explicit --config-file flag
+- Improved configuration file discovery and organization
+
+## CORS Support for SSE Messages Endpoint
+
+Added CORS headers and OPTIONS request handling to the /messages endpoint to fix cross-origin request issues.
+
+- Added CORS headers to /messages endpoint
+- Added support for OPTIONS preflight requests
+- Fixed 405 Method Not Allowed errors for cross-origin requests
+
+# Improved notification handling in SSE transport
+
+Improved the SSE transport to handle notifications more efficiently by not waiting for responses when handling notification messages.
+
+- Modified SSE transport to skip response waiting for notifications
+- Added support for both empty ID and notifications/ prefix detection

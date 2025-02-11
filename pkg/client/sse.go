@@ -95,7 +95,14 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 		return nil, fmt.Errorf("server returned status %d: %s", resp.StatusCode, string(body))
 	}
 
+	// If this is a notification (empty ID or notifications/ prefix), don't wait for response
+	if len(request.ID) == 0 || string(request.ID) == "null" || strings.HasPrefix(request.Method, "notifications/") {
+		t.logger.Debug().Msg("Request is a notification, not waiting for response")
+		return nil, nil
+	}
+
 	// Wait for response event with context
+	// XXX manuel(2025-02-10) This is overly complex and not needed, in fact I should just dump all incoming events to stdout and not care at all
 	t.logger.Debug().Msg("Waiting for response event")
 	select {
 	case event := <-t.events:
@@ -106,7 +113,6 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 			return nil, fmt.Errorf("server error: %s", string(event.Data))
 		}
 
-		t.logger.Debug().Int("dataLength", len(event.Data)).Msg("FOOBAR")
 		t.logger.Debug().
 			Str("event", string(event.Event)).
 			RawJSON("data", event.Data).
