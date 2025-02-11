@@ -94,7 +94,7 @@ func (c *ConfigEditor) AddToolDirectory(profile, path string, defaults map[strin
 
 	// Get or create the directories sequence
 	var dirSeqNode *yaml.Node
-	dirSeqNode, err = c.editor.GetMapNode("directories", toolsNode)
+	_, err = c.editor.GetMapNode("directories", toolsNode)
 	if err != nil {
 		// Create new directories sequence
 		dirSeqNode = &yaml.Node{Kind: yaml.SequenceNode}
@@ -130,7 +130,7 @@ func (c *ConfigEditor) AddToolFile(profile, path string) error {
 
 	// Get or create the files sequence
 	var fileSeqNode *yaml.Node
-	fileSeqNode, err = c.editor.GetMapNode("files", toolsNode)
+	_, err = c.editor.GetMapNode("files", toolsNode)
 	if err != nil {
 		// Create new files sequence
 		fileSeqNode = &yaml.Node{Kind: yaml.SequenceNode}
