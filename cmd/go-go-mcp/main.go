@@ -59,9 +59,12 @@ func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
 
-	doc.AddDocToHelpSystem(helpSystem)
+	err := doc.AddDocToHelpSystem(helpSystem)
+	if err != nil {
+		return nil, err
+	}
 
-	err := clay.InitViper("mcp", rootCmd)
+	err = clay.InitViper("mcp", rootCmd)
 	if err != nil {
 		return nil, err
 	}

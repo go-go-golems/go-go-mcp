@@ -66,4 +66,3 @@ func LoadShellCommand(path string) (*ShellCommand, error) {
 
 	return LoadShellCommandFromYAML(data)
 }
-	
