@@ -192,6 +192,14 @@ func (s *SSEBridgeServer) handleMessage(message string) error {
 		return s.sendError(&request.ID, -32603, "Internal error", err)
 	}
 
+	if response == nil {
+		s.logger.Debug().Msg("No response from SSE server")
+		return nil
+	}
+
+	jsonResponse, _ := json.MarshalIndent(response, "", "  ")
+	s.logger.Debug().RawJSON("response", jsonResponse).Msg("Forwarded request to SSE server")
+
 	// Send the response back over stdio
 	return s.writer.Encode(response)
 }
