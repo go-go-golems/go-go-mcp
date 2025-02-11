@@ -988,3 +988,20 @@ Added ability to temporarily disable MCP servers without removing their configur
 - 🏗️ Added `DisabledMCPServers` field to configuration format
 - 📝 Updated list-servers command to show disabled status
 - 🔧 Added helper functions for managing server state
+
+# Added Log Tailing Support
+
+Added ability to tail Claude log files in real-time:
+- ✨ Added `tail` command to claude-config for monitoring log files
+- 🔍 Support for tailing specific server logs by name
+- 🎯 Added `--all` flag to tail all log files simultaneously
+- 🛠️ Graceful shutdown support with Ctrl+C
+- 📝 Real-time log monitoring with automatic file reopening
+
+# Added File Helpers Package
+
+Added a new package for file manipulation helpers:
+- ✨ Added `FindStartPosForLastNLines` function for efficient seeking to last N lines
+- 🧪 Added comprehensive table-driven tests with various edge cases
+- 📝 Added detailed documentation and examples
+- 🔍 Optimized for large files with buffered reading
