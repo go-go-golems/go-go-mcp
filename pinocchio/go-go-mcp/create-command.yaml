@@ -1,0 +1,227 @@
+name: create-command
+short: Generate a shell command YAML file
+flags:
+  - name: additional_system
+    type: stringList
+    help: Additional system prompt
+  - name: additional
+    type: stringList
+    help: Additional prompt
+  - name: description
+    type: string
+    help: Description of the command to create
+    required: true
+  - name: context
+    type: fileList
+    help: Additional context
+  - name: types
+    type: stringList
+    help: List of parameter types
+    default:
+      - string
+      - int
+      - float
+      - bool
+      - date
+      - stringList
+      - intList
+      - floatList
+      - choice
+      - choiceList
+      - file
+      - fileList
+      - stringFromFile
+      - objectFromFile
+      - stringListFromFile
+      - objectListFromFile
+      - keyValue
+  - name: example_name
+    type: string
+    help: Name of the example
+    default: Process logs
+  - name: example
+    type: stringFromFile
+    help: Example of the command
+    default: |
+      name: process-logs
+      short: Process log files with filtering and output formatting
+      long: |
+        Process log files with flexible filtering options and multiple output formats.
+        Supports pattern matching, time-based filtering, and various output formats.
+      
+      flags:
+        - name: log_dir
+          type: string
+          help: Directory containing log files
+          required: true
+        
+        - name: pattern
+          type: string
+          help: Search pattern
+          required: true
+        
+        - name: since
+          type: string
+          help: Process logs since timestamp
+          default: "24h"
+        
+        - name: format
+          type: choice
+          help: Output format
+          choices: [text, json, csv]
+          default: text
+        
+        - name: output
+          type: string
+          help: Output file
+          default: output.log
+        
+        - name: verbose
+          type: bool
+          help: Enable verbose output
+          default: false
+      
+      shell-script: |
+        #!/bin/bash
+        set -euo pipefail
+        
+        # Convert time period to timestamp using Sprig's date functions
+        since_time=$(date -d "{{ .Args.since | duration "s" }} ago" +%s)
+        
+        # Process each log file
+        find {{ .Args.log_dir }} -type f -name "*.log" | while read -r log; do
+          if [[ $(stat -c %Y "$log") -gt $since_time ]]; then
+            case {{ .Args.format }} in
+              json)
+                grep "{{ .Args.pattern }}" "$log" | jq -R -s 'split("\n")[:-1] | map({line:.})'
+                ;;
+              csv)
+                grep "{{ .Args.pattern }}" "$log" | sed 's/^/$(basename "$log"),/' >> {{ .Args.output }}
+                ;;
+              text|*)
+                grep "{{ .Args.pattern }}" "$log"
+                ;;
+            esac
+          fi
+        done
+
+system-prompt: |
+  You are an expert shell command designer tasked with creating a YAML template for
+  shell commands that are to be exposed to an LLM for tool calling.
+   Your goal is to analyze the given input and create a
+  standardized, well-structured YAML template that follows go-go-mcp's shell command
+  format and properly describes the command, its arguments and its flags.
+
+  
+  {{ .additional_system | join "\n" }}
+
+prompt: |
+  Here is the description of the command you need to analyze and transform into a shell command YAML template:
+
+  <input_text>
+  {{.description}}
+  </input_text>
+
+  Before creating the final YAML template, please analyze the input text and show your reasoning process in <prompt_analysis> tags. In your analysis:
+  1. List out the key components of the input text
+  2. Identify which parts can be parameterized as flags. Try to minimize the amount of flags, because this will be used as an LLM tool call.
+     For each flag, write a clear description of what it is for.
+  3. Determine if a simple command list or shell script is more appropriate
+  4. Consider environment variables and working directory requirements
+  5. Plan error handling and output capture strategy
+  6. Outline the structure of the command or shell script
+
+  After your analysis, create the YAML template according to the following structure:
+
+  ```yaml
+  # Metadata Section (Required)
+  name:             # Command name (use lowercase and underscores)
+  short:            # One-line description
+  long: |           # Detailed multi-line description, with multiple usage examples
+    ...
+
+  # Parameter Definition
+  flags:            # Optional: Command parameters
+    - name:         # Parameter name (use underscores, not hyphens)
+      type:         # Parameter type ({{ .types | join ", " }})
+      help:         # Parameter description
+      required:     # Whether the parameter is required
+      default:      # Default value if not required
+      choices:      # For choice/choiceList types
+
+  # Execution Configuration (One of command: or shell-script: is required)
+  command:          # For simple commands
+    - executable
+    - arg1
+    - "{{ "{{ .Args.flag_name }}" }}"
+
+  # OR
+
+  shell-script: |   # For complex operations
+    #!/bin/bash
+    set -euo pipefail  # Always include error handling
+    ...
+
+  # Optional Configuration
+  environment:      # Environment variables
+    ENV_VAR: "{{ "{{ .Args.flag_name }}" }}"
+  cwd:             # Working directory
+  capture-stderr:  # Whether to capture stderr in output
+  ```
+
+  Shell commands in go-go-mcp use Go's template language for variable interpolation and control flow,
+  with additional functionality provided by Sprig template functions. This allows for:
+  - Variable interpolation: {{ "{{ .Args.flag_name }}" }}
+  - Conditional logic: {{ "{{ if .Args.verbose }}-v{{ end }}" }}
+  - Loops and ranges: {{ "{{ range .Args.items }}{{ . }} {{ end }}" }}
+  - String manipulation: {{ "{{ .Args.name | lower | trim }}" }}
+  - Date handling: {{ "{{" }} now | date "2006-01-02" {{ "}}" }}
+  - List operations: {{ "{{" }} .Args.list | join "," {{ "}}" }}
+  - Math operations: {{ "{{" }} .Args.number | add 1 {{ "}}" }}
+
+  Guidelines for creating the YAML template:
+
+  1. File Structure:
+     - Use clear sections with comments
+     - Keep related configuration together
+     - Follow the order: metadata, flags, execution, optional config
+
+  2. Naming and Style:
+     - Use lowercase with underscores for all names
+     - Write clear, concise descriptions
+     - Add helpful comments for complex parts
+
+  3. Parameter Types:
+     - Choose appropriate types for each flag
+     - Use choice/choiceList for enumerated values
+     - Consider using file types for input/output
+     - Add validation through required/default/choices
+
+  4. Templating:
+     - Use Go templates for dynamic values: {{ "{{ .Args.name }}" }}
+     - Add conditionals where needed: {{ "{{ if condition }}{{ end }}" }}
+     - Use Sprig functions for advanced operations:
+       * String: trim, upper, lower, title
+       * Lists: first, last, join, split
+       * Math: add, mul, div, mod
+       * Date: now, date, dateInZone
+       * Encoding: b64enc, b64dec, toJson
+
+  5. Error Handling:
+     - Always use set -euo pipefail in shell scripts
+     - Add input validation
+     - Include proper error messages
+     - Consider cleanup on failure
+
+  6. Security:
+     - Validate and sanitize inputs
+     - Use environment variables for secrets
+     - Consider working directory implications
+     - Add appropriate permissions checks
+
+  Example shell command:
+  ```yaml
+  {{ .example }}
+  ```
+
+  Present your final YAML template enclosed in <yaml_template> tags.

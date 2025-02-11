@@ -860,3 +860,32 @@ Added notification handling support to the stdio transport:
 - Implemented SetNotificationHandler method
 - Added notification detection and handling in Send method
 - Improved response handling to properly handle interleaved notifications
+
+## Documentation: Added Pinocchio Integration Instructions
+
+Added documentation about using Pinocchio to generate shell commands for go-go-mcp.
+
+- Added section about adding go-go-mcp as a Pinocchio repository
+- Added instructions for using the create-command template
+
+## Documentation: Added Run Command Usage Instructions
+
+Added documentation about using the run-command subcommand to execute shell commands directly as standalone command-line tools.
+
+- Added section about using run-command with shell command YAML files
+- Added examples for different types of commands (GitHub, Google Calendar, URL fetching)
+
+## Documentation: Added Example Commands Overview
+
+Added a comprehensive overview of example commands available in the examples directory.
+
+- Added categorized listing of example commands (GitHub, Google Calendar, Web Content, etc.)
+- Added brief descriptions for each command
+- Improved discoverability of available tools
+
+## Documentation: Added Schema Command and Improved Example Links
+
+Enhanced the example commands documentation:
+- Added information about using the schema command to view parameter documentation
+- Converted example command paths to clickable markdown links
+- Added examples of viewing command documentation using both schema and help
