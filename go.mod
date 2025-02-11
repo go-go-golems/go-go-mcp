@@ -8,10 +8,11 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/go-go-golems/clay v0.1.23
 	github.com/go-go-golems/geppetto v0.4.34
-	github.com/go-go-golems/glazed v0.5.27
+	github.com/go-go-golems/glazed v0.5.28
 	github.com/go-go-golems/parka v0.5.17
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
+	github.com/hpcloud/tail v1.0.0
 	github.com/invopop/jsonschema v0.13.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/pkg/errors v0.9.1
@@ -110,7 +111,9 @@ require (
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
+	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
