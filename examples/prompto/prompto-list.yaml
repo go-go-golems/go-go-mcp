@@ -1,0 +1,9 @@
+name: prompto-list
+short: List all prompto entries
+long: |
+  Lists all available prompto entries in a formatted output.
+  This command wraps the 'prompto list' command.
+command:
+  - prompto
+  - list
+capture-stderr: true 

@@ -1,0 +1,15 @@
+name: prompto-get
+short: Get a specific prompto entry
+long: |
+  Retrieves a specific prompto entry by its name.
+  This command wraps the 'prompto get' command.
+flags:
+  - name: entry_name
+    type: string
+    help: Name of the prompto entry to retrieve
+    required: true
+command:
+  - prompto
+  - get
+  - "{{ .Args.entry_name }}"
+capture-stderr: true 

@@ -25,61 +25,102 @@ type ConfigToolProvider struct {
 	repository    *repositories.Repository
 	shellCommands map[string]cmds.Command
 	toolConfigs   map[string]*SourceConfig
+	helpSystem    *help.HelpSystem
+	debug         bool
+	tracingDir    string
 }
 
-func NewConfigToolProvider(config *Config, profile string) (*ConfigToolProvider, error) {
-	if _, ok := config.Profiles[profile]; !ok {
-		return nil, errors.Errorf("profile %s not found", profile)
+type ConfigToolProviderOption func(*ConfigToolProvider) error
+
+func WithDebug(debug bool) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.debug = debug
+		return nil
 	}
+}
 
-	directories := []repositories.Directory{}
-	profileConfig := config.Profiles[profile]
+func WithTracingDir(dir string) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.tracingDir = dir
+		return nil
+	}
+}
 
-	// Load directories using Clay's repository system
-	for _, dir := range profileConfig.Tools.Directories {
-		absPath, err := filepath.Abs(dir.Path)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get absolute path for %s", dir.Path)
+func WithDirectories(directories []repositories.Directory) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.repository = repositories.NewRepository(repositories.WithDirectories(directories...))
+		return nil
+	}
+}
+
+func WithConfig(config *Config, profile string) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		profileConfig, ok := config.Profiles[profile]
+		if !ok {
+			return errors.Errorf("profile %s not found", profile)
 		}
 
-		directories = append(directories, repositories.Directory{
-			FS:            os.DirFS(absPath),
-			RootDirectory: ".",
-			Name:          dir.Path,
-		})
-	}
+		if profileConfig.Tools == nil {
+			return nil
+		}
 
+		directories := []repositories.Directory{}
+
+		// Load directories using Clay's repository system
+		for _, dir := range profileConfig.Tools.Directories {
+			absPath, err := filepath.Abs(dir.Path)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get absolute path for %s", dir.Path)
+			}
+
+			directories = append(directories, repositories.Directory{
+				FS:            os.DirFS(absPath),
+				RootDirectory: ".",
+				Name:          dir.Path,
+			})
+		}
+
+		p.repository = repositories.NewRepository(repositories.WithDirectories(directories...))
+
+		// Load individual files as ShellCommands
+		for _, file := range profileConfig.Tools.Files {
+			absPath, err := filepath.Abs(file.Path)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get absolute path for %s", file.Path)
+			}
+
+			shellCmd, err := mcp_cmds.LoadShellCommand(absPath)
+			if err != nil {
+				return errors.Wrapf(err, "failed to load shell command from %s", file.Path)
+			}
+
+			desc := shellCmd.Description()
+			p.shellCommands[desc.Name] = shellCmd
+			p.toolConfigs[desc.Name] = &file
+		}
+
+		return nil
+	}
+}
+
+// NewConfigToolProvider creates a new ConfigToolProvider with the given options
+func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	provider := &ConfigToolProvider{
-		repository:    repositories.NewRepository(repositories.WithDirectories(directories...)),
+		repository:    repositories.NewRepository(),
 		shellCommands: make(map[string]cmds.Command),
 		toolConfigs:   make(map[string]*SourceConfig),
+		helpSystem:    help.NewHelpSystem(),
 	}
 
-	if profileConfig.Tools == nil {
-		return provider, nil
+	for _, option := range options {
+		if err := option(provider); err != nil {
+			return nil, err
+		}
 	}
 
-	helpSystem := help.NewHelpSystem()
 	// Load repository commands
-	if err := provider.repository.LoadCommands(helpSystem); err != nil {
+	if err := provider.repository.LoadCommands(provider.helpSystem); err != nil {
 		return nil, errors.Wrap(err, "failed to load repository commands")
-	}
-
-	// Load individual files as ShellCommands
-	for _, file := range profileConfig.Tools.Files {
-		absPath, err := filepath.Abs(file.Path)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get absolute path for %s", file.Path)
-		}
-
-		shellCmd, err := mcp_cmds.LoadShellCommand(absPath)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to load shell command from %s", file.Path)
-		}
-
-		desc := shellCmd.Description()
-		provider.shellCommands[desc.Name] = shellCmd
-		provider.toolConfigs[desc.Name] = &file
 	}
 
 	return provider, nil

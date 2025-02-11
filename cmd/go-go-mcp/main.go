@@ -76,14 +76,14 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Create and add start command
 	startCmd, err := server_cmds.NewStartCommand()
 	cobra.CheckErr(err)
-	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd)
+	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraStartCmd)
 
 	// Create and add schema command
 	schemaCmd, err := server_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)
-	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd)
+	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 

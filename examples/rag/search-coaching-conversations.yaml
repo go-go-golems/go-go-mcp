@@ -1,0 +1,36 @@
+name: search-coaching-conversations
+short: Search through past coaching conversations
+long: |
+  Performs a semantic search through the history of coaching conversations
+  to find relevant discussions and insights. This tool should only be used
+  in the context of discussing coaching topics or when specific coaching-related
+  information needs to be retrieved.
+  
+  The tool provides:
+  - Relevant excerpts from past coaching conversations
+  - Context around the matched content
+  - Temporal information about when the conversations occurred
+  
+  Note: This tool should be called when you need to:
+  - Find specific advice given in past coaching sessions
+  - Research how similar topics were handled previously
+  - Build upon past coaching insights
+  - Connect current discussions with historical context
+  
+  The search is semantic, meaning it will find relevant content even if
+  the exact words are not matched.
+flags:
+  - name: query
+    type: string
+    help: The coaching-related topic or question to search for in past conversations
+    required: true
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  cd /home/manuel/code/mento/go-go-mento
+  source /home/manuel/code/mento/go-go-mento/.envrc
+  cd /home/manuel/code/mento/go-go-mento/go
+  
+  escuse-me examples search-summaries-embeddings --query "{{ .Args.query }}" --output yaml
+capture-stderr: true 

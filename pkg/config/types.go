@@ -1,5 +1,12 @@
 package config
 
+import (
+	"os"
+
+	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
+)
+
 // Config represents the root configuration
 type Config struct {
 	Version        string              `yaml:"version"`
@@ -49,4 +56,19 @@ type PromptSources struct {
 		Args         []string `yaml:"args,omitempty"`
 		SourceConfig `yaml:",inline"`
 	} `yaml:"pinocchio,omitempty"`
+}
+
+// LoadFromFile loads a configuration from a YAML file
+func LoadFromFile(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read config file")
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, errors.Wrap(err, "failed to parse config file")
+	}
+
+	return &config, nil
 }

@@ -1,0 +1,114 @@
+version: "1"
+defaultProfile: default
+
+profiles:
+  default:
+    description: "Default profile with basic tools"
+    tools:
+      directories:
+        - path: ./examples/shell-commands
+          defaults:
+            default:
+              debug: false
+              verbose: false
+      files:
+        - path: ./examples/smart-connect/read.yaml
+
+  productivity:
+    description: "Tools for productivity and note-taking"
+    tools:
+      directories:
+        - path: ./examples/smart-connect
+          defaults:
+            default:
+              verbose: true
+          blacklist:
+            default:
+              - api_key
+      files:
+        - path: ./examples/smart-connect/read.yaml
+          overrides:
+            default:
+              verbose: true
+
+  research:
+    description: "Tools for research and data extraction"
+    tools:
+      directories:
+        - path: ./examples/html-extract
+          defaults:
+            default:
+              timeout: 30s
+              max_retries: 3
+        - path: ./examples/bio-stuff
+          defaults:
+            default:
+              cache_results: true
+      files:
+        - path: ./examples/html-extract/pubmed.yaml
+          overrides:
+            default:
+              max_results: 100
+
+  google-integration:
+    description: "Google and GitHub integration tools"
+    tools:
+      directories:
+        - path: ./examples/google
+          defaults:
+            default:
+              cache_credentials: true
+          blacklist:
+            default:
+              - client_secret
+              - refresh_token
+          whitelist:
+            default:
+              - query
+              - max_results
+              - start_date
+              - end_date
+
+  rag:
+    description: "RAG and knowledge management tools"
+    tools:
+      directories:
+        - path: ./examples/rag
+          defaults:
+            ai-chat:
+              model: gpt-4-turbo
+              max_tokens: 2000
+          overrides:
+            ai-chat:
+              temperature: 0.7
+        - path: ./examples/prompts/rag.yaml
+          defaults:
+            default:
+              verbose: true
+
+  devops:
+    description: "Development and operations tools"
+    tools:
+      directories:
+        - path: ./examples/shell-commands
+          defaults:
+            default:
+              debug: true
+              verbose: true
+          whitelist:
+            default:
+              - command
+              - args
+              - working_dir
+              - timeout
+          blacklist:
+            default:
+              - env
+      files:
+        - path: ./examples/shell-commands/docker-comp.yaml
+        - path: ./examples/shell-commands/git-sync.yaml
+        - path: ./examples/shell-commands/backup-db.yaml
+          overrides:
+            default:
+              timeout: 300s
+              max_retries: 5 

@@ -1,0 +1,49 @@
+name: diary-append
+short: Append a diary entry with timestamp to /tmp/DIARY
+long: |
+  This command appends a diary entry to /tmp/DIARY, automatically formatting it as markdown
+  with the current date as a heading. It's useful for maintaining a simple timestamped log
+  or diary of events, thoughts, or notes.
+  
+  INPUT: A message to append to the diary
+  OUTPUT: The message is appended to /tmp/DIARY with proper markdown formatting
+  
+  The command:
+  - Creates /tmp/DIARY if it doesn't exist
+  - Adds current date as a level 2 heading
+  - Formats the message as markdown text
+  - Adds two newlines after each entry for readability
+  
+  Common use cases:
+  1. Log a quick thought: --message "Need to remember to check the logs"
+  2. Record a decision: --message "Decided to use PostgreSQL for the project"
+  3. Keep track of tasks: --message "- [ ] Review PR #123\n- [ ] Update documentation"
+
+flags:
+  - name: message
+    type: string
+    help: |
+      The message to append to the diary.
+      Can include markdown formatting.
+      Will be added under a timestamp heading.
+      Example: --message "Important meeting notes:\n- Discussed roadmap\n- Set Q2 goals"
+    required: true
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Create diary file if it doesn't exist
+  touch /tmp/DIARY
+  
+  # Format current date as markdown heading
+  date_heading="## $(date '+%Y-%m-%d %H:%M:%S')"
+  
+  # Append entry to diary
+  {
+    echo -e "\n$date_heading\n"
+    echo "{{ .Args.message }}"
+    echo -e "\n"
+  } >> /tmp/DIARY
+  
+  echo "Entry added to /tmp/DIARY" 

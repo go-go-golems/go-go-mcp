@@ -1,0 +1,23 @@
+name: pubmed-search
+short: Search PubMed and extract structured data
+long: |
+  Search PubMed using a search term and extract structured data from the results page.
+  Uses html-selector to parse the HTML and extract relevant information.
+
+flags:
+  - name: search_term
+    type: string
+    help: PubMed search term
+    required: true
+  - name: max_pages
+    type: int
+    help: Maximum number of pages to scrape
+    default: 1
+
+command:
+  - html-selector
+  - select
+  - --urls
+  - "https://pubmed.ncbi.nlm.nih.gov/?term={{ .Args.search_term }}"
+  - --config
+  - "/tmp/html-extraction-2025-01-26-19-54-54.yaml" 
