@@ -34,7 +34,44 @@ This tutorial will guide you through creating and using configuration files in g
 
 ## Basic Configuration
 
-Let's start with a minimal configuration file:
+The easiest way to get started is to use the built-in configuration management commands:
+
+```bash
+# Create a new configuration file
+go-go-mcp config init
+
+# Edit the configuration in your default editor
+go-go-mcp config edit
+```
+
+This will create a minimal configuration file with a default profile. You can then add more profiles and tools:
+
+```bash
+# Add a new profile
+go-go-mcp config add-profile development "Development environment with debug tools"
+
+# Add tool directories to the profile
+go-go-mcp config add-tool development --dir ./tools/system
+go-go-mcp config add-tool development --dir ./tools/data
+
+# Set it as the default profile
+go-go-mcp config set-default-profile development
+
+# View your profiles
+go-go-mcp config list-profiles
+
+# Show the full configuration of a profile
+go-go-mcp config show-profile development
+```
+
+You can also create profiles by duplicating existing ones:
+
+```bash
+# Create a staging profile based on development
+go-go-mcp config duplicate-profile development staging "Staging environment"
+```
+
+Alternatively, you can manually create a configuration file with this minimal structure:
 
 ```yaml
 version: "1"

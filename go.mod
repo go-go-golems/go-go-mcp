@@ -6,7 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/go-go-golems/clay v0.1.21
+	github.com/go-go-golems/clay v0.1.23
 	github.com/go-go-golems/geppetto v0.4.34
 	github.com/go-go-golems/glazed v0.5.27
 	github.com/go-go-golems/parka v0.5.17
@@ -18,6 +18,7 @@ require (
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.8.1
+	github.com/spf13/viper v1.19.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -91,7 +92,6 @@ require (
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.19.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tj/go-naturaldate v1.3.0 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect

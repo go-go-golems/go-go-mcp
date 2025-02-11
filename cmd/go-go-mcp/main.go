@@ -96,6 +96,10 @@ func initRootCmd() (*help.HelpSystem, error) {
 	bridgeCmd := server_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
 
+	// Add config command group
+	configCmd := server_cmds.NewConfigGroupCommand()
+	rootCmd.AddCommand(configCmd)
+
 	return helpSystem, nil
 }
 

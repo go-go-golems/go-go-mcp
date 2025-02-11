@@ -385,7 +385,55 @@ Key points:
 
 ## Configuring MCP
 
-Now let's create a configuration file that organizes tools by their use cases. Create `config.yaml`:
+Let's set up our configuration using the built-in configuration management tools:
+
+1. **Initialize Configuration**
+   ```bash
+   # Create a new configuration file
+   go-go-mcp config init
+   
+   # Edit it in your default editor to review
+   go-go-mcp config edit
+   ```
+
+2. **Create Profiles for Different Environments**
+   ```bash
+   # Create development profile
+   go-go-mcp config add-profile development "Development environment with debug tools"
+   
+   # Add tool directories
+   go-go-mcp config add-tool development --dir ./tools/system
+   go-go-mcp config add-tool development --dir ./tools/data
+   
+   # Create production profile
+   go-go-mcp config add-profile production "Production environment with strict controls"
+   
+   # Add production tools
+   go-go-mcp config add-tool production --dir /opt/go-go-mcp/tools
+   
+   # Create staging by duplicating development
+   go-go-mcp config duplicate-profile development staging "Staging environment"
+   ```
+
+3. **Review Configuration**
+   ```bash
+   # List all profiles
+   go-go-mcp config list-profiles
+   
+   # Show development profile configuration
+   go-go-mcp config show-profile development
+   
+   # Show production profile configuration
+   go-go-mcp config show-profile production
+   ```
+
+4. **Set Default Profile**
+   ```bash
+   # Set development as default for local work
+   go-go-mcp config set-default-profile development
+   ```
+
+Now let's create a configuration file that organizes tools by their use cases:
 
 ## Working with Configuration Files
 
