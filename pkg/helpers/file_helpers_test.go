@@ -163,7 +163,7 @@ func TestFindStartPosForLastNLines(t *testing.T) {
 				// For debugging: print the actual content from the found position
 				if file, err := os.Open(filepath); err == nil {
 					defer file.Close()
-					file.Seek(gotPos, 0)
+					_, _ = file.Seek(gotPos, 0)
 					content := make([]byte, 1024)
 					n, _ := file.Read(content)
 					t.Logf("Content from position %d: %q", gotPos, content[:n])
