@@ -937,3 +937,89 @@ Updated the configuration documentation to include the command-line configuratio
 - Updated configuration file tutorial with CLI tool usage
 - Added CLI-based configuration workflow to MCP in Practice guide
 - Improved documentation organization and clarity
+
+## Claude Desktop Configuration Editor
+
+Added functionality to manage Claude desktop configuration files through the go-go-mcp CLI.
+This allows users to manage MCP server configurations for the Claude desktop application.
+
+- ✨ Added `claude-config` command group with the following subcommands:
+  - `init`: Initialize a new Claude desktop configuration file
+  - `edit`: Edit the configuration file in your default editor
+  - `add-mcp-server`: Add or update an MCP server configuration
+  - `remove-mcp-server`: Remove an MCP server configuration
+  - `list-servers`: List all configured MCP servers
+- 🏗️ Added `ClaudeDesktopEditor` type for managing Claude desktop configuration files
+- 📝 Configuration files are stored in the XDG config directory under `Claude/claude_desktop_config.json`
+
+## Environment Variable Support for Claude Desktop Configuration
+
+Added support for environment variables in MCP server configurations:
+- ✨ Added `--env` flag to `claude-config add-mcp-server` command to set environment variables
+- 🔧 Environment variables are stored in the `env` field of server configurations
+- 📝 Updated `list-servers` command to display configured environment variables
+
+## Improved Claude Desktop Configuration Command Output
+
+Enhanced the output of Claude desktop configuration commands:
+- 📝 Added detailed success messages for add-mcp-server and remove-mcp-server commands
+- 🔍 Added configuration file path to command output for better visibility
+- 💡 Added empty state handling in list-servers command
+
+## Added Server Existence Check and Overwrite Flag
+
+Added safety check when adding MCP servers and option to overwrite:
+- 🛡️ Added check for existing servers in `add-mcp-server` command
+- ✨ Added `--overwrite` flag to force update of existing servers
+- 📝 Updated success messages to indicate whether server was added or updated
+
+# Enhanced Claude Desktop Configuration Documentation
+
+Updated the Claude desktop configuration documentation with:
+- Comprehensive command-line examples for all claude-config commands
+- Detailed examples of using init, edit, add-mcp-server, remove-mcp-server, and list-servers
+- Clear explanations of command flags and options
+- Improved organization and readability
+
+# Added Server Enable/Disable Support
+
+Added ability to temporarily disable MCP servers without removing their configuration:
+- ✨ Added `disable-server` and `enable-server` commands to claude-config
+- 🏗️ Added `DisabledServers` map to store configurations of disabled servers
+- 📝 Updated list-servers command to show disabled status
+- 🔧 Added helper functions for managing server state
+
+# Added Log Tailing Support
+
+Added ability to tail Claude log files in real-time:
+- ✨ Added `tail` command to claude-config for monitoring log files
+- 🔍 Support for tailing specific server logs by name
+- 🎯 Added `--all` flag to tail all log files simultaneously
+- 🛠️ Graceful shutdown support with Ctrl+C
+- 📝 Real-time log monitoring with automatic file reopening
+
+# Enhanced Log Tailing with Line History
+
+Enhanced the tail command with line history support:
+- ✨ Added `--lines/-n` flag to show last N lines when starting to tail
+- 🔍 Efficient seeking to last N lines without reading entire file
+- 🛠️ Proper handling of files without newline at end
+- 📝 Updated command documentation with new flag
+
+## Improved MCP Server Enable/Disable Functionality
+
+Improved the enable/disable functionality for MCP servers to properly preserve server configurations when enabling/disabling them.
+
+- Added `DisabledServers` map to store configurations of disabled servers
+- Updated `EnableMCPServer` to move server config from disabled to enabled state
+- Updated `DisableMCPServer` to move server config from enabled to disabled state
+- Updated `ListServers` to show both enabled and disabled server configurations
+
+## Parameter Value Validation and Casting
+
+Enhanced parameter validation to return cast values along with validation errors. This allows for proper type conversion and sanitization of input values.
+
+- Modified `CheckValueValidity` to return both the cast value and any validation errors
+- Added `setReflectValue` method to handle setting reflect values with proper type casting
+- Updated tests to verify cast values
+- Improved error messages for invalid choices

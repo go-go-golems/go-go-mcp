@@ -200,7 +200,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
-		s.logger.Info().Interface("params", params).Msg("Handling initialize request")
+		s.logger.Debug().Interface("params", params).Msg("Handling initialize request")
 
 		result, err := s.initializeService.Initialize(ctx, params)
 		if err != nil {
@@ -223,7 +223,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
-		s.logger.Info().Str("cursor", cursor).Msg("Listing prompts")
+		s.logger.Debug().Str("cursor", cursor).Msg("Listing prompts")
 
 		prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
 		if err != nil {
@@ -244,7 +244,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
 
-		s.logger.Info().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Getting prompt")
+		s.logger.Debug().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Getting prompt")
 
 		message, err := s.promptService.GetPrompt(ctx, params.Name, params.Arguments)
 		if err != nil {
@@ -268,7 +268,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
-		s.logger.Info().Str("cursor", cursor).Msg("Listing resources")
+		s.logger.Debug().Str("cursor", cursor).Msg("Listing resources")
 
 		resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
 		if err != nil {
@@ -288,7 +288,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
 
-		s.logger.Info().Str("uri", params.URI).Msg("Reading resource")
+		s.logger.Debug().Str("uri", params.URI).Msg("Reading resource")
 
 		content, err := s.resourceService.ReadResource(ctx, params.URI)
 		if err != nil {
@@ -311,7 +311,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
-		s.logger.Info().Str("cursor", cursor).Msg("Listing tools")
+		s.logger.Debug().Str("cursor", cursor).Msg("Listing tools")
 
 		tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
 		if err != nil {
@@ -332,7 +332,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
 
-		s.logger.Info().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Calling tool")
+		s.logger.Debug().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Calling tool")
 
 		result, err := s.toolService.CallTool(ctx, params.Name, params.Arguments)
 		if err != nil {

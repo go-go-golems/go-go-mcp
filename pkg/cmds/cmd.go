@@ -7,11 +7,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"text/template"
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/helpers/templating"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
@@ -112,7 +112,8 @@ func (c *ShellCommand) processTemplate(
 		Env:  c.Environment,
 	}
 
-	tmpl, err := template.New("shell").Parse(templateStr)
+	tmpl := templating.CreateTemplate("shell")
+	tmpl, err := tmpl.Parse(templateStr)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to parse template")
 	}

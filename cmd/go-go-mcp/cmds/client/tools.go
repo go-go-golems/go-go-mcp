@@ -92,6 +92,12 @@ func NewCallToolCommand() (*CallToolCommand, error) {
 					parameters.WithDefault(""),
 				),
 				parameters.NewParameterDefinition(
+					"json-file",
+					parameters.ParameterTypeStringFromFile,
+					parameters.WithHelp("Tool arguments as JSON file"),
+					parameters.WithDefault(""),
+				),
+				parameters.NewParameterDefinition(
 					"args",
 					parameters.ParameterTypeKeyValue,
 					parameters.WithHelp("Tool arguments as key=value pairs"),
