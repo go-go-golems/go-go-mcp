@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
+	"github.com/go-go-golems/go-go-mcp/pkg/doc"
 
 	clay "github.com/go-go-golems/clay/pkg"
 
@@ -57,6 +58,8 @@ and either a command list or shell script to execute.`,
 func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
 	helpSystem.SetupCobraRootCommand(rootCmd)
+
+	doc.AddDocToHelpSystem(helpSystem)
 
 	err := clay.InitViper("mcp", rootCmd)
 	if err != nil {

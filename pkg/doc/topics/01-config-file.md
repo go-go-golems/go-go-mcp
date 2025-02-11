@@ -1,6 +1,6 @@
 ---
 Title: Go Go MCP config file
-Slug: go-go-mcp-config-file
+Slug: config-file
 Short: Learn how to create a configuration file for go-go-mcp.
 Topics:
   - config
