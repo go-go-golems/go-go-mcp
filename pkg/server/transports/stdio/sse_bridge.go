@@ -47,13 +47,26 @@ func NewSSEBridgeServer(logger zerolog.Logger, sseURL string) *SSEBridgeServer {
 	// Strip trailing slashes from the SSE URL
 	sseURL = strings.TrimRight(sseURL, "/")
 
-	return &SSEBridgeServer{
+	sseClient := client.NewSSETransport(sseURL, taggedLogger)
+
+	s := &SSEBridgeServer{
 		scanner:    scanner,
 		writer:     json.NewEncoder(os.Stdout),
 		logger:     taggedLogger,
-		sseClient:  client.NewSSETransport(sseURL, taggedLogger),
+		sseClient:  sseClient,
 		signalChan: make(chan os.Signal, 1),
 	}
+
+	// Set up notification handler to write to stdout
+	sseClient.SetNotificationHandler(func(response *protocol.Response) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if err := s.writer.Encode(response); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to write notification to stdout")
+		}
+	})
+
+	return s
 }
 
 // Start begins listening for and handling messages on stdio

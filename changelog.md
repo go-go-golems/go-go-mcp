@@ -842,3 +842,21 @@ Improved the SSE transport to handle notifications more efficiently by not waiti
 
 - Modified SSE transport to skip response waiting for notifications
 - Added support for both empty ID and notifications/ prefix detection
+
+# Improved SSE Notification Handling
+
+Enhanced the SSE transport to handle notifications and responses separately for better efficiency and clarity:
+
+- Added separate channels for notifications and responses
+- Added notification handler support to Transport interface
+- Updated SSE bridge to forward notifications to stdout
+- Added default notification logging in client
+- Improved notification detection and routing
+
+# Added Notification Support to Stdio Transport
+
+Added notification handling support to the stdio transport:
+- Added notification handler to StdioTransport struct
+- Implemented SetNotificationHandler method
+- Added notification detection and handling in Send method
+- Improved response handling to properly handle interleaved notifications
