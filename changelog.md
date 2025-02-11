@@ -937,3 +937,38 @@ Updated the configuration documentation to include the command-line configuratio
 - Updated configuration file tutorial with CLI tool usage
 - Added CLI-based configuration workflow to MCP in Practice guide
 - Improved documentation organization and clarity
+
+## Claude Desktop Configuration Editor
+
+Added functionality to manage Claude desktop configuration files through the go-go-mcp CLI.
+This allows users to manage MCP server configurations for the Claude desktop application.
+
+- ✨ Added `claude-config` command group with the following subcommands:
+  - `init`: Initialize a new Claude desktop configuration file
+  - `edit`: Edit the configuration file in your default editor
+  - `add-mcp-server`: Add or update an MCP server configuration
+  - `remove-mcp-server`: Remove an MCP server configuration
+  - `list-servers`: List all configured MCP servers
+- 🏗️ Added `ClaudeDesktopEditor` type for managing Claude desktop configuration files
+- 📝 Configuration files are stored in the XDG config directory under `Claude/claude_desktop_config.json`
+
+## Environment Variable Support for Claude Desktop Configuration
+
+Added support for environment variables in MCP server configurations:
+- ✨ Added `--env` flag to `claude-config add-mcp-server` command to set environment variables
+- 🔧 Environment variables are stored in the `env` field of server configurations
+- 📝 Updated `list-servers` command to display configured environment variables
+
+## Improved Claude Desktop Configuration Command Output
+
+Enhanced the output of Claude desktop configuration commands:
+- 📝 Added detailed success messages for add-mcp-server and remove-mcp-server commands
+- 🔍 Added configuration file path to command output for better visibility
+- 💡 Added empty state handling in list-servers command
+
+## Added Server Existence Check and Overwrite Flag
+
+Added safety check when adding MCP servers and option to overwrite:
+- 🛡️ Added check for existing servers in `add-mcp-server` command
+- ✨ Added `--overwrite` flag to force update of existing servers
+- 📝 Updated success messages to indicate whether server was added or updated

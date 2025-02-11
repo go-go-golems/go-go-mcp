@@ -100,6 +100,10 @@ func initRootCmd() (*help.HelpSystem, error) {
 	configCmd := server_cmds.NewConfigGroupCommand()
 	rootCmd.AddCommand(configCmd)
 
+	// Add Claude config command group
+	claudeConfigCmd := server_cmds.NewClaudeConfigCommand()
+	rootCmd.AddCommand(claudeConfigCmd)
+
 	return helpSystem, nil
 }
 
