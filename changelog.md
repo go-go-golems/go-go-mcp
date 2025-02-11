@@ -895,3 +895,36 @@ Enhanced the example commands documentation:
 Fixed linter error in randomInt function by renaming variables to avoid conflict with predeclared identifiers.
 
 - Renamed min to minVal and max to maxVal in randomInt function
+
+# Configuration Management Commands
+
+Added a new `config` command group to manage go-go-mcp configuration files and profiles:
+- `init`: Create a new minimal configuration file
+- `edit`: Edit configuration in default editor
+- `list-profiles`: List all available profiles
+- `show-profile`: Show full configuration of a profile
+- `add-tool`: Add tool directory or file to a profile
+- `add-profile`: Create a new profile
+- `duplicate-profile`: Create a new profile by duplicating an existing one
+
+# YAML Editor and Config Management
+
+Added a new YAML editor package in clay for manipulating YAML files while preserving comments and structure:
+- Added YAMLEditor type with methods for manipulating YAML nodes
+- Added helper functions for creating and manipulating YAML nodes
+- Added support for preserving comments and formatting
+- Added deep copy functionality for YAML nodes
+
+Updated the config commands to use the new YAML editor:
+- Added ConfigEditor type for managing go-go-mcp configuration
+- Updated all config commands to use the new editor
+- Added set-default-profile command
+- Improved error handling and validation
+
+# Profiles Path Helper
+
+Added a helper package for managing profiles configuration paths:
+- Added GetDefaultProfilesPath to get the default XDG config path
+- Added GetProfilesPath to handle both default and custom paths
+- Updated all config commands to use the new helpers
+- Updated start command to use the new helpers
