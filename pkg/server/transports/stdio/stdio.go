@@ -170,8 +170,13 @@ func (s *Server) handleMessage(message string) error {
 		return s.sendError(&request.ID, -32600, "Invalid Request", fmt.Errorf("invalid JSON-RPC version"))
 	}
 
+	s.logger.Debug().
+		RawJSON("id", request.ID).
+		Str("method", request.Method).
+		Msg("Received message")
+
 	// Handle requests vs notifications based on ID presence
-	if len(request.ID) > 0 {
+	if request.ID != nil && string(request.ID) != "null" && len(request.ID) > 0 {
 		s.logger.Debug().
 			RawJSON("id", request.ID).
 			Str("method", request.Method).
@@ -218,6 +223,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
+		s.logger.Info().Str("cursor", cursor).Msg("Listing prompts")
+
 		prompts, nextCursor, err := s.promptService.ListPrompts(ctx, cursor)
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
@@ -236,6 +243,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
+
+		s.logger.Info().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Getting prompt")
 
 		message, err := s.promptService.GetPrompt(ctx, params.Name, params.Arguments)
 		if err != nil {
@@ -259,6 +268,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
+		s.logger.Info().Str("cursor", cursor).Msg("Listing resources")
+
 		resources, nextCursor, err := s.resourceService.ListResources(ctx, cursor)
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
@@ -276,6 +287,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 		if err := json.Unmarshal(request.Params, &params); err != nil {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
+
+		s.logger.Info().Str("uri", params.URI).Msg("Reading resource")
 
 		content, err := s.resourceService.ReadResource(ctx, params.URI)
 		if err != nil {
@@ -298,6 +311,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			cursor = params.Cursor
 		}
 
+		s.logger.Info().Str("cursor", cursor).Msg("Listing tools")
+
 		tools, nextCursor, err := s.toolService.ListTools(ctx, cursor)
 		if err != nil {
 			return s.sendError(&request.ID, -32603, "Internal error", err)
@@ -317,6 +332,8 @@ func (s *Server) handleRequest(request protocol.Request) error {
 			return s.sendError(&request.ID, -32602, "Invalid params", err)
 		}
 
+		s.logger.Info().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("Calling tool")
+
 		result, err := s.toolService.CallTool(ctx, params.Name, params.Arguments)
 		if err != nil {
 			return s.sendError(&request.ID, -32602, "Tool not found", err)
@@ -325,7 +342,7 @@ func (s *Server) handleRequest(request protocol.Request) error {
 		return s.sendResult(&request.ID, result)
 
 	default:
-		return s.sendError(&request.ID, -32601, "Method not found", nil)
+		return s.sendError(&request.ID, -32601, fmt.Sprintf("Method %s not found", request.Method), nil)
 	}
 }
 
