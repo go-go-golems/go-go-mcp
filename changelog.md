@@ -985,7 +985,7 @@ Updated the Claude desktop configuration documentation with:
 
 Added ability to temporarily disable MCP servers without removing their configuration:
 - ✨ Added `disable-server` and `enable-server` commands to claude-config
-- 🏗️ Added `DisabledMCPServers` field to configuration format
+- 🏗️ Added `DisabledServers` map to store configurations of disabled servers
 - 📝 Updated list-servers command to show disabled status
 - 🔧 Added helper functions for managing server state
 
@@ -998,10 +998,28 @@ Added ability to tail Claude log files in real-time:
 - 🛠️ Graceful shutdown support with Ctrl+C
 - 📝 Real-time log monitoring with automatic file reopening
 
-# Added File Helpers Package
+# Enhanced Log Tailing with Line History
 
-Added a new package for file manipulation helpers:
-- ✨ Added `FindStartPosForLastNLines` function for efficient seeking to last N lines
-- 🧪 Added comprehensive table-driven tests with various edge cases
-- 📝 Added detailed documentation and examples
-- 🔍 Optimized for large files with buffered reading
+Enhanced the tail command with line history support:
+- ✨ Added `--lines/-n` flag to show last N lines when starting to tail
+- 🔍 Efficient seeking to last N lines without reading entire file
+- 🛠️ Proper handling of files without newline at end
+- 📝 Updated command documentation with new flag
+
+## Improved MCP Server Enable/Disable Functionality
+
+Improved the enable/disable functionality for MCP servers to properly preserve server configurations when enabling/disabling them.
+
+- Added `DisabledServers` map to store configurations of disabled servers
+- Updated `EnableMCPServer` to move server config from disabled to enabled state
+- Updated `DisableMCPServer` to move server config from enabled to disabled state
+- Updated `ListServers` to show both enabled and disabled server configurations
+
+## Parameter Value Validation and Casting
+
+Enhanced parameter validation to return cast values along with validation errors. This allows for proper type conversion and sanitization of input values.
+
+- Modified `CheckValueValidity` to return both the cast value and any validation errors
+- Added `setReflectValue` method to handle setting reflect values with proper type casting
+- Updated tests to verify cast values
+- Improved error messages for invalid choices

@@ -104,3 +104,4 @@ shell-script: |
   # Execute the command
   echo "DEBUG: Executing: ${CMD[@]}"
   "${CMD[@]}" 
+capture-stderr: true

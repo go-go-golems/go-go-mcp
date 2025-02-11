@@ -11,6 +11,7 @@ import (
 type ClaudeDesktopConfig struct {
 	MCPServers         map[string]MCPServer `json:"mcpServers"`
 	DisabledMCPServers []string             `json:"disabledMCPServers,omitempty"`
+	DisabledServers    map[string]MCPServer `json:"disabledServersConfig,omitempty"`
 	GoGoMCP            MCPServer            `json:"go-go-mcp"`
 }
 
@@ -148,9 +149,16 @@ func (e *ClaudeDesktopEditor) ListServers() map[string]MCPServer {
 		servers["go-go-mcp"] = e.config.GoGoMCP
 	}
 
-	// Add other MCP servers
+	// Add enabled MCP servers
 	for name, server := range e.config.MCPServers {
 		servers[name] = server
+	}
+
+	// Add disabled MCP servers
+	if e.config.DisabledServers != nil {
+		for name, server := range e.config.DisabledServers {
+			servers[name] = server
+		}
 	}
 
 	return servers
@@ -162,12 +170,20 @@ func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 		return fmt.Errorf("MCP server '%s' is not disabled", name)
 	}
 
-	// Check if server exists
-	if _, exists := e.config.MCPServers[name]; !exists {
-		return fmt.Errorf("MCP server '%s' not found", name)
+	// Check if server exists in disabled servers
+	server, exists := e.config.DisabledServers[name]
+	if !exists {
+		return fmt.Errorf("MCP server '%s' configuration not found in disabled servers", name)
 	}
 
-	// Find and remove from disabled list
+	// Move server from disabled to enabled
+	if e.config.MCPServers == nil {
+		e.config.MCPServers = make(map[string]MCPServer)
+	}
+	e.config.MCPServers[name] = server
+	delete(e.config.DisabledServers, name)
+
+	// Remove from disabled list
 	for i, disabled := range e.config.DisabledMCPServers {
 		if disabled == name {
 			e.config.DisabledMCPServers = append(e.config.DisabledMCPServers[:i], e.config.DisabledMCPServers[i+1:]...)
@@ -184,7 +200,8 @@ func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 // DisableMCPServer disables an MCP server without removing its configuration
 func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
 	// Check if server exists
-	if _, exists := e.config.MCPServers[name]; !exists {
+	server, exists := e.config.MCPServers[name]
+	if !exists {
 		return fmt.Errorf("MCP server '%s' not found", name)
 	}
 
@@ -196,6 +213,13 @@ func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
 			}
 		}
 	}
+
+	// Move server from enabled to disabled
+	if e.config.DisabledServers == nil {
+		e.config.DisabledServers = make(map[string]MCPServer)
+	}
+	e.config.DisabledServers[name] = server
+	delete(e.config.MCPServers, name)
 
 	// Add to disabled list
 	if e.config.DisabledMCPServers == nil {

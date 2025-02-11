@@ -3,6 +3,7 @@ package cmds
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
+	"github.com/go-go-golems/go-go-mcp/pkg/helpers"
 	"github.com/hpcloud/tail"
 	"github.com/spf13/cobra"
 )
@@ -326,6 +328,7 @@ func newClaudeConfigDisableServerCommand() *cobra.Command {
 
 func newClaudeConfigTailCommand() *cobra.Command {
 	var all bool
+	var lines int
 
 	cmd := &cobra.Command{
 		Use:   "tail [server-names...]",
@@ -333,7 +336,8 @@ func newClaudeConfigTailCommand() *cobra.Command {
 		Long: `Tail the Claude log files in real-time.
 Without arguments, tails the main mcp.log file.
 With server names, tails the corresponding mcp-server-XXX.log files.
-Use --all to tail all log files.`,
+Use --all to tail all log files.
+Use --lines/-n to output the last N lines of each file before tailing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			xdgConfigPath, err := os.UserConfigDir()
 			if err != nil {
@@ -385,10 +389,24 @@ Use --all to tail all log files.`,
 				go func(filename string) {
 					defer wg.Done()
 
+					// Find the starting position based on requested lines
+					startPos := int64(0)
+					if lines > 0 {
+						var err error
+						startPos, err = helpers.FindStartPosForLastNLines(filename, lines)
+						if err != nil && !os.IsNotExist(err) {
+							fmt.Fprintf(os.Stderr, "Error finding start position in %s: %v\n", filename, err)
+						}
+					}
+
 					t, err := tail.TailFile(filename, tail.Config{
 						Follow: true,
 						ReOpen: true,
 						Logger: tail.DiscardingLogger,
+						Location: &tail.SeekInfo{
+							Offset: startPos,
+							Whence: io.SeekStart,
+						},
 					})
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "Error tailing %s: %v\n", filename, err)
@@ -426,6 +444,7 @@ Use --all to tail all log files.`,
 	}
 
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Tail all log files")
+	cmd.Flags().IntVarP(&lines, "lines", "n", 10, "Output the last N lines of each file before tailing")
 
 	return cmd
 }

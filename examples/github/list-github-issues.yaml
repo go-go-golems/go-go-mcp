@@ -42,6 +42,7 @@ flags:
   - name: json
     type: stringList
     help: Output JSON with specified fields (e.g. number,title,state)
+    default: [number,title,state,author,assignees,body,closed,closedAt,createdAt,updatedAt,url]
 
   - name: web
     type: bool
@@ -56,7 +57,7 @@ shell-script: |
   CMD=(gh issue list -R team-mento/mento-playground)
 
   # Add filters
-  {{ if ne .Args.state "open" }}
+  {{ if not (eq .Args.state "open") }}
   CMD+=(--state "{{ .Args.state }}")
   {{ end }}
 
@@ -80,7 +81,11 @@ shell-script: |
   CMD+=(--search "{{ .Args.search }}")
   {{ end }}
 
-  {{ if ne .Args.limit 30 }}
+  {{ if .Args.json }}
+  CMD+=(--json "{{ .Args.json | join ","  }}")
+  {{ end }}
+
+  {{ if not (eq .Args.limit 30) }}
   CMD+=(--limit "{{ .Args.limit }}")
   {{ end }}
 
@@ -91,4 +96,8 @@ shell-script: |
 
   # Execute the command
   echo "DEBUG: Executing: ${CMD[@]}"
-  "${CMD[@]}" 
+  "${CMD[@]}" >/dev/stderr 2>&1
+  echo "DEBUG: Result: $?"
+
+  echo "DEBUG: Command executed"
+capture-stderr: true
