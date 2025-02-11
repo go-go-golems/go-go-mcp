@@ -972,3 +972,11 @@ Added safety check when adding MCP servers and option to overwrite:
 - 🛡️ Added check for existing servers in `add-mcp-server` command
 - ✨ Added `--overwrite` flag to force update of existing servers
 - 📝 Updated success messages to indicate whether server was added or updated
+
+# Claude Desktop Configuration Documentation
+
+Added comprehensive documentation for configuring Claude desktop with MCP servers, including:
+- Configuration file format explanation
+- Multiple example configurations
+- Troubleshooting guide
+- Best practices and common patterns
