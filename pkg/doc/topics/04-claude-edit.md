@@ -33,25 +33,110 @@ Claude desktop looks for its configuration file in your system's config director
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
+## Command Line Configuration 🛠️
+
+The `go-go-mcp claude-config` command provides a suite of tools to manage your Claude desktop configuration:
+
+### Initialize Configuration
+
+Create a new configuration file:
+
+```bash
+# Create with default path
+go-go-mcp claude-config init
+
+# Create with custom path
+go-go-mcp claude-config init --config /path/to/config.json
+```
+
+### Edit Configuration
+
+Open the configuration file in your default editor:
+
+```bash
+# Edit default config
+go-go-mcp claude-config edit
+
+# Edit custom config
+go-go-mcp claude-config edit --config /path/to/config.json
+```
+
+### Add MCP Server
+
+Add or update an MCP server configuration:
+
+```bash
+# Add a basic server
+go-go-mcp claude-config add-mcp-server dev \
+  --command go-go-mcp \
+  --args start --profile development --log-level debug
+
+# Add with environment variables
+go-go-mcp claude-config add-mcp-server github \
+  --command go-go-mcp \
+  --args start --profile github \
+  --env GITHUB_TOKEN=your-token \
+  --env DEBUG=true
+
+# Update existing server
+go-go-mcp claude-config add-mcp-server dev \
+  --command go-go-mcp \
+  --args start --profile development \
+  --overwrite
+```
+
+### Remove MCP Server
+
+Remove an existing server configuration:
+
+```bash
+# Remove a server
+go-go-mcp claude-config remove-mcp-server dev
+
+# Remove from custom config
+go-go-mcp claude-config remove-mcp-server dev --config /path/to/config.json
+```
+
+### List Servers
+
+View all configured servers:
+
+```bash
+# List all servers
+go-go-mcp claude-config list-servers
+
+# List from custom config
+go-go-mcp claude-config list-servers --config /path/to/config.json
+```
+
 ## Understanding the Configuration Format 🔧
 
-The configuration file uses JSON format with one main section:
+The configuration file uses JSON format with two main sections:
 
 1. `mcpServers`: A map of named MCP server configurations
+2. `disabledMCPServers`: An optional list of disabled server names
 
 Here's the anatomy of an MCP server configuration:
 
 ```json
 {
-  "command": "executable-name",    // The command to run
-  "args": [                       // List of command arguments
-    "--flag1", "value1",
-    "--flag2", "value2"
-  ],
-  "env": {                        // Optional environment variables
-    "ENV_VAR1": "value1",
-    "ENV_VAR2": "value2"
-  }
+  "mcpServers": {
+    "server1": {
+      "command": "executable-name",    // The command to run
+      "args": [                       // List of command arguments
+        "--flag1", "value1",
+        "--flag2", "value2"
+      ],
+      "env": {                        // Optional environment variables
+        "ENV_VAR1": "value1",
+        "ENV_VAR2": "value2"
+      }
+    }
+  },
+  "disabledMCPServers": [            // Optional list of disabled servers
+    "server2",
+    "server3"
+  ]
 }
 ```
 
@@ -129,44 +214,43 @@ Let's explore some powerful configurations that showcase what you can do:
 }
 ```
 
-### 4. GitHub Integration Setup
+### Enable/Disable Servers
 
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "go-go-mcp",
-      "args": [
-        "start",
-        "--profile", "github",
-      ],
-      "env": {
-        "GITHUB_TOKEN": "your-github-token"
-      }
-    }
-  }
-}
+You can temporarily disable servers without removing their configuration:
+
+```bash
+# Disable a server
+go-go-mcp claude-config disable-server dev
+
+# Enable a previously disabled server
+go-go-mcp claude-config enable-server dev
 ```
 
-### 5. Development with Hot Reloading
+When listing servers, disabled servers will be marked:
 
-```json
-{
-  "mcpServers": {
-    "hot-reload": {
-      "command": "go-go-mcp",
-      "args": [
-        "start",
-        "--profile", "development",
-        "--watch"
-      ],
-      "env": {
-        "DEBUG": "true",
-        "RELOAD_DELAY": "500ms"
-      }
-    }
-  }
-}
+```bash
+# List all servers including disabled ones
+go-go-mcp claude-config list-servers
+```
+
+Example output:
+```
+Configured MCP servers in ~/.config/Claude/claude_desktop_config.json:
+
+dev (disabled):
+  Command: go-go-mcp
+  Args: [start --profile development --log-level debug]
+  Environment:
+    DEVELOPMENT: true
+
+github:
+  Command: go-go-mcp
+  Args: [start --profile github]
+  Environment:
+    GITHUB_TOKEN: your-token
+
+Disabled servers:
+  - dev
 ```
 
 ## Pro Tips 💡

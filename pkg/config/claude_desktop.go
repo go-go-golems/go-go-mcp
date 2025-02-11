@@ -9,8 +9,9 @@ import (
 
 // ClaudeDesktopConfig represents the configuration for the Claude desktop application
 type ClaudeDesktopConfig struct {
-	MCPServers map[string]MCPServer `json:"mcpServers"`
-	GoGoMCP    MCPServer            `json:"go-go-mcp"`
+	MCPServers         map[string]MCPServer `json:"mcpServers"`
+	DisabledMCPServers []string             `json:"disabledMCPServers,omitempty"`
+	GoGoMCP            MCPServer            `json:"go-go-mcp"`
 }
 
 // MCPServer represents a server configuration
@@ -153,4 +154,74 @@ func (e *ClaudeDesktopEditor) ListServers() map[string]MCPServer {
 	}
 
 	return servers
+}
+
+// EnableMCPServer enables a previously disabled MCP server
+func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
+	if e.config.DisabledMCPServers == nil {
+		return fmt.Errorf("MCP server '%s' is not disabled", name)
+	}
+
+	// Check if server exists
+	if _, exists := e.config.MCPServers[name]; !exists {
+		return fmt.Errorf("MCP server '%s' not found", name)
+	}
+
+	// Find and remove from disabled list
+	for i, disabled := range e.config.DisabledMCPServers {
+		if disabled == name {
+			e.config.DisabledMCPServers = append(e.config.DisabledMCPServers[:i], e.config.DisabledMCPServers[i+1:]...)
+			if len(e.config.DisabledMCPServers) == 0 {
+				e.config.DisabledMCPServers = nil
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("MCP server '%s' is not disabled", name)
+}
+
+// DisableMCPServer disables an MCP server without removing its configuration
+func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
+	// Check if server exists
+	if _, exists := e.config.MCPServers[name]; !exists {
+		return fmt.Errorf("MCP server '%s' not found", name)
+	}
+
+	// Check if already disabled
+	if e.config.DisabledMCPServers != nil {
+		for _, disabled := range e.config.DisabledMCPServers {
+			if disabled == name {
+				return fmt.Errorf("MCP server '%s' is already disabled", name)
+			}
+		}
+	}
+
+	// Add to disabled list
+	if e.config.DisabledMCPServers == nil {
+		e.config.DisabledMCPServers = make([]string, 0)
+	}
+	e.config.DisabledMCPServers = append(e.config.DisabledMCPServers, name)
+	return nil
+}
+
+// IsServerDisabled checks if a server is disabled
+func (e *ClaudeDesktopEditor) IsServerDisabled(name string) bool {
+	if e.config.DisabledMCPServers == nil {
+		return false
+	}
+	for _, disabled := range e.config.DisabledMCPServers {
+		if disabled == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ListDisabledServers returns a list of disabled server names
+func (e *ClaudeDesktopEditor) ListDisabledServers() []string {
+	if e.config.DisabledMCPServers == nil {
+		return []string{}
+	}
+	return append([]string{}, e.config.DisabledMCPServers...)
 }

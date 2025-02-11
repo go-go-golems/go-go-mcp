@@ -23,6 +23,8 @@ func NewClaudeConfigCommand() *cobra.Command {
 		newClaudeConfigAddMCPServerCommand(),
 		newClaudeConfigRemoveMCPServerCommand(),
 		newClaudeConfigListServersCommand(),
+		newClaudeConfigEnableServerCommand(),
+		newClaudeConfigDisableServerCommand(),
 	)
 
 	return cmd
@@ -209,7 +211,11 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 
 			fmt.Printf("Configured MCP servers in %s:\n\n", editor.GetConfigPath())
 			for name, server := range servers {
-				fmt.Printf("%s:\n", name)
+				disabled := ""
+				if editor.IsServerDisabled(name) {
+					disabled = " (disabled)"
+				}
+				fmt.Printf("%s%s:\n", name, disabled)
 				fmt.Printf("  Command: %s\n", server.Command)
 				if len(server.Args) > 0 {
 					fmt.Printf("  Args: %v\n", server.Args)
@@ -222,6 +228,85 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 				}
 				fmt.Println()
 			}
+
+			// List disabled servers
+			disabled := editor.ListDisabledServers()
+			if len(disabled) > 0 {
+				fmt.Println("Disabled servers:")
+				for _, name := range disabled {
+					fmt.Printf("  - %s\n", name)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to config file (default: $XDG_CONFIG_HOME/Claude/claude_desktop_config.json)")
+
+	return cmd
+}
+
+func newClaudeConfigEnableServerCommand() *cobra.Command {
+	var configPath string
+
+	cmd := &cobra.Command{
+		Use:   "enable-server NAME",
+		Short: "Enable a disabled MCP server",
+		Long:  `Enables a previously disabled MCP server configuration.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			editor, err := config.NewClaudeDesktopEditor(configPath)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			if err := editor.EnableMCPServer(name); err != nil {
+				return err
+			}
+
+			if err := editor.Save(); err != nil {
+				return err
+			}
+
+			fmt.Printf("Successfully enabled MCP server '%s'\n", name)
+			fmt.Printf("Configuration saved to: %s\n", editor.GetConfigPath())
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to config file (default: $XDG_CONFIG_HOME/Claude/claude_desktop_config.json)")
+
+	return cmd
+}
+
+func newClaudeConfigDisableServerCommand() *cobra.Command {
+	var configPath string
+
+	cmd := &cobra.Command{
+		Use:   "disable-server NAME",
+		Short: "Disable an MCP server",
+		Long:  `Disables an MCP server configuration without removing it.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			editor, err := config.NewClaudeDesktopEditor(configPath)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			if err := editor.DisableMCPServer(name); err != nil {
+				return err
+			}
+
+			if err := editor.Save(); err != nil {
+				return err
+			}
+
+			fmt.Printf("Successfully disabled MCP server '%s'\n", name)
+			fmt.Printf("Configuration saved to: %s\n", editor.GetConfigPath())
 
 			return nil
 		},

@@ -36,6 +36,52 @@ Each section includes practical exercises to help reinforce the concepts.
 4. [Running the Server](#running-the-server)
 5. [Testing with the Client](#testing-with-the-client)
 
+## Using MCP with Claude Desktop 🤖
+
+Claude desktop can be configured to use MCP servers through its configuration file. This allows you to use MCP tools directly through Claude's edit verbs.
+
+### Configuration
+
+First, configure Claude desktop to use your MCP server:
+
+```bash
+# Initialize Claude desktop configuration
+go-go-mcp claude-config init
+
+# Add an MCP server configuration
+go-go-mcp claude-config add-mcp-server dev \
+  --command go-go-mcp \
+  --args start --profile development --log-level debug
+```
+
+### Using Edit Verbs
+
+Once configured, you can use MCP tools through Claude's edit verbs:
+
+1. **@tool**: Execute an MCP tool
+   ```
+   @tool list-github-issues --state open --assignee me
+   ```
+
+2. **@run**: Run a shell command through MCP
+   ```
+   @run git status
+   ```
+
+3. **@fetch**: Fetch and process web content
+   ```
+   @fetch https://example.com
+   ```
+
+The output from these commands will be automatically processed and included in Claude's context, allowing for natural interaction with the results.
+
+### Best Practices
+
+1. Use descriptive tool names that reflect their purpose
+2. Keep sensitive data in environment variables
+3. Use debug logging during development
+4. Create specific profiles for different use cases
+
 ## Setting Up the Project Structure
 
 MCP works best with a well-organized project structure that groups tools by their purpose and functionality. We'll create a structure that follows these principles:
