@@ -15,8 +15,8 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 
-	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	config_provider "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/config-provider"
 )
@@ -113,12 +113,13 @@ func (c *StartCommand) Run(
 	// Create tool provider options
 	toolProviderOptions := []config_provider.ConfigToolProviderOption{
 		config_provider.WithDebug(s.Debug),
+		config_provider.WithWatch(true),
 	}
 	if s.TracingDir != "" {
 		toolProviderOptions = append(toolProviderOptions, config_provider.WithTracingDir(s.TracingDir))
 	}
 
-	var toolProvider pkg.ToolProvider
+	var toolProvider *config_provider.ConfigToolProvider
 	var err error
 
 	// Try to create tool provider from config file first
@@ -147,45 +148,45 @@ func (c *StartCommand) Run(
 
 	srv.GetRegistry().RegisterToolProvider(toolProvider)
 
-	// Create root context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Create a context that will be cancelled on SIGINT/SIGTERM
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// Set up signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	g, gctx := errgroup.WithContext(ctx)
 
-	// Start server in a goroutine
-	errChan := make(chan error, 1)
-	go func() {
-		// Start server with selected transport
+	// Start file watcher
+	g.Go(func() error {
+		if err := toolProvider.Watch(gctx); err != nil {
+			log.Error().Err(err).Msg("failed to start file watcher")
+			return err
+		}
+		return nil
+	})
+
+	// Start server
+	g.Go(func() error {
 		var err error
 		switch s.Transport {
 		case "stdio":
 			log.Info().Msg("Starting server with stdio transport")
-			err = srv.StartStdio(ctx)
+			err = srv.StartStdio(gctx)
 		case "sse":
 			log.Info().Int("port", s.Port).Msg("Starting server with SSE transport")
-			err = srv.StartSSE(ctx, s.Port)
+			err = srv.StartSSE(gctx, s.Port)
 		default:
 			err = fmt.Errorf("invalid transport type: %s", s.Transport)
 		}
-		errChan <- err
-	}()
-
-	// Wait for either server error or interrupt signal
-	select {
-	case err := <-errChan:
 		if err != nil && err != io.EOF {
 			log.Error().Err(err).Msg("Server error")
 			return err
 		}
 		return nil
-	case sig := <-sigChan:
-		log.Info().Str("signal", sig.String()).Msg("Received signal, initiating graceful shutdown")
-		// Cancel context to initiate shutdown
-		cancel()
-		// Create a timeout context for shutdown
+	})
+
+	// Add graceful shutdown handler
+	g.Go(func() error {
+		<-gctx.Done()
+		log.Info().Msg("Initiating graceful shutdown")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
 		if err := srv.Stop(shutdownCtx); err != nil {
@@ -194,5 +195,7 @@ func (c *StartCommand) Run(
 		}
 		log.Info().Msg("Server stopped gracefully")
 		return nil
-	}
+	})
+
+	return g.Wait()
 }

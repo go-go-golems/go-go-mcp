@@ -1047,3 +1047,55 @@ Moved the configuration-based tool provider to a dedicated package for better co
 - Moved tool provider code to pkg/tools/providers/config/
 - Updated imports and type references
 - Improved package documentation
+
+# Documentation: Repository System Guide
+
+Added comprehensive documentation for the repository system, including:
+- Basic usage guide
+- File system watching
+- Command organization
+- Advanced features and best practices
+- Common patterns and examples
+
+# File Watching Support for ConfigToolProvider
+
+Added file watching support to automatically reload commands when files change in watched directories.
+
+- Added Watch method to ConfigToolProvider for monitoring file changes
+- Added WithWatch option to enable/disable file watching
+- Automatically reload commands when files are changed or removed
+- Support for watching multiple directories simultaneously
+
+# Simplified File Watching Implementation
+
+Refactored file watching to use Clay repository's built-in functionality:
+
+- Removed custom file watching implementation in favor of repository's built-in watching
+- Simplified ConfigToolProvider by removing watch-specific fields
+- Improved code maintainability by reducing duplication
+- Maintained thread safety with mutex protection
+
+# Consistent Path Processing in Repository Watcher
+
+Refactored path processing in repository watcher to use a shared helper function, ensuring consistent path handling across all operations.
+
+- Extracted path processing logic into getProcessedPaths helper method
+- Reused path processing in both write and remove callbacks
+- Improved code maintainability by reducing duplication
+- Maintained consistent path handling for command operations
+
+## Add support for individual files in Repository
+
+Added ability to load commands from individual files in Repository, alongside directories. This allows for more flexible command loading configurations.
+
+- Added Files field to Repository struct
+- Added WithFiles repository option
+- Updated LoadCommands to handle individual files
+- Updated LoadCommandsFromInputs to use file support
+
+## Use Repository File Support in ConfigToolProvider
+
+Updated ConfigToolProvider to use the Repository's built-in file support instead of handling files manually:
+- Removed manual file loading in ConfigToolProvider
+- Use WithFiles repository option for individual files
+- Simplified code by leveraging Repository functionality

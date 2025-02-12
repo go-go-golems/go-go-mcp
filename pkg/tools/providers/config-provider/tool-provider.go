@@ -31,6 +31,8 @@ type ConfigToolProvider struct {
 	debug         bool
 	tracingDir    string
 	directories   []repositories.Directory
+	files         []string
+	watching      bool
 }
 
 type ConfigToolProviderOption func(*ConfigToolProvider) error
@@ -58,6 +60,13 @@ func WithDirectories(directories []repositories.Directory) ConfigToolProviderOpt
 	}
 }
 
+func WithFiles(files []string) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.files = append(p.files, files...)
+		return nil
+	}
+}
+
 func WithConfig(config_ *config.Config, profile string) ConfigToolProviderOption {
 	return func(p *ConfigToolProvider) error {
 		profileConfig, ok := config_.Profiles[profile]
@@ -69,14 +78,15 @@ func WithConfig(config_ *config.Config, profile string) ConfigToolProviderOption
 			return nil
 		}
 
-		// Load directories using Clay's repository system
+		// Load directories
+		directories := []repositories.Directory{}
 		for _, dir := range profileConfig.Tools.Directories {
 			absPath, err := filepath.Abs(dir.Path)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get absolute path for %s", dir.Path)
 			}
 
-			p.directories = append(p.directories, repositories.Directory{
+			directories = append(directories, repositories.Directory{
 				FS:               os.DirFS(absPath),
 				RootDirectory:    ".",
 				RootDocDirectory: "doc",
@@ -85,24 +95,28 @@ func WithConfig(config_ *config.Config, profile string) ConfigToolProviderOption
 				SourcePrefix:     "file",
 			})
 		}
+		p.directories = directories
 
-		// Load individual files as ShellCommands
+		// Collect file paths
+		files := []string{}
 		for _, file := range profileConfig.Tools.Files {
 			absPath, err := filepath.Abs(file.Path)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get absolute path for %s", file.Path)
 			}
-
-			shellCmd, err := mcp_cmds.LoadShellCommand(absPath)
-			if err != nil {
-				return errors.Wrapf(err, "failed to load shell command from %s", file.Path)
-			}
-
-			desc := shellCmd.Description()
-			p.shellCommands[desc.Name] = shellCmd
-			p.toolConfigs[desc.Name] = &file
+			files = append(files, absPath)
+			p.toolConfigs[filepath.Base(absPath)] = &file
 		}
 
+		p.files = files
+
+		return nil
+	}
+}
+
+func WithWatch(watch bool) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.watching = watch
 		return nil
 	}
 }
@@ -114,6 +128,8 @@ func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProv
 		toolConfigs:   make(map[string]*config.SourceConfig),
 		helpSystem:    help.NewHelpSystem(),
 		directories:   []repositories.Directory{},
+		files:         []string{},
+		watching:      false,
 	}
 
 	for _, option := range options {
@@ -125,6 +141,7 @@ func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProv
 	// Create repository with collected directories and shell command loader
 	provider.repository = repositories.NewRepository(
 		repositories.WithDirectories(provider.directories...),
+		repositories.WithFiles(provider.files...),
 		repositories.WithCommandLoader(&mcp_cmds.ShellCommandLoader{}),
 	)
 
@@ -158,8 +175,8 @@ func ConvertCommandToTool(desc *cmds.CommandDescription) (protocol.Tool, error) 
 func (p *ConfigToolProvider) ListTools(cursor string) ([]protocol.Tool, string, error) {
 	var tools []protocol.Tool
 
-	// Get tools from repositories
 	repoCommands := p.repository.CollectCommands([]string{}, true)
+
 	for _, cmd := range repoCommands {
 		tool, err := ConvertCommandToTool(cmd.Description())
 		if err != nil {
@@ -192,8 +209,9 @@ func (p *ConfigToolProvider) ListTools(cursor string) ([]protocol.Tool, string, 
 
 // CallTool implements pkg.ToolProvider interface
 func (p *ConfigToolProvider) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
-	// Try repositories first
-	if cmd, ok := p.repository.GetCommand(name); ok {
+	cmd, ok := p.repository.GetCommand(name)
+
+	if ok {
 		return p.executeCommand(ctx, cmd, arguments)
 	}
 
@@ -315,6 +333,16 @@ func (p *ConfigToolProvider) createParkaParameterFilter(sourceConfig *config.Sou
 	return parka_config.NewParameterFilter(options...)
 }
 
+// Watch starts watching all configured directories for changes
+func (p *ConfigToolProvider) Watch(ctx context.Context) error {
+	if !p.watching {
+		return nil
+	}
+
+	// Use the repository's built-in watching functionality
+	return p.repository.Watch(ctx)
+}
+
 // CreateToolProviderFromConfig creates a tool provider from a config file and profile
 func CreateToolProviderFromConfig(configFile string, profile string, options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	// Handle configuration file if provided
@@ -336,8 +364,12 @@ func CreateToolProviderFromConfig(configFile string, profile string, options ...
 		}
 	}
 
-	// Create and return tool provider
-	return NewConfigToolProvider(options...)
+	provider, err := NewConfigToolProvider(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return provider, nil
 }
 
 // CreateToolProviderFromDirectories creates a tool provider from a list of directories
@@ -366,5 +398,10 @@ func CreateToolProviderFromDirectories(directories []string, options ...ConfigTo
 		}
 	}
 
-	return NewConfigToolProvider(options...)
+	provider, err := NewConfigToolProvider(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return provider, nil
 }
