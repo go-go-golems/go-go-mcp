@@ -6,7 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/go-go-golems/clay v0.1.25
+	github.com/go-go-golems/clay v0.1.26
 	github.com/go-go-golems/geppetto v0.4.34
 	github.com/go-go-golems/glazed v0.5.28
 	github.com/go-go-golems/parka v0.5.17

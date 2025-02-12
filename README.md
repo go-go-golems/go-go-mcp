@@ -93,6 +93,50 @@ go-go-mcp start --transport stdio
 go-go-mcp start --transport sse --port 3001
 ```
 
+The server automatically watches configured repositories and files for changes, reloading tools when:
+- Files are added or removed from watched directories
+- Tool configuration files are modified
+- Repository structure changes
+
+This allows for dynamic tool updates without server restarts.
+
+#### Server Tools
+
+You can interact with tools directly without starting a server using the `server tools` commands:
+
+```bash
+# List available tools using the 'all' profile
+go-go-mcp server tools list --profile all
+
+# List only system monitoring tools
+go-go-mcp server tools list --profile system
+
+# Call a tool directly
+go-go-mcp server tools call system-monitor --args format=json,metrics=cpu,memory
+
+# Call a tool with JSON arguments
+go-go-mcp server tools call calendar-event --json '{
+  "title": "Team Meeting",
+  "start_time": "2024-02-01 10:00",
+  "duration": 60
+}'
+```
+
+The available tools depend on the selected profile:
+```bash
+# System monitoring profile
+go-go-mcp server tools list --profile system
+# Shows: system-monitor, disk-usage, etc.
+
+# Calendar profile
+go-go-mcp server tools list --profile calendar
+# Shows: calendar-event, calendar-availability, etc.
+
+# Data analysis profile
+go-go-mcp server tools list --profile data
+# Shows: data-analyzer, data-visualizer, etc.
+```
+
 #### Client Mode
 
 Use the client subcommand to interact with an MCP server:

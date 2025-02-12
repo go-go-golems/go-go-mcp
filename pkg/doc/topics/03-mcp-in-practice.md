@@ -673,6 +673,35 @@ Key concepts:
 
 Now we can start the MCP server with different tool sets based on our needs:
 
+### File Watching
+
+The server automatically watches configured repositories and files for changes. This means you can:
+- Add or remove tools while the server is running
+- Modify tool configurations in real-time
+- Update tool implementations without restarts
+
+File watching is enabled by default and can be controlled through the configuration:
+
+```yaml
+profiles:
+  development:
+    tools:
+      directories:
+        - path: ./tools/system
+          watch: true  # Enable watching for this directory
+        - path: ./tools/static
+          watch: false # Disable watching for static tools
+      files:
+        - path: ./tools/special-tool.yaml
+          watch: true  # Watch individual files too
+```
+
+When changes are detected:
+1. The server reloads affected tools
+2. New tools become immediately available
+3. Removed tools are unregistered
+4. Modified tools are updated in-place
+
 ### All Tools
 
 Start the server with all available tools:
@@ -683,6 +712,13 @@ go-go-mcp start \
   --profile all \
   --transport sse \
   --port 3001
+
+# In another terminal, watch tools being loaded
+tail -f go-go-mcp.log
+
+# Add a new tool while server is running
+cp new-tool.yaml tools/system/
+# Watch the log to see it being loaded
 ```
 
 ### System Monitoring
@@ -696,6 +732,54 @@ go-go-mcp start \
   --transport sse \
   --port 3001
 ```
+
+### Direct Tool Interaction
+
+The `server tools` commands allow you to interact with tools directly without starting a server:
+
+```bash
+# List tools in the system profile
+go-go-mcp server tools list --profile system
+
+# Expected output:
+# NAME            DESCRIPTION
+# system-monitor  Monitor system resources and performance
+# disk-usage     Analyze disk space usage
+# process-list   List and filter running processes
+
+# Call system-monitor with JSON arguments
+go-go-mcp server tools call system-monitor --json '{
+  "format": "json",
+  "metrics": ["cpu", "memory", "disk"],
+  "watch": false
+}'
+
+# Call disk-usage with key-value arguments
+go-go-mcp server tools call disk-usage \
+  --args directory=/home,unit=GB,type=*.log
+
+# Switch to calendar profile and list tools
+go-go-mcp server tools list --profile calendar
+
+# Expected output:
+# NAME                 DESCRIPTION
+# calendar-event      Manage calendar events and meetings
+# calendar-availability Check calendar availability
+
+# Create a calendar event
+go-go-mcp server tools call calendar-event --json '{
+  "title": "Team Meeting",
+  "start_time": "2024-02-01 10:00",
+  "duration": 60,
+  "attendees": ["team@example.com"]
+}'
+```
+
+This is particularly useful for:
+- Testing tools during development
+- Automation and scripting
+- CI/CD pipelines
+- Quick tool execution without server overhead
 
 ### Data Analysis
 
