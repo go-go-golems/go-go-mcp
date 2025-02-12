@@ -301,10 +301,7 @@ func NewConfigAddToolCommand() *cobra.Command {
 			}
 
 			if dir != "" {
-				err = editor.AddToolDirectory(args[0], dir, map[string]interface{}{
-					"debug":   false,
-					"verbose": false,
-				})
+				err = editor.AddToolDirectory(args[0], dir, map[string]interface{}{})
 				if err != nil {
 					return fmt.Errorf("could not add tool directory: %w", err)
 				}

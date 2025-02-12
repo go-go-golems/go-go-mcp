@@ -1023,3 +1023,11 @@ Enhanced parameter validation to return cast values along with validation errors
 - Added `setReflectValue` method to handle setting reflect values with proper type casting
 - Updated tests to verify cast values
 - Improved error messages for invalid choices
+
+# Improved YAML Editor Value Node Creation
+
+Refactored YAML editor to have a more maintainable and recursive value node creation system:
+- Extracted value node creation logic into a dedicated CreateValueNode method
+- Made value creation process recursive for nested structures
+- Improved error handling with more specific error messages
+- Centralized value node creation logic for better maintainability
