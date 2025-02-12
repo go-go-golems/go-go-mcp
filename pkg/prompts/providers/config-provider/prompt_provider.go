@@ -1,4 +1,4 @@
-package config
+package config_provider
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/pkg/errors"
 )
@@ -16,17 +17,17 @@ import (
 type ConfigPromptProvider struct {
 	repository     *repositories.Repository
 	pinocchioFiles map[string]*protocol.Prompt
-	promptConfigs  map[string]*SourceConfig
+	promptConfigs  map[string]*config.SourceConfig
 }
 
-func NewConfigPromptProvider(config *Config, profile string) (*ConfigPromptProvider, error) {
-	if _, ok := config.Profiles[profile]; !ok {
+func NewConfigPromptProvider(config_ *config.Config, profile string) (*ConfigPromptProvider, error) {
+	if _, ok := config_.Profiles[profile]; !ok {
 		return nil, errors.Errorf("profile %s not found", profile)
 	}
 
 	directories := []repositories.Directory{}
 
-	profileConfig := config.Profiles[profile]
+	profileConfig := config_.Profiles[profile]
 
 	// Load directories using Clay's repository system
 	for _, dir := range profileConfig.Prompts.Directories {
@@ -45,7 +46,7 @@ func NewConfigPromptProvider(config *Config, profile string) (*ConfigPromptProvi
 	provider := &ConfigPromptProvider{
 		repository:     repositories.NewRepository(repositories.WithDirectories(directories...)),
 		pinocchioFiles: make(map[string]*protocol.Prompt),
-		promptConfigs:  make(map[string]*SourceConfig),
+		promptConfigs:  make(map[string]*config.SourceConfig),
 	}
 
 	if profileConfig.Prompts == nil {

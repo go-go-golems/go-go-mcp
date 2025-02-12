@@ -17,6 +17,8 @@ type Registry struct {
 	handlers map[string]Handler
 }
 
+var _ pkg.PromptProvider = &Registry{}
+
 // Handler is a function that generates a prompt message based on arguments
 type Handler func(prompt protocol.Prompt, arguments map[string]string) (*protocol.PromptMessage, error)
 

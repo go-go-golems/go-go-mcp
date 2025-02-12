@@ -19,6 +19,8 @@ type Registry struct {
 // Handler is a function that executes a tool with given arguments
 type Handler func(ctx context.Context, tool Tool, arguments map[string]interface{}) (*protocol.ToolResult, error)
 
+var _ pkg.ToolProvider = &Registry{}
+
 // NewRegistry creates a new tool registry
 func NewRegistry() *Registry {
 	return &Registry{

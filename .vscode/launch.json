@@ -17,7 +17,16 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/go-go-mcp",
-            "args": ["start", "--transport", "sse", "--profile", "all", "--log-level", "debug", "--port", "3000"],
+            "args": ["start", "--transport", "sse", "--profile", "html-extraction", "--log-level", "debug", "--port", "3000"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Add HTML Extraction Tool",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/go-go-mcp",
+            "args": ["config", "add-tool", "html-extraction", "--dir", "~/code/wesen/corporate-headquarters/go-go-mcp/examples/html-extract"],
             "cwd": "${workspaceFolder}"
         }
     ]
