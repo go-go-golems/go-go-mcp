@@ -1,5 +1,5 @@
 name: fetch-url
-short: Fetch and extract text content from URLs using lynx
+short: Fetch and extract text content from URLs using lynx. foo. foo.  Foo.
 long: |
   This command fetches and extracts plain text content from one or more URLs using the lynx text browser.
   It's particularly useful for automated content extraction, web scraping, and integration with LLM tools.

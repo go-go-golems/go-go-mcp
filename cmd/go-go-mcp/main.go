@@ -13,7 +13,8 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
 	"github.com/go-go-golems/glazed/pkg/help"
-	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
+	mcp_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
+	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -70,38 +71,40 @@ func initRootCmd() (*help.HelpSystem, error) {
 	}
 
 	// Initialize commands
-	rootCmd.AddCommand(server_cmds.ClientCmd)
+	rootCmd.AddCommand(mcp_cmds.ClientCmd)
 
-	err = server_cmds.InitClientCommand(helpSystem)
+	err = mcp_cmds.InitClientCommand(helpSystem)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not initialize client command")
 	}
 
+	rootCmd.AddCommand(server_cmds.ServerCmd)
+
 	rootCmd.AddCommand(runCommandCmd)
 
 	// Create and add start command
-	startCmd, err := server_cmds.NewStartCommand()
+	startCmd, err := mcp_cmds.NewStartCommand()
 	cobra.CheckErr(err)
 	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraStartCmd)
 
 	// Create and add schema command
-	schemaCmd, err := server_cmds.NewSchemaCommand()
+	schemaCmd, err := mcp_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)
 	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd, cli.WithSkipGlazedCommandLayer())
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 
-	bridgeCmd := server_cmds.NewBridgeCommand(log.Logger)
+	bridgeCmd := mcp_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
 
 	// Add config command group
-	configCmd := server_cmds.NewConfigGroupCommand()
+	configCmd := mcp_cmds.NewConfigGroupCommand()
 	rootCmd.AddCommand(configCmd)
 
 	// Add Claude config command group
-	claudeConfigCmd := server_cmds.NewClaudeConfigCommand()
+	claudeConfigCmd := mcp_cmds.NewClaudeConfigCommand()
 	rootCmd.AddCommand(claudeConfigCmd)
 
 	return helpSystem, nil
