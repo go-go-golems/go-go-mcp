@@ -1031,3 +1031,19 @@ Refactored YAML editor to have a more maintainable and recursive value node crea
 - Made value creation process recursive for nested structures
 - Improved error handling with more specific error messages
 - Centralized value node creation logic for better maintainability
+
+# Refactor Tool Provider Creation
+
+Extracted tool provider creation logic from start command to config package for better code organization and reusability.
+
+- Moved tool provider creation logic to pkg/tools/providers/config/
+- Added CreateToolProviderFromConfig and CreateToolProviderFromDirectories functions
+- Simplified start command by using the new functions
+
+# Move Tool Provider to Dedicated Package
+
+Moved the configuration-based tool provider to a dedicated package for better code organization.
+
+- Moved tool provider code to pkg/tools/providers/config/
+- Updated imports and type references
+- Improved package documentation

@@ -1,4 +1,4 @@
-package config
+package config_provider
 
 import (
 	"context"
@@ -15,16 +15,18 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
+	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
-	"github.com/go-go-golems/parka/pkg/handlers/config"
+	parka_config "github.com/go-go-golems/parka/pkg/handlers/config"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 // ConfigToolProvider implements pkg.ToolProvider interface
 type ConfigToolProvider struct {
 	repository    *repositories.Repository
 	shellCommands map[string]cmds.Command
-	toolConfigs   map[string]*SourceConfig
+	toolConfigs   map[string]*config.SourceConfig
 	helpSystem    *help.HelpSystem
 	debug         bool
 	tracingDir    string
@@ -32,6 +34,8 @@ type ConfigToolProvider struct {
 }
 
 type ConfigToolProviderOption func(*ConfigToolProvider) error
+
+var _ pkg.ToolProvider = &ConfigToolProvider{}
 
 func WithDebug(debug bool) ConfigToolProviderOption {
 	return func(p *ConfigToolProvider) error {
@@ -54,9 +58,9 @@ func WithDirectories(directories []repositories.Directory) ConfigToolProviderOpt
 	}
 }
 
-func WithConfig(config *Config, profile string) ConfigToolProviderOption {
+func WithConfig(config_ *config.Config, profile string) ConfigToolProviderOption {
 	return func(p *ConfigToolProvider) error {
-		profileConfig, ok := config.Profiles[profile]
+		profileConfig, ok := config_.Profiles[profile]
 		if !ok {
 			return errors.Errorf("profile %s not found", profile)
 		}
@@ -107,7 +111,7 @@ func WithConfig(config *Config, profile string) ConfigToolProviderOption {
 func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	provider := &ConfigToolProvider{
 		shellCommands: make(map[string]cmds.Command),
-		toolConfigs:   make(map[string]*SourceConfig),
+		toolConfigs:   make(map[string]*config.SourceConfig),
 		helpSystem:    help.NewHelpSystem(),
 		directories:   []repositories.Directory{},
 	}
@@ -265,48 +269,102 @@ func (p *ConfigToolProvider) executeCommand(ctx context.Context, cmd cmds.Comman
 	return protocol.NewToolResult(protocol.WithText(text)), nil
 }
 
-func (p *ConfigToolProvider) createParkaParameterFilter(sourceConfig *SourceConfig) *config.ParameterFilter {
-	options := []config.ParameterFilterOption{}
+func (p *ConfigToolProvider) createParkaParameterFilter(sourceConfig *config.SourceConfig) *parka_config.ParameterFilter {
+	options := []parka_config.ParameterFilterOption{}
 
 	// Handle defaults
 	if sourceConfig.Defaults != nil {
-		layerParams := config.NewLayerParameters()
+		layerParams := parka_config.NewLayerParameters()
 		for layer, params := range sourceConfig.Defaults {
 			layerParams.Layers[layer] = params
 		}
-		options = append(options, config.WithReplaceDefaults(layerParams))
+		options = append(options, parka_config.WithReplaceDefaults(layerParams))
 	}
 
 	// Handle overrides
 	if sourceConfig.Overrides != nil {
-		layerParams := config.NewLayerParameters()
+		layerParams := parka_config.NewLayerParameters()
 		for layer, params := range sourceConfig.Overrides {
 			layerParams.Layers[layer] = params
 		}
-		options = append(options, config.WithReplaceOverrides(layerParams))
+		options = append(options, parka_config.WithReplaceOverrides(layerParams))
 	}
 
 	// Handle whitelist
 	if sourceConfig.Whitelist != nil {
-		whitelist := &config.ParameterFilterList{}
+		whitelist := &parka_config.ParameterFilterList{}
 		for layer, params := range sourceConfig.Whitelist {
 			whitelist.LayerParameters = map[string][]string{
 				layer: params,
 			}
 		}
-		options = append(options, config.WithWhitelist(whitelist))
+		options = append(options, parka_config.WithWhitelist(whitelist))
 	}
 
 	// Handle blacklist
 	if sourceConfig.Blacklist != nil {
-		blacklist := &config.ParameterFilterList{}
+		blacklist := &parka_config.ParameterFilterList{}
 		for layer, params := range sourceConfig.Blacklist {
 			blacklist.LayerParameters = map[string][]string{
 				layer: params,
 			}
 		}
-		options = append(options, config.WithBlacklist(blacklist))
+		options = append(options, parka_config.WithBlacklist(blacklist))
 	}
 
-	return config.NewParameterFilter(options...)
+	return parka_config.NewParameterFilter(options...)
+}
+
+// CreateToolProviderFromConfig creates a tool provider from a config file and profile
+func CreateToolProviderFromConfig(configFile string, profile string, options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
+	// Handle configuration file if provided
+	if configFile != "" {
+		cfg, err := config.LoadFromFile(configFile)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, errors.Wrap(err, "failed to load configuration file")
+			}
+			// Config file doesn't exist, continue with other options
+			log.Warn().Str("config", configFile).Msg("Configuration file not found")
+		} else {
+			// Determine profile
+			if profile == "" {
+				profile = cfg.DefaultProfile
+			}
+
+			options = append(options, WithConfig(cfg, profile))
+		}
+	}
+
+	// Create and return tool provider
+	return NewConfigToolProvider(options...)
+}
+
+// CreateToolProviderFromDirectories creates a tool provider from a list of directories
+func CreateToolProviderFromDirectories(directories []string, options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
+	if len(directories) > 0 {
+		dirs := []repositories.Directory{}
+		for _, repoPath := range directories {
+			dir := os.ExpandEnv(repoPath)
+			// check if dir exists
+			if fi, err := os.Stat(dir); os.IsNotExist(err) || !fi.IsDir() {
+				log.Warn().Str("path", dir).Msg("Repository directory does not exist or is not a directory")
+				continue
+			}
+			dirs = append(dirs, repositories.Directory{
+				FS:               os.DirFS(dir),
+				RootDirectory:    ".",
+				RootDocDirectory: "doc",
+				WatchDirectory:   dir,
+				Name:             dir,
+				SourcePrefix:     "file",
+			})
+		}
+
+		if len(dirs) > 0 {
+			options = append(options, WithDirectories(dirs))
+		}
+	}
+
+	return NewConfigToolProvider(options...)
 }

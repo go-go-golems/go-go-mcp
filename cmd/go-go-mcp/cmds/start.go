@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
@@ -17,7 +16,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 
+	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
+	config_provider "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/config-provider"
 )
 
 type StartCommandSettings struct {
@@ -110,64 +111,40 @@ func (c *StartCommand) Run(
 	srv := server.NewServer(log.Logger)
 
 	// Create tool provider options
-	toolProviderOptions := []config.ConfigToolProviderOption{
-		config.WithDebug(s.Debug),
+	toolProviderOptions := []config_provider.ConfigToolProviderOption{
+		config_provider.WithDebug(s.Debug),
 	}
 	if s.TracingDir != "" {
-		toolProviderOptions = append(toolProviderOptions, config.WithTracingDir(s.TracingDir))
+		toolProviderOptions = append(toolProviderOptions, config_provider.WithTracingDir(s.TracingDir))
 	}
 
-	// Handle configuration file if provided
+	var toolProvider pkg.ToolProvider
+	var err error
+
+	// Try to create tool provider from config file first
 	if s.ConfigFile != "" {
-		cfg, err := config.LoadFromFile(s.ConfigFile)
+		toolProvider, err = config_provider.CreateToolProviderFromConfig(s.ConfigFile, s.Profile, toolProviderOptions...)
 		if err != nil {
 			if !os.IsNotExist(err) || len(s.Repositories) == 0 {
 				fmt.Fprintf(os.Stderr, "Run 'go-go-mcp config init' to create a starting configuration file, and further edit it with 'go-go-mcp config edit'\n")
-				return errors.Wrap(err, "failed to load configuration file")
+				return errors.Wrap(err, "failed to create tool provider from config")
 			}
-			// Config file doesn't exist but we have repositories, continue
-			log.Warn().Str("config", s.ConfigFile).Msg("Configuration file not found, continuing with provided repositories")
-		} else {
-			// Determine profile
-			profile := s.Profile
-			if profile == "" {
-				profile = cfg.DefaultProfile
-			}
-
-			toolProviderOptions = append(toolProviderOptions, config.WithConfig(cfg, profile))
+			// Config file doesn't exist but we have repositories, continue with directories
 		}
 	}
 
-	// Handle repository directories
-	if len(s.Repositories) > 0 {
-		directories := []repositories.Directory{}
-		for _, repoPath := range s.Repositories {
-			dir := os.ExpandEnv(repoPath)
-			// check if dir exists
-			if fi, err := os.Stat(dir); os.IsNotExist(err) || !fi.IsDir() {
-				log.Warn().Str("path", dir).Msg("Repository directory does not exist or is not a directory")
-				continue
-			}
-			directories = append(directories, repositories.Directory{
-				FS:               os.DirFS(dir),
-				RootDirectory:    ".",
-				RootDocDirectory: "doc",
-				WatchDirectory:   dir,
-				Name:             dir,
-				SourcePrefix:     "file",
-			})
-		}
-
-		if len(directories) > 0 {
-			toolProviderOptions = append(toolProviderOptions, config.WithDirectories(directories))
+	// If no tool provider yet and we have repositories, create from directories
+	if toolProvider == nil && len(s.Repositories) > 0 {
+		toolProvider, err = config_provider.CreateToolProviderFromDirectories(s.Repositories, toolProviderOptions...)
+		if err != nil {
+			return errors.Wrap(err, "failed to create tool provider from directories")
 		}
 	}
 
-	// Create and register tool provider
-	toolProvider, err := config.NewConfigToolProvider(toolProviderOptions...)
-	if err != nil {
-		return errors.Wrap(err, "failed to create tool provider")
+	if toolProvider == nil {
+		return fmt.Errorf("no valid configuration source found (neither config file nor repositories)")
 	}
+
 	srv.GetRegistry().RegisterToolProvider(toolProvider)
 
 	// Create root context with cancellation
