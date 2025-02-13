@@ -12,7 +12,6 @@ type ClaudeDesktopConfig struct {
 	MCPServers         map[string]MCPServer `json:"mcpServers"`
 	DisabledMCPServers []string             `json:"disabledMCPServers,omitempty"`
 	DisabledServers    map[string]MCPServer `json:"disabledServersConfig,omitempty"`
-	GoGoMCP            MCPServer            `json:"go-go-mcp"`
 }
 
 // MCPServer represents a server configuration
@@ -143,11 +142,6 @@ func (e *ClaudeDesktopEditor) GetConfigPath() string {
 // ListServers returns a list of configured MCP servers
 func (e *ClaudeDesktopEditor) ListServers() map[string]MCPServer {
 	servers := make(map[string]MCPServer)
-
-	// Add go-go-mcp if configured
-	if e.config.GoGoMCP.Command != "" {
-		servers["go-go-mcp"] = e.config.GoGoMCP
-	}
 
 	// Add enabled MCP servers
 	for name, server := range e.config.MCPServers {
