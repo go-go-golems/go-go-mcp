@@ -6,9 +6,10 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 )
 
-func RegisterEchoTool(registry *tools.Registry) error {
+func RegisterEchoTool(registry *tool_registry.Registry) error {
 	schemaJson := `{
 		"type": "object",
 		"properties": {

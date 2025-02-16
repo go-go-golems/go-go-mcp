@@ -1,32 +1,26 @@
 package server
 
 import (
-	"github.com/go-go-golems/go-go-mcp/pkg/services"
+	"github.com/go-go-golems/go-go-mcp/pkg"
 )
 
 type ServerOption func(*Server)
 
-func WithPromptService(ps services.PromptService) ServerOption {
+func WithPromptProvider(pp pkg.PromptProvider) ServerOption {
 	return func(s *Server) {
-		s.promptService = ps
+		s.promptProvider = pp
 	}
 }
 
-func WithResourceService(rs services.ResourceService) ServerOption {
+func WithResourceProvider(rp pkg.ResourceProvider) ServerOption {
 	return func(s *Server) {
-		s.resourceService = rs
+		s.resourceProvider = rp
 	}
 }
 
-func WithToolService(ts services.ToolService) ServerOption {
+func WithToolProvider(tp pkg.ToolProvider) ServerOption {
 	return func(s *Server) {
-		s.toolService = ts
-	}
-}
-
-func WithInitializeService(is services.InitializeService) ServerOption {
-	return func(s *Server) {
-		s.initializeService = is
+		s.toolProvider = tp
 	}
 }
 

@@ -172,7 +172,7 @@ func ConvertCommandToTool(desc *cmds.CommandDescription) (protocol.Tool, error) 
 }
 
 // ListTools implements pkg.ToolProvider interface
-func (p *ConfigToolProvider) ListTools(cursor string) ([]protocol.Tool, string, error) {
+func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]protocol.Tool, string, error) {
 	var tools []protocol.Tool
 
 	repoCommands := p.repository.CollectCommands([]string{}, true)

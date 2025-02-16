@@ -6,100 +6,50 @@ import (
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
-	"github.com/go-go-golems/go-go-mcp/pkg/server/transports/sse"
-	"github.com/go-go-golems/go-go-mcp/pkg/server/transports/stdio"
-	"github.com/go-go-golems/go-go-mcp/pkg/services"
-	"github.com/go-go-golems/go-go-mcp/pkg/services/defaults"
+	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/rs/zerolog"
 )
 
-// Transport represents a server transport mechanism
-type Transport interface {
-	// Start starts the transport with the given context
-	Start(ctx context.Context) error
-	// Stop gracefully stops the transport with the given context
-	Stop(ctx context.Context) error
-}
-
 // Server represents an MCP server that can use different transports
 type Server struct {
-	mu                sync.Mutex
-	logger            zerolog.Logger
-	registry          *pkg.ProviderRegistry
-	promptService     services.PromptService
-	resourceService   services.ResourceService
-	toolService       services.ToolService
-	initializeService services.InitializeService
-	serverName        string
-	serverVersion     string
-	transport         Transport
+	mu               sync.Mutex
+	logger           zerolog.Logger
+	transport        transport.Transport
+	promptProvider   pkg.PromptProvider
+	resourceProvider pkg.ResourceProvider
+	toolProvider     pkg.ToolProvider
+	handler          *RequestHandler
+
+	serverName    string
+	serverVersion string
 }
 
 // NewServer creates a new server instance
-func NewServer(logger zerolog.Logger, options ...ServerOption) *Server {
-	registry := pkg.NewProviderRegistry()
+func NewServer(logger zerolog.Logger, t transport.Transport, opts ...ServerOption) *Server {
 	s := &Server{
-		logger:            logger,
-		registry:          registry,
-		serverName:        "go-mcp-server",
-		serverVersion:     "1.0.0",
-		promptService:     defaults.NewPromptService(registry, logger),
-		resourceService:   defaults.NewResourceService(registry, logger),
-		toolService:       defaults.NewToolService(registry, logger),
-		initializeService: defaults.NewInitializeService("go-mcp-server", "1.0.0"),
+		logger:    logger,
+		transport: t,
 	}
 
-	for _, opt := range options {
+	// Apply options
+	for _, opt := range opts {
 		opt(s)
 	}
+
+	// Create request handler
+	s.handler = NewRequestHandler(s)
+
 	return s
 }
 
-// GetRegistry returns the server's provider registry
-func (s *Server) GetRegistry() *pkg.ProviderRegistry {
-	return s.registry
-}
+// Start begins the server with the configured transport
+func (s *Server) Start(ctx context.Context) error {
+	s.logger.Info().
+		Str("transport", s.transport.Info().Type).
+		Interface("capabilities", s.transport.Info().Capabilities).
+		Msg("Starting MCP server")
 
-// StartStdio starts the server with stdio transport
-func (s *Server) StartStdio(ctx context.Context) error {
-	s.mu.Lock()
-	s.logger.Debug().Msg("Creating stdio transport")
-	// Create a new logger for the stdio server that preserves the log level and other settings
-	stdioLogger := s.logger.With().Logger()
-	stdioServer := stdio.NewServer(stdioLogger, s.promptService, s.resourceService, s.toolService, s.initializeService)
-	s.transport = stdioServer
-	s.mu.Unlock()
-
-	s.logger.Debug().Msg("Starting stdio transport")
-	err := stdioServer.Start(ctx)
-	if err != nil {
-		s.logger.Debug().
-			Err(err).
-			Msg("Stdio transport stopped with error")
-		return err
-	}
-	s.logger.Debug().Msg("Stdio transport stopped cleanly")
-	return nil
-}
-
-// StartSSE starts the server with SSE transport on the specified port
-func (s *Server) StartSSE(ctx context.Context, port int) error {
-	s.mu.Lock()
-	s.logger.Debug().Int("port", port).Msg("Creating SSE transport")
-	sseServer := sse.NewSSEServer(s.logger, s.promptService, s.resourceService, s.toolService, s.initializeService, port)
-	s.transport = sseServer
-	s.mu.Unlock()
-
-	s.logger.Debug().Int("port", port).Msg("Starting SSE transport")
-	err := sseServer.Start(ctx)
-	if err != nil {
-		s.logger.Debug().
-			Err(err).
-			Msg("SSE transport stopped with error")
-		return err
-	}
-	s.logger.Debug().Msg("SSE transport stopped cleanly")
-	return nil
+	return s.transport.Listen(ctx, s.handler)
 }
 
 // Stop gracefully stops the server
@@ -113,7 +63,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	s.logger.Info().Msg("Stopping server transport")
-	err := s.transport.Stop(ctx)
+	err := s.transport.Close(ctx)
 	if err != nil {
 		s.logger.Error().
 			Err(err).

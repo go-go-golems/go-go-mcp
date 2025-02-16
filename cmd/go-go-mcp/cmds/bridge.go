@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/server/transports/stdio"
+	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +22,7 @@ This is useful when you want to connect a stdio client to a remote SSE server.`,
 				return fmt.Errorf("SSE URL is required")
 			}
 
-			server := stdio.NewSSEBridgeServer(logger, sseURL)
+			server := server.NewSSEBridgeServer(logger, sseURL)
 			return server.Start(context.Background())
 		},
 	}

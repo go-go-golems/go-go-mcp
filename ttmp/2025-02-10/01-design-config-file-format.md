@@ -350,7 +350,7 @@ profiles:
 
 Command-line usage:
 ```bash
-go-go-mcp start --config-file config.yaml --profile development
+go-go-mcp server start --config-file config.yaml --profile development
 ```
 
 ## Error Handling Examples

@@ -82,13 +82,6 @@ func initRootCmd() (*help.HelpSystem, error) {
 
 	rootCmd.AddCommand(runCommandCmd)
 
-	// Create and add start command
-	startCmd, err := mcp_cmds.NewStartCommand()
-	cobra.CheckErr(err)
-	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd)
-	cobra.CheckErr(err)
-	rootCmd.AddCommand(cobraStartCmd)
-
 	// Create and add schema command
 	schemaCmd, err := mcp_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)

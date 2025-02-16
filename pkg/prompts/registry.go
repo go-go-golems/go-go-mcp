@@ -1,6 +1,7 @@
 package prompts
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -54,7 +55,7 @@ func (r *Registry) UnregisterPrompt(name string) {
 }
 
 // ListPrompts implements PromptProvider interface
-func (r *Registry) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
+func (r *Registry) ListPrompts(_ context.Context, cursor string) ([]protocol.Prompt, string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -93,7 +94,7 @@ func (r *Registry) ListPrompts(cursor string) ([]protocol.Prompt, string, error)
 }
 
 // GetPrompt implements PromptProvider interface
-func (r *Registry) GetPrompt(name string, arguments map[string]string) (*protocol.PromptMessage, error) {
+func (r *Registry) GetPrompt(_ context.Context, name string, arguments map[string]string) (*protocol.PromptMessage, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

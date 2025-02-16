@@ -1,4 +1,4 @@
-package stdio
+package server
 
 import (
 	"bufio"

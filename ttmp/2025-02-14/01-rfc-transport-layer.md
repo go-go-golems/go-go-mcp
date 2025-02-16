@@ -90,9 +90,6 @@ type Notification struct {
 type TransportOptions struct {
     // Common options
     MaxMessageSize int64
-    ReadTimeout time.Duration
-    WriteTimeout time.Duration
-    MaxConcurrentRequests int
     Logger zerolog.Logger
     
     // Transport specific options
@@ -105,16 +102,6 @@ type SSEOptions struct {
     // HTTP server configuration
     Addr            string
     TLSConfig       *tls.Config
-    ReadBufferSize  int
-    WriteBufferSize int
-    
-    // SSE specific settings
-    HeartbeatInterval time.Duration
-    RetryInterval     time.Duration
-    
-    // Connection management
-    MaxConnections    int
-    IdleTimeout      time.Duration
     
     // Middleware
     Middleware []func(http.Handler) http.Handler
@@ -254,41 +241,7 @@ The implementation will follow these steps:
 1. Create new transport package with core interfaces
 2. Implement SSE transport
 3. Implement stdio transport
-4. Add tests for both implementations
-5. Create migration guide for existing code
 6. Update server to use new transport layer
-
-### Testing Strategy
-
-1. Unit tests for each transport implementation
-2. Integration tests with mock handlers
-3. Benchmark tests for performance comparison
-4. Stress tests for concurrent handling
-5. Error handling tests
-
-Example test:
-```go
-func TestSSETransport(t *testing.T) {
-    // Create transport
-    transport, err := NewSSETransport(":0", WithLogger(zerolog.Nop()))
-    require.NoError(t, err)
-    
-    // Create mock handler
-    handler := &MockRequestHandler{}
-    
-    // Start transport
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-    
-    go func() {
-        err := transport.Listen(ctx, handler)
-        require.NoError(t, err)
-    }()
-    
-    // Test requests
-    // ...
-}
-```
 
 ## Migration Guide
 
@@ -296,7 +249,6 @@ func TestSSETransport(t *testing.T) {
 2. Replace direct transport usage with interface
 3. Update error handling to use new error types
 4. Add transport options where needed
-5. Update tests to use new interfaces
 
 Example:
 ```go
@@ -453,8 +405,6 @@ client := NewClient(logger, NewSSETransport(baseURL))
 transport, err := sse.NewTransport(
     transport.WithSSEOptions(sse.Options{
         Addr: baseURL,
-        HeartbeatInterval: 30 * time.Second,
-        MaxConnections: 100,
     }),
     transport.WithLogger(logger),
 )
@@ -562,18 +512,3 @@ func TestSSETransport(t *testing.T) {
     // ...
 }
 ```
-
-### Phase 6: Documentation and Examples (Week 7-8)
-
-1. Update documentation:
-   - Add migration guide
-   - Document new interfaces
-   - Provide examples for each transport
-   - Update API documentation
-
-2. Create example applications:
-   - Basic client/server
-   - Custom transport implementation
-   - Testing with mock transport
-
-[Rest of the RFC remains unchanged...] 

@@ -128,7 +128,7 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		return err
 	}
 
-	tools, cursor, err := toolProvider.ListTools("")
+	tools, cursor, err := toolProvider.ListTools(ctx, "")
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package tools
+package tool_registry
 
 import (
 	"context"
@@ -7,37 +7,38 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 )
 
 // Registry provides a simple way to register individual tools
 type Registry struct {
 	mu       sync.RWMutex
-	tools    map[string]Tool
+	tools    map[string]tools.Tool
 	handlers map[string]Handler
 }
 
 // Handler is a function that executes a tool with given arguments
-type Handler func(ctx context.Context, tool Tool, arguments map[string]interface{}) (*protocol.ToolResult, error)
+type Handler func(ctx context.Context, tool tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error)
 
 var _ pkg.ToolProvider = &Registry{}
 
 // NewRegistry creates a new tool registry
 func NewRegistry() *Registry {
 	return &Registry{
-		tools:    make(map[string]Tool),
+		tools:    make(map[string]tools.Tool),
 		handlers: make(map[string]Handler),
 	}
 }
 
 // RegisterTool adds a tool to the registry
-func (r *Registry) RegisterTool(tool Tool) {
+func (r *Registry) RegisterTool(tool tools.Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[tool.GetName()] = tool
 }
 
 // RegisterToolWithHandler adds a tool with a custom handler
-func (r *Registry) RegisterToolWithHandler(tool Tool, handler Handler) {
+func (r *Registry) RegisterToolWithHandler(tool tools.Tool, handler Handler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[tool.GetName()] = tool
@@ -53,7 +54,7 @@ func (r *Registry) UnregisterTool(name string) {
 }
 
 // ListTools implements ToolProvider interface
-func (r *Registry) ListTools(cursor string) ([]protocol.Tool, string, error) {
+func (r *Registry) ListTools(_ context.Context, cursor string) ([]protocol.Tool, string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
