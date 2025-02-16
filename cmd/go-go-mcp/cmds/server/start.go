@@ -128,7 +128,9 @@ func (c *StartCommand) Run(
 	// Start file watcher
 	g.Go(func() error {
 		if err := toolProvider.Watch(gctx); err != nil {
-			logger.Error().Err(err).Msg("failed to start file watcher")
+			if !errors.Is(err, context.Canceled) {
+				logger.Error().Err(err).Msg("failed to run file watcher")
+			}
 			return err
 		}
 		return nil

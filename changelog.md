@@ -1064,3 +1064,62 @@ Updated cobra command handling to support both full and minimal Glazed command l
 - Unified handling of common flags (print-yaml, print-parsed-parameters, etc.) between both layers
 - Maintained backward compatibility with full GlazedCommandLayer features
 - Added placeholder for schema printing functionality
+
+# Transport Layer Refactoring
+
+Implemented new transport layer architecture as described in RFC-01. This change:
+- Creates a clean interface for different transport mechanisms
+- Separates transport concerns from business logic
+- Provides consistent error handling across transports
+- Adds support for transport-specific options and capabilities
+
+- Created new transport package with core interfaces and types
+- Implemented SSE transport using new architecture
+- Added transport options system
+- Added standardized error handling
+
+# Transport Layer Implementation
+
+Added stdio transport implementation using new transport layer architecture:
+- Implemented stdio transport with proper signal handling and graceful shutdown
+- Added support for configurable buffer sizes and logging
+- Added proper error handling and JSON-RPC message processing
+- Added context-based cancellation and cleanup
+
+# Server Layer Updates
+
+Updated server implementation to use new transport layer:
+- Refactored Server struct to use transport interface
+- Added RequestHandler to implement transport.RequestHandler interface
+- Updated server command to support multiple transport types
+- Improved error handling and logging throughout server layer
+
+# Enhanced SSE Transport
+
+Added support for integrating SSE transport with existing HTTP servers:
+- Added standalone and integrated modes for SSE transport
+- Added GetHandlers method to get SSE endpoint handlers
+- Added RegisterHandlers method for router integration
+- Added support for path prefixes and middleware
+- Improved configuration options for HTTP server integration
+
+# Transport Interface Refactoring
+
+Simplified transport interface to use protocol types directly instead of custom types.
+- Removed duplicate type definitions from transport package
+- Use protocol.Request/Response/Notification types directly
+- Improved type safety by removing interface{} usage
+
+# Transport Request ID Handling
+
+Added proper request ID handling to transport package:
+- Added IsNotification helper to check for empty/null request IDs
+- Improved notification detection for JSON-RPC messages
+- Consistent handling of request IDs across transports
+
+# Transport ID Type Conversion
+
+Added helper functions for converting between string and JSON-RPC ID types:
+- Added StringToID to convert string to json.RawMessage
+- Added IDToString to convert json.RawMessage to string
+- Improved type safety in ID handling across transports

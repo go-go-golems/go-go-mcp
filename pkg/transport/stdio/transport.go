@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/rs/zerolog"
 )
@@ -141,7 +142,7 @@ func (s *StdioTransport) Listen(ctx context.Context, handler transport.RequestHa
 	}
 }
 
-func (s *StdioTransport) Send(ctx context.Context, response *transport.Response) error {
+func (s *StdioTransport) Send(ctx context.Context, response *protocol.Response) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -197,7 +198,7 @@ func (s *StdioTransport) handleMessage(message string) error {
 		Msg("Processing message")
 
 	// Parse the base message structure
-	var request transport.Request
+	var request protocol.Request
 	if err := json.Unmarshal([]byte(message), &request); err != nil {
 		s.logger.Error().
 			Err(err).
@@ -207,9 +208,9 @@ func (s *StdioTransport) handleMessage(message string) error {
 	}
 
 	// Handle requests vs notifications based on ID presence
-	if request.ID != "" {
+	if !transport.IsNotification(&request) {
 		s.logger.Debug().
-			Str("id", request.ID).
+			RawJSON("id", request.ID).
 			Str("method", request.Method).
 			Msg("Handling request")
 		return s.handleRequest(request)
@@ -218,17 +219,20 @@ func (s *StdioTransport) handleMessage(message string) error {
 	s.logger.Debug().
 		Str("method", request.Method).
 		Msg("Handling notification")
-	return s.handleNotification(request)
+	return s.handleNotification(protocol.Notification{
+		Method: request.Method,
+		Params: request.Params,
+	})
 }
 
-func (s *StdioTransport) handleRequest(request transport.Request) error {
+func (s *StdioTransport) handleRequest(request protocol.Request) error {
 	response, err := s.handler.HandleRequest(context.Background(), &request)
 	if err != nil {
 		s.logger.Error().
 			Err(err).
 			Str("method", request.Method).
 			Msg("Error handling request")
-		return s.sendError(&request.ID, transport.ErrCodeInternal, "Internal error", err)
+		return s.sendError(request.ID, transport.ErrCodeInternal, "Internal error", err)
 	}
 
 	if response != nil {
@@ -238,17 +242,12 @@ func (s *StdioTransport) handleRequest(request transport.Request) error {
 	return nil
 }
 
-func (s *StdioTransport) handleNotification(request transport.Request) error {
-	notification := &transport.Notification{
-		Method:  request.Method,
-		Params:  request.Params,
-		Headers: request.Headers,
-	}
+func (s *StdioTransport) handleNotification(notification protocol.Notification) error {
 
-	if err := s.handler.HandleNotification(context.Background(), notification); err != nil {
+	if err := s.handler.HandleNotification(context.Background(), &notification); err != nil {
 		s.logger.Error().
 			Err(err).
-			Str("method", request.Method).
+			Str("method", notification.Method).
 			Msg("Error handling notification")
 		// Don't send error responses for notifications
 	}
@@ -256,7 +255,7 @@ func (s *StdioTransport) handleNotification(request transport.Request) error {
 	return nil
 }
 
-func (s *StdioTransport) sendError(id *string, code int, message string, data interface{}) error {
+func (s *StdioTransport) sendError(id json.RawMessage, code int, message string, data interface{}) error {
 	var errorData json.RawMessage
 	if data != nil {
 		var err error
@@ -268,15 +267,13 @@ func (s *StdioTransport) sendError(id *string, code int, message string, data in
 		}
 	}
 
-	response := &transport.Response{
-		Error: &transport.ResponseError{
+	response := &protocol.Response{
+		Error: &protocol.Error{
 			Code:    code,
 			Message: message,
 			Data:    errorData,
 		},
-	}
-	if id != nil {
-		response.ID = *id
+		ID: id,
 	}
 
 	s.logger.Debug().Interface("response", response).Msg("Sending error response")

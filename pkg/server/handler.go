@@ -21,9 +21,9 @@ func NewRequestHandler(s *Server) *RequestHandler {
 }
 
 // HandleRequest processes a request and returns a response
-func (h *RequestHandler) HandleRequest(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) HandleRequest(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	// Validate JSON-RPC version
-	if req.Headers["jsonrpc"] != "2.0" {
+	if req.JSONRPC != "2.0" {
 		return nil, transport.NewInvalidRequestError("invalid JSON-RPC version")
 	}
 
@@ -50,7 +50,7 @@ func (h *RequestHandler) HandleRequest(ctx context.Context, req *transport.Reque
 }
 
 // HandleNotification processes a notification (no response expected)
-func (h *RequestHandler) HandleNotification(ctx context.Context, notif *transport.Notification) error {
+func (h *RequestHandler) HandleNotification(ctx context.Context, notif *protocol.Notification) error {
 	switch notif.Method {
 	case "notifications/initialized":
 		h.server.logger.Info().Msg("Client initialized")
@@ -62,20 +62,20 @@ func (h *RequestHandler) HandleNotification(ctx context.Context, notif *transpor
 }
 
 // Helper method to create success response
-func (h *RequestHandler) newSuccessResponse(id string, result interface{}) (*transport.Response, error) {
+func (h *RequestHandler) newSuccessResponse(id json.RawMessage, result interface{}) (*protocol.Response, error) {
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result: %w", err)
 	}
 
-	return &transport.Response{
+	return &protocol.Response{
 		ID:     id,
 		Result: resultJSON,
 	}, nil
 }
 
 // Individual request handlers
-func (h *RequestHandler) handleInitialize(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handleInitialize(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params protocol.InitializeParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return nil, transport.NewInvalidParamsError(err.Error())
@@ -120,11 +120,11 @@ func (h *RequestHandler) handleInitialize(ctx context.Context, req *transport.Re
 	return h.newSuccessResponse(req.ID, result)
 }
 
-func (h *RequestHandler) handlePing(_ context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handlePing(_ context.Context, req *protocol.Request) (*protocol.Response, error) {
 	return h.newSuccessResponse(req.ID, struct{}{})
 }
 
-func (h *RequestHandler) handlePromptsList(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handlePromptsList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Cursor string `json:"cursor"`
 	}
@@ -147,7 +147,7 @@ func (h *RequestHandler) handlePromptsList(ctx context.Context, req *transport.R
 	})
 }
 
-func (h *RequestHandler) handlePromptsGet(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handlePromptsGet(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Name      string            `json:"name"`
 		Arguments map[string]string `json:"arguments"`
@@ -164,7 +164,7 @@ func (h *RequestHandler) handlePromptsGet(ctx context.Context, req *transport.Re
 	return h.newSuccessResponse(req.ID, prompt)
 }
 
-func (h *RequestHandler) handleResourcesList(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handleResourcesList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Cursor string `json:"cursor"`
 	}
@@ -187,7 +187,7 @@ func (h *RequestHandler) handleResourcesList(ctx context.Context, req *transport
 	})
 }
 
-func (h *RequestHandler) handleResourcesRead(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handleResourcesRead(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Name string `json:"name"`
 	}
@@ -205,7 +205,7 @@ func (h *RequestHandler) handleResourcesRead(ctx context.Context, req *transport
 	})
 }
 
-func (h *RequestHandler) handleToolsList(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handleToolsList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Cursor string `json:"cursor"`
 	}
@@ -228,7 +228,7 @@ func (h *RequestHandler) handleToolsList(ctx context.Context, req *transport.Req
 	})
 }
 
-func (h *RequestHandler) handleToolsCall(ctx context.Context, req *transport.Request) (*transport.Response, error) {
+func (h *RequestHandler) handleToolsCall(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
 		Name      string                 `json:"name"`
 		Arguments map[string]interface{} `json:"arguments"`

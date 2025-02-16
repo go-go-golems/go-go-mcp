@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -45,7 +46,7 @@ type SSETransport struct {
 type SSEClient struct {
 	id          string
 	sessionID   string
-	messageChan chan *transport.Response
+	messageChan chan *protocol.Response
 	createdAt   time.Time
 	remoteAddr  string
 	userAgent   string
@@ -140,7 +141,7 @@ func (s *SSETransport) Listen(ctx context.Context, handler transport.RequestHand
 	}
 }
 
-func (s *SSETransport) Send(ctx context.Context, response *transport.Response) error {
+func (s *SSETransport) Send(ctx context.Context, response *protocol.Response) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -255,7 +256,7 @@ func (s *SSETransport) handleSSE(w http.ResponseWriter, r *http.Request) {
 	client := &SSEClient{
 		id:          clientID,
 		sessionID:   sessionID,
-		messageChan: make(chan *transport.Response, 100),
+		messageChan: make(chan *protocol.Response, 100),
 		createdAt:   time.Now(),
 		remoteAddr:  r.RemoteAddr,
 		userAgent:   r.UserAgent(),
@@ -318,7 +319,7 @@ func (s *SSETransport) handleMessages(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.WithValue(r.Context(), sessionIDKey, sessionID)
 
-	var request transport.Request
+	var request protocol.Request
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to decode request")
 		w.WriteHeader(http.StatusBadRequest)
