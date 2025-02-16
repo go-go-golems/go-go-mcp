@@ -1048,3 +1048,19 @@ Added server-side tool management commands for direct interaction with tool prov
 - Added `server tools list` command to list available tools directly from tool provider
 - Added `server tools call` command to call tools directly without starting the server
 - Reused server layer for configuration consistency
+
+## Add Minimal Glazed Command Layer
+
+Added a minimal version of the Glazed command layer (NewGlazedMinimalCommandLayer) that contains just the most commonly used parameters: print-yaml, print-parsed-parameters, load-parameters-from-file, and print-schema. This provides a simpler interface for basic command configuration.
+
+- Added GlazedMinimalCommandSlug constant
+- Added NewGlazedMinimalCommandLayer function
+
+## Enhanced Glazed Command Layer Handling
+
+Updated cobra command handling to support both full and minimal Glazed command layers:
+
+- Added support for GlazedMinimalCommandLayer in cobra command processing
+- Unified handling of common flags (print-yaml, print-parsed-parameters, etc.) between both layers
+- Maintained backward compatibility with full GlazedCommandLayer features
+- Added placeholder for schema printing functionality

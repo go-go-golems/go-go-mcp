@@ -67,7 +67,7 @@ func (p *ShellToolProvider) ListTools(cursor string) ([]protocol.Tool, string, e
 
 	for _, cmd := range p.commands {
 		desc := cmd.Description()
-		schema, err := ToJsonSchema(desc)
+		schema, err := desc.ToJsonSchema()
 		if err != nil {
 			return nil, "", errors.Wrap(err, "failed to generate JSON schema")
 		}
