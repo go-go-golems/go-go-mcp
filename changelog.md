@@ -1123,3 +1123,27 @@ Added helper functions for converting between string and JSON-RPC ID types:
 - Added StringToID to convert string to json.RawMessage
 - Added IDToString to convert json.RawMessage to string
 - Improved type safety in ID handling across transports
+
+# Simplified UI DSL
+
+Simplified the UI DSL by removing class attributes and creating distinct title and text elements:
+- Removed class attributes from all components
+- Added dedicated title element for headings
+- Simplified text element to be just for paragraphs
+- Updated documentation to reflect changes
+
+# UI DSL Implementation
+
+Created a YAML-based UI DSL for defining simple user interfaces. The DSL supports common UI components like buttons, text, inputs, textareas, checkboxes, and lists with a clean and intuitive syntax.
+
+- Added `ui-dsl.yaml` with component definitions and examples
+- Added documentation in `README.md`
+- Included support for common attributes across all components
+- Added nested component support for complex layouts
+
+# UI Server Implementation
+Added a new UI server that can render YAML UI definitions using HTMX and Bootstrap:
+- Created a new command `ui-server` that serves UI definitions from YAML files
+- Implemented templ templates for rendering UI components
+- Added support for various UI components like buttons, inputs, forms, etc.
+- Used HTMX for dynamic interactions and Bootstrap for styling

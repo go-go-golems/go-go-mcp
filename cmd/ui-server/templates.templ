@@ -1,0 +1,224 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+templ base(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title }</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+			<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+		</head>
+		<body class="container py-4">
+			<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+				<div class="container-fluid">
+					<a class="navbar-brand" href="/">UI Server</a>
+				</div>
+			</nav>
+			{ children... }
+		</body>
+	</html>
+}
+
+templ indexTemplate(pages map[string]UIDefinition) {
+	@base("UI Server - Index") {
+		<div class="row">
+			<div class="col">
+				<h1>Available Pages</h1>
+				<div class="list-group">
+					for name := range pages {
+						<a href={ templ.SafeURL("/" + strings.TrimSuffix(name, ".yaml")) } class="list-group-item list-group-item-action">
+							{ name }
+						</a>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ pageTemplate(name string, def UIDefinition) {
+	@base("UI Server - " + name) {
+		<div class="row">
+			<div class="col">
+				<h1>{ name }</h1>
+				@renderComponents(def.Components)
+			</div>
+		</div>
+	}
+}
+
+templ renderComponents(components map[string]interface{}) {
+	for key, component := range components {
+		switch c := component.(type) {
+		case map[string]interface{}:
+			@renderComponent(key, c)
+		}
+	}
+}
+
+templ renderComponent(typ string, props map[string]interface{}) {
+	switch typ {
+	case "button":
+		<button 
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			if disabled, ok := props["disabled"].(bool); ok && disabled {
+				disabled="disabled"
+			}
+			if onclick, ok := props["onclick"].(string); ok {
+				data-hx-on:click={ onclick }
+			}
+			class={
+				"btn",
+				templ.KV("btn-primary", props["type"] == "primary"),
+				templ.KV("btn-secondary", props["type"] == "secondary"),
+				templ.KV("btn-danger", props["type"] == "danger"),
+				templ.KV("btn-success", props["type"] == "success"),
+			}
+		>
+			if text, ok := props["text"].(string); ok {
+				{ text }
+			}
+		</button>
+	case "title":
+		<h1 
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+		>
+			if content, ok := props["content"].(string); ok {
+				{ content }
+			}
+		</h1>
+	case "text":
+		<p 
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+		>
+			if content, ok := props["content"].(string); ok {
+				{ content }
+			}
+		</p>
+	case "input":
+		<input
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			if typ, ok := props["type"].(string); ok {
+				type={ typ }
+			}
+			if placeholder, ok := props["placeholder"].(string); ok {
+				placeholder={ placeholder }
+			}
+			if value, ok := props["value"].(string); ok {
+				value={ value }
+			}
+			if required, ok := props["required"].(bool); ok && required {
+				required="required"
+			}
+			class="form-control"
+		/>
+	case "textarea":
+		<textarea
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			if rows, ok := props["rows"].(int); ok {
+				rows={ fmt.Sprint(rows) }
+			}
+			if cols, ok := props["cols"].(int); ok {
+				cols={ fmt.Sprint(cols) }
+			}
+			if placeholder, ok := props["placeholder"].(string); ok {
+				placeholder={ placeholder }
+			}
+			class="form-control"
+		>
+			if value, ok := props["value"].(string); ok {
+				{ value }
+			}
+		</textarea>
+	case "checkbox":
+		<div class="form-check">
+			<input
+				type="checkbox"
+				if id, ok := props["id"].(string); ok {
+					id={ id }
+				}
+				if name, ok := props["name"].(string); ok {
+					name={ name }
+				}
+				if checked, ok := props["checked"].(bool); ok && checked {
+					checked="checked"
+				}
+				if required, ok := props["required"].(bool); ok && required {
+					required="required"
+				}
+				class="form-check-input"
+			/>
+			if label, ok := props["label"].(string); ok {
+				<label class="form-check-label" for={ props["id"].(string) }>{ label }</label>
+			}
+		</div>
+	case "list":
+		if typ, ok := props["type"].(string); ok {
+			if typ == "ul" {
+				<ul class="list-group">
+					if items, ok := props["items"].([]interface{}); ok {
+						for _, item := range items {
+							<li class="list-group-item">
+								switch i := item.(type) {
+								case string:
+									{ i }
+								case map[string]interface{}:
+									@renderComponents(i)
+								}
+							</li>
+						}
+					}
+				</ul>
+			} else if typ == "ol" {
+				<ol class="list-group list-group-numbered">
+					if items, ok := props["items"].([]interface{}); ok {
+						for _, item := range items {
+							<li class="list-group-item">
+								switch i := item.(type) {
+								case string:
+									{ i }
+								case map[string]interface{}:
+									@renderComponents(i)
+								}
+							</li>
+						}
+					}
+				</ol>
+			}
+		}
+	case "form":
+		<form
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			class="needs-validation"
+			novalidate
+		>
+			if components, ok := props["components"].([]interface{}); ok {
+				for _, comp := range components {
+					if c, ok := comp.(map[string]interface{}); ok {
+						@renderComponents(c)
+					}
+				}
+			}
+		</form>
+	}
+} 
