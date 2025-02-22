@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"gopkg.in/yaml.v3"
 )
 
 templ base(title string) {
@@ -15,6 +16,27 @@ templ base(title string) {
 			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
 			<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
 			<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+			<script>
+				document.addEventListener('DOMContentLoaded', (event) => {
+					document.querySelectorAll('pre code').forEach((el) => {
+						hljs.highlightElement(el);
+					});
+				});
+			</script>
+			<style>
+				.source-yaml {
+					background-color: #f8f9fa;
+					border-radius: 6px;
+					padding: 15px;
+					margin-bottom: 20px;
+				}
+				pre {
+					margin: 0;
+				}
+			</style>
 		</head>
 		<body class="container py-4">
 			<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
@@ -47,20 +69,31 @@ templ indexTemplate(pages map[string]UIDefinition) {
 templ pageTemplate(name string, def UIDefinition) {
 	@base("UI Server - " + name) {
 		<div class="row">
-			<div class="col">
-				<h1>{ name }</h1>
-				@renderComponents(def.Components)
+			<div class="col-md-6">
+				<div class="card mb-4">
+					<div class="card-header">
+						<h5 class="card-title mb-0">Rendered UI</h5>
+					</div>
+					<div class="card-body">
+						for _, component := range def.Components {
+							for typ, props := range component {
+								@renderComponent(typ, props.(map[string]interface{}))
+							}
+						}
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card">
+					<div class="card-header">
+						<h5 class="card-title mb-0">YAML Source</h5>
+					</div>
+					<div class="card-body source-yaml">
+						<pre><code class="language-yaml">{ yamlString(def) }</code></pre>
+					</div>
+				</div>
 			</div>
 		</div>
-	}
-}
-
-templ renderComponents(components map[string]interface{}) {
-	for key, component := range components {
-		switch c := component.(type) {
-		case map[string]interface{}:
-			@renderComponent(key, c)
-		}
 	}
 }
 
@@ -181,7 +214,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 								case string:
 									{ i }
 								case map[string]interface{}:
-									@renderComponents(i)
+									for typ, props := range i {
+										@renderComponent(typ, props.(map[string]interface{}))
+									}
 								}
 							</li>
 						}
@@ -196,7 +231,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 								case string:
 									{ i }
 								case map[string]interface{}:
-									@renderComponents(i)
+									for typ, props := range i {
+										@renderComponent(typ, props.(map[string]interface{}))
+									}
 								}
 							</li>
 						}
@@ -215,10 +252,20 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			if components, ok := props["components"].([]interface{}); ok {
 				for _, comp := range components {
 					if c, ok := comp.(map[string]interface{}); ok {
-						@renderComponents(c)
+						for typ, props := range c {
+							@renderComponent(typ, props.(map[string]interface{}))
+						}
 					}
 				}
 			}
 		</form>
 	}
+}
+
+func yamlString(def UIDefinition) string {
+	yamlBytes, err := yaml.Marshal(def)
+	if err != nil {
+		return fmt.Sprintf("Error marshaling YAML: %v", err)
+	}
+	return string(yamlBytes)
 } 
