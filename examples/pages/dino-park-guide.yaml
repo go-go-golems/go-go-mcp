@@ -1,0 +1,73 @@
+components:
+  - title:
+      id: park-guide-title
+      content: "🦕 Welcome to Prehistoric Park"
+  
+  - text:
+      id: park-intro
+      content: "Your guide to the most amazing dinosaur experience on Earth! Please read these guidelines carefully before your visit."
+  
+  - list:
+      type: ul
+      items:
+        - "Park Areas":
+            list:
+              type: ul
+              items:
+                - "Herbivore Valley":
+                    button:
+                      id: herbivore-map
+                      text: "View Map"
+                      type: secondary
+                - "Carnivore Territory":
+                    button:
+                      id: carnivore-map
+                      text: "View Map"
+                      type: secondary
+                - "Prehistoric Garden":
+                    button:
+                      id: garden-map
+                      text: "View Map"
+                      type: secondary
+  
+  - title:
+      content: "Safety Guidelines"
+  
+  - list:
+      type: ol
+      items:
+        - "Stay in your vehicle at all times in designated areas"
+        - "Keep windows closed in carnivore territories"
+        - "Follow guide instructions":
+            button:
+              id: guide-info
+              text: "Meet Our Guides"
+              type: primary
+        - "Maintain safe distance from enclosures"
+  
+  - form:
+      id: tour-booking
+      components:
+        - title:
+            content: "Book a Guided Tour"
+        - input:
+            id: visitor-name
+            type: text
+            placeholder: "Your name"
+            required: true
+        - input:
+            id: group-size
+            type: number
+            placeholder: "Number of visitors"
+            required: true
+        - checkbox:
+            id: vip-tour
+            label: "VIP Tour (includes feeding experience)"
+        - button:
+            id: book-tour
+            text: "Book Now"
+            type: success
+  
+  - text:
+      id: emergency-info
+      content: "In case of emergency, call park security at 555-DINO" 

@@ -1,0 +1,29 @@
+name: sightseeing-schedule
+short: Generate a sightseeing schedule
+flags:
+  - name: location
+    type: string
+    help: Location for sightseeing
+    required: true
+  - name: date
+    type: date
+    help: Date for the schedule
+    required: true
+  - name: preferences
+    type: stringList
+    help: List of preferences (e.g., museums, parks)
+    default: []
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  echo "Generating sightseeing schedule for {{ .Args.location }} on {{ .Args.date }}..."
+  echo "Preferences: {{ .Args.preferences | join ", " }}"
+
+  # Simulate schedule generation
+  echo "9:00 AM - Visit the local museum"
+  echo "11:00 AM - Walk in the central park"
+  echo "1:00 PM - Lunch at a popular restaurant"
+  echo "3:00 PM - Explore the historic district"
+  echo "5:00 PM - Relax at a nearby cafe"
+  echo "7:00 PM - Dinner at a local eatery" 

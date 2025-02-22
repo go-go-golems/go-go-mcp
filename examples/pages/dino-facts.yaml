@@ -1,0 +1,53 @@
+components:
+  - title:
+      id: dino-facts-title
+      content: "🦕 Fascinating Dinosaur Facts"
+  
+  - text:
+      id: intro-text
+      content: "Journey back millions of years and discover amazing facts about these prehistoric creatures!"
+  
+  - list:
+      type: ul
+      items:
+        - "T-Rex Facts":
+            list:
+              type: ul
+              items:
+                - "Could run up to 20 mph"
+                - "Had powerful jaws with 60 teeth"
+                - "Lived during the late Cretaceous period":
+                    button:
+                      id: cretaceous-info
+                      text: "Learn More"
+                      type: secondary
+        
+        - "Velociraptor Facts":
+            list:
+              type: ul
+              items:
+                - "Was about the size of a turkey"
+                - "Had feathers"
+                - "Was a pack hunter":
+                    button:
+                      id: pack-hunting-info
+                      text: "See Video"
+                      type: primary
+  
+  - form:
+      id: fact-subscription
+      components:
+        - title:
+            content: "Get Daily Dino Facts!"
+        - input:
+            id: email-input
+            type: email
+            placeholder: "Enter your email"
+            required: true
+        - checkbox:
+            id: newsletter-check
+            label: "Also subscribe to our paleontology newsletter"
+        - button:
+            id: subscribe-btn
+            text: "Subscribe"
+            type: success 

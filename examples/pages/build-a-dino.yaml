@@ -1,0 +1,68 @@
+components:
+  - title:
+      id: build-dino-title
+      content: "🦖 Build Your Own Dinosaur"
+  
+  - text:
+      id: build-intro
+      content: "Create your perfect prehistoric companion! Mix and match features to design your unique dinosaur."
+  
+  - form:
+      id: dino-builder
+      components:
+        - input:
+            id: dino-name
+            type: text
+            placeholder: "Name your dinosaur"
+            required: true
+        
+        - list:
+            type: ul
+            items:
+              - "Physical Characteristics":
+                  list:
+                    type: ul
+                    items:
+                      - input:
+                          id: dino-height
+                          type: number
+                          placeholder: "Height (meters)"
+                      - input:
+                          id: dino-weight
+                          type: number
+                          placeholder: "Weight (tons)"
+        
+        - textarea:
+            id: dino-description
+            placeholder: "Describe your dinosaur's personality..."
+            rows: 4
+            cols: 50
+        
+        - checkbox:
+            id: carnivore-check
+            label: "Is it a carnivore?"
+        
+        - checkbox:
+            id: feathers-check
+            label: "Does it have feathers?"
+        
+        - text:
+            content: "Select special abilities:"
+        
+        - list:
+            type: ul
+            items:
+              - checkbox:
+                  id: ability-swim
+                  label: "Swimming"
+              - checkbox:
+                  id: ability-fly
+                  label: "Flying"
+              - checkbox:
+                  id: ability-camouflage
+                  label: "Camouflage"
+        
+        - button:
+            id: create-dino-btn
+            text: "Create Dinosaur"
+            type: primary 

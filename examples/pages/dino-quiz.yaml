@@ -1,0 +1,65 @@
+components:
+  - title:
+      id: quiz-title
+      content: "🎯 Test Your Dinosaur Knowledge!"
+  
+  - text:
+      id: quiz-intro
+      content: "Think you know your dinosaurs? Take this quiz to prove your expertise!"
+  
+  - form:
+      id: dino-quiz
+      components:
+        - title:
+            content: "Question 1"
+        - text:
+            content: "Which dinosaur was the largest carnivore of all time?"
+        - list:
+            type: ul
+            items:
+              - checkbox:
+                  id: q1-trex
+                  label: "Tyrannosaurus Rex"
+              - checkbox:
+                  id: q1-spino
+                  label: "Spinosaurus"
+              - checkbox:
+                  id: q1-giga
+                  label: "Giganotosaurus"
+        
+        - title:
+            content: "Question 2"
+        - text:
+            content: "What period did the Stegosaurus live in?"
+        - list:
+            type: ul
+            items:
+              - checkbox:
+                  id: q2-triassic
+                  label: "Triassic"
+              - checkbox:
+                  id: q2-jurassic
+                  label: "Jurassic"
+              - checkbox:
+                  id: q2-cretaceous
+                  label: "Cretaceous"
+        
+        - title:
+            content: "Question 3"
+        - text:
+            content: "How many horns did Triceratops have?"
+        - input:
+            id: q3-horns
+            type: number
+            placeholder: "Enter number"
+            required: true
+        
+        - button:
+            id: submit-quiz
+            text: "Submit Answers"
+            type: primary
+        
+        - button:
+            id: reset-quiz
+            text: "Start Over"
+            type: secondary 

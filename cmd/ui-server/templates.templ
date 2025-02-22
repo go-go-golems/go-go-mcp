@@ -24,6 +24,13 @@ templ base(title string) {
 					document.querySelectorAll('pre code').forEach((el) => {
 						hljs.highlightElement(el);
 					});
+
+					// Add click handlers to all form buttons
+					document.querySelectorAll('form button').forEach(button => {
+						button.addEventListener('click', function(e) {
+							this.form._lastClickedButton = this.id;
+						});
+					});
 				});
 
 				function logToConsole(message) {
@@ -39,10 +46,36 @@ templ base(title string) {
 				}
 
 				function logFormSubmit(formId, formData) {
-					const data = Object.fromEntries(new FormData(formData));
+					const data = {};
+					console.log('Form elements:', formData.elements);
+					
+					// Get all form elements
+					Array.from(formData.elements).forEach(element => {
+						console.log('Processing element:', element.tagName, element.type, element.id);
+						
+						if (element.tagName === 'BUTTON') return; // Skip buttons, we handle them separately
+						
+						if (element.type === 'checkbox') {
+							data[element.id] = element.checked;
+						} else if (element.id && element.value) {
+							data[element.id] = element.value;
+						}
+					});
+
+					// Add the clicked button info if available
+					if (formData._lastClickedButton) {
+						data['_clicked_button'] = formData._lastClickedButton;
+					}
+
+					console.log('Collected data:', data);
+
 					const yaml = Object.entries(data)
-						.map(([key, value]) => `  ${key}: ${value}`)
+						.map(([key, value]) => {
+							const valueStr = typeof value === 'boolean' ? value : `"${value}"`;
+							return `  ${key}: ${valueStr}`;
+						})
 						.join('\n');
+					
 					logToConsole(`Form ${formId} submitted with data:\n\`\`\`yaml\n${yaml}\n\`\`\``);
 				}
 			</script>
@@ -76,6 +109,40 @@ templ base(title string) {
 				}
 				.console-spacer {
 					height: 170px;
+				}
+				.list-group-item {
+					border: none;
+					padding: 0.5rem 1rem;
+				}
+				.list-group .list-group {
+					margin-top: 0.5rem;
+					margin-left: 1rem;
+				}
+				.list-group-item > :first-child {
+					font-weight: bold;
+					margin-bottom: 0.25rem;
+				}
+				form {
+					padding: 1rem;
+					background-color: #f8f9fa;
+					border-radius: 0.5rem;
+				}
+				form > * {
+					margin-bottom: 1.25rem;
+				}
+				form > :last-child {
+					margin-bottom: 0;
+				}
+				form h1 {
+					margin-bottom: 1.5rem;
+					font-size: 1.75rem;
+				}
+				.form-check {
+					margin: 1rem 0;
+					padding-left: 2rem;
+				}
+				.form-check-input {
+					margin-left: -2rem;
 				}
 			</style>
 		</head>
@@ -256,8 +323,13 @@ templ renderComponent(typ string, props map[string]interface{}) {
 								case string:
 									{ i }
 								case map[string]interface{}:
-									for typ, props := range i {
-										@renderComponent(typ, props.(map[string]interface{}))
+									for title, content := range i {
+										{ title }
+										if contentMap, ok := content.(map[string]interface{}); ok {
+											for typ, props := range contentMap {
+												@renderComponent(typ, props.(map[string]interface{}))
+											}
+										}
 									}
 								}
 							</li>
@@ -273,8 +345,13 @@ templ renderComponent(typ string, props map[string]interface{}) {
 								case string:
 									{ i }
 								case map[string]interface{}:
-									for typ, props := range i {
-										@renderComponent(typ, props.(map[string]interface{}))
+									for title, content := range i {
+										{ title }
+										if contentMap, ok := content.(map[string]interface{}); ok {
+											for typ, props := range contentMap {
+												@renderComponent(typ, props.(map[string]interface{}))
+											}
+										}
 									}
 								}
 							</li>
