@@ -1267,3 +1267,9 @@ Improved form data rendering in the console log:
 - Added proper string quoting for text values
 - Improved YAML formatting for form submission data
 - Fixed duplicate field handling for checkboxes
+
+## Server-Sent Events Support with Watermill
+
+Added Watermill dependencies for implementing SSE support:
+- Added github.com/ThreeDotsLabs/watermill v1.4.4
+- Added github.com/ThreeDotsLabs/watermill/pubsub/gochannel for local pub/sub

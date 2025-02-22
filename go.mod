@@ -26,11 +26,6 @@ require (
 )
 
 require (
-	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/time v0.8.0 // indirect
-)
-
-require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -116,7 +111,6 @@ require (
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	googlemaps.github.io/maps v1.7.0
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
