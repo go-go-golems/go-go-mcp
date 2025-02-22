@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
@@ -25,6 +26,18 @@ func (h *RequestHandler) HandleRequest(ctx context.Context, req *protocol.Reques
 	// Validate JSON-RPC version
 	if req.JSONRPC != "2.0" {
 		return nil, transport.NewInvalidRequestError("invalid JSON-RPC version")
+	}
+
+	if strings.HasPrefix(req.Method, "notifications/") {
+		err := h.HandleNotification(ctx, &protocol.Notification{
+			JSONRPC: req.JSONRPC,
+			Method:  req.Method,
+			Params:  req.Params,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 
 	switch req.Method {
@@ -69,8 +82,9 @@ func (h *RequestHandler) newSuccessResponse(id json.RawMessage, result interface
 	}
 
 	return &protocol.Response{
-		ID:     id,
-		Result: resultJSON,
+		JSONRPC: "2.0",
+		ID:      id,
+		Result:  resultJSON,
 	}, nil
 }
 
@@ -126,10 +140,19 @@ func (h *RequestHandler) handlePing(_ context.Context, req *protocol.Request) (*
 
 func (h *RequestHandler) handlePromptsList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
-		Cursor string `json:"cursor"`
+		Cursor string `json:"cursor,omitempty"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return nil, transport.NewInvalidParamsError(err.Error())
+	if len(req.Params) > 0 {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, transport.NewInvalidParamsError(err.Error())
+		}
+	}
+
+	if h.server.promptProvider == nil {
+		return h.newSuccessResponse(req.ID, protocol.ListPromptsResult{
+			Prompts:    []protocol.Prompt{},
+			NextCursor: "",
+		})
 	}
 
 	prompts, nextCursor, err := h.server.promptProvider.ListPrompts(ctx, params.Cursor)
@@ -156,6 +179,10 @@ func (h *RequestHandler) handlePromptsGet(ctx context.Context, req *protocol.Req
 		return nil, transport.NewInvalidParamsError(err.Error())
 	}
 
+	if h.server.promptProvider == nil {
+		return nil, transport.NewInternalError("prompt provider not configured")
+	}
+
 	prompt, err := h.server.promptProvider.GetPrompt(ctx, params.Name, params.Arguments)
 	if err != nil {
 		return nil, transport.NewInternalError(err.Error())
@@ -166,10 +193,19 @@ func (h *RequestHandler) handlePromptsGet(ctx context.Context, req *protocol.Req
 
 func (h *RequestHandler) handleResourcesList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
-		Cursor string `json:"cursor"`
+		Cursor string `json:"cursor,omitempty"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return nil, transport.NewInvalidParamsError(err.Error())
+	if len(req.Params) > 0 {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, transport.NewInvalidParamsError(err.Error())
+		}
+	}
+
+	if h.server.resourceProvider == nil {
+		return h.newSuccessResponse(req.ID, protocol.ListResourcesResult{
+			Resources:  []protocol.Resource{},
+			NextCursor: "",
+		})
 	}
 
 	resources, nextCursor, err := h.server.resourceProvider.ListResources(ctx, params.Cursor)
@@ -195,6 +231,10 @@ func (h *RequestHandler) handleResourcesRead(ctx context.Context, req *protocol.
 		return nil, transport.NewInvalidParamsError(err.Error())
 	}
 
+	if h.server.resourceProvider == nil {
+		return nil, transport.NewInternalError("resource provider not configured")
+	}
+
 	contents, err := h.server.resourceProvider.ReadResource(ctx, params.Name)
 	if err != nil {
 		return nil, transport.NewInternalError(err.Error())
@@ -207,10 +247,19 @@ func (h *RequestHandler) handleResourcesRead(ctx context.Context, req *protocol.
 
 func (h *RequestHandler) handleToolsList(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
 	var params struct {
-		Cursor string `json:"cursor"`
+		Cursor string `json:"cursor,omitempty"`
 	}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return nil, transport.NewInvalidParamsError(err.Error())
+	if len(req.Params) > 0 {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return nil, transport.NewInvalidParamsError(err.Error())
+		}
+	}
+
+	if h.server.toolProvider == nil {
+		return h.newSuccessResponse(req.ID, protocol.ListToolsResult{
+			Tools:      []protocol.Tool{},
+			NextCursor: "",
+		})
 	}
 
 	tools, nextCursor, err := h.server.toolProvider.ListTools(ctx, params.Cursor)

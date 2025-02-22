@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"context"
 	"sort"
 	"sync"
 
@@ -16,6 +17,8 @@ type Registry struct {
 	// subscribers maps resource URIs to channels that receive update notifications
 	subscribers map[string][]chan struct{}
 }
+
+var _ pkg.ResourceProvider = &Registry{}
 
 // Handler is a function that provides the content for a resource
 type Handler func(resource protocol.Resource) (*protocol.ResourceContent, error)
@@ -56,7 +59,7 @@ func (r *Registry) UnregisterResource(uri string) {
 }
 
 // ListResources implements ResourceProvider interface
-func (r *Registry) ListResources(cursor string) ([]protocol.Resource, string, error) {
+func (r *Registry) ListResources(_ context.Context, cursor string) ([]protocol.Resource, string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -89,7 +92,7 @@ func (r *Registry) ListResources(cursor string) ([]protocol.Resource, string, er
 }
 
 // ReadResource implements ResourceProvider interface
-func (r *Registry) ReadResource(uri string) (*protocol.ResourceContent, error) {
+func (r *Registry) ReadResource(_ context.Context, uri string) ([]protocol.ResourceContent, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -99,21 +102,27 @@ func (r *Registry) ReadResource(uri string) (*protocol.ResourceContent, error) {
 	}
 
 	if handler, ok := r.handlers[uri]; ok {
-		return handler(resource)
+		content, err := handler(resource)
+		if err != nil {
+			return nil, err
+		}
+		return []protocol.ResourceContent{*content}, nil
 	}
 
 	// Return empty content if no handler is registered
-	return &protocol.ResourceContent{}, nil
+	return []protocol.ResourceContent{{
+		URI: uri,
+	}}, nil
 }
 
 // ListResourceTemplates implements ResourceProvider interface
-func (r *Registry) ListResourceTemplates() ([]protocol.ResourceTemplate, error) {
+func (r *Registry) ListResourceTemplates(_ context.Context) ([]protocol.ResourceTemplate, error) {
 	// This is a basic implementation that returns no templates
 	return []protocol.ResourceTemplate{}, nil
 }
 
 // SubscribeToResource implements ResourceProvider interface
-func (r *Registry) SubscribeToResource(uri string) (chan struct{}, func(), error) {
+func (r *Registry) SubscribeToResource(_ context.Context, uri string) (chan struct{}, func(), error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

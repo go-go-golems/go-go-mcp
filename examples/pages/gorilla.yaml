@@ -1,0 +1,86 @@
+components:
+ - title:
+     content: 🦍 GORILLA GAME 🦍
+     
+ - text:
+     content: Lead your gorilla through the jungle, collect bananas, and avoid dangers!
+     
+ - form:
+     id: game-controls
+     components:
+       - list:
+           type: ul
+           items:
+             - Health:
+                 text:
+                   content: "❤️❤️❤️"
+                   id: health-display
+             - Score:
+                 text: 
+                   content: "🍌 0"
+                   id: score-display
+             - Level:
+                 text:
+                   content: "🌴 1"
+                   id: level-display
+                   
+ - list:
+     type: ul
+     items:
+       - button:
+           text: "⬅️ Left"
+           type: primary
+           id: move-left
+       - button:
+           text: "⬆️ Jump" 
+           type: primary
+           id: move-up
+       - button:
+           text: "➡️ Right"
+           type: primary
+           id: move-right
+           
+ - list:
+     type: ul
+     items:
+       - button:
+           text: "🎮 Start Game"
+           type: success
+           id: start-game
+       - button:
+           text: "⏸️ Pause"
+           type: secondary
+           id: pause-game
+       - button:
+           text: "🔄 Restart"
+           type: danger
+           id: restart-game
+           
+ - form:
+     id: game-settings
+     components:
+       - title:
+           content: Settings
+       - checkbox:
+           label: "🔊 Sound Effects"
+           checked: true
+           id: sound-toggle
+       - checkbox:
+           label: "🎵 Background Music"
+           checked: true
+           id: music-toggle
+       - input:
+           type: text
+           placeholder: Enter player name
+           id: player-name
+           required: true
+           
+ - text:
+     content: "High Scores 🏆"
+     
+ - list:
+     type: ol
+     items:
+       - "King Kong: 2000 🍌"
+       - "Mighty Joe: 1500 🍌"
+       - "Donkey Kong: 1000 🍌"

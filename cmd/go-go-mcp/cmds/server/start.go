@@ -13,6 +13,7 @@ import (
 	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server/layers"
+	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/sse"
@@ -116,8 +117,13 @@ func (c *StartCommand) Run(
 		return err
 	}
 
-	// Create and start server with transport
-	s := server.NewServer(logger, t, server.WithToolProvider(toolProvider))
+	// Create resource provider
+	resourceProvider := resources.NewRegistry()
+
+	// Create and start server with transport and providers
+	s := server.NewServer(logger, t,
+		server.WithToolProvider(toolProvider),
+		server.WithResourceProvider(resourceProvider))
 
 	// Create a context that will be cancelled on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

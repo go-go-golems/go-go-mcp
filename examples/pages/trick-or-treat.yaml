@@ -1,0 +1,50 @@
+components:
+  - title:
+      content: "🎃 Trick-or-Treat Checklist"
+      id: checklist-title
+
+  - text:
+      content: "Make sure you're prepared for a night of spooky fun! Check off these essential items before heading out."
+      id: checklist-description
+
+  - form:
+      id: checklist-form
+      components:
+        - title:
+            content: "Essential Items:"
+        - checkbox:
+            label: "🎭 Costume (properly fitted for maximum candy acquisition)"
+            id: costume-check
+        - checkbox:
+            label: "🎒 Candy collection bag/bucket (reinforced for heavy loads)"
+            id: bag-check
+        - checkbox:
+            label: "🔦 Flashlight (to spot friendly ghosts)"
+            id: flashlight-check
+        - checkbox:
+            label: "📱 Phone (for emergency ghost selfies)"
+            id: phone-check
+        - checkbox:
+            label: "🧥 Warm layer (ghosts make the air chilly)"
+            id: warmth-check
+        
+        - title:
+            content: "Safety Measures:"
+        - checkbox:
+            label: "👥 Buddy system arranged"
+            id: buddy-check
+        - checkbox:
+            label: "🗺️ Route planned (avoiding known werewolf territories)"
+            id: route-check
+        - checkbox:
+            label: "⌚ Watch/time-keeping device (to return before turning into a pumpkin)"
+            id: time-check
+        - checkbox:
+            label: "🔋 All devices charged (for documenting paranormal activities)"
+            id: battery-check
+
+        - button:
+            text: "Ready to Haunt!"
+            type: primary
+            onclick: "alert('Happy haunting! Remember: the ghosts are more scared of you than you are of them... maybe.')"
+            id: ready-btn 

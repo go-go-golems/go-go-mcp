@@ -1,0 +1,36 @@
+components:
+  - title:
+      content: "🎃 Welcome to Spookyville! 👻"
+      id: main-title
+
+  - text:
+      content: "The night is dark, the moon is bright, welcome to our Halloween site! Explore our haunted pages and discover the spooky delights that await..."
+      id: welcome-text
+
+  - list:
+      type: ul
+      items:
+        - title:
+            content: "🏚️ Haunted House Tour"
+        - text:
+            content: "Book your tour through our haunted mansion, if you dare..."
+        - button:
+            text: "Book Tour"
+            type: danger
+            onclick: "alert('Beware! The ghosts await...')"
+        - title:
+            content: "🎭 Costume Contest"
+        - text:
+            content: "Vote for the spookiest costume of the year!"
+        - button:
+            text: "Vote Now"
+            type: primary
+            onclick: "alert('Choose wisely...')"
+        - title:
+            content: "🎪 Halloween Party"
+        - text:
+            content: "Join us for a night of frightful fun!"
+        - button:
+            text: "RSVP"
+            type: success
+            onclick: "alert('We will be waiting for you...')" 

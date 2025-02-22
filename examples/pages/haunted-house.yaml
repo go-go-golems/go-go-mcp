@@ -1,0 +1,45 @@
+components:
+  - title:
+      content: "🏚️ Book Your Haunted House Tour"
+      id: tour-title
+
+  - text:
+      content: "Dare to explore our haunted mansion? Fill out the form below to reserve your spot in our terrifying tour. Remember, the ghosts are waiting..."
+      id: tour-description
+
+  - form:
+      id: tour-form
+      components:
+        - input:
+            type: text
+            placeholder: "Your Name (if you survive...)"
+            required: true
+            id: name-input
+        - input:
+            type: email
+            placeholder: "Email (for ghost communications)"
+            required: true
+            id: email-input
+        - input:
+            type: date
+            placeholder: "Select your doom date"
+            required: true
+            id: date-input
+        - input:
+            type: number
+            placeholder: "Number of brave souls"
+            required: true
+            id: guests-input
+        - checkbox:
+            label: "I acknowledge that the spirits may possess my soul 👻"
+            required: true
+            id: waiver-checkbox
+        - textarea:
+            placeholder: "Any last words or special requests?"
+            rows: 3
+            id: comments-input
+        - button:
+            text: "Book If You Dare"
+            type: danger
+            onclick: "alert('Your fate is sealed...')"
+            id: submit-btn 

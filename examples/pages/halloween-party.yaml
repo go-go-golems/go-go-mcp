@@ -1,0 +1,56 @@
+components:
+  - title:
+      content: "🎪 Halloween Party RSVP"
+      id: party-title
+
+  - text:
+      content: "Join us for the spookiest party of the year! There will be treats, tricks, and maybe a few uninvited ghostly guests..."
+      id: party-description
+
+  - form:
+      id: rsvp-form
+      components:
+        - input:
+            type: text
+            placeholder: "Your Name (mortal or otherwise)"
+            required: true
+            id: name-input
+        - input:
+            type: email
+            placeholder: "Email Address"
+            required: true
+            id: email-input
+        - input:
+            type: text
+            placeholder: "Your Costume Plan"
+            required: true
+            id: costume-input
+        - checkbox:
+            label: "I'll bring a spooky snack to share 🍪"
+            id: snack-checkbox
+        - checkbox:
+            label: "I'm bringing a plus-one (living guests only, please) 👥"
+            id: guest-checkbox
+        - list:
+            type: ul
+            items:
+              - text:
+                  content: "🎵 Music preferences:"
+              - checkbox:
+                  label: "Monster Mash"
+                  id: music-1
+              - checkbox:
+                  label: "Thriller"
+                  id: music-2
+              - checkbox:
+                  label: "Ghostbusters Theme"
+                  id: music-3
+        - textarea:
+            placeholder: "Any dietary restrictions? (Blood type preferences?)"
+            rows: 2
+            id: dietary-input
+        - button:
+            text: "RSVP to Party"
+            type: success
+            onclick: "alert('Your soul is on the guest list!')"
+            id: submit-btn 

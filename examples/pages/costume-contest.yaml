@@ -1,0 +1,41 @@
+components:
+  - title:
+      content: "🎭 Halloween Costume Contest"
+      id: contest-title
+
+  - text:
+      content: "Vote for the spookiest, most creative costume of the year! Each contestant has put their heart (and maybe some actual organs) into their costumes."
+      id: contest-description
+
+  - list:
+      type: ul
+      items:
+        - title:
+            content: "🧟‍♂️ Zombie Businessman"
+        - text:
+            content: "Bob from accounting really committed to the role - he hasn't showered in weeks!"
+        - button:
+            text: "Vote for Bob"
+            type: primary
+            onclick: "alert('Your vote for Zombie Bob has been counted!')"
+        - title:
+            content: "🧙‍♀️ Techno Witch"
+        - text:
+            content: "Sarah's costume combines traditional witchcraft with RGB lighting - truly spellbinding!"
+        - button:
+            text: "Vote for Sarah"
+            type: primary
+            onclick: "alert('Your vote for Techno Witch has been counted!')"
+        - title:
+            content: "👻 Ghost in the Machine"
+        - text:
+            content: "Mike dressed up as a haunted computer - blue screen of death included!"
+        - button:
+            text: "Vote for Mike"
+            type: primary
+            onclick: "alert('Your vote for Ghost Mike has been counted!')"
+
+  - text:
+      content: "Voting closes at midnight on Halloween. The winner gets a one-way ticket to the shadow realm! (Just kidding, they get a gift card)"
+      id: voting-rules-text
+
