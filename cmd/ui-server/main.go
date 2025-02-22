@@ -29,6 +29,8 @@ func main() {
 
 	startCmd, err := NewStartCommand()
 	cobra.CheckErr(err)
+	err = clay.InitViper("ui-server", rootCmd)
+	cobra.CheckErr(err)
 
 	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd)
 	cobra.CheckErr(err)

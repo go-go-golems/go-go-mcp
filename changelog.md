@@ -1200,3 +1200,11 @@ Improved logging in the UI server by:
 - Switched to zerolog for structured logging
 - Implemented glazed command pattern for better CLI structure
 - Added proper log levels and context fields
+
+## Cow-themed Example Pages
+
+Added new example pages showcasing the UI DSL capabilities with a fun cow theme:
+- Added cow-facts.yaml with interactive cow facts and newsletter signup
+- Added build-a-cow.yaml with a form to create custom cows
+- Added dairy-farm-guide.yaml with farm areas, visitor guidelines and tour booking
+- Added cow-quiz.yaml featuring an interactive cow knowledge quiz
