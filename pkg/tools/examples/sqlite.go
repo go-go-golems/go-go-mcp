@@ -8,13 +8,14 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v3"
 )
 
 const defaultDBPath = "/home/manuel/.config/Cursor/User/globalStorage/state.vscdb"
 
-func RegisterSQLiteTool(registry *tools.Registry) error {
+func RegisterSQLiteTool(registry *tool_registry.Registry) error {
 	schemaJson := `{
 		"type": "object",
 		"properties": {

@@ -10,9 +10,10 @@ import (
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 )
 
-func RegisterFetchTool(registry *tools.Registry) error {
+func RegisterFetchTool(registry *tool_registry.Registry) error {
 	fetchSchemaJson := `{
 		"type": "object",
 		"properties": {

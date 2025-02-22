@@ -1,6 +1,9 @@
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Request represents a JSON-RPC 2.0 request.
 type Request struct {
@@ -23,6 +26,10 @@ type Error struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("code: %d, message: %s, data: %s", e.Code, e.Message, e.Data)
 }
 
 // Notification represents a JSON-RPC 2.0 notification.

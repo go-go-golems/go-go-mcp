@@ -707,7 +707,7 @@ When changes are detected:
 Start the server with all available tools:
 
 ```bash
-go-go-mcp start \
+go-go-mcp server start \
   --config-file config.yaml \
   --profile all \
   --transport sse \
@@ -726,7 +726,7 @@ cp new-tool.yaml tools/system/
 Start the server with just system monitoring tools:
 
 ```bash
-go-go-mcp start \
+go-go-mcp server start \
   --config-file config.yaml \
   --profile system \
   --transport sse \
@@ -786,7 +786,7 @@ This is particularly useful for:
 Start with data analysis tools:
 
 ```bash
-go-go-mcp start \
+go-go-mcp server start \
   --config-file config.yaml \
   --profile data \
   --transport sse \
@@ -798,7 +798,7 @@ go-go-mcp start \
 Start with calendar management tools:
 
 ```bash
-go-go-mcp start \
+go-go-mcp server start \
   --config-file config.yaml \
   --profile calendar \
   --transport sse \

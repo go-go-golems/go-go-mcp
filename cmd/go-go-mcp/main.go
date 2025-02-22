@@ -28,7 +28,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "go-go-mcp",
+	Use:   "mcp",
 	Short: "MCP client and server implementation in Go",
 	Long: `A Model Context Protocol (MCP) client and server implementation in Go.
 Supports both stdio and SSE transports for client-server communication.
@@ -82,17 +82,10 @@ func initRootCmd() (*help.HelpSystem, error) {
 
 	rootCmd.AddCommand(runCommandCmd)
 
-	// Create and add start command
-	startCmd, err := mcp_cmds.NewStartCommand()
-	cobra.CheckErr(err)
-	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd, cli.WithSkipGlazedCommandLayer())
-	cobra.CheckErr(err)
-	rootCmd.AddCommand(cobraStartCmd)
-
 	// Create and add schema command
 	schemaCmd, err := mcp_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)
-	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd, cli.WithSkipGlazedCommandLayer())
+	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 

@@ -6,10 +6,11 @@ toolchain go1.23.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/go-go-golems/clay v0.1.26
-	github.com/go-go-golems/geppetto v0.4.34
-	github.com/go-go-golems/glazed v0.5.28
-	github.com/go-go-golems/parka v0.5.17
+	github.com/a-h/templ v0.3.833
+	github.com/go-go-golems/clay v0.1.31
+	github.com/go-go-golems/geppetto v0.4.37
+	github.com/go-go-golems/glazed v0.5.34
+	github.com/go-go-golems/parka v0.5.20
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hpcloud/tail v1.0.0
@@ -29,10 +30,10 @@ require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
-	github.com/PuerkitoBio/goquery v1.9.2 // indirect
+	github.com/PuerkitoBio/goquery v1.10.1 // indirect
 	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
-	github.com/andybalholm/cascadia v1.3.2 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.33.0 // indirect

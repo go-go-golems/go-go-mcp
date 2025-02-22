@@ -1,0 +1,49 @@
+components:
+  - title:
+      content: What would you like to tackle next?
+      id: priority-title
+  
+  - text:
+      content: I see you have several items that need attention. Let's organize them by priority and type.
+      id: context-text
+  
+  - list:
+      type: ul
+      items:
+        - Review Dependencies:
+            button:
+              text: Review Nokogiri Update (#316)
+              type: secondary
+        - Calendar Integration:
+            button:
+              text: Review Calendar CLI PR (#315)
+              type: primary
+        - Coaching Features:
+            button:
+              text: Review Coaching Chat PR (#311)
+              type: primary
+  
+  - form:
+      id: task-input-form
+      components:
+        - title:
+            content: Add New Task
+        - input:
+            type: text
+            placeholder: What else needs to be done?
+            id: new-task
+            required: true
+        - textarea:
+            placeholder: Add any important context or notes
+            rows: 3
+            id: task-notes
+        - checkbox:
+            label: High Priority
+            id: priority-flag
+        - button:
+            text: Add Task
+            type: success
+
+  - text:
+      content: Would you like me to help you analyze any of these items in detail?
+      id: help-offer

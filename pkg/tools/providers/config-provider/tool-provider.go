@@ -154,7 +154,7 @@ func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProv
 }
 
 func ConvertCommandToTool(desc *cmds.CommandDescription) (protocol.Tool, error) {
-	schema_, err := mcp_cmds.ToJsonSchema(desc)
+	schema_, err := desc.ToJsonSchema()
 	if err != nil {
 		return protocol.Tool{}, errors.Wrapf(err, "failed to convert command to schema")
 	}
@@ -172,7 +172,7 @@ func ConvertCommandToTool(desc *cmds.CommandDescription) (protocol.Tool, error) 
 }
 
 // ListTools implements pkg.ToolProvider interface
-func (p *ConfigToolProvider) ListTools(cursor string) ([]protocol.Tool, string, error) {
+func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]protocol.Tool, string, error) {
 	var tools []protocol.Tool
 
 	repoCommands := p.repository.CollectCommands([]string{}, true)

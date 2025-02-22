@@ -1,6 +1,7 @@
 package config_provider
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -56,7 +57,7 @@ func NewConfigPromptProvider(config_ *config.Config, profile string) (*ConfigPro
 	helpSystem := help.NewHelpSystem()
 	// Load repository commands
 	if err := provider.repository.LoadCommands(helpSystem); err != nil {
-		return nil, errors.Wrap(err, "failed to load repository commands")
+		return nil, errors.Wrap(err, "failed to load repository prompts")
 	}
 
 	// Load individual Pinocchio files
@@ -79,7 +80,7 @@ func NewConfigPromptProvider(config_ *config.Config, profile string) (*ConfigPro
 }
 
 // ListPrompts implements pkg.PromptProvider interface
-func (p *ConfigPromptProvider) ListPrompts(cursor string) ([]protocol.Prompt, string, error) {
+func (p *ConfigPromptProvider) ListPrompts(_ context.Context, cursor string) ([]protocol.Prompt, string, error) {
 	var prompts []protocol.Prompt
 
 	// Get prompts from repositories
@@ -108,7 +109,7 @@ func (p *ConfigPromptProvider) ListPrompts(cursor string) ([]protocol.Prompt, st
 }
 
 // GetPrompt implements pkg.PromptProvider interface
-func (p *ConfigPromptProvider) GetPrompt(name string, arguments map[string]string) (*protocol.PromptMessage, error) {
+func (p *ConfigPromptProvider) GetPrompt(_ context.Context, name string, arguments map[string]string) (*protocol.PromptMessage, error) {
 	// Try repositories first
 	if cmd, ok := p.repository.GetCommand(name); ok {
 		return p.executeRepositoryPrompt(cmd, arguments)

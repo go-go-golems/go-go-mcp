@@ -87,10 +87,10 @@ Start the server with either stdio or SSE transport:
 
 ```bash
 # Start with stdio transport (default)
-go-go-mcp start --transport stdio
+go-go-mcp server start --transport stdio
 
 # Start with SSE transport
-go-go-mcp start --transport sse --port 3001
+go-go-mcp server start --transport sse --port 3001
 ```
 
 The server automatically watches configured repositories and files for changes, reloading tools when:
@@ -142,7 +142,7 @@ go-go-mcp server tools list --profile data
 Use the client subcommand to interact with an MCP server:
 
 ```bash
-# List available prompts (uses default server: go-go-mcp start --transport stdio)
+# List available prompts (uses default server: go-go-mcp server start --transport stdio)
 go-go-mcp client prompts list
 
 # List available tools
@@ -171,7 +171,7 @@ go-go-mcp can be used as a bridge to expose an SSE server as a stdio server. Thi
 
 ```bash
 # Start an SSE server on port 3000
-go-go-mcp start --transport sse --port 3000
+go-go-mcp server start --transport sse --port 3000
 
 # In another terminal, start the bridge to expose the SSE server as stdio
 go-go-mcp bridge --sse-url http://localhost:3000 --log-level debug
@@ -186,7 +186,7 @@ This is particularly useful when integrating with tools that only support stdio 
 Add the `--debug` flag to enable detailed logging:
 
 ```bash
-go-go-mcp start --debug 
+go-go-mcp server start --debug 
 ```
 
 ### Version Information
@@ -345,3 +345,72 @@ go-go-mcp help <topic>
 # Show examples for a topic
 go-go-mcp help <topic> --example
 ```
+
+# UI DSL
+
+A simple YAML-based Domain Specific Language for defining user interfaces.
+
+## Components
+
+The DSL supports the following basic components:
+
+### Button
+- `text`: Button label
+- `type`: primary, secondary, danger, success
+- `onclick`: JavaScript event handler
+
+### Title
+- `content`: Heading text content
+
+### Text
+- `content`: Text content
+
+### Input
+- `type`: text, email, password, number, tel
+- `placeholder`: Placeholder text
+- `value`: Default value
+- `required`: Boolean
+
+### Textarea
+- `placeholder`: Placeholder text
+- `rows`: Number of rows
+- `cols`: Number of columns
+- `value`: Default value
+
+### Checkbox
+- `label`: Checkbox label
+- `checked`: Boolean
+- `required`: Boolean
+- `name`: Form field name
+
+### List
+- `type`: ul or ol
+- `items`: Array of items or nested components
+
+## Common Attributes
+
+All components support these common attributes:
+- `id`: Unique identifier
+- `style`: Inline CSS
+- `disabled`: Boolean
+- `data`: Map of data attributes
+
+## Example
+
+```yaml
+form:
+  id: signup-form
+  components:
+    - title:
+        content: Sign Up
+    - text:
+        content: Please fill in your details below.
+    - input:
+        type: email
+        placeholder: Email address
+    - button:
+        text: Submit
+        type: primary
+```
+
+See `ui-dsl.yaml` for more comprehensive examples.

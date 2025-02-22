@@ -86,7 +86,7 @@ profiles:
 
 Save this as `config.yaml` and run:
 ```bash
-go-go-mcp start --config-file config.yaml
+go-go-mcp server start --config-file config.yaml
 ```
 
 This will:
@@ -130,7 +130,7 @@ profiles:
 
 To use a specific profile:
 ```bash
-go-go-mcp start --config-file config.yaml --profile production
+go-go-mcp server start --config-file config.yaml --profile production
 ```
 
 ## Tool Configuration

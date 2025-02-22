@@ -1,0 +1,314 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+	"gopkg.in/yaml.v3"
+)
+
+templ base(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title }</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+			<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css"/>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+			<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+			<script>
+				document.addEventListener('DOMContentLoaded', (event) => {
+					document.querySelectorAll('pre code').forEach((el) => {
+						hljs.highlightElement(el);
+					});
+				});
+
+				function logToConsole(message) {
+					const console = document.getElementById('interaction-console');
+					const entry = document.createElement('div');
+					entry.className = 'console-entry';
+					entry.textContent = message;
+					console.appendChild(entry);
+					console.scrollTop = console.scrollHeight;
+					if (console.children.length > 50) {
+						console.removeChild(console.firstChild);
+					}
+				}
+
+				function logFormSubmit(formId, formData) {
+					const data = Object.fromEntries(new FormData(formData));
+					const yaml = Object.entries(data)
+						.map(([key, value]) => `  ${key}: ${value}`)
+						.join('\n');
+					logToConsole(`Form ${formId} submitted with data:\n\`\`\`yaml\n${yaml}\n\`\`\``);
+				}
+			</script>
+			<style>
+				.source-yaml {
+					background-color: #f8f9fa;
+					border-radius: 6px;
+					padding: 15px;
+					margin-bottom: 20px;
+				}
+				pre {
+					margin: 0;
+				}
+				#interaction-console {
+					position: fixed;
+					bottom: 0;
+					left: 0;
+					right: 0;
+					height: 150px;
+					background: #2d2d2d;
+					color: #fff;
+					font-family: monospace;
+					padding: 10px;
+					overflow-y: auto;
+					z-index: 1000;
+					border-top: 2px solid #444;
+				}
+				#interaction-console .console-entry {
+					margin: 5px 0;
+					white-space: pre-wrap;
+				}
+				.console-spacer {
+					height: 170px;
+				}
+			</style>
+		</head>
+		<body class="container py-4">
+			<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+				<div class="container-fluid">
+					<a class="navbar-brand" href="/">UI Server</a>
+				</div>
+			</nav>
+			{ children... }
+			<div class="console-spacer"></div>
+			<div id="interaction-console"></div>
+		</body>
+	</html>
+}
+
+templ indexTemplate(pages map[string]UIDefinition) {
+	@base("UI Server - Index") {
+		<div class="row">
+			<div class="col">
+				<h1>Available Pages</h1>
+				<div class="list-group">
+					for name := range pages {
+						<a href={ templ.SafeURL("/" + strings.TrimSuffix(name, ".yaml")) } class="list-group-item list-group-item-action">
+							{ name }
+						</a>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ pageTemplate(name string, def UIDefinition) {
+	@base("UI Server - " + name) {
+		<div class="row">
+			<div class="col-md-6">
+				<div class="card mb-4">
+					<div class="card-header">
+						<h5 class="card-title mb-0">Rendered UI</h5>
+					</div>
+					<div class="card-body">
+						for _, component := range def.Components {
+							for typ, props := range component {
+								@renderComponent(typ, props.(map[string]interface{}))
+							}
+						}
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card">
+					<div class="card-header">
+						<h5 class="card-title mb-0">YAML Source</h5>
+					</div>
+					<div class="card-body source-yaml">
+						<pre><code class="language-yaml">{ yamlString(def) }</code></pre>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ renderComponent(typ string, props map[string]interface{}) {
+	switch typ {
+	case "button":
+		if id, ok := props["id"].(string); ok {
+			<button 
+				id={ id }
+				data-hx-on:click={ fmt.Sprintf("logToConsole('%s clicked')", id) }
+				if disabled, ok := props["disabled"].(bool); ok && disabled {
+					disabled="disabled"
+				}
+				class={
+					"btn",
+					templ.KV("btn-primary", props["type"] == "primary"),
+					templ.KV("btn-secondary", props["type"] == "secondary"),
+					templ.KV("btn-danger", props["type"] == "danger"),
+					templ.KV("btn-success", props["type"] == "success"),
+				}
+			>
+				if text, ok := props["text"].(string); ok {
+					{ text }
+				}
+			</button>
+		}
+	case "title":
+		<h1 
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+		>
+			if content, ok := props["content"].(string); ok {
+				{ content }
+			}
+		</h1>
+	case "text":
+		<p 
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+		>
+			if content, ok := props["content"].(string); ok {
+				{ content }
+			}
+		</p>
+	case "input":
+		<input
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			if typ, ok := props["type"].(string); ok {
+				type={ typ }
+			}
+			if placeholder, ok := props["placeholder"].(string); ok {
+				placeholder={ placeholder }
+			}
+			if value, ok := props["value"].(string); ok {
+				value={ value }
+			}
+			if required, ok := props["required"].(bool); ok && required {
+				required="required"
+			}
+			class="form-control"
+		/>
+	case "textarea":
+		<textarea
+			if id, ok := props["id"].(string); ok {
+				id={ id }
+			}
+			if rows, ok := props["rows"].(int); ok {
+				rows={ fmt.Sprint(rows) }
+			}
+			if cols, ok := props["cols"].(int); ok {
+				cols={ fmt.Sprint(cols) }
+			}
+			if placeholder, ok := props["placeholder"].(string); ok {
+				placeholder={ placeholder }
+			}
+			class="form-control"
+		>
+			if value, ok := props["value"].(string); ok {
+				{ value }
+			}
+		</textarea>
+	case "checkbox":
+		if id, ok := props["id"].(string); ok {
+			<div class="form-check">
+				<input
+					type="checkbox"
+					id={ id }
+					data-hx-on:change={ fmt.Sprintf("logToConsole('%s ' + (this.checked ? 'checked' : 'unchecked'))", id) }
+					if name, ok := props["name"].(string); ok {
+						name={ name }
+					}
+					if checked, ok := props["checked"].(bool); ok && checked {
+						checked="checked"
+					}
+					if required, ok := props["required"].(bool); ok && required {
+						required="required"
+					}
+					class="form-check-input"
+				/>
+				if label, ok := props["label"].(string); ok {
+					<label class="form-check-label" for={ id }>{ label }</label>
+				}
+			</div>
+		}
+	case "list":
+		if typ, ok := props["type"].(string); ok {
+			if typ == "ul" {
+				<ul class="list-group">
+					if items, ok := props["items"].([]interface{}); ok {
+						for _, item := range items {
+							<li class="list-group-item">
+								switch i := item.(type) {
+								case string:
+									{ i }
+								case map[string]interface{}:
+									for typ, props := range i {
+										@renderComponent(typ, props.(map[string]interface{}))
+									}
+								}
+							</li>
+						}
+					}
+				</ul>
+			} else if typ == "ol" {
+				<ol class="list-group list-group-numbered">
+					if items, ok := props["items"].([]interface{}); ok {
+						for _, item := range items {
+							<li class="list-group-item">
+								switch i := item.(type) {
+								case string:
+									{ i }
+								case map[string]interface{}:
+									for typ, props := range i {
+										@renderComponent(typ, props.(map[string]interface{}))
+									}
+								}
+							</li>
+						}
+					}
+				</ol>
+			}
+		}
+	case "form":
+		if id, ok := props["id"].(string); ok {
+			<form
+				id={ id }
+				data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); logFormSubmit('%s', this)", id) }
+				class="needs-validation"
+				novalidate
+			>
+				if components, ok := props["components"].([]interface{}); ok {
+					for _, comp := range components {
+						if c, ok := comp.(map[string]interface{}); ok {
+							for typ, props := range c {
+								@renderComponent(typ, props.(map[string]interface{}))
+							}
+						}
+					}
+				}
+			</form>
+		}
+	}
+}
+
+func yamlString(def UIDefinition) string {
+	yamlBytes, err := yaml.Marshal(def)
+	if err != nil {
+		return fmt.Sprintf("Error marshaling YAML: %v", err)
+	}
+	return string(yamlBytes)
+} 

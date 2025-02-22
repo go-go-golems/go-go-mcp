@@ -1048,3 +1048,124 @@ Added server-side tool management commands for direct interaction with tool prov
 - Added `server tools list` command to list available tools directly from tool provider
 - Added `server tools call` command to call tools directly without starting the server
 - Reused server layer for configuration consistency
+
+## Add Minimal Glazed Command Layer
+
+Added a minimal version of the Glazed command layer (NewGlazedMinimalCommandLayer) that contains just the most commonly used parameters: print-yaml, print-parsed-parameters, load-parameters-from-file, and print-schema. This provides a simpler interface for basic command configuration.
+
+- Added GlazedMinimalCommandSlug constant
+- Added NewGlazedMinimalCommandLayer function
+
+## Enhanced Glazed Command Layer Handling
+
+Updated cobra command handling to support both full and minimal Glazed command layers:
+
+- Added support for GlazedMinimalCommandLayer in cobra command processing
+- Unified handling of common flags (print-yaml, print-parsed-parameters, etc.) between both layers
+- Maintained backward compatibility with full GlazedCommandLayer features
+- Added placeholder for schema printing functionality
+
+# Transport Layer Refactoring
+
+Implemented new transport layer architecture as described in RFC-01. This change:
+- Creates a clean interface for different transport mechanisms
+- Separates transport concerns from business logic
+- Provides consistent error handling across transports
+- Adds support for transport-specific options and capabilities
+
+- Created new transport package with core interfaces and types
+- Implemented SSE transport using new architecture
+- Added transport options system
+- Added standardized error handling
+
+# Transport Layer Implementation
+
+Added stdio transport implementation using new transport layer architecture:
+- Implemented stdio transport with proper signal handling and graceful shutdown
+- Added support for configurable buffer sizes and logging
+- Added proper error handling and JSON-RPC message processing
+- Added context-based cancellation and cleanup
+
+# Server Layer Updates
+
+Updated server implementation to use new transport layer:
+- Refactored Server struct to use transport interface
+- Added RequestHandler to implement transport.RequestHandler interface
+- Updated server command to support multiple transport types
+- Improved error handling and logging throughout server layer
+
+# Enhanced SSE Transport
+
+Added support for integrating SSE transport with existing HTTP servers:
+- Added standalone and integrated modes for SSE transport
+- Added GetHandlers method to get SSE endpoint handlers
+- Added RegisterHandlers method for router integration
+- Added support for path prefixes and middleware
+- Improved configuration options for HTTP server integration
+
+# Transport Interface Refactoring
+
+Simplified transport interface to use protocol types directly instead of custom types.
+- Removed duplicate type definitions from transport package
+- Use protocol.Request/Response/Notification types directly
+- Improved type safety by removing interface{} usage
+
+# Transport Request ID Handling
+
+Added proper request ID handling to transport package:
+- Added IsNotification helper to check for empty/null request IDs
+- Improved notification detection for JSON-RPC messages
+- Consistent handling of request IDs across transports
+
+# Transport ID Type Conversion
+
+Added helper functions for converting between string and JSON-RPC ID types:
+- Added StringToID to convert string to json.RawMessage
+- Added IDToString to convert json.RawMessage to string
+- Improved type safety in ID handling across transports
+
+# Simplified UI DSL
+
+Simplified the UI DSL by removing class attributes and creating distinct title and text elements:
+- Removed class attributes from all components
+- Added dedicated title element for headings
+- Simplified text element to be just for paragraphs
+- Updated documentation to reflect changes
+
+# UI DSL Implementation
+
+Created a YAML-based UI DSL for defining simple user interfaces. The DSL supports common UI components like buttons, text, inputs, textareas, checkboxes, and lists with a clean and intuitive syntax.
+
+- Added `ui-dsl.yaml` with component definitions and examples
+- Added documentation in `README.md`
+- Included support for common attributes across all components
+- Added nested component support for complex layouts
+
+# UI Server Implementation
+Added a new UI server that can render YAML UI definitions using HTMX and Bootstrap:
+- Created a new command `ui-server` that serves UI definitions from YAML files
+- Implemented templ templates for rendering UI components
+- Added support for various UI components like buttons, inputs, forms, etc.
+- Used HTMX for dynamic interactions and Bootstrap for styling
+
+# Halloween-themed UI Examples
+Added a collection of Halloween-themed example pages using the UI DSL:
+- Created welcome page with spooky navigation
+- Added haunted house tour booking form
+- Created costume contest voting interface
+- Added Halloween party RSVP form with fun options
+- Created trick-or-treat checklist for safety
+
+# UI DSL Structure Update
+Updated the UI DSL to use a top-level components list for better sequence handling:
+- Changed UIDefinition to use a list of components instead of a map
+- Updated all example pages to use the new structure
+- Modified templates to handle the new component list format
+- Improved component rendering to handle nested components
+
+# SSE Transport Port Configuration
+
+Improved port configuration handling in SSE transport by properly parsing the provided address.
+
+- Added proper port parsing from SSE options address
+- Ensures port configuration is correctly propagated from command line to transport
