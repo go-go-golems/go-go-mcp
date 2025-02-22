@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-go-golems/clay/pkg/watcher"
@@ -19,6 +20,8 @@ type Server struct {
 	dir     string
 	pages   map[string]UIDefinition
 	watcher *watcher.Watcher
+	mux     *http.ServeMux
+	mu      sync.RWMutex
 }
 
 type UIDefinition struct {
@@ -29,6 +32,7 @@ func NewServer(dir string) *Server {
 	s := &Server{
 		dir:   dir,
 		pages: make(map[string]UIDefinition),
+		mux:   http.NewServeMux(),
 	}
 
 	// Create a watcher for the pages directory
@@ -41,6 +45,13 @@ func NewServer(dir string) *Server {
 	)
 
 	s.watcher = w
+
+	// Set up static file handler
+	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Set up index handler
+	s.mux.HandleFunc("/", s.handleIndex())
+
 	return s
 }
 
@@ -60,7 +71,7 @@ func (s *Server) Start(ctx context.Context, port int) error {
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: s.Handler(),
+		Handler: s.mux,
 	}
 
 	// Start server in a goroutine
@@ -92,32 +103,29 @@ func (s *Server) Start(ctx context.Context, port int) error {
 }
 
 func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-
-	// Serve static files
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-
-	// Index page
-	mux.HandleFunc("/", s.handleIndex())
-
-	// Individual pages
-	for name := range s.pages {
-		pagePath := "/" + strings.TrimSuffix(name, ".yaml")
-		mux.HandleFunc(pagePath, s.handlePage(name))
-	}
-
-	return mux
+	return s.mux
 }
 
 func (s *Server) loadPages() error {
-	log.Debug().Str("directory", s.dir).Msg("Loading pages from directory")
+	log.Debug().Str("directory", s.dir).Msg("Loading pages recursively from directory")
+
+	// First, clear existing pages
+	s.mu.Lock()
+	s.pages = make(map[string]UIDefinition)
+	s.mu.Unlock()
+
 	return filepath.WalkDir(s.dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			log.Error().Err(err).Str("path", path).Msg("Error walking directory")
 			return err
 		}
 
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".yaml") {
+		if d.IsDir() {
+			log.Debug().Str("directory", path).Msg("Entering directory")
+			return nil
+		}
+
+		if strings.HasSuffix(d.Name(), ".yaml") {
 			log.Debug().Str("path", path).Msg("Found YAML page")
 			if err := s.loadPage(path); err != nil {
 				log.Error().Err(err).Str("path", path).Msg("Failed to load page")
@@ -152,12 +160,12 @@ func (s *Server) loadPage(path string) error {
 	urlPath := "/" + strings.TrimSuffix(relPath, ".yaml")
 	urlPath = strings.ReplaceAll(urlPath, string(os.PathSeparator), "/")
 
+	s.mu.Lock()
 	s.pages[relPath] = def
-	log.Info().Str("path", relPath).Msg("Loaded page")
+	s.mux.HandleFunc(urlPath, s.handlePage(relPath))
+	s.mu.Unlock()
 
-	// Register the page handler for the URL path
-	http.HandleFunc(urlPath, s.handlePage(relPath))
-
+	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Loaded page")
 	return nil
 }
 
@@ -182,7 +190,10 @@ func (s *Server) handleFileRemove(path string) error {
 		return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 	}
 
+	s.mu.Lock()
 	delete(s.pages, relPath)
+	s.mu.Unlock()
+
 	log.Info().Str("path", relPath).Msg("Removed page")
 	return nil
 }
@@ -194,7 +205,11 @@ func (s *Server) handleIndex() http.HandlerFunc {
 			return
 		}
 
-		component := indexTemplate(s.pages)
+		s.mu.RLock()
+		pages := s.pages
+		s.mu.RUnlock()
+
+		component := indexTemplate(pages)
 		if err := component.Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -203,7 +218,10 @@ func (s *Server) handleIndex() http.HandlerFunc {
 
 func (s *Server) handlePage(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		s.mu.RLock()
 		def, ok := s.pages[name]
+		s.mu.RUnlock()
+
 		if !ok {
 			http.NotFound(w, r)
 			return

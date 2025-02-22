@@ -1201,10 +1201,19 @@ Improved logging in the UI server by:
 - Implemented glazed command pattern for better CLI structure
 - Added proper log levels and context fields
 
-## Cow-themed Example Pages
+## Fixed Page Handler Registration
 
-Added new example pages showcasing the UI DSL capabilities with a fun cow theme:
-- Added cow-facts.yaml with interactive cow facts and newsletter signup
-- Added build-a-cow.yaml with a form to create custom cows
-- Added dairy-farm-guide.yaml with farm areas, visitor guidelines and tour booking
-- Added cow-quiz.yaml featuring an interactive cow knowledge quiz
+Fixed issues with page handler registration in UI server:
+- Added mutex protection for concurrent access to pages and handlers
+- Created single ServeMux instance instead of recreating on each request
+- Fixed handler registration to avoid conflicts during page reloading
+- Added proper locking around map access and handler registration
+- Improved logging to show both file path and URL path
+
+## Improved Page Loading
+
+Enhanced page loading in UI server:
+- Added proper recursive page loading from subdirectories
+- Clear existing pages before reloading to avoid stale entries
+- Added debug logging for directory traversal
+- Improved error handling for directory walking
