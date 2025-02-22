@@ -1,5 +1,5 @@
 version: 2
-project_name: go-go-mcp
+project_name: mcp
 
 before:
   hooks:
@@ -11,7 +11,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     main: ./cmd/go-go-mcp
-    binary: go-go-mcp
+    binary: mcp
     goos:
       - linux
 # I am not able to test windows at the time
@@ -34,8 +34,8 @@ signs:
     args: [ "--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}" ]
 
 brews:
-  - name: go-go-mcp
-    description: "go-go-mcp is a tool to serve and run MCPs"
+  - name: mcp
+    description: "mcp is a tool to serve and run MCPs"
     homepage: "https://github.com/go-go-golems/go-go-mcp"
     repository:
       owner: go-go-golems
@@ -51,7 +51,7 @@ nfpms:
     maintainer: Manuel Odendahl <wesen@ruinwesen.com>
 
     description: |-
-      go-go-mcp is a tool to serve and run MCPs
+      mcp is a tool to serve and run MCPs
 
     license: MIT
 

@@ -84,6 +84,19 @@ func NewSSETransport(opts ...transport.TransportOption) (*SSETransport, error) {
 		s.standalone = false
 	}
 
+	// Parse the port from the address if provided
+	if options.SSE != nil && options.SSE.Addr != "" {
+		_, portStr, err := net.SplitHostPort(options.SSE.Addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address format: %w", err)
+		}
+		port, err := net.LookupPort("tcp", portStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid port: %w", err)
+		}
+		s.port = port
+	}
+
 	return s, nil
 }
 

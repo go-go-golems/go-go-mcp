@@ -50,7 +50,7 @@ bump-glazed:
 	go get github.com/go-go-golems/parka@latest
 	go mod tidy
 
-go-go-mcp_BINARY=$(shell which go-go-mcp)
+mcp_BINARY=$(shell which mcp)
 install:
-	go build -o ./dist/go-go-mcp ./cmd/go-go-mcp && \
-		cp ./dist/go-go-mcp $(go-go-mcp_BINARY)
+	go build -o ./dist/mcp ./cmd/go-go-mcp && \
+		cp ./dist/mcp $(mcp_BINARY)

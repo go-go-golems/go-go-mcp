@@ -25,6 +25,26 @@ templ base(title string) {
 						hljs.highlightElement(el);
 					});
 				});
+
+				function logToConsole(message) {
+					const console = document.getElementById('interaction-console');
+					const entry = document.createElement('div');
+					entry.className = 'console-entry';
+					entry.textContent = message;
+					console.appendChild(entry);
+					console.scrollTop = console.scrollHeight;
+					if (console.children.length > 50) {
+						console.removeChild(console.firstChild);
+					}
+				}
+
+				function logFormSubmit(formId, formData) {
+					const data = Object.fromEntries(new FormData(formData));
+					const yaml = Object.entries(data)
+						.map(([key, value]) => `  ${key}: ${value}`)
+						.join('\n');
+					logToConsole(`Form ${formId} submitted with data:\n\`\`\`yaml\n${yaml}\n\`\`\``);
+				}
 			</script>
 			<style>
 				.source-yaml {
@@ -36,6 +56,27 @@ templ base(title string) {
 				pre {
 					margin: 0;
 				}
+				#interaction-console {
+					position: fixed;
+					bottom: 0;
+					left: 0;
+					right: 0;
+					height: 150px;
+					background: #2d2d2d;
+					color: #fff;
+					font-family: monospace;
+					padding: 10px;
+					overflow-y: auto;
+					z-index: 1000;
+					border-top: 2px solid #444;
+				}
+				#interaction-console .console-entry {
+					margin: 5px 0;
+					white-space: pre-wrap;
+				}
+				.console-spacer {
+					height: 170px;
+				}
 			</style>
 		</head>
 		<body class="container py-4">
@@ -45,6 +86,8 @@ templ base(title string) {
 				</div>
 			</nav>
 			{ children... }
+			<div class="console-spacer"></div>
+			<div id="interaction-console"></div>
 		</body>
 	</html>
 }
@@ -100,28 +143,26 @@ templ pageTemplate(name string, def UIDefinition) {
 templ renderComponent(typ string, props map[string]interface{}) {
 	switch typ {
 	case "button":
-		<button 
-			if id, ok := props["id"].(string); ok {
+		if id, ok := props["id"].(string); ok {
+			<button 
 				id={ id }
-			}
-			if disabled, ok := props["disabled"].(bool); ok && disabled {
-				disabled="disabled"
-			}
-			if onclick, ok := props["onclick"].(string); ok {
-				data-hx-on:click={ onclick }
-			}
-			class={
-				"btn",
-				templ.KV("btn-primary", props["type"] == "primary"),
-				templ.KV("btn-secondary", props["type"] == "secondary"),
-				templ.KV("btn-danger", props["type"] == "danger"),
-				templ.KV("btn-success", props["type"] == "success"),
-			}
-		>
-			if text, ok := props["text"].(string); ok {
-				{ text }
-			}
-		</button>
+				data-hx-on:click={ fmt.Sprintf("logToConsole('%s clicked')", id) }
+				if disabled, ok := props["disabled"].(bool); ok && disabled {
+					disabled="disabled"
+				}
+				class={
+					"btn",
+					templ.KV("btn-primary", props["type"] == "primary"),
+					templ.KV("btn-secondary", props["type"] == "secondary"),
+					templ.KV("btn-danger", props["type"] == "danger"),
+					templ.KV("btn-success", props["type"] == "success"),
+				}
+			>
+				if text, ok := props["text"].(string); ok {
+					{ text }
+				}
+			</button>
+		}
 	case "title":
 		<h1 
 			if id, ok := props["id"].(string); ok {
@@ -182,27 +223,28 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		</textarea>
 	case "checkbox":
-		<div class="form-check">
-			<input
-				type="checkbox"
-				if id, ok := props["id"].(string); ok {
+		if id, ok := props["id"].(string); ok {
+			<div class="form-check">
+				<input
+					type="checkbox"
 					id={ id }
+					data-hx-on:change={ fmt.Sprintf("logToConsole('%s ' + (this.checked ? 'checked' : 'unchecked'))", id) }
+					if name, ok := props["name"].(string); ok {
+						name={ name }
+					}
+					if checked, ok := props["checked"].(bool); ok && checked {
+						checked="checked"
+					}
+					if required, ok := props["required"].(bool); ok && required {
+						required="required"
+					}
+					class="form-check-input"
+				/>
+				if label, ok := props["label"].(string); ok {
+					<label class="form-check-label" for={ id }>{ label }</label>
 				}
-				if name, ok := props["name"].(string); ok {
-					name={ name }
-				}
-				if checked, ok := props["checked"].(bool); ok && checked {
-					checked="checked"
-				}
-				if required, ok := props["required"].(bool); ok && required {
-					required="required"
-				}
-				class="form-check-input"
-			/>
-			if label, ok := props["label"].(string); ok {
-				<label class="form-check-label" for={ props["id"].(string) }>{ label }</label>
-			}
-		</div>
+			</div>
+		}
 	case "list":
 		if typ, ok := props["type"].(string); ok {
 			if typ == "ul" {
@@ -242,23 +284,24 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		}
 	case "form":
-		<form
-			if id, ok := props["id"].(string); ok {
+		if id, ok := props["id"].(string); ok {
+			<form
 				id={ id }
-			}
-			class="needs-validation"
-			novalidate
-		>
-			if components, ok := props["components"].([]interface{}); ok {
-				for _, comp := range components {
-					if c, ok := comp.(map[string]interface{}); ok {
-						for typ, props := range c {
-							@renderComponent(typ, props.(map[string]interface{}))
+				data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); logFormSubmit('%s', this)", id) }
+				class="needs-validation"
+				novalidate
+			>
+				if components, ok := props["components"].([]interface{}); ok {
+					for _, comp := range components {
+						if c, ok := comp.(map[string]interface{}); ok {
+							for typ, props := range c {
+								@renderComponent(typ, props.(map[string]interface{}))
+							}
 						}
 					}
 				}
-			}
-		</form>
+			</form>
+		}
 	}
 }
 

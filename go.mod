@@ -6,10 +6,11 @@ toolchain go1.23.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/go-go-golems/clay v0.1.28
-	github.com/go-go-golems/geppetto v0.4.35
-	github.com/go-go-golems/glazed v0.5.29
-	github.com/go-go-golems/parka v0.5.18
+	github.com/a-h/templ v0.3.833
+	github.com/go-go-golems/clay v0.1.31
+	github.com/go-go-golems/geppetto v0.4.37
+	github.com/go-go-golems/glazed v0.5.34
+	github.com/go-go-golems/parka v0.5.20
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hpcloud/tail v1.0.0
@@ -30,7 +31,6 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/PuerkitoBio/goquery v1.10.1 // indirect
-	github.com/a-h/templ v0.3.833 // indirect
 	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect

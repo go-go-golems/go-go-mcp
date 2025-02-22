@@ -1147,3 +1147,25 @@ Added a new UI server that can render YAML UI definitions using HTMX and Bootstr
 - Implemented templ templates for rendering UI components
 - Added support for various UI components like buttons, inputs, forms, etc.
 - Used HTMX for dynamic interactions and Bootstrap for styling
+
+# Halloween-themed UI Examples
+Added a collection of Halloween-themed example pages using the UI DSL:
+- Created welcome page with spooky navigation
+- Added haunted house tour booking form
+- Created costume contest voting interface
+- Added Halloween party RSVP form with fun options
+- Created trick-or-treat checklist for safety
+
+# UI DSL Structure Update
+Updated the UI DSL to use a top-level components list for better sequence handling:
+- Changed UIDefinition to use a list of components instead of a map
+- Updated all example pages to use the new structure
+- Modified templates to handle the new component list format
+- Improved component rendering to handle nested components
+
+# SSE Transport Port Configuration
+
+Improved port configuration handling in SSE transport by properly parsing the provided address.
+
+- Added proper port parsing from SSE options address
+- Ensures port configuration is correctly propagated from command line to transport

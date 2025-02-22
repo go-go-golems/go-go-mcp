@@ -19,7 +19,7 @@ type Server struct {
 }
 
 type UIDefinition struct {
-	Components map[string]interface{} `yaml:",inline"`
+	Components []map[string]interface{} `yaml:"components"`
 }
 
 func NewServer(dir string) *Server {

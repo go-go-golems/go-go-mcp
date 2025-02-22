@@ -7,74 +7,74 @@
 
 # Example components:
 ---
-button:
-  text: Click me
-  type: primary  # primary, secondary, danger, success
-  id: submit-btn
-  disabled: false
-  onclick: alert('clicked')
+components:
+  - button:
+      text: Click me
+      type: primary  # primary, secondary, danger, success
+      id: submit-btn
+      disabled: false
+      onclick: alert('clicked')
 
-title:
-  content: Welcome to My App
-  id: main-title
+  - title:
+      content: Welcome to My App
+      id: main-title
 
-text:
-  content: This is a paragraph of text that explains something.
-  id: description
+  - text:
+      content: This is a paragraph of text that explains something.
+      id: description
 
-input:
-  type: text  # text, email, password, number, tel
-  placeholder: Enter your name
-  value: ""
-  required: true
-  id: name-input
-  data:
-    validate: true
-    maxlength: 50
+  - input:
+      type: text  # text, email, password, number, tel
+      placeholder: Enter your name
+      value: ""
+      required: true
+      id: name-input
+      data:
+        validate: true
+        maxlength: 50
 
-textarea:
-  placeholder: Enter description
-  rows: 4
-  cols: 50
-  value: |
-    Default multiline
-    text content
+  - textarea:
+      placeholder: Enter description
+      rows: 4
+      cols: 50
+      value: |
+        Default multiline
+        text content
 
-checkbox:
-  label: Accept terms
-  checked: false
-  required: true
-  name: terms
-  id: terms-checkbox
+  - checkbox:
+      label: Accept terms
+      checked: false
+      required: true
+      name: terms
+      id: terms-checkbox
 
-list:
-  type: ul  # ul or ol
-  items:
-    - First item
-    - Second item
-    - Third item with:
-        button:
-          text: Click me
-          type: secondary
+  - list:
+      type: ul  # ul or ol
+      items:
+        - First item
+        - Second item
+        - Third item with:
+            button:
+              text: Click me
+              type: secondary
 
-# Complex example with nested components
-form:
-  id: signup-form
-  components:
-    - title:
-        content: Sign Up
-    - text:
-        content: Please fill in your details below.
-    - input:
-        type: email
-        placeholder: Email address
-        required: true
-    - input:
-        type: password
-        placeholder: Password
-        required: true
-    - checkbox:
-        label: Subscribe to newsletter
-    - button:
-        text: Submit
-        type: primary 
+  - form:
+      id: signup-form
+      components:
+        - title:
+            content: Sign Up
+        - text:
+            content: Please fill in your details below.
+        - input:
+            type: email
+            placeholder: Email address
+            required: true
+        - input:
+            type: password
+            placeholder: Password
+            required: true
+        - checkbox:
+            label: Subscribe to newsletter
+        - button:
+            text: Submit
+            type: primary 

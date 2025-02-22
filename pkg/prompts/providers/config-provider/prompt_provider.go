@@ -56,7 +56,7 @@ func NewConfigPromptProvider(config_ *config.Config, profile string) (*ConfigPro
 	helpSystem := help.NewHelpSystem()
 	// Load repository commands
 	if err := provider.repository.LoadCommands(helpSystem); err != nil {
-		return nil, errors.Wrap(err, "failed to load repository commands")
+		return nil, errors.Wrap(err, "failed to load repository prompts")
 	}
 
 	// Load individual Pinocchio files
