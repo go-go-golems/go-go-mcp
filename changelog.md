@@ -1217,3 +1217,20 @@ Enhanced page loading in UI server:
 - Clear existing pages before reloading to avoid stale entries
 - Added debug logging for directory traversal
 - Improved error handling for directory walking
+
+## Improved Dynamic Page Routing
+
+Enhanced page routing in UI server:
+- Added dynamic page routing using a routes map
+- Fixed handler registration conflicts during page reloading
+- Moved all pages under /pages/ prefix for better organization
+- Added proper cleanup of routes on page removal
+- Improved URL path handling and logging
+
+## Fixed Route Handler Order
+
+Fixed routing issues in UI server:
+- Fixed handler registration order to ensure correct path matching
+- Added proper path validation for root handler
+- Added debug logging for request routing
+- Improved handler type consistency

@@ -19,6 +19,7 @@ import (
 type Server struct {
 	dir     string
 	pages   map[string]UIDefinition
+	routes  map[string]http.HandlerFunc
 	watcher *watcher.Watcher
 	mux     *http.ServeMux
 	mu      sync.RWMutex
@@ -30,9 +31,10 @@ type UIDefinition struct {
 
 func NewServer(dir string) *Server {
 	s := &Server{
-		dir:   dir,
-		pages: make(map[string]UIDefinition),
-		mux:   http.NewServeMux(),
+		dir:    dir,
+		pages:  make(map[string]UIDefinition),
+		routes: make(map[string]http.HandlerFunc),
+		mux:    http.NewServeMux(),
 	}
 
 	// Create a watcher for the pages directory
@@ -49,8 +51,17 @@ func NewServer(dir string) *Server {
 	// Set up static file handler
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	// Set up index handler
-	s.mux.HandleFunc("/", s.handleIndex())
+	// Set up dynamic page handler - must come before index handler
+	s.mux.Handle("/pages/", s.handleAllPages())
+
+	// Set up index handler - must come last as it's the most general
+	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		s.handleIndex()(w, r)
+	})
 
 	return s
 }
@@ -109,9 +120,10 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) loadPages() error {
 	log.Debug().Str("directory", s.dir).Msg("Loading pages recursively from directory")
 
-	// First, clear existing pages
+	// First, clear existing pages and routes
 	s.mu.Lock()
 	s.pages = make(map[string]UIDefinition)
+	s.routes = make(map[string]http.HandlerFunc)
 	s.mu.Unlock()
 
 	return filepath.WalkDir(s.dir, func(path string, d fs.DirEntry, err error) error {
@@ -157,12 +169,12 @@ func (s *Server) loadPage(path string) error {
 	}
 
 	// Normalize the relative path to use as a URL path
-	urlPath := "/" + strings.TrimSuffix(relPath, ".yaml")
+	urlPath := "/pages/" + strings.TrimSuffix(relPath, ".yaml")
 	urlPath = strings.ReplaceAll(urlPath, string(os.PathSeparator), "/")
 
 	s.mu.Lock()
 	s.pages[relPath] = def
-	s.mux.HandleFunc(urlPath, s.handlePage(relPath))
+	s.routes[urlPath] = s.handlePage(relPath)
 	s.mu.Unlock()
 
 	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Loaded page")
@@ -190,12 +202,34 @@ func (s *Server) handleFileRemove(path string) error {
 		return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 	}
 
+	urlPath := "/pages/" + strings.TrimSuffix(relPath, ".yaml")
+	urlPath = strings.ReplaceAll(urlPath, string(os.PathSeparator), "/")
+
 	s.mu.Lock()
 	delete(s.pages, relPath)
+	delete(s.routes, urlPath)
 	s.mu.Unlock()
 
-	log.Info().Str("path", relPath).Msg("Removed page")
+	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Removed page")
 	return nil
+}
+
+func (s *Server) handleAllPages() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Debug().Str("path", r.URL.Path).Msg("Handling page request")
+
+		s.mu.RLock()
+		handler, ok := s.routes[r.URL.Path]
+		s.mu.RUnlock()
+
+		if !ok {
+			log.Debug().Str("path", r.URL.Path).Msg("Page not found")
+			http.NotFound(w, r)
+			return
+		}
+
+		handler(w, r)
+	})
 }
 
 func (s *Server) handleIndex() http.HandlerFunc {

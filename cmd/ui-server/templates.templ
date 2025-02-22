@@ -99,7 +99,7 @@ templ indexTemplate(pages map[string]UIDefinition) {
 				<h1>Available Pages</h1>
 				<div class="list-group">
 					for name := range pages {
-						<a href={ templ.SafeURL("/" + strings.TrimSuffix(name, ".yaml")) } class="list-group-item list-group-item-action">
+						<a href={ templ.SafeURL("/pages/" + strings.TrimSuffix(name, ".yaml")) } class="list-group-item list-group-item-action">
 							{ name }
 						</a>
 					}
