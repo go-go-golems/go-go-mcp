@@ -1169,3 +1169,34 @@ Improved port configuration handling in SSE transport by properly parsing the pr
 
 - Added proper port parsing from SSE options address
 - Ensures port configuration is correctly propagated from command line to transport
+
+## Google Maps CLI Tool
+
+Added a new CLI tool for interacting with Google Maps API. The tool uses API key authentication and provides a foundation for implementing various Google Maps API features.
+
+- Created basic command structure with API key authentication
+- Set up Maps client initialization
+- Added environment variable support for API key
+
+## Dinosaur-themed Example Pages
+
+Added new example pages showcasing the UI DSL capabilities with a fun dinosaur theme:
+- Added dino-facts.yaml with interactive dinosaur facts and newsletter signup
+- Added build-a-dino.yaml with a form to create custom dinosaurs
+- Added dino-quiz.yaml featuring an interactive dinosaur knowledge quiz
+- Added dino-park-guide.yaml with park areas, safety guidelines and tour booking
+
+## UI Server File Watching
+
+Added file watching capabilities to the UI server for automatic page reloading:
+- Added Clay watcher integration to monitor YAML page files
+- Implemented automatic page reloading on file changes
+- Added page removal on file deletion
+- Added graceful shutdown handling
+
+## UI Server Logging Improvements
+
+Improved logging in the UI server by:
+- Switched to zerolog for structured logging
+- Implemented glazed command pattern for better CLI structure
+- Added proper log levels and context fields
