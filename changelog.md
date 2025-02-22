@@ -1273,3 +1273,9 @@ Improved form data rendering in the console log:
 Added Watermill dependencies for implementing SSE support:
 - Added github.com/ThreeDotsLabs/watermill v1.4.4
 - Added github.com/ThreeDotsLabs/watermill/pubsub/gochannel for local pub/sub
+
+Added SSE endpoint to UI server:
+- Added /sse endpoint for real-time updates
+- Implemented page-specific event channels using Watermill
+- Added CORS support for cross-origin requests
+- Added proper error handling and connection management

@@ -11,18 +11,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/go-go-golems/clay/pkg/watcher"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
 type Server struct {
-	dir     string
-	pages   map[string]UIDefinition
-	routes  map[string]http.HandlerFunc
-	watcher *watcher.Watcher
-	mux     *http.ServeMux
-	mu      sync.RWMutex
+	dir        string
+	pages      map[string]UIDefinition
+	routes     map[string]http.HandlerFunc
+	watcher    *watcher.Watcher
+	mux        *http.ServeMux
+	mu         sync.RWMutex
+	publisher  message.Publisher
+	subscriber message.Subscriber
 }
 
 type UIDefinition struct {
@@ -30,11 +35,19 @@ type UIDefinition struct {
 }
 
 func NewServer(dir string) *Server {
+	// Initialize watermill publisher/subscriber
+	publisher := gochannel.NewGoChannel(
+		gochannel.Config{},
+		watermill.NewStdLogger(false, false),
+	)
+
 	s := &Server{
-		dir:    dir,
-		pages:  make(map[string]UIDefinition),
-		routes: make(map[string]http.HandlerFunc),
-		mux:    http.NewServeMux(),
+		dir:        dir,
+		pages:      make(map[string]UIDefinition),
+		routes:     make(map[string]http.HandlerFunc),
+		mux:        http.NewServeMux(),
+		publisher:  publisher,
+		subscriber: publisher,
 	}
 
 	// Create a watcher for the pages directory
@@ -47,6 +60,9 @@ func NewServer(dir string) *Server {
 	)
 
 	s.watcher = w
+
+	// Set up SSE endpoint
+	s.mux.HandleFunc("/sse", s.handleSSE())
 
 	// Set up static file handler
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -264,6 +280,38 @@ func (s *Server) handlePage(name string) http.HandlerFunc {
 		component := pageTemplate(name, def)
 		if err := component.Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+func (s *Server) handleSSE() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Set SSE headers
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// Get page ID from query
+		pageID := r.URL.Query().Get("page")
+		if pageID == "" {
+			http.Error(w, "page parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		// Subscribe to page-specific topic
+		messages, err := s.subscriber.Subscribe(r.Context(), "ui-updates."+pageID)
+		if err != nil {
+			http.Error(w, "Failed to subscribe to events", http.StatusInternalServerError)
+			return
+		}
+
+		// Stream messages
+		for msg := range messages {
+			// Format SSE message
+			fmt.Fprintf(w, "event: %s\n", msg.Metadata["event-type"])
+			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
+			w.(http.Flusher).Flush()
 		}
 	}
 }
