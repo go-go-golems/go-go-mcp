@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -65,6 +66,9 @@ func NewServer(dir string) (*Server, error) {
 		events:     eventManager,
 		sseHandler: sseHandler,
 	}
+
+	// Register component renderers
+	s.registerComponentRenderers()
 
 	// Create a watcher for the pages directory
 	log.Debug().Str("directory", dir).Msg("Initializing watcher for directory")
@@ -320,4 +324,70 @@ func (s *Server) handlePage(name string) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
+}
+
+// registerComponentRenderers registers component renderers with the SSE handler
+func (s *Server) registerComponentRenderers() {
+	// Register component-update renderer
+	s.sseHandler.RegisterRenderer("component-update", func(componentID string, data interface{}) (string, error) {
+		log.Debug().Str("componentID", componentID).Interface("data", data).Msg("Rendering component")
+
+		// Get the page definition for this component
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+
+		// Find the component in the pages
+		for _, def := range s.pages {
+			for _, component := range def.Components {
+				for typ, props := range component {
+					propsMap, ok := props.(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					id, ok := propsMap["id"].(string)
+					if !ok {
+						continue
+					}
+
+					if id == componentID {
+						// Found the component, now update it with the new data
+						dataMap, ok := data.(map[string]interface{})
+						if ok {
+							// Merge the new data with the existing props
+							for k, v := range dataMap {
+								propsMap[k] = v
+							}
+						}
+
+						// Render the component
+						var buf bytes.Buffer
+						err := renderComponent(typ, propsMap).Render(context.Background(), &buf)
+						if err != nil {
+							return "", fmt.Errorf("failed to render component: %w", err)
+						}
+
+						return buf.String(), nil
+					}
+				}
+			}
+		}
+
+		return "", fmt.Errorf("component not found: %s", componentID)
+	})
+
+	// Register yaml-update renderer
+	s.sseHandler.RegisterRenderer("yaml-update", func(componentID string, data interface{}) (string, error) {
+		log.Debug().Str("componentID", componentID).Interface("data", data).Msg("Rendering YAML")
+
+		// Convert the data to YAML
+		yamlBytes, err := yaml.Marshal(data)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal YAML: %w", err)
+		}
+
+		// Create HTML with syntax highlighting
+		html := fmt.Sprintf("<pre><code class=\"language-yaml\">%s</code></pre>", string(yamlBytes))
+		return html, nil
+	})
 }

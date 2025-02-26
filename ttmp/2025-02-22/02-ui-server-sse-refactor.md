@@ -4,7 +4,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
 
 ## 1. Create Dedicated Event System Package
 ### 1.1 Event Types and Interfaces
-- [ ] Create new package `pkg/events` for event-related functionality
+- [x] Create new package `pkg/events` for event-related functionality
   ```go
   // pkg/events/types.go
   type UIEvent struct {
@@ -21,7 +21,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
   ```
 
 ### 1.2 Event Creation Helpers
-- [ ] Add helper functions for common event types
+- [x] Add helper functions for common event types
   ```go
   func NewPageReloadEvent(pageID string) UIEvent
   func NewComponentUpdateEvent(pageID string, componentID string, data interface{}) UIEvent
@@ -29,7 +29,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
 
 ## 2. Create Watermill Implementation
 ### 2.1 Event Manager Implementation
-- [ ] Create Watermill-specific implementation in `pkg/events/watermill.go`
+- [x] Create Watermill-specific implementation in `pkg/events/watermill.go`
   ```go
   type WatermillEventManager struct {
       publisher  message.Publisher
@@ -43,7 +43,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
   ```
 
 ### 2.2 Message Conversion
-- [ ] Add methods for converting between UIEvent and Watermill messages
+- [x] Add methods for converting between UIEvent and Watermill messages
   ```go
   func (m *WatermillEventManager) eventToMessage(event UIEvent) (*message.Message, error)
   func (m *WatermillEventManager) messageToEvent(msg *message.Message) (UIEvent, error)
@@ -51,7 +51,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
 
 ## 3. Create SSE Handler Package
 ### 3.1 Handler Structure
-- [ ] Create `pkg/server/sse` package for SSE-specific functionality
+- [x] Create `pkg/server/sse` package for SSE-specific functionality
   ```go
   // pkg/server/sse/handler.go
   type SSEHandler struct {
@@ -64,7 +64,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
   ```
 
 ### 3.2 Connection Management
-- [ ] Add connection tracking and management
+- [x] Add connection tracking and management
   ```go
   type connection struct {
       pageID string
@@ -77,7 +77,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
 
 ## 4. Update Server Structure
 ### 4.1 Server Modifications
-- [ ] Modify Server struct to use new components
+- [x] Modify Server struct to use new components
   ```go
   type Server struct {
       dir     string
@@ -92,7 +92,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
   ```
 
 ### 4.2 Constructor Updates
-- [ ] Update NewServer to initialize new components
+- [x] Update NewServer to initialize new components
   ```go
   func NewServer(dir string, logger *zerolog.Logger) (*Server, error) {
       events, err := events.NewWatermillEventManager(logger)
