@@ -19,6 +19,7 @@ import (
 	"github.com/go-go-golems/clay/pkg/watcher"
 	"github.com/go-go-golems/go-go-mcp/pkg/events"
 	"github.com/go-go-golems/go-go-mcp/pkg/server/sse"
+	"github.com/go-go-golems/go-go-mcp/pkg/server/ui"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
@@ -26,7 +27,7 @@ import (
 
 type Server struct {
 	dir        string
-	pages      map[string]UIDefinition
+	pages      map[string]ui.UIDefinition
 	routes     map[string]http.HandlerFunc
 	watcher    *watcher.Watcher
 	mux        *http.ServeMux
@@ -35,10 +36,7 @@ type Server struct {
 	subscriber message.Subscriber
 	events     events.EventManager
 	sseHandler *sse.SSEHandler
-}
-
-type UIDefinition struct {
-	Components []map[string]interface{} `yaml:"components"`
+	uiHandler  *ui.UIHandler
 }
 
 func NewServer(dir string) (*Server, error) {
@@ -57,15 +55,19 @@ func NewServer(dir string) (*Server, error) {
 	// Create SSE handler
 	sseHandler := sse.NewSSEHandler(eventManager, &log.Logger)
 
+	// Create UI handler
+	uiHandler := ui.NewUIHandler(eventManager, sseHandler, &log.Logger)
+
 	s := &Server{
 		dir:        dir,
-		pages:      make(map[string]UIDefinition),
+		pages:      make(map[string]ui.UIDefinition),
 		routes:     make(map[string]http.HandlerFunc),
 		mux:        http.NewServeMux(),
 		publisher:  publisher,
 		subscriber: publisher,
 		events:     eventManager,
 		sseHandler: sseHandler,
+		uiHandler:  uiHandler,
 	}
 
 	// Register component renderers
@@ -88,14 +90,8 @@ func NewServer(dir string) (*Server, error) {
 	// Set up static file handler
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	// Set up UI update endpoint
-	s.mux.Handle("/api/ui-update", s.handleUIUpdate())
-
-	// Set up UI action endpoint
-	s.mux.Handle("/api/ui-action", s.handleUIAction())
-
-	// Set up UI update page
-	s.mux.HandleFunc("/ui", s.handleUIUpdatePage())
+	// Register UI handlers
+	uiHandler.RegisterHandlers(s.mux)
 
 	// Set up dynamic page handler - must come before index handler
 	s.mux.Handle("/pages/", s.handleAllPages())
@@ -178,7 +174,7 @@ func (s *Server) loadPages() error {
 
 	// First, clear existing pages and routes
 	s.mu.Lock()
-	s.pages = make(map[string]UIDefinition)
+	s.pages = make(map[string]ui.UIDefinition)
 	s.routes = make(map[string]http.HandlerFunc)
 	s.mu.Unlock()
 
@@ -212,7 +208,7 @@ func (s *Server) loadPage(path string) error {
 		return fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
-	var def UIDefinition
+	var def ui.UIDefinition
 	if err := yaml.Unmarshal(data, &def); err != nil {
 		log.Error().Err(err).Str("path", path).Msg("Failed to parse YAML")
 		return fmt.Errorf("failed to parse YAML in %s: %w", path, err)
@@ -337,7 +333,7 @@ func (s *Server) registerComponentRenderers() {
 		log.Debug().Str("pageID", pageID).Msg("Rendering page content template")
 
 		// Get the page definition
-		var def UIDefinition
+		var def ui.UIDefinition
 
 		// Try to extract definition from event data
 		if compData, ok := data.(map[string]interface{}); ok {
@@ -370,285 +366,4 @@ func (s *Server) registerComponentRenderers() {
 
 		return buf.String(), nil
 	})
-}
-
-// handleUIUpdate handles POST requests to /api/ui-update
-func (s *Server) handleUIUpdate() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Only accept POST requests
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Parse JSON body
-		var jsonData map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&jsonData); err != nil {
-			// Return detailed JSON error response
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "error",
-				"error": map[string]interface{}{
-					"type":    "json_parse_error",
-					"message": "Invalid JSON: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		// Convert to YAML for storage
-		yamlData, err := yaml.Marshal(jsonData)
-		if err != nil {
-			// Return detailed JSON error response
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "error",
-				"error": map[string]interface{}{
-					"type":    "yaml_conversion_error",
-					"message": "Failed to convert to YAML: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		// Parse into UIDefinition
-		var def UIDefinition
-		if err := yaml.Unmarshal(yamlData, &def); err != nil {
-			// Return detailed JSON error response
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "error",
-				"error": map[string]interface{}{
-					"type":    "ui_definition_error",
-					"message": "Invalid UI definition: " + err.Error(),
-					"yaml":    string(yamlData),
-				},
-			})
-			return
-		}
-
-		// Validate the UI definition
-		validationErrors := s.validateUIDefinition(def)
-		if len(validationErrors) > 0 {
-			// Return detailed JSON error response with validation errors
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "error",
-				"error": map[string]interface{}{
-					"type":    "ui_validation_error",
-					"message": "UI definition validation failed",
-					"details": validationErrors,
-				},
-			})
-			return
-		}
-
-		// Create and publish refresh-ui event
-		event := events.UIEvent{
-			Type:      "refresh-ui",
-			PageID:    "ui-update",
-			Component: def,
-		}
-
-		if err := s.events.Publish("ui-update", event); err != nil {
-			// Return detailed JSON error response
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "error",
-				"error": map[string]interface{}{
-					"type":    "event_publish_error",
-					"message": "Failed to publish event: " + err.Error(),
-				},
-			})
-			return
-		}
-
-		// Return success response
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		err = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-		if err != nil {
-			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-// validateUIDefinition checks a UI definition for common errors
-func (s *Server) validateUIDefinition(def UIDefinition) []map[string]interface{} {
-	var errors []map[string]interface{}
-
-	// Check if components exist
-	if len(def.Components) == 0 {
-		errors = append(errors, map[string]interface{}{
-			"path":    "components",
-			"message": "No components defined",
-		})
-		return errors
-	}
-
-	// Validate each component
-	for i, comp := range def.Components {
-		for typ, props := range comp {
-			propsMap, ok := props.(map[string]interface{})
-			if !ok {
-				errors = append(errors, map[string]interface{}{
-					"path":    fmt.Sprintf("components[%d].%s", i, typ),
-					"message": "Component properties must be a map",
-				})
-				continue
-			}
-
-			// Check for required ID
-			if _, hasID := propsMap["id"]; !hasID && requiresID(typ) {
-				errors = append(errors, map[string]interface{}{
-					"path":    fmt.Sprintf("components[%d].%s", i, typ),
-					"message": "Component is missing required 'id' property",
-				})
-			}
-
-			// Validate nested components in forms
-			if typ == "form" {
-				if formComps, hasComps := propsMap["components"]; hasComps {
-					if formCompsList, ok := formComps.([]interface{}); ok {
-						for j, formComp := range formCompsList {
-							if formCompMap, ok := formComp.(map[string]interface{}); ok {
-								for formCompType, formCompProps := range formCompMap {
-									if _, ok := formCompProps.(map[string]interface{}); !ok {
-										errors = append(errors, map[string]interface{}{
-											"path":    fmt.Sprintf("components[%d].%s.components[%d].%s", i, typ, j, formCompType),
-											"message": "Form component properties must be a map",
-										})
-									}
-								}
-							} else {
-								errors = append(errors, map[string]interface{}{
-									"path":    fmt.Sprintf("components[%d].%s.components[%d]", i, typ, j),
-									"message": "Form component must be a map",
-								})
-							}
-						}
-					} else {
-						errors = append(errors, map[string]interface{}{
-							"path":    fmt.Sprintf("components[%d].%s.components", i, typ),
-							"message": "Form components must be an array",
-						})
-					}
-				}
-			}
-
-			// Validate list items
-			if typ == "list" {
-				if items, hasItems := propsMap["items"]; hasItems {
-					if itemsList, ok := items.([]interface{}); ok {
-						for j, item := range itemsList {
-							if _, ok := item.(map[string]interface{}); !ok {
-								errors = append(errors, map[string]interface{}{
-									"path":    fmt.Sprintf("components[%d].%s.items[%d]", i, typ, j),
-									"message": "List item must be a map",
-								})
-							}
-						}
-					} else {
-						errors = append(errors, map[string]interface{}{
-							"path":    fmt.Sprintf("components[%d].%s.items", i, typ),
-							"message": "List items must be an array",
-						})
-					}
-				}
-			}
-		}
-	}
-
-	return errors
-}
-
-// requiresID returns true if the component type requires an ID
-func requiresID(componentType string) bool {
-	switch componentType {
-	case "text", "title":
-		// These can optionally have IDs
-		return false
-	default:
-		// All other components require IDs
-		return true
-	}
-}
-
-// handleUIAction handles POST requests to /api/ui-action
-func (s *Server) handleUIAction() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Only accept POST requests
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Parse JSON body
-		var action struct {
-			ComponentID string                 `json:"componentId"`
-			Action      string                 `json:"action"`
-			Data        map[string]interface{} `json:"data"`
-		}
-
-		if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
-			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Determine if this is an important event to log at INFO level
-		isImportantEvent := false
-		switch action.Action {
-		case "clicked", "changed", "submitted":
-			isImportantEvent = true
-		}
-
-		// Log the action at appropriate level
-		logger := log.Debug()
-		if isImportantEvent {
-			logger = log.Info()
-		}
-
-		// Create log entry with component and action info
-		logger = logger.
-			Str("componentId", action.ComponentID).
-			Str("action", action.Action)
-
-		// Add data to log if it exists and is relevant
-		if len(action.Data) > 0 {
-			// For form submissions, log the form data in detail
-			if action.Action == "submitted" && action.Data["formData"] != nil {
-				logger = logger.Interface("formData", action.Data["formData"])
-			} else if action.Action == "changed" {
-				// For changed events, log the new value
-				logger = logger.Interface("data", action.Data)
-			} else {
-				// For other events, just log that data exists
-				logger = logger.Bool("hasData", true)
-			}
-		}
-
-		// Output the log message
-		logger.Msg("UI action received")
-
-		// Return success response
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		err := json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-		if err != nil {
-			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-// handleUIUpdatePage renders the UI update page
-func (s *Server) handleUIUpdatePage() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		component := uiUpdateTemplate()
-		_ = component.Render(r.Context(), w)
-	}
 }

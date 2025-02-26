@@ -29,3 +29,16 @@ Created comprehensive documentation to help new developers understand the SSE an
 - Described how page data is managed and passed through the system
 - Included code examples and a complete walkthrough of the update process
 - Created `ttmp/2025-02-22/03-sse-page-handling.md` as a developer guide 
+
+# UI Action Handler with Wait-for-Response
+
+Added a new UI handler implementation that waits for user actions before completing requests. This creates a synchronous flow between UI updates and user interactions, making it easier to build interactive applications.
+
+- Created a new `UIHandler` struct to encapsulate all UI-related functionality
+- Implemented a `WaitRegistry` to track pending requests using channels
+- Added request ID generation and tracking between UI updates and actions
+- Implemented timeout handling for requests without responses
+- Integrated the UIHandler with the main server by removing UI-specific handlers from the Server struct
+- Updated the Server initialization to create and use the UIHandler
+- Added RequestID field to the UIEvent struct for better tracking of user interactions
+- Implemented background cleanup for orphaned requests 
