@@ -1,0 +1,85 @@
+<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>
+</title><script src=\"https://unpkg.com/htmx.org@2.0.4\" crossorigin=\"anonymous\"></script><script src=\"https://unpkg.com/htmx-ext-sse@2.2.2\" crossorigin=\"anonymous\"></script><link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css\" rel=\"stylesheet\"><script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js\"></script><link rel=\"stylesheet\" href=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css\"><script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js\"></script><script src=\"https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js\"></script><script>\n\t\t\t\tdocument.addEventListener('DOMContentLoaded', (event) => {\n\t\t\t\t\tdocument.querySelectorAll('pre code').forEach((el) => {\n\t\t\t\t\t\thljs.highlightElement(el);\n\t\t\t\t\t});\n\n\t\t\t\t\t// Add click handlers to all form buttons\n\t\t\t\t\tdocument.querySelectorAll('form button').forEach(button => {\n\t\t\t\t\t\tbutton.addEventListener('click', function(e) {\n\t\t\t\t\t\t\tthis.form._lastClickedButton = this.id;\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t});\n\n\t\t\t\tfunction logToConsole(message) {\n\t\t\t\t\tconst console = document.getElementById('interaction-console');\n\t\t\t\t\tconst entry = document.createElement('div');\n\t\t\t\t\tentry.className = 'console-entry';\n\t\t\t\t\tentry.textContent = message;\n\t\t\t\t\tconsole.appendChild(entry);\n\t\t\t\t\tconsole.scrollTop = console.scrollHeight;\n\t\t\t\t\tif (console.children.length > 50) {\n\t\t\t\t\t\tconsole.removeChild(console.firstChild);\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction logFormSubmit(formId, formData) {\n\t\t\t\t\tconst data = {};\n\t\t\t\t\tconsole.log('Form elements:', formData.elements);\n\t\t\t\t\t\n\t\t\t\t\t// Get all form elements\n\t\t\t\t\tArray.from(formData.elements).forEach(element => {\n\t\t\t\t\t\tconsole.log('Processing element:', element.tagName, element.type, element.id);\n\t\t\t\t\t\t\n\t\t\t\t\t\tif (element.tagName === 'BUTTON') return; // Skip buttons, we handle them separately\n\t\t\t\t\t\t\n\t\t\t\t\t\tif (element.type === 'checkbox') {\n\t\t\t\t\t\t\tdata[element.id] = element.checked;\n\t\t\t\t\t\t} else if (element.id && element.value) {\n\t\t\t\t\t\t\tdata[element.id] = element.value;\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\n\t\t\t\t\t// Add the clicked button info if available\n\t\t\t\t\tif (formData._lastClickedButton) {\n\t\t\t\t\t\tdata['_clicked_button'] = formData._lastClickedButton;\n\t\t\t\t\t}\n\n\t\t\t\t\tconsole.log('Collected data:', data);\n\n\t\t\t\t\tconst yaml = Object.entries(data)\n\t\t\t\t\t\t.map(([key, value]) => {\n\t\t\t\t\t\t\tconst valueStr = typeof value === 'boolean' ? value : `\"${value}\"`;\n\t\t\t\t\t\t\treturn `  ${key}: ${valueStr}`;\n\t\t\t\t\t\t})\n\t\t\t\t\t\t.join('\\n');\n\t\t\t\t\t\n\t\t\t\t\tlogToConsole(`Form ${formId} submitted with data:\\n\\`\\`\\`yaml\\n${yaml}\\n\\`\\`\\``);\n\t\t\t\t}\n\t\t\t</script><style>\n\t\t\t\t.source-yaml {\n\t\t\t\t\tbackground-color: #f8f9fa;\n\t\t\t\t\tborder-radius: 6px;\n\t\t\t\t\tpadding: 15px;\n\t\t\t\t\tmargin-bottom: 20px;\n\t\t\t\t}\n\t\t\t\tpre {\n\t\t\t\t\tmargin: 0;\n\t\t\t\t}\n\t\t\t\t#interaction-console {\n\t\t\t\t\tposition: fixed;\n\t\t\t\t\tbottom: 0;\n\t\t\t\t\tleft: 0;\n\t\t\t\t\tright: 0;\n\t\t\t\t\theight: 150px;\n\t\t\t\t\tbackground: #2d2d2d;\n\t\t\t\t\tcolor: #fff;\n\t\t\t\t\tfont-family: monospace;\n\t\t\t\t\tpadding: 10px;\n\t\t\t\t\toverflow-y: auto;\n\t\t\t\t\tz-index: 1000;\n\t\t\t\t\tborder-top: 2px solid #444;\n\t\t\t\t}\n\t\t\t\t#interaction-console .console-entry {\n\t\t\t\t\tmargin: 5px 0;\n\t\t\t\t\twhite-space: pre-wrap;\n\t\t\t\t}\n\t\t\t\t.console-spacer {\n\t\t\t\t\theight: 170px;\n\t\t\t\t}\n\t\t\t\t.list-group-item {\n\t\t\t\t\tborder: none;\n\t\t\t\t\tpadding: 0.5rem 1rem;\n\t\t\t\t}\n\t\t\t\t.list-group .list-group {\n\t\t\t\t\tmargin-top: 0.5rem;\n\t\t\t\t\tmargin-left: 1rem;\n\t\t\t\t}\n\t\t\t\t.list-group-item > :first-child {\n\t\t\t\t\tfont-weight: bold;\n\t\t\t\t\tmargin-bottom: 0.25rem;\n\t\t\t\t}\n\t\t\t\tform {\n\t\t\t\t\tpadding: 1rem;\n\t\t\t\t\tbackground-color: #f8f9fa;\n\t\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\t}\n\t\t\t\tform > * {\n\t\t\t\t\tmargin-bottom: 1.25rem;\n\t\t\t\t}\n\t\t\t\tform > :last-child {\n\t\t\t\t\tmargin-bottom: 0;\n\t\t\t\t}\n\t\t\t\tform h1 {\n\t\t\t\t\tmargin-bottom: 1.5rem;\n\t\t\t\t\tfont-size: 1.75rem;\n\t\t\t\t}\n\t\t\t\t.form-check {\n\t\t\t\t\tmargin: 1rem 0;\n\t\t\t\t\tpadding-left: 2rem;\n\t\t\t\t}\n\t\t\t\t.form-check-input {\n\t\t\t\t\tmargin-left: -2rem;\n\t\t\t\t}\n\t\t\t</style></head><body class=\"container py-4\"><nav class=\"navbar navbar-expand-lg navbar-light bg-light mb-4\"><div class=\"container-fluid\"><a class=\"navbar-brand\" href=\"/\">UI Server</a></div></nav>
+<div class=\"console-spacer\"></div><div id=\"interaction-console\"></div></body></html>
+<div class=\"row\"><div class=\"col\"><h1>Available Pages</h1><div class=\"list-group\">
+<a href=\"
+\" class=\"list-group-item list-group-item-action\">
+</a>
+</div></div></div>
+<div hx-ext=\"sse\" sse-connect=\"
+\" sse-swap=\"page-content-update\">
+</div>
+<div class=\"row\"><div class=\"col-md-6\"><div class=\"card mb-4\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">Rendered UI</h5></div><div class=\"card-body\">
+</div></div></div><div class=\"col-md-6\"><div class=\"card\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">YAML Source</h5></div><div class=\"card-body source-yaml\"><pre><code class=\"language-yaml\">
+</code></pre></div></div></div></div><script>\n\t\t// Decode HTML entities in pre/code blocks\n\t\tdocument.addEventListener('htmx:afterSwap', function(event) {\n\t\t\tdocument.querySelectorAll('pre code').forEach((el) => {\n\t\t\t\t// Replace HTML newline entities with actual newlines\n\t\t\t\tel.innerHTML = el.innerHTML.replace(/&#10;/g, '\\n');\n\t\t\t\t// Re-highlight the code\n\t\t\t\thljs.highlightElement(el);\n\t\t\t});\n\t\t});\n\t</script>
+<div id=\"
+\">
+<button id=\"
+\" data-hx-on:click=\"
+\"
+ disabled=\"disabled\"
+ class=\"
+\">
+</button></div>
+<div id=\"
+\"><h1 id=\"
+\">
+</h1></div>
+<div id=\"
+\"><p id=\"
+\">
+</p></div>
+<div id=\"
+\"><input id=\"
+\"
+ type=\"
+\"
+ placeholder=\"
+\"
+ value=\"
+\"
+ required=\"required\"
+ class=\"form-control\"></div>
+<div id=\"
+\"><textarea id=\"
+\"
+ rows=\"
+\"
+ cols=\"
+\"
+ placeholder=\"
+\"
+ class=\"form-control\">
+</textarea></div>
+<div id=\"
+\"><div class=\"form-check\"><input type=\"checkbox\" id=\"
+\" data-hx-on:change=\"
+\"
+ name=\"
+\"
+ checked=\"checked\"
+ required=\"required\"
+ class=\"form-check-input\"> 
+<label class=\"form-check-label\" for=\"
+\">
+</label>
+</div></div>
+<div id=\"
+\">
+<h4 class=\"mb-3\">
+</h4>
+<ul class=\"list-group list-group-flush\">
+<li class=\"list-group-item\">
+</li>
+</ul>
+<ol class=\"list-group list-group-numbered list-group-flush\">
+<li class=\"list-group-item\">
+</li>
+</ol>
+</div>
+<div id=\"
+\"><form id=\"
+\" data-hx-on:submit=\"
+\" class=\"needs-validation\" novalidate>
+</form></div>
+<div class=\"row\"><div class=\"col\"><div class=\"card\"><div class=\"card-header\"><h5 class=\"card-title mb-0\">Dynamic UI</h5></div><div class=\"card-body\" hx-ext=\"sse\" sse-connect=\"/sse?page=ui-update\" sse-swap=\"ui-update\"><div class=\"alert alert-info\">Waiting for UI updates...</div></div></div></div></div><script>\n\t\t\t// Decode HTML entities in pre/code blocks after SSE updates\n\t\t\tdocument.addEventListener('htmx:afterSwap', function(event) {\n\t\t\t\tdocument.querySelectorAll('pre code').forEach((el) => {\n\t\t\t\t\t// Replace HTML newline entities with actual newlines\n\t\t\t\t\tel.innerHTML = el.innerHTML.replace(/&#10;/g, '\\n');\n\t\t\t\t\t// Re-highlight the code\n\t\t\t\t\thljs.highlightElement(el);\n\t\t\t\t});\n\t\t\t});\n\t\t</script>
