@@ -35,3 +35,32 @@ Added title field to list component and updated documentation to match actual im
 - Improved structure of nested lists and items in examples
 - Updated UI DSL schema documentation with new list format
 - Converted all remaining examples to use standardized list structure 
+
+UI Component Action Endpoint
+
+Added a generic event handler system for UI components that sends events to a REST endpoint:
+- Created new `/api/ui-action` endpoint to receive component actions
+- Added JavaScript function to send component actions to the server
+- Updated all UI components to use the new action system
+- Actions include component ID, action type, and optional data
+- Server logs all actions for monitoring and debugging
+- Maintained backward compatibility with existing console logging 
+
+Enhanced UI Action Handling
+
+Improved the UI action system to focus on data-relevant events and provide better form submission data:
+- Enhanced form submission to include complete form data in the action payload
+- Implemented smart logging that prioritizes data-relevant events (clicked, changed, submitted)
+- Added detailed form data logging for form submissions
+- Used INFO level for important events and DEBUG level for less important ones
+- Improved checkbox handling in form data collection
+- Maintained backward compatibility with existing event system
+
+Fixed Form Submission Data Collection
+
+Fixed an issue where form input values weren't being properly collected during form submission:
+- Added explicit collection of all input fields by ID during form submission
+- Ensured input elements have name attributes matching their IDs
+- Simplified form submission handling by consolidating data collection logic
+- Added additional logging for form submission data
+- Fixed email input value collection in subscription forms 

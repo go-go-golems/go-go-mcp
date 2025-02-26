@@ -91,6 +91,9 @@ func NewServer(dir string) (*Server, error) {
 	// Set up UI update endpoint
 	s.mux.Handle("/api/ui-update", s.handleUIUpdate())
 
+	// Set up UI action endpoint
+	s.mux.Handle("/api/ui-action", s.handleUIAction())
+
 	// Set up UI update page
 	s.mux.HandleFunc("/ui", s.handleUIUpdatePage())
 
@@ -421,12 +424,76 @@ func (s *Server) handleUIUpdate() http.HandlerFunc {
 	}
 }
 
+// handleUIAction handles POST requests to /api/ui-action
+func (s *Server) handleUIAction() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST requests
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Parse JSON body
+		var action struct {
+			ComponentID string                 `json:"componentId"`
+			Action      string                 `json:"action"`
+			Data        map[string]interface{} `json:"data"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Determine if this is an important event to log at INFO level
+		isImportantEvent := false
+		switch action.Action {
+		case "clicked", "changed", "submitted":
+			isImportantEvent = true
+		}
+
+		// Log the action at appropriate level
+		logger := log.Debug()
+		if isImportantEvent {
+			logger = log.Info()
+		}
+
+		// Create log entry with component and action info
+		logger = logger.
+			Str("componentId", action.ComponentID).
+			Str("action", action.Action)
+
+		// Add data to log if it exists and is relevant
+		if len(action.Data) > 0 {
+			// For form submissions, log the form data in detail
+			if action.Action == "submitted" && action.Data["formData"] != nil {
+				logger = logger.Interface("formData", action.Data["formData"])
+			} else if action.Action == "changed" {
+				// For changed events, log the new value
+				logger = logger.Interface("data", action.Data)
+			} else {
+				// For other events, just log that data exists
+				logger = logger.Bool("hasData", true)
+			}
+		}
+
+		// Output the log message
+		logger.Msg("UI action received")
+
+		// Return success response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		err := json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		if err != nil {
+			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
 // handleUIUpdatePage renders the UI update page
 func (s *Server) handleUIUpdatePage() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		component := uiUpdateTemplate()
-		if err := component.Render(r.Context(), w); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		_ = component.Render(r.Context(), w)
 	}
 }

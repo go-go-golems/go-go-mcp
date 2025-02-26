@@ -47,38 +47,64 @@ templ base(title string) {
 					}
 				}
 
-				function logFormSubmit(formId, formData) {
-					const data = {};
-					console.log('Form elements:', formData.elements);
+				function sendUIAction(componentId, action, data = {}) {
+					logToConsole(`Component ${componentId} ${action}`);
 					
-					// Get all form elements
-					Array.from(formData.elements).forEach(element => {
-						console.log('Processing element:', element.tagName, element.type, element.id);
+					// If this is a form submission, collect all form data
+					if (action === 'submitted' && document.getElementById(componentId)) {
+						const form = document.getElementById(componentId);
+						const formData = new FormData(form);
+						const formValues = {};
 						
-						if (element.tagName === 'BUTTON') return; // Skip buttons, we handle them separately
-						
-						if (element.type === 'checkbox') {
-							data[element.id] = element.checked;
-						} else if (element.id && element.value) {
-							data[element.id] = element.value;
+						// Convert FormData to a plain object
+						for (const [key, value] of formData.entries()) {
+							formValues[key] = value;
 						}
-					});
-
-					// Add the clicked button info if available
-					if (formData._lastClickedButton) {
-						data['_clicked_button'] = formData._lastClickedButton;
+						
+						// Add checkbox values (FormData doesn't include unchecked boxes)
+						form.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+							formValues[checkbox.id] = checkbox.checked;
+						});
+						
+						// Add all input values by ID (in case name attributes are missing)
+						form.querySelectorAll('input:not([type="checkbox"]), textarea, select').forEach(input => {
+							if (input.id) {
+								formValues[input.id] = input.value;
+							}
+						});
+						
+						// Add the clicked button info if available
+						if (form._lastClickedButton) {
+							formValues['_clicked_button'] = form._lastClickedButton;
+						}
+						
+						// Merge with any existing data
+						data = { ...data, formData: formValues };
+						
+						// Log form submission for debugging
+						console.log('Form submission data:', formValues);
+						logToConsole(`Form ${componentId} submitted with data`);
 					}
-
-					console.log('Collected data:', data);
-
-					const yaml = Object.entries(data)
-						.map(([key, value]) => {
-							const valueStr = typeof value === 'boolean' ? value : `"${value}"`;
-							return `  ${key}: ${valueStr}`;
-						})
-						.join('\n');
 					
-					logToConsole(`Form ${formId} submitted with data:\n\`\`\`yaml\n${yaml}\n\`\`\``);
+					fetch('/api/ui-action', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({
+							componentId: componentId,
+							action: action,
+							data: data
+						})
+					})
+					.then(response => response.json())
+					.then(data => {
+						console.log('Action response:', data);
+					})
+					.catch(error => {
+						console.error('Error sending action:', error);
+						logToConsole(`Error sending action: ${error.message}`);
+					});
 				}
 			</script>
 			<style>
@@ -237,7 +263,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<button
 						id={ id }
-						data-hx-on:click={ fmt.Sprintf("logToConsole('%s clicked')", id) }
+						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
 						if disabled, ok := props["disabled"].(bool); ok && disabled {
 							disabled="disabled"
 						}
@@ -260,6 +286,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<h1
 						id={ id }
+						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
 					>
 						if content, ok := props["content"].(string); ok {
 							{ content }
@@ -272,6 +299,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<p
 						id={ id }
+						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
 					>
 						if content, ok := props["content"].(string); ok {
 							{ content }
@@ -284,6 +312,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<input
 						id={ id }
+						data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {value: this.value})", id) }
+						data-hx-on:focus={ fmt.Sprintf("sendUIAction('%s', 'focused')", id) }
+						data-hx-on:blur={ fmt.Sprintf("sendUIAction('%s', 'blurred')", id) }
 						if typ, ok := props["type"].(string); ok {
 							type={ typ }
 						}
@@ -296,6 +327,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 						if required, ok := props["required"].(bool); ok && required {
 							required="required"
 						}
+						if name, ok := props["id"].(string); ok {
+							name={ name }
+						}
 						class="form-control"
 					/>
 				</div>
@@ -305,6 +339,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<textarea
 						id={ id }
+						data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {value: this.value})", id) }
+						data-hx-on:focus={ fmt.Sprintf("sendUIAction('%s', 'focused')", id) }
+						data-hx-on:blur={ fmt.Sprintf("sendUIAction('%s', 'blurred')", id) }
 						if rows, ok := props["rows"].(int); ok {
 							rows={ fmt.Sprint(rows) }
 						}
@@ -329,7 +366,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 						<input
 							type="checkbox"
 							id={ id }
-							data-hx-on:change={ fmt.Sprintf("logToConsole('%s ' + (this.checked ? 'checked' : 'unchecked'))", id) }
+							data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {checked: this.checked})", id) }
 							if name, ok := props["name"].(string); ok {
 								name={ name }
 							}
@@ -397,7 +434,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<form
 						id={ id }
-						data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); logFormSubmit('%s', this)", id) }
+						data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); sendUIAction('%s', 'submitted')", id) }
 						class="needs-validation"
 						novalidate
 					>

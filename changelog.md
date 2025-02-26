@@ -1,3 +1,23 @@
+# Enhanced UI Action Handling
+
+Improved the UI action system to focus on data-relevant events and provide better form submission data:
+- Enhanced form submission to include complete form data in the action payload
+- Implemented smart logging that prioritizes data-relevant events (clicked, changed, submitted)
+- Added detailed form data logging for form submissions
+- Used INFO level for important events and DEBUG level for less important ones
+- Improved checkbox handling in form data collection
+- Maintained backward compatibility with existing event system
+
+# UI Component Action Endpoint
+
+Added a generic event handler system for UI components that sends events to a REST endpoint:
+- Created new `/api/ui-action` endpoint to receive component actions
+- Added JavaScript function to send component actions to the server
+- Updated all UI components to use the new action system
+- Actions include component ID, action type, and optional data
+- Server logs all actions for monitoring and debugging
+- Maintained backward compatibility with existing console logging
+
 # Added GitHub Pull Request Listing Command
 
 Added a new command to list pull requests from GitHub repositories:
@@ -1310,20 +1330,38 @@ Fixed SSE extension integration to use the correct attributes and script:
 - Fixed SSE connection syntax to use proper format
 - Added SRI integrity hashes for security
 
-# Changelog
+## Fixed Form Submission Data Collection
 
-## HTMX SSE Extension Update
-Fixed SSE extension integration to use the correct attributes and script:
+Fixed an issue where form input values weren't being properly collected during form submission:
+- Added explicit collection of all input fields by ID during form submission
+- Ensured input elements have name attributes matching their IDs
+- Simplified form submission handling by consolidating data collection logic
+- Added additional logging for form submission data
+- Fixed email input value collection in subscription forms
 
-- Updated SSE extension script to use htmx-ext-sse@2.2.2 package
-- Changed SSE attributes to use sse-* prefix (from hx-sse-*)
-- Fixed SSE connection syntax to use proper format
-- Added SRI integrity hashes for security
+# Enhanced UI Action Handling
 
-## Server-Sent Events (SSE) Support for UI Updates
-Added SSE support to enable real-time UI updates through server-sent events. This allows components to be updated individually without full page reloads.
+Improved the UI action system to focus on data-relevant events and provide better form submission data:
+- Enhanced form submission to include complete form data in the action payload
+- Implemented smart logging that prioritizes data-relevant events (clicked, changed, submitted)
+- Added detailed form data logging for form submissions
+- Used INFO level for important events and DEBUG level for less important ones
+- Improved checkbox handling in form data collection
+- Maintained backward compatibility with existing event system
 
-- Added SSE extension script to base template
-- Added SSE connection and swap targets to page template
-- Added individual component swap targets for granular updates
-- Wrapped components in div containers with unique IDs for targeted updates
+# UI Component Action Endpoint
+
+Added a generic event handler system for UI components that sends events to a REST endpoint:
+- Created new `/api/ui-action` endpoint to receive component actions
+- Added JavaScript function to send component actions to the server
+- Updated all UI components to use the new action system
+- Actions include component ID, action type, and optional data
+- Server logs all actions for monitoring and debugging
+- Maintained backward compatibility with existing console logging
+
+# Added GitHub Pull Request Listing Command
+
+Added a new command to list pull requests from GitHub repositories:
+- Created list-github-pull-requests command with support for filtering by state, assignee, author, labels, and base branch
+- Added draft PR filtering support
+- Included comprehensive JSON output options for PR-specific fields
