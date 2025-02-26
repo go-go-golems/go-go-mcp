@@ -106,7 +106,7 @@ This plan outlines the refactoring of the SSE/Watermill functionality in the UI 
 ## 5. Implementation Steps
 
 ### 5.1 Event System Implementation
-- [ ] Create base event types and interfaces
+- [ ] Create base event types and interfacees
   - [ ] Define UIEvent struct with proper JSON tags
   - [ ] Define EventManager interface with documentation
   - [ ] Add helper methods for event creation

@@ -246,9 +246,31 @@ func (h *SSEHandler) handleComponentUpdate(conn *connection, event events.UIEven
 
 // handlePageReload handles a page reload event
 func (h *SSEHandler) handlePageReload(conn *connection, event events.UIEvent) error {
-	// For page reloads, we might want to send a special event that triggers a full page reload
-	// or just notify the client that the page should be reloaded
-	return h.sendRawEvent(conn, "page-reload", "{}")
+	// First, send a page-reload event notification
+	if err := h.sendRawEvent(conn, "page-reload", "{}"); err != nil {
+		return fmt.Errorf("failed to send page-reload event: %w", err)
+	}
+
+	// Then, check if we have a page renderer to render the full page
+	h.mu.RLock()
+	pageRenderer, ok := h.renderers["page-template"]
+	h.mu.RUnlock()
+
+	if !ok {
+		h.logger.Debug().
+			Str("eventType", "page-template").
+			Msg("No page renderer registered, skipping full page update")
+		return nil
+	}
+
+	// Render the full page template
+	html, err := pageRenderer(conn.pageID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to render page template: %w", err)
+	}
+
+	// Send the rendered page as a component-update event
+	return h.sendRawEvent(conn, "component-update", html)
 }
 
 // handleYamlUpdate handles a YAML update event

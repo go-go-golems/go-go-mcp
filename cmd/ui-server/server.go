@@ -376,6 +376,29 @@ func (s *Server) registerComponentRenderers() {
 		return "", fmt.Errorf("component not found: %s", componentID)
 	})
 
+	// Register page-template renderer
+	s.sseHandler.RegisterRenderer("page-template", func(pageID string, _ interface{}) (string, error) {
+		log.Debug().Str("pageID", pageID).Msg("Rendering full page template")
+
+		// Get the page definition
+		s.mu.RLock()
+		def, ok := s.pages[pageID]
+		s.mu.RUnlock()
+
+		if !ok {
+			return "", fmt.Errorf("page not found: %s", pageID)
+		}
+
+		// Render the page template
+		var buf bytes.Buffer
+		err := pageTemplate(pageID, def).Render(context.Background(), &buf)
+		if err != nil {
+			return "", fmt.Errorf("failed to render page template: %w", err)
+		}
+
+		return buf.String(), nil
+	})
+
 	// Register yaml-update renderer
 	s.sseHandler.RegisterRenderer("yaml-update", func(componentID string, data interface{}) (string, error) {
 		log.Debug().Str("componentID", componentID).Interface("data", data).Msg("Rendering YAML")
