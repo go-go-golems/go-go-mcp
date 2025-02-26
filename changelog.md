@@ -1,3 +1,23 @@
+# Enhanced Documentation Metadata
+
+Added structured metadata to technical documentation for better maintainability:
+- Added YAML preamble to UI action handling documentation
+- Included code references to track dependencies between docs and code
+- Added RAG-optimized metadata for improved document retrieval
+- Created maintenance triggers to identify when docs need updates
+- Structured questions the document answers for better discoverability
+- Improved documentation organization and searchability
+
+# UI Action Handling Documentation
+
+Added comprehensive documentation for the UI action handling system:
+- Created detailed guide in ttmp/2025-02-22/04-sse-dynamic-form.md
+- Documented client-side event handling and server-side processing
+- Explained form data collection from multiple sources
+- Provided component-specific event handling reference
+- Included complete flow walkthrough for form submissions
+- Added debugging and console logging documentation
+
 # Enhanced UI Action Handling
 
 Improved the UI action system to focus on data-relevant events and provide better form submission data:
@@ -1339,29 +1359,19 @@ Fixed an issue where form input values weren't being properly collected during f
 - Added additional logging for form submission data
 - Fixed email input value collection in subscription forms
 
-# Enhanced UI Action Handling
+# UI Update Command with YAML Support
 
-Improved the UI action system to focus on data-relevant events and provide better form submission data:
-- Enhanced form submission to include complete form data in the action payload
-- Implemented smart logging that prioritizes data-relevant events (clicked, changed, submitted)
-- Added detailed form data logging for form submissions
-- Used INFO level for important events and DEBUG level for less important ones
-- Improved checkbox handling in form data collection
-- Maintained backward compatibility with existing event system
+Added a new shell command for updating UI components dynamically using YAML input. This command allows users to:
 
-# UI Component Action Endpoint
+- Define UI components in YAML format
+- Convert YAML to JSON before sending to the UI server
+- Update UI components without modifying YAML files directly
 
-Added a generic event handler system for UI components that sends events to a REST endpoint:
-- Created new `/api/ui-action` endpoint to receive component actions
-- Added JavaScript function to send component actions to the server
-- Updated all UI components to use the new action system
-- Actions include component ID, action type, and optional data
-- Server logs all actions for monitoring and debugging
-- Maintained backward compatibility with existing console logging
+The command supports multiple conversion methods (Python, yq, or basic sed) and provides detailed documentation on the UI DSL.
 
-# Added GitHub Pull Request Listing Command
-
-Added a new command to list pull requests from GitHub repositories:
-- Created list-github-pull-requests command with support for filtering by state, assignee, author, labels, and base branch
-- Added draft PR filtering support
-- Included comprehensive JSON output options for PR-specific fields
+## Changes
+- Created `examples/ui/update-ui.yaml` shell command
+- Added YAML to JSON conversion logic
+- Created example YAML form definition
+- Added comprehensive documentation in README.md
+- Created helper script for easy usage

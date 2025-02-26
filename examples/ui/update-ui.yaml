@@ -1,0 +1,323 @@
+name: update-ui
+short: Update UI components dynamically
+long: |
+  This command allows you to update the UI components dynamically by sending
+  a JSON payload to the UI server's update endpoint. The components are specified
+  as a YAML string and will be converted to JSON before being sent to the server.
+  
+  This command is useful for testing UI changes without modifying YAML files directly.
+
+  ---
+  Title: UI DSL Documentation
+  Slug: ui-dsl
+  Short: Learn how to create rich, interactive web interfaces using the YAML-based UI DSL
+  Topics:
+  - ui
+  - dsl
+  - yaml
+  - web
+  Commands:
+  - none
+  Flags:
+  - none
+  IsTopLevel: true
+  IsTemplate: false
+  ShowPerDefault: true
+  SectionType: GeneralTopic
+  ---
+
+  # UI DSL Documentation
+
+  The UI DSL (Domain Specific Language) is a YAML-based language for defining user interfaces declaratively. It allows you to create rich, interactive web interfaces without writing HTML directly. The DSL is designed to be both human-readable and machine-friendly, making it ideal for both manual creation and automated generation.
+
+  ## Basic Structure
+
+  Every UI definition consists of a list of components under the `components` key:
+
+  ```yaml
+  components:
+    - componentType:
+        property1: value1
+        property2: value2
+  ```
+
+  ## Common Properties
+
+  All components support these common properties:
+
+  - `id`: Unique identifier for the component (required)
+  - `disabled`: Boolean to disable the component (optional)
+  - `data`: Map of data attributes (optional)
+
+  ## Component Types
+
+  ### Button
+  ```yaml
+  - button:
+      text: "Click me"
+      type: primary  # primary, secondary, danger, success
+      id: submit-btn
+      disabled: false
+  ```
+
+  ### Title (H1 Heading)
+  ```yaml
+  - title:
+      content: "Welcome to My App"
+      id: main-title
+  ```
+
+  ### Text (Paragraph)
+  ```yaml
+  - text:
+      content: "This is a paragraph of text."
+      id: description-text
+  ```
+
+  ### Input Field
+  ```yaml
+  - input:
+      type: text  # text, email, password, number, tel
+      placeholder: "Enter your name"
+      value: ""
+      required: true
+      id: name-input
+  ```
+
+  ### Textarea
+  ```yaml
+  - textarea:
+      placeholder: "Enter description"
+      id: description-textarea
+      rows: 4
+      cols: 50
+      value: |
+        Default multiline
+        text content
+  ```
+
+  ### Checkbox
+  ```yaml
+  - checkbox:
+      label: "Accept terms"
+      checked: false
+      required: true
+      name: terms
+      id: terms-checkbox
+  ```
+
+  ### List
+
+  Lists are versatile components that can contain various types of nested components. They support both ordered (ol) and unordered (ul) lists, and can include an optional title. Each list item can be a simple text component or a more complex component like a checkbox, button, or even nested forms.
+
+  The list component is particularly useful for:
+  - Displaying menu options or navigation items
+  - Creating interactive checklists
+  - Showing grouped related actions
+  - Presenting structured content hierarchically
+
+  Basic Example:
+  ```yaml
+  - list:
+      type: ul  # ul or ol
+      title: "Shopping List"
+      items:
+        - text:
+            content: "Groceries to buy:"
+        - checkbox:
+            label: "Milk"
+            id: milk-checkbox
+        - checkbox:
+            label: "Bread"
+            id: bread-checkbox
+        - button:
+            text: "Add Item"
+            id: add-item-btn
+            type: secondary
+  ```
+
+  Complex Example with Mixed Components:
+  ```yaml
+  - list:
+      type: ol
+      title: "Conference Schedule"
+      items:
+        - text:
+            content: "Morning Sessions:"
+        - text:
+            content: "9:00 - Keynote Speech"
+        - form:
+            id: session-1-form
+            components:
+              - checkbox:
+                  label: "Attending Keynote"
+                  id: keynote-attend
+              - textarea:
+                  placeholder: "Your questions"
+                  id: keynote-questions
+                  rows: 2
+        - text:
+            content: "10:30 - Workshop"
+        - button:
+            text: "Download Schedule"
+            id: schedule-btn
+            type: primary
+  ```
+
+  ### Form
+  ```yaml
+  - form:
+      id: signup-form
+      components:
+        - title:
+            content: "Sign Up"
+        - input:
+            type: email
+            placeholder: "Email address"
+            required: true
+        - button:
+            id: submit
+            text: "Submit"
+            type: primary
+  ```
+
+  ## Complete Example
+
+  Here's a complete example of a todo list interface:
+
+  ```yaml
+  components:
+    - title:
+        content: What would you like to tackle next?
+    
+    - text:
+        content: I see you have several items that need attention.
+    
+    - list:
+        type: ul
+        items:
+          - Review Dependencies:
+              button:
+                id: review-deps-btn
+                text: Review Update (#316)
+                type: secondary
+          - Calendar Integration:
+              button:
+                id: review-calendar-btn
+                text: Review Calendar PR (#315)
+                type: primary
+    
+    - form:
+        id: task-input-form
+        components:
+          - title:
+              content: Add New Task
+          - input:
+              id: new-task-input
+              type: text
+              placeholder: What needs to be done?
+              required: true
+          - checkbox:
+              id: high-priority-check
+              label: High Priority
+          - button:
+              id: add-task-btn
+              text: Add Task
+              type: success
+  ```
+
+  ## Best Practices
+
+  1. Always provide meaningful IDs for components that need to be referenced
+  2. Use semantic naming for form fields
+  3. Group related components inside forms
+  4. Use appropriate button types for different actions:
+    - `primary`: Main actions
+    - `secondary`: Alternative actions
+    - `danger`: Destructive actions
+    - `success`: Confirmation actions
+  5. Provide clear labels and placeholders for form inputs
+
+
+flags:
+  - name: components
+    type: string
+    help: YAML string containing UI components definition
+    required: true
+  - name: server_url
+    type: string
+    help: URL of the UI server
+    default: "http://localhost:8080"
+  - name: verbose
+    type: bool
+    help: Show verbose output
+    default: false
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Log the operation if verbose is enabled
+  if [[ "{{ .Args.verbose }}" == "true" ]]; then
+    echo "Updating UI components..."
+    echo "Server URL: {{ .Args.server_url }}"
+  fi
+  
+  # Create temporary files for the components
+  YAML_FILE=$(mktemp)
+  JSON_FILE=$(mktemp)
+  trap 'rm -f "$YAML_FILE" "$JSON_FILE"' EXIT
+  
+  # Write the YAML components to the temporary file
+  echo '{{ .Args.components }}' > "$YAML_FILE"
+  
+  # Check if python is available for YAML to JSON conversion
+  if command -v python3 &> /dev/null; then
+    if [[ "{{ .Args.verbose }}" == "true" ]]; then
+      echo "Converting YAML to JSON using Python..."
+    fi
+    python3 -c '
+  import sys, yaml, json
+  try:
+      yaml_content = yaml.safe_load(open(sys.argv[1], "r"))
+      json.dump(yaml_content, open(sys.argv[2], "w"))
+      print("Conversion successful")
+  except Exception as e:
+      print(f"Error converting YAML to JSON: {e}", file=sys.stderr)
+      sys.exit(1)
+  ' "$YAML_FILE" "$JSON_FILE"
+    # Fallback to yq if available
+    elif command -v yq &> /dev/null; then
+      if [[ "{{ .Args.verbose }}" == "true" ]]; then
+        echo "Converting YAML to JSON using yq..."
+      fi
+      yq -o=json eval '.' "$YAML_FILE" > "$JSON_FILE"
+    # Fallback to simple sed-based conversion for basic YAML
+    else
+      if [[ "{{ .Args.verbose }}" == "true" ]]; then
+        echo "No YAML parser found. Attempting basic conversion..."
+      fi
+      # This is a very basic conversion and will only work for simple YAML
+      cat "$YAML_FILE" | sed 's/: /": "/g' | sed 's/$/"/g' | sed 's/^/"/g' > "$JSON_FILE"
+      echo "Warning: Using basic YAML to JSON conversion. Install python3 with PyYAML or yq for better results."
+    fi
+    
+    # Send the components to the UI server
+    if [[ "{{ .Args.verbose }}" == "true" ]]; then
+      echo "Sending components to server..."
+      curl -X POST \
+        -H "Content-Type: application/json" \
+        -d @"$JSON_FILE" \
+        "{{ .Args.server_url }}/api/ui-update" \
+        -v
+    else
+      curl -X POST \
+        -H "Content-Type: application/json" \
+        -d @"$JSON_FILE" \
+        "{{ .Args.server_url }}/api/ui-update" \
+        -s
+    fi
+    
+    if [[ "{{ .Args.verbose }}" == "true" ]]; then
+      echo "UI update complete."
+    fi 
