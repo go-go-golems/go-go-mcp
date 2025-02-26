@@ -179,38 +179,42 @@ templ indexTemplate(pages map[string]UIDefinition) {
 
 templ pageTemplate(name string, def UIDefinition) {
 	@base("UI Server - " + name) {
-		<div
-			class="row"
-			hx-ext="sse"
-			sse-connect={ "/sse?page=" + name }
-			sse-swap="component-update"
-		>
-			<div class="col-md-6">
-				<div class="card mb-4">
-					<div class="card-header">
-						<h5 class="card-title mb-0">Rendered UI</h5>
-					</div>
-					<div class="card-body" sse-swap="component-update">
-						for _, component := range def.Components {
-							for typ, props := range component {
-								@renderComponent(typ, props.(map[string]interface{}))
-							}
-						}
-					</div>
+		@pageContentTemplate(name, def)
+	}
+}
+
+templ pageContentTemplate(name string, def UIDefinition) {
+	<div
+		class="row"
+		hx-ext="sse"
+		sse-connect={ "/sse?page=" + name }
+		sse-swap="component-update"
+	>
+		<div class="col-md-6">
+			<div class="card mb-4">
+				<div class="card-header">
+					<h5 class="card-title mb-0">Rendered UI</h5>
 				</div>
-			</div>
-			<div class="col-md-6">
-				<div class="card">
-					<div class="card-header">
-						<h5 class="card-title mb-0">YAML Source</h5>
-					</div>
-					<div class="card-body source-yaml" sse-swap="yaml-update">
-						<pre><code class="language-yaml">{ yamlString(def) }</code></pre>
-					</div>
+				<div class="card-body" sse-swap="component-update">
+					for _, component := range def.Components {
+						for typ, props := range component {
+							@renderComponent(typ, props.(map[string]interface{}))
+						}
+					}
 				</div>
 			</div>
 		</div>
-	}
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header">
+					<h5 class="card-title mb-0">YAML Source</h5>
+				</div>
+				<div class="card-body source-yaml" sse-swap="yaml-update">
+					<pre><code class="language-yaml">{ yamlString(def) }</code></pre>
+				</div>
+			</div>
+		</div>
+	</div>
 }
 
 templ renderComponent(typ string, props map[string]interface{}) {

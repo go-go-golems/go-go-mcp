@@ -36,6 +36,9 @@ func NewWatermillEventManager(logger *zerolog.Logger) (*WatermillEventManager, e
 // Subscribe implements EventManager.Subscribe
 func (m *WatermillEventManager) Subscribe(ctx context.Context, pageID string) (<-chan UIEvent, error) {
 	topic := fmt.Sprintf("ui-updates.%s", pageID)
+	m.logger.Debug().
+		Str("topic", topic).
+		Msg("Subscribing to topic")
 	messages, err := m.subscriber.Subscribe(ctx, topic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to topic %s: %w", topic, err)
@@ -57,9 +60,15 @@ func (m *WatermillEventManager) Subscribe(ctx context.Context, pageID string) (<
 			case events <- event:
 				msg.Ack()
 			case <-ctx.Done():
+				m.logger.Debug().
+					Str("pageID", pageID).
+					Msg("Context done, closing")
 				return ctx.Err()
 			}
 		}
+		m.logger.Debug().
+			Str("pageID", pageID).
+			Msg("Messages channel closed")
 		return nil
 	})
 

@@ -24,10 +24,11 @@ type EventManager interface {
 }
 
 // NewPageReloadEvent creates a new event for reloading a page
-func NewPageReloadEvent(pageID string) UIEvent {
+func NewPageReloadEvent(pageID string, pageDef interface{}) UIEvent {
 	return UIEvent{
-		Type:   "page-reload",
-		PageID: pageID,
+		Type:      "page-reload",
+		PageID:    pageID,
+		Component: map[string]interface{}{"data": pageDef},
 	}
 }
 

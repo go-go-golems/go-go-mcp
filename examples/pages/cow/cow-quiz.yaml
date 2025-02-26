@@ -1,7 +1,7 @@
 components:
   - title:
       id: quiz-title
-      content: "🎯 Test Your Cow Knowledge!"
+      content: "🎯 Test Your Cow Knowledge! yo foo bla"
   
   - text:
       id: quiz-intro
@@ -65,3 +65,7 @@ components:
             id: reset-quiz
             text: "Start Over"
             type: secondary 
+
+
+
+

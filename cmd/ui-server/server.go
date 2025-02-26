@@ -224,7 +224,7 @@ func (s *Server) loadPage(path string) error {
 	s.mu.Unlock()
 
 	// Publish page reload event
-	event := events.NewPageReloadEvent(relPath)
+	event := events.NewPageReloadEvent(relPath, def)
 	if err := s.events.Publish(relPath, event); err != nil {
 		log.Error().Err(err).Str("path", relPath).Msg("Failed to publish page reload event")
 	}
@@ -261,12 +261,6 @@ func (s *Server) handleFileRemove(path string) error {
 	delete(s.pages, relPath)
 	delete(s.routes, urlPath)
 	s.mu.Unlock()
-
-	// Publish page reload event
-	event := events.NewPageReloadEvent(relPath)
-	if err := s.events.Publish(relPath, event); err != nil {
-		log.Error().Err(err).Str("path", relPath).Msg("Failed to publish page reload event")
-	}
 
 	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Removed page")
 	return nil
@@ -377,23 +371,52 @@ func (s *Server) registerComponentRenderers() {
 	})
 
 	// Register page-template renderer
-	s.sseHandler.RegisterRenderer("page-template", func(pageID string, _ interface{}) (string, error) {
-		log.Debug().Str("pageID", pageID).Msg("Rendering full page template")
+	s.sseHandler.RegisterRenderer("page-content-template", func(pageID string, data interface{}) (string, error) {
+		log.Debug().Str("pageID", pageID).Msg("Rendering page content template")
 
 		// Get the page definition
-		s.mu.RLock()
-		def, ok := s.pages[pageID]
-		s.mu.RUnlock()
+		var def UIDefinition
 
-		if !ok {
-			return "", fmt.Errorf("page not found: %s", pageID)
+		// First check if we have data from the event
+		if data != nil {
+			// Try to use the data from the event
+			if eventData, ok := data.(map[string]interface{}); ok {
+				if pageData, ok := eventData["data"]; ok {
+					// Try to convert the data to UIDefinition
+					if pageDefMap, ok := pageData.(map[string]interface{}); ok {
+						if components, ok := pageDefMap["components"].([]interface{}); ok {
+							// Convert components to the expected format
+							compList := make([]map[string]interface{}, 0, len(components))
+							for _, comp := range components {
+								if compMap, ok := comp.(map[string]interface{}); ok {
+									compList = append(compList, compMap)
+								}
+							}
+							def = UIDefinition{Components: compList}
+						}
+					}
+				}
+			}
 		}
 
-		// Render the page template
+		// If we couldn't get the definition from the event data, use the stored one
+		if len(def.Components) == 0 {
+			s.mu.RLock()
+			storedDef, ok := s.pages[pageID]
+			s.mu.RUnlock()
+
+			if !ok {
+				return "", fmt.Errorf("page not found: %s", pageID)
+			}
+
+			def = storedDef
+		}
+
+		// Render just the page content template, not the full page with base
 		var buf bytes.Buffer
-		err := pageTemplate(pageID, def).Render(context.Background(), &buf)
+		err := pageContentTemplate(pageID, def).Render(context.Background(), &buf)
 		if err != nil {
-			return "", fmt.Errorf("failed to render page template: %w", err)
+			return "", fmt.Errorf("failed to render page content template: %w", err)
 		}
 
 		return buf.String(), nil

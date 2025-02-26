@@ -162,8 +162,14 @@ func (h *SSEHandler) handleConnection(ctx context.Context, conn *connection) {
 				return
 			}
 		case <-ctx.Done():
+			h.logger.Debug().
+				Str("pageID", conn.pageID).
+				Msg("Context done, closing connection")
 			return
 		case <-conn.done:
+			h.logger.Debug().
+				Str("pageID", conn.pageID).
+				Msg("Connection done, closing")
 			return
 		}
 	}
@@ -253,20 +259,21 @@ func (h *SSEHandler) handlePageReload(conn *connection, event events.UIEvent) er
 
 	// Then, check if we have a page renderer to render the full page
 	h.mu.RLock()
-	pageRenderer, ok := h.renderers["page-template"]
+	pageRenderer, ok := h.renderers["page-content-template"]
 	h.mu.RUnlock()
 
 	if !ok {
 		h.logger.Debug().
-			Str("eventType", "page-template").
+			Str("eventType", "page-content-template").
 			Msg("No page renderer registered, skipping full page update")
 		return nil
 	}
 
-	// Render the full page template
-	html, err := pageRenderer(conn.pageID, nil)
+	// Render the page content template with the page ID
+	// Pass the event data which might contain updated page definition
+	html, err := pageRenderer(conn.pageID, event.Component)
 	if err != nil {
-		return fmt.Errorf("failed to render page template: %w", err)
+		return fmt.Errorf("failed to render page content template: %w", err)
 	}
 
 	// Send the rendered page as a component-update event
