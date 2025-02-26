@@ -9,19 +9,23 @@ components:
   
   - list:
       type: ul
+      title: "Current Tasks"
       items:
-        - Review Dependencies:
-            button:
-              text: Review Nokogiri Update (#316)
-              type: secondary
-        - Calendar Integration:
-            button:
-              text: Review Calendar CLI PR (#315)
-              type: primary
-        - Coaching Features:
-            button:
-              text: Review Coaching Chat PR (#311)
-              type: primary
+        - text:
+            content: "Review Dependencies"
+        - button:
+            text: Review Nokogiri Update (#316)
+            type: secondary
+        - text:
+            content: "Calendar Integration"
+        - button:
+            text: Review Calendar CLI PR (#315)
+            type: primary
+        - text:
+            content: "Coaching Features"
+        - button:
+            text: Review Coaching Chat PR (#311)
+            type: primary
   
   - form:
       id: task-input-form

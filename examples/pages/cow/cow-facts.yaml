@@ -10,29 +10,35 @@ components:
   - list:
       type: ul
       items:
-        - "General Facts":
-            list:
-              type: ul
-              items:
-                - "Cows can sleep while standing up"
-                - "They have 40,000 jaw movements a day"
-                - "Each cow has a unique pattern of spots":
-                    button:
-                      id: pattern-info
-                      text: "Learn More"
-                      type: secondary
+        - list:
+            type: ul
+            title: "General Facts"
+            items:
+              - text:
+                  content: "Cows can sleep while standing up"
+              - text:
+                  content: "They have 40,000 jaw movements a day"
+              - text:
+                  content: "Each cow has a unique pattern of spots"
+              - button:
+                  id: pattern-info
+                  text: "Learn More"
+                  type: secondary
         
-        - "Social Facts":
-            list:
-              type: ul
-              items:
-                - "Cows have best friends"
-                - "They form strong social bonds"
-                - "They can recognize over 100 other cows":
-                    button:
-                      id: social-info
-                      text: "See Research"
-                      type: primary
+        - list:
+            type: ul
+            title: "Social Facts"
+            items:
+              - text:
+                  content: "Cows have best friends"
+              - text:
+                  content: "They form strong social bonds"
+              - text:
+                  content: "They can recognize over 100 other cows"
+              - button:
+                  id: social-info
+                  text: "See Research"
+                  type: primary
   
   - form:
       id: fact-subscription

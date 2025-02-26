@@ -10,22 +10,21 @@ components:
      components:
        - list:
            type: ul
+           title: "Game Status"
            items:
-             - Health:
-                 text:
-                   content: "❤️❤️❤️"
-                   id: health-display
-             - Score:
-                 text: 
-                   content: "🍌 0"
-                   id: score-display
-             - Level:
-                 text:
-                   content: "🌴 1"
-                   id: level-display
+             - text:
+                 content: "❤️❤️❤️"
+                 id: health-display
+             - text:
+                 content: "🍌 0"
+                 id: score-display
+             - text:
+                 content: "🌴 1"
+                 id: level-display
                    
  - list:
      type: ul
+     title: "Movement Controls"
      items:
        - button:
            text: "⬅️ Left"
@@ -42,6 +41,7 @@ components:
            
  - list:
      type: ul
+     title: "Game Controls"
      items:
        - button:
            text: "🎮 Start Game"
@@ -80,7 +80,11 @@ components:
      
  - list:
      type: ol
+     title: "Top Players"
      items:
-       - "King Kong: 2000 🍌"
-       - "Mighty Joe: 1500 🍌"
-       - "Donkey Kong: 1000 🍌"
+       - text:
+           content: "King Kong: 2000 🍌"
+       - text:
+           content: "Mighty Joe: 1500 🍌"
+       - text:
+           content: "Donkey Kong: 1000 🍌"

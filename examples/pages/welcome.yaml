@@ -9,27 +9,22 @@ components:
 
   - list:
       type: ul
+      title: "Spooky Activities"
       items:
-        - title:
-            content: "🏚️ Haunted House Tour"
         - text:
-            content: "Book your tour through our haunted mansion, if you dare..."
+            content: "🏚️ Haunted House Tour - Book your tour through our haunted mansion, if you dare..."
         - button:
             text: "Book Tour"
             type: danger
             onclick: "alert('Beware! The ghosts await...')"
-        - title:
-            content: "🎭 Costume Contest"
         - text:
-            content: "Vote for the spookiest costume of the year!"
+            content: "🎭 Costume Contest - Vote for the spookiest costume of the year!"
         - button:
             text: "Vote Now"
             type: primary
             onclick: "alert('Choose wisely...')"
-        - title:
-            content: "🎪 Halloween Party"
         - text:
-            content: "Join us for a night of frightful fun!"
+            content: "🎪 Halloween Party - Join us for a night of frightful fun!"
         - button:
             text: "RSVP"
             type: success

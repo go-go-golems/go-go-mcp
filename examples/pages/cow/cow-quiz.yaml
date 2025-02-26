@@ -16,6 +16,7 @@ components:
             content: "How many stomachs does a cow have?"
         - list:
             type: ul
+            title: "Question 1 Options"
             items:
               - checkbox:
                   id: q1-two
@@ -33,6 +34,7 @@ components:
             content: "Which breed is known for producing the most milk?"
         - list:
             type: ul
+            title: "Question 2 Options"
             items:
               - checkbox:
                   id: q2-holstein

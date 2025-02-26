@@ -9,41 +9,46 @@ components:
   
   - list:
       type: ul
+      title: "Park Areas"
       items:
-        - "Park Areas":
-            list:
-              type: ul
-              items:
-                - "Herbivore Valley":
-                    button:
-                      id: herbivore-map
-                      text: "View Map"
-                      type: secondary
-                - "Carnivore Territory":
-                    button:
-                      id: carnivore-map
-                      text: "View Map"
-                      type: secondary
-                - "Prehistoric Garden":
-                    button:
-                      id: garden-map
-                      text: "View Map"
-                      type: secondary
+        - text:
+            content: "Herbivore Valley"
+        - button:
+            id: herbivore-map
+            text: "View Map"
+            type: secondary
+        - text:
+            content: "Carnivore Territory"
+        - button:
+            id: carnivore-map
+            text: "View Map"
+            type: secondary
+        - text:
+            content: "Prehistoric Garden"
+        - button:
+            id: garden-map
+            text: "View Map"
+            type: secondary
   
   - title:
       content: "Safety Guidelines"
   
   - list:
       type: ol
+      title: "Important Safety Rules"
       items:
-        - "Stay in your vehicle at all times in designated areas"
-        - "Keep windows closed in carnivore territories"
-        - "Follow guide instructions":
-            button:
-              id: guide-info
-              text: "Meet Our Guides"
-              type: primary
-        - "Maintain safe distance from enclosures"
+        - text:
+            content: "Stay in your vehicle at all times in designated areas"
+        - text:
+            content: "Keep windows closed in carnivore territories"
+        - text:
+            content: "Follow guide instructions"
+        - button:
+            id: guide-info
+            text: "Meet Our Guides"
+            type: primary
+        - text:
+            content: "Maintain safe distance from enclosures"
   
   - form:
       id: tour-booking

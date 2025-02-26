@@ -18,19 +18,16 @@ components:
         
         - list:
             type: ul
+            title: "Physical Characteristics"
             items:
-              - "Physical Characteristics":
-                  list:
-                    type: ul
-                    items:
-                      - input:
-                          id: dino-height
-                          type: number
-                          placeholder: "Height (meters)"
-                      - input:
-                          id: dino-weight
-                          type: number
-                          placeholder: "Weight (tons)"
+              - input:
+                  id: dino-height
+                  type: number
+                  placeholder: "Height (meters)"
+              - input:
+                  id: dino-weight
+                  type: number
+                  placeholder: "Weight (tons)"
         
         - textarea:
             id: dino-description
@@ -51,6 +48,7 @@ components:
         
         - list:
             type: ul
+            title: "Special Abilities"
             items:
               - checkbox:
                   id: ability-swim

@@ -19,18 +19,14 @@ components:
         - list:
             type: ul
             items:
-              - "Physical Characteristics":
-                  list:
-                    type: ul
-                    items:
-                      - input:
-                          id: cow-weight
-                          type: number
-                          placeholder: "Weight (kg)"
-                      - input:
-                          id: cow-height
-                          type: number
-                          placeholder: "Height (cm)"
+                - input:
+                    id: cow-weight
+                    type: number
+                    placeholder: "Weight (kg)"
+                - input:
+                    id: cow-height
+                    type: number
+                    placeholder: "Height (cm)"
         
         - textarea:
             id: cow-description

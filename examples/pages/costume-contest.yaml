@@ -9,27 +9,22 @@ components:
 
   - list:
       type: ul
+      title: "Contest Entries"
       items:
-        - title:
-            content: "🧟‍♂️ Zombie Businessman"
         - text:
-            content: "Bob from accounting really committed to the role - he hasn't showered in weeks!"
+            content: "🧟‍♂️ Zombie Businessman - Bob from accounting really committed to the role - he hasn't showered in weeks!"
         - button:
             text: "Vote for Bob"
             type: primary
             onclick: "alert('Your vote for Zombie Bob has been counted!')"
-        - title:
-            content: "🧙‍♀️ Techno Witch"
         - text:
-            content: "Sarah's costume combines traditional witchcraft with RGB lighting - truly spellbinding!"
+            content: "🧙‍♀️ Techno Witch - Sarah's costume combines traditional witchcraft with RGB lighting - truly spellbinding!"
         - button:
             text: "Vote for Sarah"
             type: primary
             onclick: "alert('Your vote for Techno Witch has been counted!')"
-        - title:
-            content: "👻 Ghost in the Machine"
         - text:
-            content: "Mike dressed up as a haunted computer - blue screen of death included!"
+            content: "👻 Ghost in the Machine - Mike dressed up as a haunted computer - blue screen of death included!"
         - button:
             text: "Vote for Mike"
             type: primary

@@ -16,6 +16,7 @@ components:
             content: "Which dinosaur was the largest carnivore of all time?"
         - list:
             type: ul
+            title: "Question 1 Options"
             items:
               - checkbox:
                   id: q1-trex
@@ -33,6 +34,7 @@ components:
             content: "What period did the Stegosaurus live in?"
         - list:
             type: ul
+            title: "Question 2 Options"
             items:
               - checkbox:
                   id: q2-triassic

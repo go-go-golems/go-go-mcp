@@ -1285,3 +1285,45 @@ Created refactoring plan for SSE implementation:
 - Planned separation of Watermill integration
 - Created detailed implementation steps for SSE handler
 - Added comprehensive testing and documentation plan
+
+## SSE/Watermill Refactoring
+Refactored the SSE and event system to be more modular and maintainable.
+
+- Created new `pkg/events` package with event types and interfaces
+- Added Watermill-based event manager implementation
+- Created dedicated SSE handler package with proper connection management
+- Updated UI server to use new event system and SSE handler
+
+## Server-Sent Events (SSE) Support for UI Updates
+Added SSE support to enable real-time UI updates through server-sent events. This allows components to be updated individually without full page reloads.
+
+- Added SSE extension script to base template
+- Added SSE connection and swap targets to page template
+- Added individual component swap targets for granular updates
+- Wrapped components in div containers with unique IDs for targeted updates
+
+## HTMX SSE Extension Update
+Fixed SSE extension integration to use the correct attributes and script:
+
+- Updated SSE extension script to use htmx-ext-sse@2.2.2 package
+- Changed SSE attributes to use sse-* prefix (from hx-sse-*)
+- Fixed SSE connection syntax to use proper format
+- Added SRI integrity hashes for security
+
+# Changelog
+
+## HTMX SSE Extension Update
+Fixed SSE extension integration to use the correct attributes and script:
+
+- Updated SSE extension script to use htmx-ext-sse@2.2.2 package
+- Changed SSE attributes to use sse-* prefix (from hx-sse-*)
+- Fixed SSE connection syntax to use proper format
+- Added SRI integrity hashes for security
+
+## Server-Sent Events (SSE) Support for UI Updates
+Added SSE support to enable real-time UI updates through server-sent events. This allows components to be updated individually without full page reloads.
+
+- Added SSE extension script to base template
+- Added SSE connection and swap targets to page template
+- Added individual component swap targets for granular updates
+- Wrapped components in div containers with unique IDs for targeted updates

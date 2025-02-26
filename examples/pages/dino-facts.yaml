@@ -10,29 +10,35 @@ components:
   - list:
       type: ul
       items:
-        - "T-Rex Facts":
-            list:
-              type: ul
-              items:
-                - "Could run up to 20 mph"
-                - "Had powerful jaws with 60 teeth"
-                - "Lived during the late Cretaceous period":
-                    button:
-                      id: cretaceous-info
-                      text: "Learn More"
-                      type: secondary
+        - list:
+            type: ul
+            title: "T-Rex Facts"
+            items:
+              - text:
+                  content: "Could run up to 20 mph"
+              - text:
+                  content: "Had powerful jaws with 60 teeth"
+              - text:
+                  content: "Lived during the late Cretaceous period"
+              - button:
+                  id: cretaceous-info
+                  text: "Learn More"
+                  type: secondary
         
-        - "Velociraptor Facts":
-            list:
-              type: ul
-              items:
-                - "Was about the size of a turkey"
-                - "Had feathers"
-                - "Was a pack hunter":
-                    button:
-                      id: pack-hunting-info
-                      text: "See Video"
-                      type: primary
+        - list:
+            type: ul
+            title: "Velociraptor Facts"
+            items:
+              - text:
+                  content: "Was about the size of a turkey"
+              - text:
+                  content: "Had feathers"
+              - text:
+                  content: "Was a pack hunter"
+              - button:
+                  id: pack-hunting-info
+                  text: "See Video"
+                  type: primary
   
   - form:
       id: fact-subscription

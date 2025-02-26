@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -56,20 +55,15 @@ func (c *StartCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayer
 		return err
 	}
 
-	// Create a context that can be cancelled
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// Create a context that can be cancelled by signals
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	// Handle graceful shutdown
-	go func() {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		<-sigCh
-		log.Info().Msg("Shutting down server...")
-		cancel()
-	}()
+	server, err := NewServer(s.Directory)
+	if err != nil {
+		return fmt.Errorf("failed to create server: %w", err)
+	}
 
-	server := NewServer(s.Directory)
 	if err := server.Start(ctx, s.Port); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)
 	}

@@ -21,3 +21,17 @@ Added an interaction console to display user interactions with the UI:
 - Logs button clicks, checkbox changes, and form submissions
 - Form submissions display data in YAML format
 - Limited console history to 50 entries with auto-scroll 
+
+Enhanced List Component Documentation
+Added title field to list component and updated documentation to match actual implementation in examples.
+- Added title field to list component in UI DSL
+- Updated documentation to reflect real-world usage patterns
+- Updated halloween-party example to use the new title field
+- Added detailed explanatory paragraphs about list component usage
+- Added two comprehensive examples showing basic and complex list implementations
+- Updated templ templates to render list titles and improve list layout
+- Simplified list item rendering logic in templates
+- Updated all example files to use consistent list title format
+- Improved structure of nested lists and items in examples
+- Updated UI DSL schema documentation with new list format
+- Converted all remaining examples to use standardized list structure 

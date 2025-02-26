@@ -15,7 +15,10 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/go-go-golems/clay/pkg/watcher"
+	"github.com/go-go-golems/go-go-mcp/pkg/events"
+	"github.com/go-go-golems/go-go-mcp/pkg/server/sse"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,18 +31,29 @@ type Server struct {
 	mu         sync.RWMutex
 	publisher  message.Publisher
 	subscriber message.Subscriber
+	events     events.EventManager
+	sseHandler *sse.SSEHandler
 }
 
 type UIDefinition struct {
 	Components []map[string]interface{} `yaml:"components"`
 }
 
-func NewServer(dir string) *Server {
+func NewServer(dir string) (*Server, error) {
 	// Initialize watermill publisher/subscriber
 	publisher := gochannel.NewGoChannel(
 		gochannel.Config{},
 		watermill.NewStdLogger(false, false),
 	)
+
+	// Initialize event manager with logger
+	eventManager, err := events.NewWatermillEventManager(&log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event manager: %w", err)
+	}
+
+	// Create SSE handler
+	sseHandler := sse.NewSSEHandler(eventManager, &log.Logger)
 
 	s := &Server{
 		dir:        dir,
@@ -48,6 +62,8 @@ func NewServer(dir string) *Server {
 		mux:        http.NewServeMux(),
 		publisher:  publisher,
 		subscriber: publisher,
+		events:     eventManager,
+		sseHandler: sseHandler,
 	}
 
 	// Create a watcher for the pages directory
@@ -62,7 +78,7 @@ func NewServer(dir string) *Server {
 	s.watcher = w
 
 	// Set up SSE endpoint
-	s.mux.HandleFunc("/sse", s.handleSSE())
+	s.mux.Handle("/sse", sseHandler)
 
 	// Set up static file handler
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -79,7 +95,7 @@ func NewServer(dir string) *Server {
 		s.handleIndex()(w, r)
 	})
 
-	return s
+	return s, nil
 }
 
 func (s *Server) Start(ctx context.Context, port int) error {
@@ -88,45 +104,55 @@ func (s *Server) Start(ctx context.Context, port int) error {
 		return fmt.Errorf("failed to load pages: %w", err)
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	// Start the file watcher
-	go func() {
+	g.Go(func() error {
 		log.Debug().Msg("Starting file watcher")
 		if err := s.watcher.Run(ctx); err != nil && err != context.Canceled {
 			log.Error().Err(err).Msg("Watcher error")
+			return err
 		}
-	}()
+		return nil
+	})
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: s.mux,
 	}
 
-	// Start server in a goroutine
-	serverErr := make(chan error, 1)
-	go func() {
+	// Start server
+	g.Go(func() error {
 		log.Info().Str("addr", srv.Addr).Msg("Starting server")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("server error: %w", err)
+			return fmt.Errorf("server error: %w", err)
 		}
-		close(serverErr)
-	}()
+		return nil
+	})
 
-	// Wait for either context cancellation or server error
-	select {
-	case err := <-serverErr:
-		return err
-	case <-ctx.Done():
+	// Wait for shutdown
+	g.Go(func() error {
+		<-ctx.Done()
 		log.Info().Msg("Server shutdown initiated")
+
 		// Graceful shutdown with timeout
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer shutdownCancel()
 
+		// Close event manager
+		if err := s.events.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close event manager")
+		}
+
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("server shutdown error: %w", err)
 		}
+
 		log.Info().Msg("Server shutdown completed")
 		return nil
-	}
+	})
+
+	return g.Wait()
 }
 
 func (s *Server) Handler() http.Handler {
@@ -193,6 +219,12 @@ func (s *Server) loadPage(path string) error {
 	s.routes[urlPath] = s.handlePage(relPath)
 	s.mu.Unlock()
 
+	// Publish page reload event
+	event := events.NewPageReloadEvent(relPath)
+	if err := s.events.Publish(relPath, event); err != nil {
+		log.Error().Err(err).Str("path", relPath).Msg("Failed to publish page reload event")
+	}
+
 	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Loaded page")
 	return nil
 }
@@ -225,6 +257,12 @@ func (s *Server) handleFileRemove(path string) error {
 	delete(s.pages, relPath)
 	delete(s.routes, urlPath)
 	s.mu.Unlock()
+
+	// Publish page reload event
+	event := events.NewPageReloadEvent(relPath)
+	if err := s.events.Publish(relPath, event); err != nil {
+		log.Error().Err(err).Str("path", relPath).Msg("Failed to publish page reload event")
+	}
 
 	log.Info().Str("path", relPath).Str("url", urlPath).Msg("Removed page")
 	return nil
@@ -280,38 +318,6 @@ func (s *Server) handlePage(name string) http.HandlerFunc {
 		component := pageTemplate(name, def)
 		if err := component.Render(r.Context(), w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-func (s *Server) handleSSE() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Set SSE headers
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		// Get page ID from query
-		pageID := r.URL.Query().Get("page")
-		if pageID == "" {
-			http.Error(w, "page parameter is required", http.StatusBadRequest)
-			return
-		}
-
-		// Subscribe to page-specific topic
-		messages, err := s.subscriber.Subscribe(r.Context(), "ui-updates."+pageID)
-		if err != nil {
-			http.Error(w, "Failed to subscribe to events", http.StatusInternalServerError)
-			return
-		}
-
-		// Stream messages
-		for msg := range messages {
-			// Format SSE message
-			fmt.Fprintf(w, "event: %s\n", msg.Metadata["event-type"])
-			fmt.Fprintf(w, "data: %s\n\n", msg.Payload)
-			w.(http.Flusher).Flush()
 		}
 	}
 }

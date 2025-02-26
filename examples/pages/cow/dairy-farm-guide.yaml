@@ -2,6 +2,7 @@ components:
   - title:
       id: farm-guide-title
       content: "🚜 Welcome to Happy Meadows Dairy Farm"
+
   
   - text:
       id: farm-intro
@@ -9,41 +10,49 @@ components:
   
   - list:
       type: ul
+      title: "Farm Areas"
+
       items:
-        - "Farm Areas":
-            list:
-              type: ul
-              items:
-                - "Milking Parlor":
-                    button:
-                      id: milking-map
-                      text: "View Area"
-                      type: secondary
-                - "Grazing Pastures":
-                    button:
-                      id: pasture-map
-                      text: "View Area"
-                      type: secondary
-                - "Calf Barn":
-                    button:
-                      id: calf-map
-                      text: "View Area"
-                      type: secondary
+        - text:
+
+            content: "Milking Parlor"
+        - button:
+            id: milking-map
+            text: "View Area"
+            type: secondary
+        - text:
+            content: "Grazing Pastures"
+        - button:
+            id: pasture-map
+            text: "View Area"
+            type: secondary
+        - text:
+            content: "Calf Barn"
+        - button:
+            id: calf-map
+            text: "View Area"
+            type: secondary
   
+
   - title:
       content: "Visitor Guidelines"
   
   - list:
       type: ol
+      title: "Safety Rules"
       items:
-        - "Stay with your guide at all times"
-        - "Keep quiet around the animals"
-        - "Follow farm safety rules":
-            button:
-              id: safety-info
-              text: "Safety Guide"
-              type: primary
-        - "Don't feed the animals without permission"
+        - text:
+            content: "Stay with your guide at all times"
+        - text:
+            content: "Keep quiet around the animals"
+        - text:
+            content: "Follow farm safety rules"
+        - button:
+            id: safety-info
+            text: "Safety Guide"
+            type: primary
+        - text:
+            content: "Don't feed the animals without permission"
   
   - form:
       id: tour-booking
