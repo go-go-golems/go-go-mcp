@@ -384,21 +384,66 @@ func (s *Server) handleUIUpdate() http.HandlerFunc {
 		// Parse JSON body
 		var jsonData map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&jsonData); err != nil {
-			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			// Return detailed JSON error response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "error",
+				"error": map[string]interface{}{
+					"type":    "json_parse_error",
+					"message": "Invalid JSON: " + err.Error(),
+				},
+			})
 			return
 		}
 
 		// Convert to YAML for storage
 		yamlData, err := yaml.Marshal(jsonData)
 		if err != nil {
-			http.Error(w, "Failed to convert to YAML: "+err.Error(), http.StatusInternalServerError)
+			// Return detailed JSON error response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "error",
+				"error": map[string]interface{}{
+					"type":    "yaml_conversion_error",
+					"message": "Failed to convert to YAML: " + err.Error(),
+				},
+			})
 			return
 		}
 
 		// Parse into UIDefinition
 		var def UIDefinition
 		if err := yaml.Unmarshal(yamlData, &def); err != nil {
-			http.Error(w, "Invalid UI definition: "+err.Error(), http.StatusBadRequest)
+			// Return detailed JSON error response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "error",
+				"error": map[string]interface{}{
+					"type":    "ui_definition_error",
+					"message": "Invalid UI definition: " + err.Error(),
+					"yaml":    string(yamlData),
+				},
+			})
+			return
+		}
+
+		// Validate the UI definition
+		validationErrors := s.validateUIDefinition(def)
+		if len(validationErrors) > 0 {
+			// Return detailed JSON error response with validation errors
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "error",
+				"error": map[string]interface{}{
+					"type":    "ui_validation_error",
+					"message": "UI definition validation failed",
+					"details": validationErrors,
+				},
+			})
 			return
 		}
 
@@ -410,7 +455,16 @@ func (s *Server) handleUIUpdate() http.HandlerFunc {
 		}
 
 		if err := s.events.Publish("ui-update", event); err != nil {
-			http.Error(w, "Failed to publish event: "+err.Error(), http.StatusInternalServerError)
+			// Return detailed JSON error response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status": "error",
+				"error": map[string]interface{}{
+					"type":    "event_publish_error",
+					"message": "Failed to publish event: " + err.Error(),
+				},
+			})
 			return
 		}
 
@@ -421,6 +475,107 @@ func (s *Server) handleUIUpdate() http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
 		}
+	}
+}
+
+// validateUIDefinition checks a UI definition for common errors
+func (s *Server) validateUIDefinition(def UIDefinition) []map[string]interface{} {
+	var errors []map[string]interface{}
+
+	// Check if components exist
+	if len(def.Components) == 0 {
+		errors = append(errors, map[string]interface{}{
+			"path":    "components",
+			"message": "No components defined",
+		})
+		return errors
+	}
+
+	// Validate each component
+	for i, comp := range def.Components {
+		for typ, props := range comp {
+			propsMap, ok := props.(map[string]interface{})
+			if !ok {
+				errors = append(errors, map[string]interface{}{
+					"path":    fmt.Sprintf("components[%d].%s", i, typ),
+					"message": "Component properties must be a map",
+				})
+				continue
+			}
+
+			// Check for required ID
+			if _, hasID := propsMap["id"]; !hasID && requiresID(typ) {
+				errors = append(errors, map[string]interface{}{
+					"path":    fmt.Sprintf("components[%d].%s", i, typ),
+					"message": "Component is missing required 'id' property",
+				})
+			}
+
+			// Validate nested components in forms
+			if typ == "form" {
+				if formComps, hasComps := propsMap["components"]; hasComps {
+					if formCompsList, ok := formComps.([]interface{}); ok {
+						for j, formComp := range formCompsList {
+							if formCompMap, ok := formComp.(map[string]interface{}); ok {
+								for formCompType, formCompProps := range formCompMap {
+									if _, ok := formCompProps.(map[string]interface{}); !ok {
+										errors = append(errors, map[string]interface{}{
+											"path":    fmt.Sprintf("components[%d].%s.components[%d].%s", i, typ, j, formCompType),
+											"message": "Form component properties must be a map",
+										})
+									}
+								}
+							} else {
+								errors = append(errors, map[string]interface{}{
+									"path":    fmt.Sprintf("components[%d].%s.components[%d]", i, typ, j),
+									"message": "Form component must be a map",
+								})
+							}
+						}
+					} else {
+						errors = append(errors, map[string]interface{}{
+							"path":    fmt.Sprintf("components[%d].%s.components", i, typ),
+							"message": "Form components must be an array",
+						})
+					}
+				}
+			}
+
+			// Validate list items
+			if typ == "list" {
+				if items, hasItems := propsMap["items"]; hasItems {
+					if itemsList, ok := items.([]interface{}); ok {
+						for j, item := range itemsList {
+							if _, ok := item.(map[string]interface{}); !ok {
+								errors = append(errors, map[string]interface{}{
+									"path":    fmt.Sprintf("components[%d].%s.items[%d]", i, typ, j),
+									"message": "List item must be a map",
+								})
+							}
+						}
+					} else {
+						errors = append(errors, map[string]interface{}{
+							"path":    fmt.Sprintf("components[%d].%s.items", i, typ),
+							"message": "List items must be an array",
+						})
+					}
+				}
+			}
+		}
+	}
+
+	return errors
+}
+
+// requiresID returns true if the component type requires an ID
+func requiresID(componentType string) bool {
+	switch componentType {
+	case "text", "title":
+		// These can optionally have IDs
+		return false
+	default:
+		// All other components require IDs
+		return true
 	}
 }
 

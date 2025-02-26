@@ -8,6 +8,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 YAML_CONTENT=$(cat "$SCRIPT_DIR/example-form.yaml")
 
 # Run the update-ui command with the YAML content
-go-go-mcp run-command "$SCRIPT_DIR/update-ui.yaml" \
+mcp run-command "$SCRIPT_DIR/update-ui.yaml" \
   --components "$YAML_CONTENT" \
   --verbose 

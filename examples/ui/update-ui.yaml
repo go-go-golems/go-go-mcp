@@ -266,32 +266,45 @@ shell-script: |
   # Create temporary files for the components
   YAML_FILE=$(mktemp)
   JSON_FILE=$(mktemp)
-  trap 'rm -f "$YAML_FILE" "$JSON_FILE"' EXIT
+  RESPONSE_FILE=$(mktemp)
+  trap 'rm -f "$YAML_FILE" "$JSON_FILE" "$RESPONSE_FILE"' EXIT
   
   # Write the YAML components to the temporary file
-  echo '{{ .Args.components }}' > "$YAML_FILE"
+  cat <<EOF > "$YAML_FILE"
+    {{ .Args.components }}
+  EOF
   
   # Check if python is available for YAML to JSON conversion
   if command -v python3 &> /dev/null; then
     if [[ "{{ .Args.verbose }}" == "true" ]]; then
       echo "Converting YAML to JSON using Python..."
     fi
-    python3 -c '
+    python3 -c "
   import sys, yaml, json
   try:
-      yaml_content = yaml.safe_load(open(sys.argv[1], "r"))
-      json.dump(yaml_content, open(sys.argv[2], "w"))
-      print("Conversion successful")
+      yaml_content = yaml.safe_load(open(sys.argv[1], 'r'))
+      json.dump(yaml_content, open(sys.argv[2], 'w'))
+      print('Conversion successful')
   except Exception as e:
-      print(f"Error converting YAML to JSON: {e}", file=sys.stderr)
+      print(f'Error converting YAML to JSON: {e}', file=sys.stderr)
       sys.exit(1)
-  ' "$YAML_FILE" "$JSON_FILE"
+  " "$YAML_FILE" "$JSON_FILE" || {
+        echo "❌ Error: Failed to convert YAML to JSON"
+        echo "Please check your YAML syntax"
+        # Exit with success to ensure the tool call succeeds
+        exit 0
+      }
     # Fallback to yq if available
     elif command -v yq &> /dev/null; then
       if [[ "{{ .Args.verbose }}" == "true" ]]; then
         echo "Converting YAML to JSON using yq..."
       fi
-      yq -o=json eval '.' "$YAML_FILE" > "$JSON_FILE"
+      yq -o=json eval '.' "$YAML_FILE" > "$JSON_FILE" || {
+        echo "❌ Error: Failed to convert YAML to JSON using yq"
+        echo "Please check your YAML syntax"
+        # Exit with success to ensure the tool call succeeds
+        exit 0
+      }
     # Fallback to simple sed-based conversion for basic YAML
     else
       if [[ "{{ .Args.verbose }}" == "true" ]]; then
@@ -299,25 +312,74 @@ shell-script: |
       fi
       # This is a very basic conversion and will only work for simple YAML
       cat "$YAML_FILE" | sed 's/: /": "/g' | sed 's/$/"/g' | sed 's/^/"/g' > "$JSON_FILE"
-      echo "Warning: Using basic YAML to JSON conversion. Install python3 with PyYAML or yq for better results."
+      echo "⚠️ Warning: Using basic YAML to JSON conversion. Install python3 with PyYAML or yq for better results."
     fi
+    echo "FOOBAOOAR"
     
-    # Send the components to the UI server
+    # Send the components to the UI server and capture the response
     if [[ "{{ .Args.verbose }}" == "true" ]]; then
       echo "Sending components to server..."
-      curl -X POST \
+      HTTP_STATUS=$(curl -X POST \
         -H "Content-Type: application/json" \
         -d @"$JSON_FILE" \
+        -o "$RESPONSE_FILE" \
+        -w "%{http_code}" \
         "{{ .Args.server_url }}/api/ui-update" \
-        -v
+        -s)
     else
-      curl -X POST \
+      HTTP_STATUS=$(curl -X POST \
         -H "Content-Type: application/json" \
         -d @"$JSON_FILE" \
+        -o "$RESPONSE_FILE" \
+        -w "%{http_code}" \
         "{{ .Args.server_url }}/api/ui-update" \
-        -s
+        -s)
     fi
     
-    if [[ "{{ .Args.verbose }}" == "true" ]]; then
-      echo "UI update complete."
-    fi 
+    # Process the response
+    if [[ "$HTTP_STATUS" == "200" ]]; then
+      if [[ "{{ .Args.verbose }}" == "true" ]]; then
+        echo "✅ UI update successful."
+      else
+        echo "✅ UI update successful."
+      fi
+    else
+      echo "❌ UI update failed with status code: $HTTP_STATUS"
+      
+      # Try to parse the error response as JSON
+      if command -v jq &> /dev/null; then
+        # Check if the response is valid JSON
+        if jq -e . "$RESPONSE_FILE" > /dev/null 2>&1; then
+          # Extract and display error information
+          ERROR_TYPE=$(jq -r '.error.type // "unknown"' "$RESPONSE_FILE")
+          ERROR_MSG=$(jq -r '.error.message // "Unknown error"' "$RESPONSE_FILE")
+          
+          echo "Error type: $ERROR_TYPE"
+          echo "Error message: $ERROR_MSG"
+          
+          # Display validation errors if present
+          if [[ "$ERROR_TYPE" == "ui_validation_error" ]]; then
+            echo "Validation errors:"
+            jq -r '.error.details[] | "  - " + .path + ": " + .message' "$RESPONSE_FILE" 2>/dev/null || echo "  (Could not parse validation details)"
+          fi
+          
+          # If it's a YAML parsing error, show the problematic YAML
+          if [[ "$ERROR_TYPE" == "ui_definition_error" ]]; then
+            echo "Check your YAML syntax. The server could not parse your UI definition."
+          fi
+        else
+          # If not valid JSON, just show the raw response
+          echo "Server response:"
+          cat "$RESPONSE_FILE"
+        fi
+      else
+        # If jq is not available, show the raw response
+        echo "Server response:"
+        cat "$RESPONSE_FILE"
+        echo ""
+        echo "Install jq for better error reporting."
+      fi
+    fi
+    
+    # Always exit with success to ensure the tool call succeeds
+    exit 0 
