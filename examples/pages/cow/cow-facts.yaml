@@ -1,0 +1,59 @@
+components:
+  - title:
+      id: cow-facts-title
+      content: "🐄 Fascinating Cow Facts"
+  
+  - text:
+      id: intro-text
+      content: "Discover amazing facts about these gentle giants that have been our companions for thousands of years!"
+  
+  - list:
+      type: ul
+      items:
+        - list:
+            type: ul
+            title: "General Facts"
+            items:
+              - text:
+                  content: "Cows can sleep while standing up"
+              - text:
+                  content: "They have 40,000 jaw movements a day"
+              - text:
+                  content: "Each cow has a unique pattern of spots"
+              - button:
+                  id: pattern-info
+                  text: "Learn More"
+                  type: secondary
+        
+        - list:
+            type: ul
+            title: "Social Facts"
+            items:
+              - text:
+                  content: "Cows have best friends"
+              - text:
+                  content: "They form strong social bonds"
+              - text:
+                  content: "They can recognize over 100 other cows"
+              - button:
+                  id: social-info
+                  text: "See Research"
+                  type: primary
+  
+  - form:
+      id: fact-subscription
+      components:
+        - title:
+            content: "Get Daily Cow Facts!"
+        - input:
+            id: email-input
+            type: email
+            placeholder: "Enter your email"
+            required: true
+        - checkbox:
+            id: newsletter-check
+            label: "Also subscribe to our farming newsletter"
+        - button:
+            id: subscribe-btn
+            text: "Subscribe"
+            type: success 

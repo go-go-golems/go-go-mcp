@@ -1,0 +1,72 @@
+components:
+  - title:
+      id: build-cow-title
+      content: "🐮 Design Your Dream Cow"
+  
+  - text:
+      id: build-intro
+      content: "Create your perfect bovine companion! Mix and match features to design your unique cow."
+  
+  - form:
+      id: cow-builder
+      components:
+        - input:
+            id: cow-name
+            type: text
+            placeholder: "Name your cow"
+            required: true
+        
+        - list:
+            type: ul
+            items:
+                - input:
+                    id: cow-weight
+                    type: number
+                    placeholder: "Weight (kg)"
+                - input:
+                    id: cow-height
+                    type: number
+                    placeholder: "Height (cm)"
+        
+        - textarea:
+            id: cow-description
+            placeholder: "Describe your cow's personality..."
+            rows: 4
+            cols: 50
+        
+        - text:
+            content: "Select coat pattern:"
+        
+        - list:
+            type: ul
+            items:
+              - checkbox:
+                  id: pattern-holstein
+                  label: "Holstein (black and white)"
+              - checkbox:
+                  id: pattern-jersey
+                  label: "Jersey (solid brown)"
+              - checkbox:
+                  id: pattern-hereford
+                  label: "Hereford (red and white)"
+        
+        - text:
+            content: "Special traits:"
+        
+        - list:
+            type: ul
+            items:
+              - checkbox:
+                  id: trait-friendly
+                  label: "Extra Friendly"
+              - checkbox:
+                  id: trait-milk
+                  label: "High Milk Production"
+              - checkbox:
+                  id: trait-grass
+                  label: "Grass Connoisseur"
+        
+        - button:
+            id: create-cow-btn
+            text: "Create Cow"
+            type: primary 

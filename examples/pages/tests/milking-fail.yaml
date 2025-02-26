@@ -1,0 +1,110 @@
+components:
+  - title:
+      content: Dairy Farm Milking Management
+      id: milking-title
+  
+  - text:
+      content: Track and manage your herd's milking schedule and production.
+      id: intro-text
+  
+  - form:
+      id: milking-dashboard
+      components:
+        - title:
+            content: Milking Session
+            id: session-title
+        
+        - input:
+            type: date
+            placeholder: \"Select date\"
+            id: milking-date
+            value: \"2025-02-26\"
+            required: true
+        
+        - checkbox:
+            label: \"Morning Milking Completed\"
+            id: morning-milking
+            checked: false
+        
+        - checkbox:
+            label: \"Evening Milking Completed\"
+            id: evening-milking
+            checked: false
+  
+  - form:
+      id: cow-selection
+      components:
+        - title:
+            content: Cow Selection
+            id: cow-selection-title
+        
+        - input:
+            type: text
+            placeholder: \"Search cow by ID or name\"
+            id: cow-search
+            required: false
+        
+        - list:
+            type: ul
+            title: \"Available Cows\"
+            items:
+              - text:
+                  content: \"Select a cow to record milk production:\"
+              - checkbox:
+                  label: \"Bessie (#1024) - Holstein\"
+                  id: cow-1024
+              - checkbox:
+                  label: \"Daisy (#1045) - Jersey\"
+                  id: cow-1045
+              - checkbox:
+                  label: \"Buttercup (#1078) - Brown Swiss\"
+                  id: cow-1078
+              - checkbox:
+                  label: \"Clover (#1135) - Holstein\"
+                  id: cow-1135
+  
+  - form:
+      id: milk-production
+      components:
+        - title:
+            content: Milk Production
+            id: production-title
+        
+        - input:
+            type: number
+            placeholder: \"Enter milk quantity (liters)\"
+            id: milk-quantity
+            required: true
+        
+        - textarea:
+            placeholder: \"Notes (health observations, behavior, etc.)\"
+            id: milking-notes
+            rows: 3
+        
+        - checkbox:
+            label: \"Flag for veterinary attention\"
+            id: vet-flag
+            checked: false
+        
+        - button:
+            text: \"Record Production\"
+            id: record-btn
+            type: primary
+  
+  - list:
+      type: ul
+      title: \"Today's Statistics\"
+      items:
+        - text:
+            content: \"Total milk collected: 275 liters\"
+        - text:
+            content: \"Cows milked: 18/24\"
+        - text:
+            content: \"Average per cow: 15.3 liters\"
+        - text:
+            content: \"Next scheduled milking: Today at 17:00\"
+  
+  - button:
+      text: \"Complete Milking Session\"
+      id: complete-session
+      type: success

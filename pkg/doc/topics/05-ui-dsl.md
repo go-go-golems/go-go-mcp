@@ -98,17 +98,61 @@ All components support these common properties:
 ```
 
 ### List
+
+Lists are versatile components that can contain various types of nested components. They support both ordered (ol) and unordered (ul) lists, and can include an optional title. Each list item can be a simple text component or a more complex component like a checkbox, button, or even nested forms.
+
+The list component is particularly useful for:
+- Displaying menu options or navigation items
+- Creating interactive checklists
+- Showing grouped related actions
+- Presenting structured content hierarchically
+
+Basic Example:
 ```yaml
 - list:
     type: ul  # ul or ol
+    title: "Shopping List"
     items:
-      - "First item"
-      - "Second item"
-      - "Third item with button":
-          button:
-            id: list-item-3-btn
-            text: "Click me"
-            type: secondary
+      - text:
+          content: "Groceries to buy:"
+      - checkbox:
+          label: "Milk"
+          id: milk-checkbox
+      - checkbox:
+          label: "Bread"
+          id: bread-checkbox
+      - button:
+          text: "Add Item"
+          id: add-item-btn
+          type: secondary
+```
+
+Complex Example with Mixed Components:
+```yaml
+- list:
+    type: ol
+    title: "Conference Schedule"
+    items:
+      - text:
+          content: "Morning Sessions:"
+      - text:
+          content: "9:00 - Keynote Speech"
+      - form:
+          id: session-1-form
+          components:
+            - checkbox:
+                label: "Attending Keynote"
+                id: keynote-attend
+            - textarea:
+                placeholder: "Your questions"
+                id: keynote-questions
+                rows: 2
+      - text:
+          content: "10:30 - Workshop"
+      - button:
+          text: "Download Schedule"
+          id: schedule-btn
+          type: primary
 ```
 
 ### Form

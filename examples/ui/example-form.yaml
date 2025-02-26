@@ -1,0 +1,58 @@
+components:
+  - title:
+      content: Dinosaur Facts Subscription
+      id: dino-title
+  
+  - text:
+      content: Subscribe to receive amazing dinosaur facts directly to your inbox!
+      id: dino-description
+  
+  - form:
+      id: dino-subscription-form
+      components:
+        - input:
+            type: text
+            placeholder: Your Name
+            required: true
+            id: name-input
+        
+        - input:
+            type: email
+            placeholder: Your Email
+            required: true
+            id: email-input
+        
+        - list:
+            type: ul
+            title: Favorite Dinosaur Types
+            items:
+              - checkbox:
+                  label: Theropods (T-Rex, Velociraptor)
+                  id: theropod-checkbox
+              
+              - checkbox:
+                  label: Sauropods (Brachiosaurus, Diplodocus)
+                  id: sauropod-checkbox
+              
+              - checkbox:
+                  label: Ceratopsians (Triceratops)
+                  id: ceratopsian-checkbox
+              
+              - checkbox:
+                  label: Stegosaurs (Stegosaurus)
+                  id: stegosaur-checkbox
+        
+        - textarea:
+            placeholder: Tell us about your favorite dinosaur
+            rows: 3
+            id: favorite-textarea
+        
+        - checkbox:
+            label: Subscribe to weekly newsletter
+            id: newsletter-checkbox
+            checked: true
+        
+        - button:
+            text: Subscribe Now
+            type: success
+            id: subscribe-btn 

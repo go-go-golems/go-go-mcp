@@ -54,6 +54,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 // Stop gracefully stops the server
 func (s *Server) Stop(ctx context.Context) error {
+	s.logger.Info().Msg("Stopping server")
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

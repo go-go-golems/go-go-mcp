@@ -50,13 +50,17 @@ components:
 
   - list:
       type: ul  # ul or ol
+      title: Example List
       items:
-        - First item
-        - Second item
-        - Third item with:
-            button:
-              text: Click me
-              type: secondary
+        - text:
+            content: First item
+        - text:
+            content: Second item
+        - text:
+            content: Third item
+        - button:
+            text: Click me
+            type: secondary
 
   - form:
       id: signup-form

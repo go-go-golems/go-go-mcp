@@ -44,7 +44,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/ui-server",
-            "args": ["examples/pages"],
+            "args": ["start", "examples/pages", "--log-level", "debug"],
             "cwd": "${workspaceFolder}"
         }
     ]

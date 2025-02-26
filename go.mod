@@ -6,6 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
+	github.com/ThreeDotsLabs/watermill v1.3.7
 	github.com/a-h/templ v0.3.833
 	github.com/go-go-golems/clay v0.1.31
 	github.com/go-go-golems/geppetto v0.4.37
@@ -70,6 +71,7 @@ require (
 	github.com/jedib0t/go-pretty v4.3.0+incompatible // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kopoli/go-terminal-size v0.0.0-20170219200355-5c97524c8b54 // indirect
+	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

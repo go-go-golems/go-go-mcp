@@ -1,0 +1,71 @@
+components:
+  - title:
+      id: quiz-title
+      content: "🎯 Test Your Cow Knowledge!"
+  
+  - text:
+      id: quiz-intro
+      content: "Think you know your cows? Take this quiz to prove your expertise!"
+  
+  - form:
+      id: cow-quiz
+      components:
+        - title:
+            content: "Question 1"
+        - text:
+            content: "How many stomachs does a cow have?"
+        - list:
+            type: ul
+            title: "Question 1 Options"
+            items:
+              - checkbox:
+                  id: q1-two
+                  label: "Two"
+              - checkbox:
+                  id: q1-three
+                  label: "Three"
+              - checkbox:
+                  id: q1-four
+                  label: "Four"
+        
+        - title:
+            content: "Question 2"
+        - text:
+            content: "Which breed is known for producing the most milk?"
+        - list:
+            type: ul
+            title: "Question 2 Options"
+            items:
+              - checkbox:
+                  id: q2-holstein
+                  label: "Holstein-Friesian"
+              - checkbox:
+                  id: q2-jersey
+                  label: "Jersey"
+              - checkbox:
+                  id: q2-guernsey
+                  label: "Guernsey"
+        
+        - title:
+            content: "Question 3"
+        - text:
+            content: "How many liters of water does a dairy cow drink per day?"
+        - input:
+            id: q3-water
+            type: number
+            placeholder: "Enter number of liters"
+            required: true
+        
+        - button:
+            id: submit-quiz
+            text: "Submit Answers"
+            type: primary
+        
+        - button:
+            id: reset-quiz
+            text: "Start Over"
+            type: secondary 
+
+
+
+

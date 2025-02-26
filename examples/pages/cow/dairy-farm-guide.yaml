@@ -1,0 +1,82 @@
+components:
+  - title:
+      id: farm-guide-title
+      content: "🚜 Welcome to Happy Meadows Dairy Farm"
+
+  
+  - text:
+      id: farm-intro
+      content: "Experience the joy of farm life! Learn about our cows and see how a modern dairy farm operates. Please read these guidelines before your visit."
+  
+  - list:
+      type: ul
+      title: "Farm Areas"
+
+      items:
+        - text:
+
+            content: "Milking Parlor"
+        - button:
+            id: milking-map
+            text: "View Area"
+            type: secondary
+        - text:
+            content: "Grazing Pastures"
+        - button:
+            id: pasture-map
+            text: "View Area"
+            type: secondary
+        - text:
+            content: "Calf Barn"
+        - button:
+            id: calf-map
+            text: "View Area"
+            type: secondary
+  
+
+  - title:
+      content: "Visitor Guidelines"
+  
+  - list:
+      type: ol
+      title: "Safety Rules"
+      items:
+        - text:
+            content: "Stay with your guide at all times"
+        - text:
+            content: "Keep quiet around the animals"
+        - text:
+            content: "Follow farm safety rules"
+        - button:
+            id: safety-info
+            text: "Safety Guide"
+            type: primary
+        - text:
+            content: "Don't feed the animals without permission"
+  
+  - form:
+      id: tour-booking
+      components:
+        - title:
+            content: "Book a Farm Tour"
+        - input:
+            id: visitor-name
+            type: text
+            placeholder: "Your name"
+            required: true
+        - input:
+            id: group-size
+            type: number
+            placeholder: "Number of visitors"
+            required: true
+        - checkbox:
+            id: premium-tour
+            label: "Premium Tour (includes cheese tasting)"
+        - button:
+            id: book-tour
+            text: "Book Now"
+            type: success
+  
+  - text:
+      id: contact-info
+      content: "For farm emergencies, call our staff at 555-FARM" 

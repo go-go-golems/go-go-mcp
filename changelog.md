@@ -1,3 +1,43 @@
+# Enhanced Documentation Metadata
+
+Added structured metadata to technical documentation for better maintainability:
+- Added YAML preamble to UI action handling documentation
+- Included code references to track dependencies between docs and code
+- Added RAG-optimized metadata for improved document retrieval
+- Created maintenance triggers to identify when docs need updates
+- Structured questions the document answers for better discoverability
+- Improved documentation organization and searchability
+
+# UI Action Handling Documentation
+
+Added comprehensive documentation for the UI action handling system:
+- Created detailed guide in ttmp/2025-02-22/04-sse-dynamic-form.md
+- Documented client-side event handling and server-side processing
+- Explained form data collection from multiple sources
+- Provided component-specific event handling reference
+- Included complete flow walkthrough for form submissions
+- Added debugging and console logging documentation
+
+# Enhanced UI Action Handling
+
+Improved the UI action system to focus on data-relevant events and provide better form submission data:
+- Enhanced form submission to include complete form data in the action payload
+- Implemented smart logging that prioritizes data-relevant events (clicked, changed, submitted)
+- Added detailed form data logging for form submissions
+- Used INFO level for important events and DEBUG level for less important ones
+- Improved checkbox handling in form data collection
+- Maintained backward compatibility with existing event system
+
+# UI Component Action Endpoint
+
+Added a generic event handler system for UI components that sends events to a REST endpoint:
+- Created new `/api/ui-action` endpoint to receive component actions
+- Added JavaScript function to send component actions to the server
+- Updated all UI components to use the new action system
+- Actions include component ID, action type, and optional data
+- Server logs all actions for monitoring and debugging
+- Maintained backward compatibility with existing console logging
+
 # Added GitHub Pull Request Listing Command
 
 Added a new command to list pull requests from GitHub repositories:
@@ -1169,3 +1209,169 @@ Improved port configuration handling in SSE transport by properly parsing the pr
 
 - Added proper port parsing from SSE options address
 - Ensures port configuration is correctly propagated from command line to transport
+
+## Google Maps CLI Tool
+
+Added a new CLI tool for interacting with Google Maps API. The tool uses API key authentication and provides a foundation for implementing various Google Maps API features.
+
+- Created basic command structure with API key authentication
+- Set up Maps client initialization
+- Added environment variable support for API key
+
+## Dinosaur-themed Example Pages
+
+Added new example pages showcasing the UI DSL capabilities with a fun dinosaur theme:
+- Added dino-facts.yaml with interactive dinosaur facts and newsletter signup
+- Added build-a-dino.yaml with a form to create custom dinosaurs
+- Added dino-quiz.yaml featuring an interactive dinosaur knowledge quiz
+- Added dino-park-guide.yaml with park areas, safety guidelines and tour booking
+
+## UI Server File Watching
+
+Added file watching capabilities to the UI server for automatic page reloading:
+- Added Clay watcher integration to monitor YAML page files
+- Implemented automatic page reloading on file changes
+- Added page removal on file deletion
+- Added graceful shutdown handling
+
+## UI Server Logging Improvements
+
+Improved logging in the UI server by:
+- Switched to zerolog for structured logging
+- Implemented glazed command pattern for better CLI structure
+- Added proper log levels and context fields
+
+## Fixed Page Handler Registration
+
+Fixed issues with page handler registration in UI server:
+- Added mutex protection for concurrent access to pages and handlers
+- Created single ServeMux instance instead of recreating on each request
+- Fixed handler registration to avoid conflicts during page reloading
+- Added proper locking around map access and handler registration
+- Improved logging to show both file path and URL path
+
+## Improved Page Loading
+
+Enhanced page loading in UI server:
+- Added proper recursive page loading from subdirectories
+- Clear existing pages before reloading to avoid stale entries
+- Added debug logging for directory traversal
+- Improved error handling for directory walking
+
+## Improved Dynamic Page Routing
+
+Enhanced page routing in UI server:
+- Added dynamic page routing using a routes map
+- Fixed handler registration conflicts during page reloading
+- Moved all pages under /pages/ prefix for better organization
+- Added proper cleanup of routes on page removal
+- Improved URL path handling and logging
+
+## Fixed Route Handler Order
+
+Fixed routing issues in UI server:
+- Fixed handler registration order to ensure correct path matching
+- Added proper path validation for root handler
+- Added debug logging for request routing
+- Improved handler type consistency
+
+## UI Server List Rendering Improvements
+
+Fixed nested list rendering in the UI server to properly handle hierarchical data structures and improved styling for better visual hierarchy.
+
+- Fixed list component to properly render nested maps and lists
+- Added CSS styling for better visual hierarchy in nested lists
+- Improved spacing and typography for list items
+
+## UI Server Form Styling Improvements
+
+Enhanced form styling in the UI server for better visual appearance and spacing:
+- Added consistent padding and background color to forms
+- Improved spacing between form elements
+- Enhanced checkbox alignment and spacing
+- Adjusted heading sizes and margins in forms
+
+## UI Server Form Data Collection
+
+Enhanced form data collection and debugging:
+- Added debug logging for form elements processing
+- Fixed input value collection to capture all form elements
+- Added tracking of which button triggered the form submission
+- Added button ID to form submission data
+- Improved form element processing with better type handling
+
+## UI Server Form Data Rendering
+
+Improved form data rendering in the console log:
+- Fixed checkbox value handling to show proper boolean values
+- Added proper string quoting for text values
+- Improved YAML formatting for form submission data
+- Fixed duplicate field handling for checkboxes
+
+## Server-Sent Events Support with Watermill
+
+Added Watermill dependencies for implementing SSE support:
+- Added github.com/ThreeDotsLabs/watermill v1.4.4
+- Added github.com/ThreeDotsLabs/watermill/pubsub/gochannel for local pub/sub
+
+Added SSE endpoint to UI server:
+- Added /sse endpoint for real-time updates
+- Implemented page-specific event channels using Watermill
+- Added CORS support for cross-origin requests
+- Added proper error handling and connection management
+
+Created refactoring plan for SSE implementation:
+- Designed modular event system with dedicated packages
+- Planned separation of Watermill integration
+- Created detailed implementation steps for SSE handler
+- Added comprehensive testing and documentation plan
+
+## SSE/Watermill Refactoring
+Refactored the SSE and event system to be more modular and maintainable.
+
+- Created new `pkg/events` package with event types and interfaces
+- Added Watermill-based event manager implementation
+- Created dedicated SSE handler package with proper connection management
+- Updated UI server to use new event system and SSE handler
+
+## Server-Sent Events (SSE) Support for UI Updates
+Added SSE support to enable real-time UI updates through server-sent events. This allows components to be updated individually without full page reloads.
+
+- Added SSE extension script to base template
+- Added SSE connection and swap targets to page template
+- Added individual component swap targets for granular updates
+- Wrapped components in div containers with unique IDs for targeted updates
+
+## HTMX SSE Extension Update
+Fixed SSE extension integration to use the correct attributes and script:
+
+- Updated SSE extension script to use htmx-ext-sse@2.2.2 package
+- Changed SSE attributes to use sse-* prefix (from hx-sse-*)
+- Fixed SSE connection syntax to use proper format
+- Added SRI integrity hashes for security
+
+## Fixed Form Submission Data Collection
+
+Fixed an issue where form input values weren't being properly collected during form submission:
+- Added explicit collection of all input fields by ID during form submission
+- Ensured input elements have name attributes matching their IDs
+- Simplified form submission handling by consolidating data collection logic
+- Added additional logging for form submission data
+- Fixed email input value collection in subscription forms
+
+# UI Update Command with YAML Support
+
+Added a new shell command for updating UI components dynamically using YAML input. This command allows users to:
+
+- Define UI components in YAML format
+- Convert YAML to JSON before sending to the UI server
+- Update UI components without modifying YAML files directly
+
+The command supports multiple conversion methods (Python, yq, or basic sed) and provides detailed documentation on the UI DSL.
+
+## Changes
+- Created `examples/ui/update-ui.yaml` shell command
+- Added YAML to JSON conversion logic
+- Created example YAML form definition
+- Added comprehensive documentation in README.md
+- Created helper script for easy usage
