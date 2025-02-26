@@ -32,18 +32,6 @@ func NewPageReloadEvent(pageID string, pageDef interface{}) UIEvent {
 	}
 }
 
-// NewComponentUpdateEvent creates a new event for updating a component
-func NewComponentUpdateEvent(pageID string, componentID string, data interface{}) UIEvent {
-	return UIEvent{
-		Type:   "component-update",
-		PageID: pageID,
-		Component: map[string]interface{}{
-			"id":   componentID,
-			"data": data,
-		},
-	}
-}
-
 // Validate checks if the event is valid
 func (e UIEvent) Validate() error {
 	if e.Type == "" {

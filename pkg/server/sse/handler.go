@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/events"
@@ -197,57 +198,14 @@ func (h *SSEHandler) processEvent(conn *connection, event events.UIEvent) error 
 		Msg("Processing event")
 
 	switch event.Type {
-	case "component-update":
-		return h.handleComponentUpdate(conn, event)
 	case "page-reload":
 		return h.handlePageReload(conn, event)
-	case "yaml-update":
-		return h.handleYamlUpdate(conn, event)
+	case "refresh-ui":
+		return h.handleRefreshUI(conn, event)
 	default:
 		// For unknown event types, just send the raw event
 		return h.sendEvent(conn, event.Type, event)
 	}
-}
-
-// handleComponentUpdate handles a component update event
-func (h *SSEHandler) handleComponentUpdate(conn *connection, event events.UIEvent) error {
-	h.mu.RLock()
-	renderer, ok := h.renderers["component-update"]
-	h.mu.RUnlock()
-
-	if !ok {
-		h.logger.Warn().
-			Str("eventType", event.Type).
-			Msg("No renderer registered for event type")
-
-		// Fall back to sending the raw event data
-		return h.sendEvent(conn, "component-update", event)
-	}
-
-	// Extract component ID and data
-	component, ok := event.Component.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid component data format")
-	}
-
-	componentID, ok := component["id"].(string)
-	if !ok {
-		return fmt.Errorf("component ID is not a string")
-	}
-
-	componentData, ok := component["data"]
-	if !ok {
-		return fmt.Errorf("component data is missing")
-	}
-
-	// Render the component
-	html, err := renderer(componentID, componentData)
-	if err != nil {
-		return fmt.Errorf("failed to render component: %w", err)
-	}
-
-	// Send the rendered HTML as an SSE event
-	return h.sendRawEvent(conn, "component-update", html)
 }
 
 // handlePageReload handles a page reload event
@@ -277,43 +235,36 @@ func (h *SSEHandler) handlePageReload(conn *connection, event events.UIEvent) er
 	}
 
 	// Send the rendered page as a component-update event
-	return h.sendRawEvent(conn, "component-update", html)
+	return h.sendRawEvent(conn, "page-content-update", html)
 }
 
-// handleYamlUpdate handles a YAML update event
-func (h *SSEHandler) handleYamlUpdate(conn *connection, event events.UIEvent) error {
+// handleRefreshUI handles a refresh-ui event
+func (h *SSEHandler) handleRefreshUI(conn *connection, event events.UIEvent) error {
+	// First, send a refresh-ui event notification
+	if err := h.sendRawEvent(conn, "refresh-ui", "{}"); err != nil {
+		return fmt.Errorf("failed to send refresh-ui event: %w", err)
+	}
+
+	// Then, check if we have a page renderer to render the full page
 	h.mu.RLock()
-	renderer, ok := h.renderers["yaml-update"]
+	pageRenderer, ok := h.renderers["page-content-template"]
 	h.mu.RUnlock()
 
 	if !ok {
-		h.logger.Warn().
-			Str("eventType", event.Type).
-			Msg("No renderer registered for event type")
-
-		// Fall back to sending the raw event data
-		return h.sendEvent(conn, "yaml-update", event)
+		h.logger.Debug().
+			Str("eventType", "page-content-template").
+			Msg("No page renderer registered, skipping UI update")
+		return nil
 	}
 
-	// Extract component data
-	component, ok := event.Component.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid component data format")
-	}
-
-	yamlData, ok := component["data"]
-	if !ok {
-		return fmt.Errorf("yaml data is missing")
-	}
-
-	// Render the YAML
-	html, err := renderer("yaml", yamlData)
+	// Render the page content template with the page ID and event data
+	html, err := pageRenderer(conn.pageID, event.Component)
 	if err != nil {
-		return fmt.Errorf("failed to render yaml: %w", err)
+		return fmt.Errorf("failed to render page content template: %w", err)
 	}
 
-	// Send the rendered HTML as an SSE event
-	return h.sendRawEvent(conn, "yaml-update", html)
+	// Send the rendered page as a ui-update event
+	return h.sendRawEvent(conn, "ui-update", html)
 }
 
 // sendEvent sends an event to a connection with JSON data
@@ -337,7 +288,11 @@ func (h *SSEHandler) sendEvent(conn *connection, eventName string, data interfac
 
 // sendRawEvent sends an event with raw data (no JSON encoding)
 func (h *SSEHandler) sendRawEvent(conn *connection, eventName string, data string) error {
-	_, err := fmt.Fprintf(conn.w, "event: %s\ndata: %s\n\n", eventName, data)
+	// Replace newlines with HTML entities to prevent breaking SSE protocol
+	// This is safe because we're sending HTML content that will be rendered in the browser
+	safeData := strings.ReplaceAll(data, "\n", "&#10;")
+
+	_, err := fmt.Fprintf(conn.w, "event: %s\ndata: %s\n\n", eventName, safeData)
 	if err != nil {
 		return fmt.Errorf("failed to write event: %w", err)
 	}

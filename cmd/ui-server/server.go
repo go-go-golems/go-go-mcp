@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -86,6 +87,12 @@ func NewServer(dir string) (*Server, error) {
 
 	// Set up static file handler
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Set up UI update endpoint
+	s.mux.Handle("/api/ui-update", s.handleUIUpdate())
+
+	// Set up UI update page
+	s.mux.HandleFunc("/ui", s.handleUIUpdatePage())
 
 	// Set up dynamic page handler - must come before index handler
 	s.mux.Handle("/pages/", s.handleAllPages())
@@ -322,85 +329,24 @@ func (s *Server) handlePage(name string) http.HandlerFunc {
 
 // registerComponentRenderers registers component renderers with the SSE handler
 func (s *Server) registerComponentRenderers() {
-	// Register component-update renderer
-	s.sseHandler.RegisterRenderer("component-update", func(componentID string, data interface{}) (string, error) {
-		log.Debug().Str("componentID", componentID).Interface("data", data).Msg("Rendering component")
-
-		// Get the page definition for this component
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-
-		// Find the component in the pages
-		for _, def := range s.pages {
-			for _, component := range def.Components {
-				for typ, props := range component {
-					propsMap, ok := props.(map[string]interface{})
-					if !ok {
-						continue
-					}
-
-					id, ok := propsMap["id"].(string)
-					if !ok {
-						continue
-					}
-
-					if id == componentID {
-						// Found the component, now update it with the new data
-						dataMap, ok := data.(map[string]interface{})
-						if ok {
-							// Merge the new data with the existing props
-							for k, v := range dataMap {
-								propsMap[k] = v
-							}
-						}
-
-						// Render the component
-						var buf bytes.Buffer
-						err := renderComponent(typ, propsMap).Render(context.Background(), &buf)
-						if err != nil {
-							return "", fmt.Errorf("failed to render component: %w", err)
-						}
-
-						return buf.String(), nil
-					}
-				}
-			}
-		}
-
-		return "", fmt.Errorf("component not found: %s", componentID)
-	})
-
-	// Register page-template renderer
+	// Register page-content-template renderer
 	s.sseHandler.RegisterRenderer("page-content-template", func(pageID string, data interface{}) (string, error) {
 		log.Debug().Str("pageID", pageID).Msg("Rendering page content template")
 
 		// Get the page definition
 		var def UIDefinition
 
-		// First check if we have data from the event
-		if data != nil {
-			// Try to use the data from the event
-			if eventData, ok := data.(map[string]interface{}); ok {
-				if pageData, ok := eventData["data"]; ok {
-					// Try to convert the data to UIDefinition
-					if pageDefMap, ok := pageData.(map[string]interface{}); ok {
-						if components, ok := pageDefMap["components"].([]interface{}); ok {
-							// Convert components to the expected format
-							compList := make([]map[string]interface{}, 0, len(components))
-							for _, comp := range components {
-								if compMap, ok := comp.(map[string]interface{}); ok {
-									compList = append(compList, compMap)
-								}
-							}
-							def = UIDefinition{Components: compList}
-						}
-					}
+		// Try to extract definition from event data
+		if compData, ok := data.(map[string]interface{}); ok {
+			if jsonData, err := json.Marshal(compData); err == nil {
+				if err := json.Unmarshal(jsonData, &def); err != nil {
+					log.Debug().Err(err).Msg("Failed to unmarshal UI definition from event data")
 				}
 			}
 		}
 
 		// If we couldn't get the definition from the event data, use the stored one
-		if len(def.Components) == 0 {
+		if len(def.Components) == 0 && pageID != "ui-update" {
 			s.mu.RLock()
 			storedDef, ok := s.pages[pageID]
 			s.mu.RUnlock()
@@ -421,19 +367,66 @@ func (s *Server) registerComponentRenderers() {
 
 		return buf.String(), nil
 	})
+}
 
-	// Register yaml-update renderer
-	s.sseHandler.RegisterRenderer("yaml-update", func(componentID string, data interface{}) (string, error) {
-		log.Debug().Str("componentID", componentID).Interface("data", data).Msg("Rendering YAML")
-
-		// Convert the data to YAML
-		yamlBytes, err := yaml.Marshal(data)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal YAML: %w", err)
+// handleUIUpdate handles POST requests to /api/ui-update
+func (s *Server) handleUIUpdate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST requests
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
 
-		// Create HTML with syntax highlighting
-		html := fmt.Sprintf("<pre><code class=\"language-yaml\">%s</code></pre>", string(yamlBytes))
-		return html, nil
-	})
+		// Parse JSON body
+		var jsonData map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&jsonData); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Convert to YAML for storage
+		yamlData, err := yaml.Marshal(jsonData)
+		if err != nil {
+			http.Error(w, "Failed to convert to YAML: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Parse into UIDefinition
+		var def UIDefinition
+		if err := yaml.Unmarshal(yamlData, &def); err != nil {
+			http.Error(w, "Invalid UI definition: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Create and publish refresh-ui event
+		event := events.UIEvent{
+			Type:      "refresh-ui",
+			PageID:    "ui-update",
+			Component: def,
+		}
+
+		if err := s.events.Publish("ui-update", event); err != nil {
+			http.Error(w, "Failed to publish event: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Return success response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		err = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		if err != nil {
+			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
+// handleUIUpdatePage renders the UI update page
+func (s *Server) handleUIUpdatePage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		component := uiUpdateTemplate()
+		if err := component.Render(r.Context(), w); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
 }

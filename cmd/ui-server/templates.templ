@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"strings"
+	"github.com/rs/zerolog/log"
 )
 
 templ base(title string) {
@@ -147,7 +148,7 @@ templ base(title string) {
 				}
 			</style>
 		</head>
-		<body class="container py-4" >
+		<body class="container py-4">
 			<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
 				<div class="container-fluid">
 					<a class="navbar-brand" href="/">UI Server</a>
@@ -179,23 +180,24 @@ templ indexTemplate(pages map[string]UIDefinition) {
 
 templ pageTemplate(name string, def UIDefinition) {
 	@base("UI Server - " + name) {
-		@pageContentTemplate(name, def)
+		<div
+			hx-ext="sse"
+			sse-connect={ "/sse?page=" + name }
+			sse-swap="page-content-update"
+		>
+			@pageContentTemplate(name, def)
+		</div>
 	}
 }
 
 templ pageContentTemplate(name string, def UIDefinition) {
-	<div
-		class="row"
-		hx-ext="sse"
-		sse-connect={ "/sse?page=" + name }
-		sse-swap="component-update"
-	>
+	<div class="row">
 		<div class="col-md-6">
 			<div class="card mb-4">
 				<div class="card-header">
 					<h5 class="card-title mb-0">Rendered UI</h5>
 				</div>
-				<div class="card-body" sse-swap="component-update">
+				<div class="card-body">
 					for _, component := range def.Components {
 						for typ, props := range component {
 							@renderComponent(typ, props.(map[string]interface{}))
@@ -209,19 +211,30 @@ templ pageContentTemplate(name string, def UIDefinition) {
 				<div class="card-header">
 					<h5 class="card-title mb-0">YAML Source</h5>
 				</div>
-				<div class="card-body source-yaml" sse-swap="yaml-update">
+				<div class="card-body source-yaml">
 					<pre><code class="language-yaml">{ yamlString(def) }</code></pre>
 				</div>
 			</div>
 		</div>
 	</div>
+	<script>
+		// Decode HTML entities in pre/code blocks
+		document.addEventListener('htmx:afterSwap', function(event) {
+			document.querySelectorAll('pre code').forEach((el) => {
+				// Replace HTML newline entities with actual newlines
+				el.innerHTML = el.innerHTML.replace(/&#10;/g, '\n');
+				// Re-highlight the code
+				hljs.highlightElement(el);
+			});
+		});
+	</script>
 }
 
 templ renderComponent(typ string, props map[string]interface{}) {
 	switch typ {
 		case "button":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<button
 						id={ id }
 						data-hx-on:click={ fmt.Sprintf("logToConsole('%s clicked')", id) }
@@ -244,7 +257,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "title":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<h1
 						id={ id }
 					>
@@ -256,7 +269,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "text":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<p
 						id={ id }
 					>
@@ -268,7 +281,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "input":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<input
 						id={ id }
 						if typ, ok := props["type"].(string); ok {
@@ -289,7 +302,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "textarea":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<textarea
 						id={ id }
 						if rows, ok := props["rows"].(int); ok {
@@ -311,7 +324,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "checkbox":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<div class="form-check">
 						<input
 							type="checkbox"
@@ -337,7 +350,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 		case "list":
 			if typ, ok := props["type"].(string); ok {
 				if id, ok := props["id"].(string); ok {
-					<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+					<div id={ fmt.Sprintf("component-%s", id) }>
 						if title, ok := props["title"].(string); ok {
 							<h4 class="mb-3">{ title }</h4>
 						}
@@ -381,7 +394,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "form":
 			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) } sse-swap="component-update">
+				<div id={ fmt.Sprintf("component-%s", id) }>
 					<form
 						id={ id }
 						data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); logFormSubmit('%s', this)", id) }
@@ -406,7 +419,44 @@ templ renderComponent(typ string, props map[string]interface{}) {
 func yamlString(def UIDefinition) string {
 	yamlBytes, err := yaml.Marshal(def)
 	if err != nil {
-		return fmt.Sprintf("Error marshaling YAML: %v", err)
+		errMsg := fmt.Sprintf("Error marshaling YAML: %v", err)
+		log.Error().Err(err).Msg(errMsg)
+		return errMsg
 	}
+	log.Debug().Int("length", len(yamlBytes)).Msg("Generated YAML string")
 	return string(yamlBytes)
+}
+
+templ uiUpdateTemplate() {
+	@base("Dynamic UI") {
+		<div class="row">
+			<div class="col">
+				<div class="card">
+					<div class="card-header">
+						<h5 class="card-title mb-0">Dynamic UI</h5>
+					</div>
+					<div class="card-body"
+						hx-ext="sse"
+						sse-connect="/sse?page=ui-update"
+						sse-swap="ui-update"
+					>
+						<div class="alert alert-info">
+							Waiting for UI updates...
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script>
+			// Decode HTML entities in pre/code blocks after SSE updates
+			document.addEventListener('htmx:afterSwap', function(event) {
+				document.querySelectorAll('pre code').forEach((el) => {
+					// Replace HTML newline entities with actual newlines
+					el.innerHTML = el.innerHTML.replace(/&#10;/g, '\n');
+					// Re-highlight the code
+					hljs.highlightElement(el);
+				});
+			});
+		</script>
+	}
 }

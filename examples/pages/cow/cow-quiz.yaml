@@ -1,7 +1,7 @@
 components:
   - title:
       id: quiz-title
-      content: "🎯 Test Your Cow Knowledge! yo foo bla"
+      content: "🎯 Test Your Cow Knowledge!"
   
   - text:
       id: quiz-intro
