@@ -280,7 +280,7 @@ shell-script: |
   set -euo pipefail
   
   # Format the event data
-  EVENT_DATA=$(cat << EOF
+  EVENT_DATA=$(cat << 'EOF'
   {
     "summary": "{{ .Args.title }}",
     "start": {

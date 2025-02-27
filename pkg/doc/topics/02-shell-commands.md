@@ -463,6 +463,15 @@ flags:
    ```
    Solution: Install required dependencies or add error checking.
 
+4. **Expansion errors in heredoc strings**
+   ```
+   Error: $1: unbound variable
+   ```
+   Solution: Use single quotes for heredoc strings.
+   cat <<'EOF' > FILE
+   {{ .data }}
+   EOF
+
 ### Debugging Tips
 
 1. Enable verbose output:

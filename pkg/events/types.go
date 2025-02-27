@@ -8,9 +8,10 @@ import (
 
 // UIEvent represents an event in the UI system that can trigger updates
 type UIEvent struct {
-	Type      string      `json:"type"`      // e.g. "component-update", "page-reload"
-	PageID    string      `json:"pageId"`    // Which page is being updated
-	Component interface{} `json:"component"` // The updated component data
+	Type      string      `json:"type"`                // e.g. "component-update", "page-reload"
+	PageID    string      `json:"pageId"`              // Which page is being updated
+	Component interface{} `json:"component"`           // The updated component data
+	RequestID string      `json:"requestId,omitempty"` // Optional request ID for tracking user actions
 }
 
 // EventManager defines the interface for managing UI events

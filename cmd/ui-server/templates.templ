@@ -5,6 +5,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"strings"
 	"github.com/rs/zerolog/log"
+	"github.com/go-go-golems/go-go-mcp/pkg/server/ui"
 )
 
 templ base(title string) {
@@ -47,8 +48,22 @@ templ base(title string) {
 					}
 				}
 
+				function sendUIActionPreventDefault(event, componentId, action, data = {}) {
+					// Prevent the default form submission
+					event.preventDefault();
+					
+					// Call the regular sendUIAction function
+					sendUIAction(componentId, action, data);
+					
+					// Return false to ensure the form doesn't submit
+					return false;
+				}
+
 				function sendUIAction(componentId, action, data = {}) {
-					logToConsole(`Component ${componentId} ${action}`);
+					// Get the request ID from the page if it exists
+					const requestId = document.querySelector('[data-request-id]')?.getAttribute('data-request-id') || '';
+					
+					logToConsole(`Component ${componentId} ${action}${requestId ? ' (request: ' + requestId + ')' : ''}`);
 					
 					// If this is a form submission, collect all form data
 					if (action === 'submitted' && document.getElementById(componentId)) {
@@ -94,12 +109,40 @@ templ base(title string) {
 						body: JSON.stringify({
 							componentId: componentId,
 							action: action,
-							data: data
+							data: data,
+							requestId: requestId // Include the request ID in the action data
 						})
 					})
 					.then(response => response.json())
 					.then(data => {
 						console.log('Action response:', data);
+						
+						// If the action resolved a waiting request, handle it
+						if (data.resolved) {
+							logToConsole(`Action resolved a waiting request`);
+							
+							// If this was a form submission, reset the form
+							if (action === 'submitted' && document.getElementById(componentId)) {
+								const form = document.getElementById(componentId);
+								form.reset();
+								
+								// Clear any custom state
+								form._lastClickedButton = null;
+							}
+							
+							// Find the parent row element that contains both UI and YAML sections
+							const parentRow = document.querySelector('#dynamic-ui');
+							if (parentRow) {
+								// Replace the entire content with a simple waiting message
+								parentRow.innerHTML = `
+												<div class="alert alert-info">
+													<h4 class="alert-heading">Request Completed</h4>
+													<p>Your action has been processed successfully. Waiting for new UI updates...</p>
+												</div>
+								`;
+								logToConsole('UI reset to waiting state');
+							}
+						}
 					})
 					.catch(error => {
 						console.error('Error sending action:', error);
@@ -146,10 +189,6 @@ templ base(title string) {
 					margin-top: 0.5rem;
 					margin-left: 1rem;
 				}
-				.list-group-item > :first-child {
-					font-weight: bold;
-					margin-bottom: 0.25rem;
-				}
 				form {
 					padding: 1rem;
 					background-color: #f8f9fa;
@@ -187,7 +226,7 @@ templ base(title string) {
 	</html>
 }
 
-templ indexTemplate(pages map[string]UIDefinition) {
+templ indexTemplate(pages map[string]ui.UIDefinition) {
 	@base("UI Server - Index") {
 		<div class="row">
 			<div class="col">
@@ -204,7 +243,7 @@ templ indexTemplate(pages map[string]UIDefinition) {
 	}
 }
 
-templ pageTemplate(name string, def UIDefinition) {
+templ pageTemplate(name string, def ui.UIDefinition) {
 	@base("UI Server - " + name) {
 		<div
 			hx-ext="sse"
@@ -216,14 +255,16 @@ templ pageTemplate(name string, def UIDefinition) {
 	}
 }
 
-templ pageContentTemplate(name string, def UIDefinition) {
-	<div class="row">
+templ pageContentTemplate(name string, def ui.UIDefinition) {
+	<div class="row"
+		data-request-id={ def.RequestID }
+	>
 		<div class="col-md-6">
 			<div class="card mb-4">
 				<div class="card-header">
 					<h5 class="card-title mb-0">Rendered UI</h5>
 				</div>
-				<div class="card-body">
+				<div class="card-body" data-request-id={ def.RequestID }>
 					for _, component := range def.Components {
 						for typ, props := range component {
 							@renderComponent(typ, props.(map[string]interface{}))
@@ -243,17 +284,6 @@ templ pageContentTemplate(name string, def UIDefinition) {
 			</div>
 		</div>
 	</div>
-	<script>
-		// Decode HTML entities in pre/code blocks
-		document.addEventListener('htmx:afterSwap', function(event) {
-			document.querySelectorAll('pre code').forEach((el) => {
-				// Replace HTML newline entities with actual newlines
-				el.innerHTML = el.innerHTML.replace(/&#10;/g, '\n');
-				// Re-highlight the code
-				hljs.highlightElement(el);
-			});
-		});
-	</script>
 }
 
 templ renderComponent(typ string, props map[string]interface{}) {
@@ -263,7 +293,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<button
 						id={ id }
-						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
+						onclick={ templ.JSFuncCall("sendUIAction", id, "clicked") }
 						if disabled, ok := props["disabled"].(bool); ok && disabled {
 							disabled="disabled"
 						}
@@ -282,39 +312,29 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				</div>
 			}
 		case "title":
-			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) }>
-					<h1
-						id={ id }
-						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
-					>
+				<div>
+					<h1>
 						if content, ok := props["content"].(string); ok {
 							{ content }
 						}
 					</h1>
 				</div>
-			}
 		case "text":
-			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) }>
-					<p
-						id={ id }
-						data-hx-on:click={ fmt.Sprintf("sendUIAction('%s', 'clicked')", id) }
-					>
+				<div>
+					<p>
 						if content, ok := props["content"].(string); ok {
 							{ content }
 						}
 					</p>
 				</div>
-			}
 		case "input":
 			if id, ok := props["id"].(string); ok {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<input
 						id={ id }
-						data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {value: this.value})", id) }
-						data-hx-on:focus={ fmt.Sprintf("sendUIAction('%s', 'focused')", id) }
-						data-hx-on:blur={ fmt.Sprintf("sendUIAction('%s', 'blurred')", id) }
+						onchange={ templ.JSFuncCall("sendUIAction", id, "changed", templ.Raw("{value: this.value}")) }
+						onfocus={ templ.JSFuncCall("sendUIAction", id, "focused") }
+						onblur={ templ.JSFuncCall("sendUIAction", id, "blurred") }
 						if typ, ok := props["type"].(string); ok {
 							type={ typ }
 						}
@@ -339,9 +359,9 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<textarea
 						id={ id }
-						data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {value: this.value})", id) }
-						data-hx-on:focus={ fmt.Sprintf("sendUIAction('%s', 'focused')", id) }
-						data-hx-on:blur={ fmt.Sprintf("sendUIAction('%s', 'blurred')", id) }
+						onchange={ templ.JSFuncCall("sendUIAction", id, "changed", templ.Raw("{value: this.value}")) }
+						onfocus={ templ.JSFuncCall("sendUIAction", id, "focused") }
+						onblur={ templ.JSFuncCall("sendUIAction", id, "blurred") }
 						if rows, ok := props["rows"].(int); ok {
 							rows={ fmt.Sprint(rows) }
 						}
@@ -366,7 +386,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 						<input
 							type="checkbox"
 							id={ id }
-							data-hx-on:change={ fmt.Sprintf("sendUIAction('%s', 'changed', {checked: this.checked})", id) }
+							onchange={ templ.JSFuncCall("sendUIAction", id, "changed", templ.Raw("{checked: this.checked}")) }
 							if name, ok := props["name"].(string); ok {
 								name={ name }
 							}
@@ -386,55 +406,58 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "list":
 			if typ, ok := props["type"].(string); ok {
-				if id, ok := props["id"].(string); ok {
-					<div id={ fmt.Sprintf("component-%s", id) }>
-						if title, ok := props["title"].(string); ok {
-							<h4 class="mb-3">{ title }</h4>
-						}
-						if typ == "ul" {
-							<ul class="list-group list-group-flush">
-								if items, ok := props["items"].([]interface{}); ok {
-									for _, item := range items {
-										<li class="list-group-item">
-											switch i := item.(type) {
-												case string:
-													{ i }
-												case map[string]interface{}:
-													for typ, props := range i {
-														@renderComponent(typ, props.(map[string]interface{}))
+				// Generate a default ID if none is provided
+				<div>
+					if title, ok := props["title"].(string); ok {
+						<h4 class="mb-3">{ title }</h4>
+					}
+					if typ == "ul" {
+						<ul class="list-group list-group-flush">
+							if items, ok := props["items"].([]interface{}); ok {
+								for _, item := range items {
+									<li class="list-group-item">
+										switch i := item.(type) {
+											case string:
+												{ i }
+											case map[string]interface{}:
+												for compType, compProps := range i {
+													if compPropsMap, ok := compProps.(map[string]interface{}); ok {
+														@renderComponent(compType, compPropsMap)
 													}
-											}
-										</li>
-									}
+												}
+										}
+									</li>
 								}
-							</ul>
-						} else if typ == "ol" {
-							<ol class="list-group list-group-numbered list-group-flush">
-								if items, ok := props["items"].([]interface{}); ok {
-									for _, item := range items {
-										<li class="list-group-item">
-											switch i := item.(type) {
-												case string:
-													{ i }
-												case map[string]interface{}:
-													for typ, props := range i {
-														@renderComponent(typ, props.(map[string]interface{}))
+							}
+						</ul>
+					} else if typ == "ol" {
+						<ol class="list-group list-group-numbered list-group-flush">
+							if items, ok := props["items"].([]interface{}); ok {
+								for _, item := range items {
+									<li class="list-group-item">
+										switch i := item.(type) {
+											case string:
+												{ i }
+											case map[string]interface{}:
+												for compType, compProps := range i {
+													if compPropsMap, ok := compProps.(map[string]interface{}); ok {
+														@renderComponent(compType, compPropsMap)
 													}
-											}
-										</li>
-									}
+												}
+										}
+									</li>
 								}
-							</ol>
-						}
-					</div>
-				}
+							}
+						</ol>
+					}
+				</div>
 			}
 		case "form":
 			if id, ok := props["id"].(string); ok {
 				<div id={ fmt.Sprintf("component-%s", id) }>
 					<form
 						id={ id }
-						data-hx-on:submit={ fmt.Sprintf("event.preventDefault(); sendUIAction('%s', 'submitted')", id) }
+						onsubmit={ templ.JSUnsafeFuncCall("event.preventDefault(); sendUIAction('" + id + "', 'submitted')") }
 						class="needs-validation"
 						novalidate
 					>
@@ -453,7 +476,7 @@ templ renderComponent(typ string, props map[string]interface{}) {
 	}
 }
 
-func yamlString(def UIDefinition) string {
+func yamlString(def ui.UIDefinition) string {
 	yamlBytes, err := yaml.Marshal(def)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error marshaling YAML: %v", err)
@@ -476,6 +499,7 @@ templ uiUpdateTemplate() {
 						hx-ext="sse"
 						sse-connect="/sse?page=ui-update"
 						sse-swap="ui-update"
+						id="dynamic-ui"
 					>
 						<div class="alert alert-info">
 							Waiting for UI updates...
@@ -493,6 +517,14 @@ templ uiUpdateTemplate() {
 					// Re-highlight the code
 					hljs.highlightElement(el);
 				});
+				
+				// Extract request ID from the updated content if available
+				const newRequestId = event.detail.elt.querySelector('[data-request-id]')?.getAttribute('data-request-id');
+				if (newRequestId) {
+					// Update the parent container with the new request ID
+					event.detail.elt.closest('[data-request-id]')?.setAttribute('data-request-id', newRequestId);
+					console.log('Updated request ID to:', newRequestId);
+				}
 			});
 		</script>
 	}

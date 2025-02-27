@@ -278,16 +278,22 @@ func (h *RequestHandler) handleToolsList(ctx context.Context, req *protocol.Requ
 }
 
 func (h *RequestHandler) handleToolsCall(ctx context.Context, req *protocol.Request) (*protocol.Response, error) {
+	h.server.logger.Info().Str("method", req.Method).Str("params", string(req.Params)).Msg("handleToolsCall")
+
 	var params struct {
 		Name      string                 `json:"name"`
 		Arguments map[string]interface{} `json:"arguments"`
 	}
 	if err := json.Unmarshal(req.Params, &params); err != nil {
+		h.server.logger.Error().Err(err).Str("params", string(req.Params)).Msg("failed to unmarshal tool call arguments")
 		return nil, transport.NewInvalidParamsError(err.Error())
 	}
 
+	h.server.logger.Info().Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("calling tool")
+
 	result, err := h.server.toolProvider.CallTool(ctx, params.Name, params.Arguments)
 	if err != nil {
+		h.server.logger.Error().Err(err).Str("name", params.Name).Str("arguments", fmt.Sprintf("%v", params.Arguments)).Msg("failed to call tool")
 		return nil, transport.NewInternalError(err.Error())
 	}
 
