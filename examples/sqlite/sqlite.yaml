@@ -1,0 +1,75 @@
+name: sqlite
+short: Execute SQL commands on a SQLite database
+long: |
+  This tool allows you to execute SQL commands on a SQLite database file.
+  You can run queries, view schema information, or perform database operations.
+  
+  Examples:
+  - List all tables: go-go-mcp run-command sqlite.yaml --db my.db --sql ".tables"
+  - Run a query: go-go-mcp run-command sqlite.yaml --db my.db --sql "SELECT * FROM users"
+  - Export as CSV: go-go-mcp run-command sqlite.yaml --db my.db --sql "SELECT * FROM users" --csv
+
+flags:
+  - name: db
+    type: string
+    help: Path to the SQLite database file
+    required: true
+  - name: sql
+    type: string
+    help: SQL command to execute
+    required: true
+  - name: csv
+    type: bool
+    help: Output results in CSV format
+    default: false
+  - name: headers
+    type: bool
+    help: Show column headers in output
+    default: true
+  - name: timeout
+    type: int
+    help: Query timeout in seconds
+    default: 30
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Check if sqlite3 is installed
+  if ! command -v sqlite3 &> /dev/null; then
+    echo "Error: sqlite3 command not found. Please install SQLite." >&2
+    exit 1
+  fi
+  
+  # Check if database file exists
+  if [[ ! -f "{{ .Args.db }}" ]]; then
+    echo "Warning: Database file '{{ .Args.db }}' does not exist. It will be created if you execute a CREATE statement." >&2
+  fi
+  
+  # Build sqlite3 command with options
+  CMD="sqlite3"
+  
+  # Set timeout
+  CMD+=" -cmd '.timeout {{ .Args.timeout }}000'"
+  
+  # Configure output format
+  if [[ "{{ .Args.csv }}" == "true" ]]; then
+    CMD+=" -csv"
+  else
+    CMD+=" -column"
+  fi
+  
+  # Show headers if requested
+  if [[ "{{ .Args.headers }}" == "true" ]]; then
+    CMD+=" -header"
+  fi
+  
+  # Add database file
+  CMD+=" '{{ .Args.db }}'"
+  
+  # Add SQL command
+  CMD+=" '{{ .Args.sql }}'"
+  
+  # Execute the command
+  echo "Executing: $CMD"
+  eval $CMD 

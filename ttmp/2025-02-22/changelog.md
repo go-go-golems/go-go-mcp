@@ -83,3 +83,15 @@ Updated the UI DSL documentation to clearly explain the single form submission m
 - Added examples of incorrect and correct approaches to multi-step interactions
 - Provided guidance on designing UIs with separate form submissions for complex interactions
 - This helps developers avoid common pitfalls when designing UI components 
+
+# Added SQLite Shell Command Tool
+
+Created a new shell command tool for interacting with SQLite databases, making it easy to execute SQL queries and commands.
+
+- Added `examples/sqlite/sqlite.yaml` with a complete SQLite command implementation
+- Implemented support for CSV output format
+- Added options for displaying column headers
+- Included query timeout configuration
+- Added error handling for missing SQLite installation and database files
+- Provided detailed examples in the command documentation
+- This tool simplifies database operations in projects that use SQLite 

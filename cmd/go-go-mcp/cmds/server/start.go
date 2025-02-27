@@ -117,6 +117,9 @@ func (c *StartCommand) Run(
 		return err
 	}
 
+	// toolRegistry := tool_registry.NewRegistry()
+	// examples.RegisterSQLiteTool(toolRegistry)
+
 	// Create resource provider
 	resourceProvider := resources.NewRegistry()
 

@@ -1384,3 +1384,14 @@ The command supports multiple conversion methods (Python, yq, or basic sed) and 
 - Created example YAML form definition
 - Added comprehensive documentation in README.md
 - Created helper script for easy usage
+
+## Added SQLite Shell Command Tool
+
+Created a new shell command tool for interacting with SQLite databases, making it easy to execute SQL queries and commands.
+
+- Added `examples/sqlite/sqlite.yaml` with a complete SQLite command implementation
+- Implemented support for CSV output format
+- Added options for displaying column headers
+- Included query timeout configuration
+- Added error handling for missing SQLite installation and database files
+- Provided detailed examples in the command documentation
