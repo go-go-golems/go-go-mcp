@@ -8,6 +8,16 @@ Enhanced the UI action handling documentation with structured metadata:
 - Added maintenance triggers to identify when document updates are needed
 - Structured questions the document answers for better discoverability
 
+UI Action Request ID Tracking
+
+Implemented request ID tracking in UI actions to enable synchronous wait-for-response behavior:
+- Updated sendUIAction JavaScript function to include request ID in action data
+- Added request ID extraction from UI definition in page templates
+- Enhanced UI update template to maintain request ID during SSE updates
+- Improved logging to show request ID in console messages
+- Added data attributes to store request ID in the DOM
+- Ensured proper propagation of request ID between server and client
+
 UI DSL Documentation
 
 Added comprehensive documentation for the UI DSL system in pkg/doc/topics/05-ui-dsl.md. The documentation includes:
@@ -85,3 +95,11 @@ Added comprehensive documentation for the UI action handling system in ttmp/2025
 - Complete flow walkthrough for form submissions
 - Component-specific event handling reference
 - Console logging and debugging features 
+
+Restored UI Update Page
+
+Restored the UI update page functionality:
+- Added handleUIUpdatePage function to render the UI update page
+- Registered the page under the /ui URL path
+- Ensured proper rendering of the uiUpdateTemplate component
+- Maintained consistent handler pattern with other page handlers 

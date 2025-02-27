@@ -8,6 +8,15 @@ Added structured metadata to technical documentation for better maintainability:
 - Structured questions the document answers for better discoverability
 - Improved documentation organization and searchability
 
+# UI Action Resolved Status and Auto-Reset
+
+Enhanced the UI action handling to return the resolved status in the response and automatically reset the UI when an action resolves a waiting request:
+- Modified the handleUIAction function to include the resolved status in the response
+- Updated the sendUIAction JavaScript function to handle resolved actions
+- Added automatic form reset after a successful form submission that resolves a request
+- Replaced the entire UI with a simplified waiting message after a resolved action
+- This improves the user experience by providing immediate feedback and resetting the UI state
+
 # UI Action Handling Documentation
 
 Added comprehensive documentation for the UI action handling system:
