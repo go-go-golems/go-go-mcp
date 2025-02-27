@@ -28,17 +28,21 @@ type UIHandler struct {
 	logger       *zerolog.Logger
 
 	// Configuration
-	timeout time.Duration
+	timeout          time.Duration
+	clickSubmitDelay time.Duration // Delay after click before responding to wait for potential form submission
+	enableClickDelay bool          // Whether to enable the delay mechanism for click events
 }
 
 // NewUIHandler creates a new UI handler with the given dependencies
 func NewUIHandler(events events.EventManager, sseHandler *sse.SSEHandler, logger *zerolog.Logger) *UIHandler {
 	h := &UIHandler{
-		waitRegistry: NewWaitRegistry(30 * time.Second), // 30 second default timeout
-		events:       events,
-		sseHandler:   sseHandler,
-		logger:       logger,
-		timeout:      30 * time.Second,
+		waitRegistry:     NewWaitRegistry(120 * time.Second), // 120 second default timeout
+		events:           events,
+		sseHandler:       sseHandler,
+		logger:           logger,
+		timeout:          120 * time.Second,
+		clickSubmitDelay: 200 * time.Millisecond, // 200ms default delay for click-submit sequence
+		enableClickDelay: true,                   // Enabled by default
 	}
 
 	// Start background cleanup for orphaned requests
@@ -92,6 +96,17 @@ func (h *UIHandler) sendErrorResponse(w http.ResponseWriter, status int, errorTy
 	}
 
 	_ = json.NewEncoder(w).Encode(errorResponse)
+}
+
+// SetClickSubmitDelay configures the delay time to wait after a click event
+// for a potential form submission before responding
+func (h *UIHandler) SetClickSubmitDelay(delay time.Duration, enabled bool) {
+	h.clickSubmitDelay = delay
+	h.enableClickDelay = enabled
+	h.logger.Debug().
+		Dur("delay", delay).
+		Bool("enabled", enabled).
+		Msg("Updated click-submit delay configuration")
 }
 
 // Placeholder methods that will be implemented later
@@ -181,22 +196,109 @@ func (h *UIHandler) handleUIUpdate() http.HandlerFunc {
 				return
 			}
 
+			// If it's a click and we have delay enabled, wait briefly for a potential submission
+			if h.enableClickDelay && response.Action == "clicked" {
+				clickResponse := response // Store the click response
+
+				h.logger.Debug().
+					Str("requestId", requestID).
+					Str("action", response.Action).
+					Str("componentId", response.ComponentID).
+					Msg("Click action received, waiting briefly for potential form submission")
+
+				// Start a timer for the delay
+				select {
+				case newResponse := <-responseChan: // Check for a new response
+					if newResponse.Error != nil {
+						// Handle error from the new response
+						h.sendErrorResponse(w, http.StatusInternalServerError, "action_processing_error", newResponse.Error.Error(), nil)
+						return
+					} else if newResponse.Action == "submitted" {
+						// Add the click as a related event to the submission response
+						clickEvent := UIActionEvent{
+							Action:      clickResponse.Action,
+							ComponentID: clickResponse.ComponentID,
+							Data:        clickResponse.Data,
+							Timestamp:   clickResponse.Timestamp,
+						}
+						newResponse.RelatedEvents = append(newResponse.RelatedEvents, clickEvent)
+
+						// Use the submission response instead
+						response = newResponse
+						h.logger.Info().
+							Str("requestId", requestID).
+							Str("originalAction", clickResponse.Action).
+							Str("originalComponentId", clickResponse.ComponentID).
+							Str("newAction", response.Action).
+							Str("newComponentId", response.ComponentID).
+							Dur("delay", time.Since(clickResponse.Timestamp)).
+							Msg("Replaced click with submission response (click added as related event)")
+					} else {
+						// Add the click as a related event to the new response
+						clickEvent := UIActionEvent{
+							Action:      clickResponse.Action,
+							ComponentID: clickResponse.ComponentID,
+							Data:        clickResponse.Data,
+							Timestamp:   clickResponse.Timestamp,
+						}
+						newResponse.RelatedEvents = append(newResponse.RelatedEvents, clickEvent)
+
+						// Got another response that's not a submission, use it anyway
+						response = newResponse
+						h.logger.Info().
+							Str("requestId", requestID).
+							Str("originalAction", clickResponse.Action).
+							Str("newAction", response.Action).
+							Dur("delay", time.Since(clickResponse.Timestamp)).
+							Msg("Received non-submission action after click (click added as related event)")
+					}
+				case <-time.After(h.clickSubmitDelay):
+					// No submission received within delay, use the original click
+					h.logger.Debug().
+						Str("requestId", requestID).
+						Dur("delay", h.clickSubmitDelay).
+						Msg("No submission after click, using click response")
+				}
+
+				// Clean up the registry entry for the click event
+				// This is necessary because the Resolve method doesn't delete click events
+				h.waitRegistry.Cleanup(requestID)
+			}
+
 			// Log the successful response
 			h.logger.Info().
 				Str("requestId", requestID).
 				Str("action", response.Action).
 				Str("componentId", response.ComponentID).
+				Int("relatedEventsCount", len(response.RelatedEvents)).
 				Msg("UI action received, completing request")
 
-			// Return success with the action data
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			// Prepare response data
+			responseData := map[string]interface{}{
 				"status":      "success",
 				"action":      response.Action,
 				"componentId": response.ComponentID,
 				"data":        response.Data,
-			})
+			}
+
+			// Add related events if there are any
+			if len(response.RelatedEvents) > 0 {
+				events := make([]map[string]interface{}, 0, len(response.RelatedEvents))
+				for _, event := range response.RelatedEvents {
+					events = append(events, map[string]interface{}{
+						"action":      event.Action,
+						"componentId": event.ComponentID,
+						"data":        event.Data,
+						"timestamp":   event.Timestamp,
+					})
+				}
+				responseData["relatedEvents"] = events
+			}
+
+			// Return success with the action data
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(responseData)
 
 		case <-time.After(h.timeout):
 			// Request timed out
@@ -274,14 +376,16 @@ func (h *UIHandler) handleUIAction() http.HandlerFunc {
 		logger.Msg("UI action received")
 
 		// Check if this action is associated with a waiting request
+		resolved := false
 		if action.RequestID != "" && (action.Action == "clicked" || action.Action == "submitted") {
 			// Try to resolve the waiting request
-			resolved := h.waitRegistry.Resolve(action.RequestID, UIActionResponse{
-				Action:      action.Action,
-				ComponentID: action.ComponentID,
-				Data:        action.Data,
-				Error:       nil,
-				Timestamp:   time.Now(),
+			resolved = h.waitRegistry.Resolve(action.RequestID, UIActionResponse{
+				Action:        action.Action,
+				ComponentID:   action.ComponentID,
+				Data:          action.Data,
+				Error:         nil,
+				Timestamp:     time.Now(),
+				RelatedEvents: []UIActionEvent{}, // Initialize with empty slice
 			})
 
 			if resolved {
@@ -289,10 +393,15 @@ func (h *UIHandler) handleUIAction() http.HandlerFunc {
 			}
 		}
 
-		// Return success response
+		// Return success response with resolved status
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		err := json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		err := encoder.Encode(map[string]interface{}{
+			"status":   "success",
+			"resolved": resolved,
+		})
 		if err != nil {
 			http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
 		}

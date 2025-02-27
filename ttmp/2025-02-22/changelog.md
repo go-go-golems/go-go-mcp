@@ -10,6 +10,17 @@ Updated the SSE implementation to properly support the htmx SSE extension API. T
 - Enhanced page-reload events to also send a full page update for seamless refreshes
 - Optimized page reload by extracting page content into a separate template to avoid re-rendering the base template 
 
+# Added UI Action Resolved Status and Auto-Reset
+
+Enhanced the UI action handling to return the resolved status in the response and automatically reset the UI when an action resolves a waiting request.
+
+- Modified the handleUIAction function to include the resolved status in the response
+- Updated the sendUIAction JavaScript function to handle resolved actions
+- Added automatic form reset after a successful form submission that resolves a request
+- Implemented UI reset to show a waiting message after a resolved action
+- Added YAML source display clearing when an action resolves a request
+- This improves the user experience by providing immediate feedback and resetting the UI state
+
 # Enhanced Page Reload Events with Page Definitions
 
 Improved the page reload event system to include the full page definition in the event payload.
@@ -42,3 +53,23 @@ Added a new UI handler implementation that waits for user actions before complet
 - Updated the Server initialization to create and use the UIHandler
 - Added RequestID field to the UIEvent struct for better tracking of user interactions
 - Implemented background cleanup for orphaned requests 
+
+# Added Click-Submit Delay for UI Actions
+
+Enhanced the UI handler to wait briefly after receiving a click event to check for a subsequent form submission before responding.
+
+- Added configuration options for enabling/disabling the delay and setting its duration
+- Modified the WaitRegistry to keep click events in the registry until explicitly cleaned up
+- Implemented a short delay (default 200ms) after click events to wait for potential form submissions
+- Added detailed logging for tracking the click-submit sequence
+- This improves the user experience by ensuring that form submissions take precedence over simple button clicks 
+
+# Enhanced UI Action Response with Related Events
+
+Improved the UI action response to include related events, allowing clients to receive both click and submission events in a single response.
+
+- Added `RelatedEvents` field to the `UIActionResponse` struct
+- Created a new `UIActionEvent` type to represent individual events
+- Modified the click-submit delay logic to store click events as related events when a submission follows
+- Updated the response JSON format to include the related events array
+- This enhancement provides clients with a complete history of user interactions leading to the final action 

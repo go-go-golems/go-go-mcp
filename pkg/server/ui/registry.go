@@ -7,10 +7,19 @@ import (
 
 // UIActionResponse represents the response from a UI action
 type UIActionResponse struct {
+	Action        string
+	ComponentID   string
+	Data          map[string]interface{}
+	Error         error
+	Timestamp     time.Time
+	RelatedEvents []UIActionEvent // Additional events related to this response
+}
+
+// UIActionEvent represents a single UI action event
+type UIActionEvent struct {
 	Action      string
 	ComponentID string
 	Data        map[string]interface{}
-	Error       error
 	Timestamp   time.Time
 }
 
@@ -46,8 +55,15 @@ func (wr *WaitRegistry) Resolve(requestID string, response UIActionResponse) boo
 	defer wr.mu.Unlock()
 
 	if ch, exists := wr.pending[requestID]; exists {
+		// Send the response to the waiting handler
 		ch <- response
-		delete(wr.pending, requestID)
+
+		// Only remove the request from the registry if it's not a click event
+		// This allows click events to be potentially followed by submit events
+		if response.Action != "clicked" {
+			delete(wr.pending, requestID)
+		}
+
 		return true
 	}
 	return false

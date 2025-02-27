@@ -93,6 +93,9 @@ func NewServer(dir string) (*Server, error) {
 	// Register UI handlers
 	uiHandler.RegisterHandlers(s.mux)
 
+	// Set up UI update page
+	s.mux.HandleFunc("/ui", s.handleUIUpdatePage())
+
 	// Set up dynamic page handler - must come before index handler
 	s.mux.Handle("/pages/", s.handleAllPages())
 
@@ -192,8 +195,8 @@ func (s *Server) loadPages() error {
 		if strings.HasSuffix(d.Name(), ".yaml") {
 			log.Debug().Str("path", path).Msg("Found YAML page")
 			if err := s.loadPage(path); err != nil {
-				log.Error().Err(err).Str("path", path).Msg("Failed to load page")
-				return err
+				log.Warn().Err(err).Str("path", path).Msg("Failed to load page")
+				return nil
 			}
 		}
 		return nil
@@ -366,4 +369,12 @@ func (s *Server) registerComponentRenderers() {
 
 		return buf.String(), nil
 	})
+}
+
+// handleUIUpdatePage renders the UI update page
+func (s *Server) handleUIUpdatePage() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		component := uiUpdateTemplate()
+		_ = component.Render(r.Context(), w)
+	}
 }

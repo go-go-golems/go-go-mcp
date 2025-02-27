@@ -340,8 +340,20 @@ shell-script: |
     if [[ "$HTTP_STATUS" == "200" ]]; then
       if [[ "{{ .Args.verbose }}" == "true" ]]; then
         echo "✅ UI update successful."
+        echo "Response:"
+        if command -v jq &> /dev/null; then
+          jq . "$RESPONSE_FILE"
+        else
+          cat "$RESPONSE_FILE"
+        fi
       else
         echo "✅ UI update successful."
+        echo "Response:"
+        if command -v jq &> /dev/null; then
+          jq . "$RESPONSE_FILE"
+        else
+          cat "$RESPONSE_FILE"
+        fi
       fi
     else
       echo "❌ UI update failed with status code: $HTTP_STATUS"
