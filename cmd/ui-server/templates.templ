@@ -130,28 +130,17 @@ templ base(title string) {
 								form._lastClickedButton = null;
 							}
 							
-							// Find the card body containing the UI components
-							const cardBody = document.querySelector('.card-body[data-request-id]');
-							if (cardBody) {
-								// Clear the request ID
-								cardBody.setAttribute('data-request-id', '');
-								
-								// Show waiting message
-								cardBody.innerHTML = '<div class="alert alert-info">Waiting for UI updates...</div>';
+							// Find the parent row element that contains both UI and YAML sections
+							const parentRow = document.querySelector('#dynamic-ui');
+							if (parentRow) {
+								// Replace the entire content with a simple waiting message
+								parentRow.innerHTML = `
+												<div class="alert alert-info">
+													<h4 class="alert-heading">Request Completed</h4>
+													<p>Your action has been processed successfully. Waiting for new UI updates...</p>
+												</div>
+								`;
 								logToConsole('UI reset to waiting state');
-							}
-							
-							// Remove the YAML source display section completely
-							const yamlColumn = document.querySelector('.col-md-6:nth-child(2)');
-							if (yamlColumn) {
-								yamlColumn.remove();
-								logToConsole('Removed YAML source display');
-							}
-							
-							// Make the UI column take full width
-							const uiColumn = document.querySelector('.col-md-6');
-							if (uiColumn) {
-								uiColumn.className = 'col-12';
 							}
 						}
 					})
@@ -199,10 +188,6 @@ templ base(title string) {
 				.list-group .list-group {
 					margin-top: 0.5rem;
 					margin-left: 1rem;
-				}
-				.list-group-item > :first-child {
-					font-weight: bold;
-					margin-bottom: 0.25rem;
 				}
 				form {
 					padding: 1rem;
@@ -327,31 +312,21 @@ templ renderComponent(typ string, props map[string]interface{}) {
 				</div>
 			}
 		case "title":
-			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) }>
-					<h1
-						id={ id }
-						onclick={ templ.JSFuncCall("sendUIAction", id, "clicked") }
-					>
+				<div>
+					<h1>
 						if content, ok := props["content"].(string); ok {
 							{ content }
 						}
 					</h1>
 				</div>
-			}
 		case "text":
-			if id, ok := props["id"].(string); ok {
-				<div id={ fmt.Sprintf("component-%s", id) }>
-					<p
-						id={ id }
-						onclick={ templ.JSFuncCall("sendUIAction", id, "clicked") }
-					>
+				<div>
+					<p>
 						if content, ok := props["content"].(string); ok {
 							{ content }
 						}
 					</p>
 				</div>
-			}
 		case "input":
 			if id, ok := props["id"].(string); ok {
 				<div id={ fmt.Sprintf("component-%s", id) }>
@@ -431,48 +406,51 @@ templ renderComponent(typ string, props map[string]interface{}) {
 			}
 		case "list":
 			if typ, ok := props["type"].(string); ok {
-				if id, ok := props["id"].(string); ok {
-					<div id={ fmt.Sprintf("component-%s", id) }>
-						if title, ok := props["title"].(string); ok {
-							<h4 class="mb-3">{ title }</h4>
-						}
-						if typ == "ul" {
-							<ul class="list-group list-group-flush">
-								if items, ok := props["items"].([]interface{}); ok {
-									for _, item := range items {
-										<li class="list-group-item">
-											switch i := item.(type) {
-												case string:
-													{ i }
-												case map[string]interface{}:
-													for typ, props := range i {
-														@renderComponent(typ, props.(map[string]interface{}))
+				// Generate a default ID if none is provided
+				<div>
+					if title, ok := props["title"].(string); ok {
+						<h4 class="mb-3">{ title }</h4>
+					}
+					if typ == "ul" {
+						<ul class="list-group list-group-flush">
+							if items, ok := props["items"].([]interface{}); ok {
+								for _, item := range items {
+									<li class="list-group-item">
+										switch i := item.(type) {
+											case string:
+												{ i }
+											case map[string]interface{}:
+												for compType, compProps := range i {
+													if compPropsMap, ok := compProps.(map[string]interface{}); ok {
+														@renderComponent(compType, compPropsMap)
 													}
-											}
-										</li>
-									}
+												}
+										}
+									</li>
 								}
-							</ul>
-						} else if typ == "ol" {
-							<ol class="list-group list-group-numbered list-group-flush">
-								if items, ok := props["items"].([]interface{}); ok {
-									for _, item := range items {
-										<li class="list-group-item">
-											switch i := item.(type) {
-												case string:
-													{ i }
-												case map[string]interface{}:
-													for typ, props := range i {
-														@renderComponent(typ, props.(map[string]interface{}))
+							}
+						</ul>
+					} else if typ == "ol" {
+						<ol class="list-group list-group-numbered list-group-flush">
+							if items, ok := props["items"].([]interface{}); ok {
+								for _, item := range items {
+									<li class="list-group-item">
+										switch i := item.(type) {
+											case string:
+												{ i }
+											case map[string]interface{}:
+												for compType, compProps := range i {
+													if compPropsMap, ok := compProps.(map[string]interface{}); ok {
+														@renderComponent(compType, compPropsMap)
 													}
-											}
-										</li>
-									}
+												}
+										}
+									</li>
 								}
-							</ol>
-						}
-					</div>
-				}
+							}
+						</ol>
+					}
+				</div>
 			}
 		case "form":
 			if id, ok := props["id"].(string); ok {
@@ -521,6 +499,7 @@ templ uiUpdateTemplate() {
 						hx-ext="sse"
 						sse-connect="/sse?page=ui-update"
 						sse-swap="ui-update"
+						id="dynamic-ui"
 					>
 						<div class="alert alert-info">
 							Waiting for UI updates...

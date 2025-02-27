@@ -17,8 +17,7 @@ Enhanced the UI action handling to return the resolved status in the response an
 - Modified the handleUIAction function to include the resolved status in the response
 - Updated the sendUIAction JavaScript function to handle resolved actions
 - Added automatic form reset after a successful form submission that resolves a request
-- Implemented UI reset to show a waiting message after a resolved action
-- Added YAML source display clearing when an action resolves a request
+- Replaced the entire UI with a simplified waiting message after a resolved action
 - This improves the user experience by providing immediate feedback and resetting the UI state
 
 # Enhanced Page Reload Events with Page Definitions
@@ -73,3 +72,14 @@ Improved the UI action response to include related events, allowing clients to r
 - Modified the click-submit delay logic to store click events as related events when a submission follows
 - Updated the response JSON format to include the related events array
 - This enhancement provides clients with a complete history of user interactions leading to the final action 
+
+# Clarified UI DSL Documentation on Form Submission Model
+
+Updated the UI DSL documentation to clearly explain the single form submission model and its limitations.
+
+- Added a new "Form Submission Model" section to the documentation
+- Clarified that the UI system only supports a single response per UI update
+- Explained that buttons cannot update state before form submission
+- Added examples of incorrect and correct approaches to multi-step interactions
+- Provided guidance on designing UIs with separate form submissions for complex interactions
+- This helps developers avoid common pitfalls when designing UI components 

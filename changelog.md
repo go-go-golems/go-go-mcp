@@ -14,8 +14,7 @@ Enhanced the UI action handling to return the resolved status in the response an
 - Modified the handleUIAction function to include the resolved status in the response
 - Updated the sendUIAction JavaScript function to handle resolved actions
 - Added automatic form reset after a successful form submission that resolves a request
-- Implemented UI reset to show a waiting message after a resolved action
-- Added YAML source display clearing when an action resolves a request
+- Replaced the entire UI with a simplified waiting message after a resolved action
 - This improves the user experience by providing immediate feedback and resetting the UI state
 
 # UI Action Handling Documentation

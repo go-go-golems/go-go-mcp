@@ -45,7 +45,7 @@ long: |
 
   All components support these common properties:
 
-  - `id`: Unique identifier for the component (required)
+  - `id`: Unique identifier for the component (required for all components EXCEPT title, list, and text)
   - `disabled`: Boolean to disable the component (optional)
   - `data`: Map of data attributes (optional)
 
@@ -228,16 +228,77 @@ long: |
 
   ## Best Practices
 
-  1. Always provide meaningful IDs for components that need to be referenced
-  2. Use semantic naming for form fields
-  3. Group related components inside forms
-  4. Use appropriate button types for different actions:
+  1. Always provide IDs for all components (except title and text where they're optional)
+  2. Use meaningful, descriptive IDs for components that need to be referenced
+  3. Use semantic naming for form fields
+  4. Group related components inside forms
+  5. Use appropriate button types for different actions:
     - `primary`: Main actions
     - `secondary`: Alternative actions
     - `danger`: Destructive actions
     - `success`: Confirmation actions
-  5. Provide clear labels and placeholders for form inputs
+  6. Provide clear labels and placeholders for form inputs
 
+  ## Form Submission Model
+
+  The UI system operates on a single form submission model with the following characteristics:
+
+  1. **Single Response**: Each UI update waits for a single user action (click or form submission) before responding.
+  2. **No Intermediate State Updates**: Buttons outside of forms can trigger actions, but buttons cannot update state before a form submission.
+  3. **Click-Submit Sequence**: The system has a brief delay after click events to detect if a form submission follows, but this is only to capture the submission as the primary response.
+  4. **Form-Centric Design**: For complex interactions requiring multiple steps, design your UI to use separate form submissions rather than trying to update state between steps.
+
+  ### Example: What Not To Do
+
+  ```yaml
+  # This won't work as expected - the "Calculate" button cannot update the total before form submission
+  - form:
+      id: order-form
+      components:
+        - input:
+            id: quantity
+            type: number
+            value: 1
+        - input:
+            id: price
+            type: number
+            value: 10.00
+        - button:
+            id: calculate-btn
+            text: "Calculate Total"  # This won't update the total field before submission
+            type: secondary
+        - input:
+            id: total
+            type: number
+            value: 0
+        - button:
+            id: submit-order-btn
+            text: "Submit Order"
+            type: primary
+  ```
+
+  ### Example: Correct Approach
+
+  ```yaml
+  # Better approach - separate the calculation as its own form submission
+  - form:
+      id: calculate-form
+      components:
+        - input:
+            id: quantity
+            type: number
+            value: 1
+        - input:
+            id: price
+            type: number
+            value: 10.00
+        - button:
+            id: calculate-btn
+            text: "Calculate Total"
+            type: primary
+  
+  # The result would be shown in a separate UI update after the calculation
+  ```
 
 flags:
   - name: components
@@ -253,10 +314,11 @@ flags:
     help: Show verbose output
     default: false
 
+capture-stderr: true
 shell-script: |
   #!/bin/bash
   set -euo pipefail
-  
+
   # Log the operation if verbose is enabled
   if [[ "{{ .Args.verbose }}" == "true" ]]; then
     echo "Updating UI components..."
@@ -268,9 +330,9 @@ shell-script: |
   JSON_FILE=$(mktemp)
   RESPONSE_FILE=$(mktemp)
   trap 'rm -f "$YAML_FILE" "$JSON_FILE" "$RESPONSE_FILE"' EXIT
-  
+
   # Write the YAML components to the temporary file
-  cat <<EOF > "$YAML_FILE"
+  cat <<'EOF' > "$YAML_FILE"
     {{ .Args.components }}
   EOF
   
@@ -314,7 +376,6 @@ shell-script: |
       cat "$YAML_FILE" | sed 's/: /": "/g' | sed 's/$/"/g' | sed 's/^/"/g' > "$JSON_FILE"
       echo "⚠️ Warning: Using basic YAML to JSON conversion. Install python3 with PyYAML or yq for better results."
     fi
-    echo "FOOBAOOAR"
     
     # Send the components to the UI server and capture the response
     if [[ "{{ .Args.verbose }}" == "true" ]]; then

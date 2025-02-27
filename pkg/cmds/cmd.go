@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
@@ -139,6 +140,7 @@ func (c *ShellCommand) ExecuteCommand(
 		// Process script template
 		script, err := c.processTemplate(c.ShellScript, args)
 		if err != nil {
+			log.Error().Err(err).Str("shell_script", c.ShellScript).Msg("failed to process shell script template")
 			return errors.Wrap(err, "failed to process shell script template")
 		}
 
@@ -149,22 +151,31 @@ func (c *ShellCommand) ExecuteCommand(
 		// Create temporary script file
 		tmpFile, err := os.CreateTemp("", "shell-*.sh")
 		if err != nil {
+			log.Error().Err(err).Msg("failed to create temporary script file")
 			return errors.Wrap(err, "failed to create temporary script file")
 		}
 		defer os.Remove(tmpFile.Name())
 
 		if _, err := tmpFile.WriteString(script); err != nil {
+			log.Error().Err(err).Msg("failed to write script to temporary file")
 			return errors.Wrap(err, "failed to write script to temporary file")
 		}
 		if err := tmpFile.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close temporary file")
 			return errors.Wrap(err, "failed to close temporary file")
 		}
 
 		// Make the script executable
 		if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+			log.Error().Err(err).Msg("failed to make script executable")
 			return errors.Wrap(err, "failed to make script executable")
 		}
 
+		// Copy script to debug file with timestamp
+		debugFile := fmt.Sprintf("/tmp/debug-%s.sh", time.Now().Format("20060102-150405"))
+		if err := os.WriteFile(debugFile, []byte(script), 0644); err != nil {
+			log.Warn().Err(err).Str("debug_file", debugFile).Msg("failed to write debug script file")
+		}
 		cmd = exec.CommandContext(ctx, "bash", tmpFile.Name())
 	} else {
 		// Process command template
@@ -172,6 +183,7 @@ func (c *ShellCommand) ExecuteCommand(
 		for i, arg := range c.Command {
 			processed, err := c.processTemplate(arg, args)
 			if err != nil {
+				log.Error().Err(err).Str("command_argument", arg).Msg("failed to process command argument template")
 				return errors.Wrapf(err, "failed to process command argument template: %s", arg)
 			}
 			processedArgs[i] = processed
@@ -191,6 +203,7 @@ func (c *ShellCommand) ExecuteCommand(
 		for k, v := range c.Environment {
 			processed, err := c.processTemplate(v, args)
 			if err != nil {
+				log.Error().Err(err).Str("environment_variable", k).Msg("failed to process environment variable template")
 				return errors.Wrapf(err, "failed to process environment variable template: %s", k)
 			}
 			env = append(env, fmt.Sprintf("%s=%s", k, processed))
@@ -205,6 +218,8 @@ func (c *ShellCommand) ExecuteCommand(
 	} else {
 		cmd.Stderr = os.Stderr
 	}
+
+	log.Info().Str("command", fmt.Sprintf("%v", cmd.Args)).Msg("executing command")
 
 	return cmd.Run()
 }

@@ -476,10 +476,13 @@ func (h *UIHandler) validateUIDefinition(def UIDefinition) []map[string]interfac
 				if items, hasItems := propsMap["items"]; hasItems {
 					if itemsList, ok := items.([]interface{}); ok {
 						for j, item := range itemsList {
-							if _, ok := item.(map[string]interface{}); !ok {
+							switch item.(type) {
+							case string, map[string]interface{}:
+								// These types are allowed
+							default:
 								errors = append(errors, map[string]interface{}{
 									"path":    fmt.Sprintf("components[%d].%s.items[%d]", i, typ, j),
-									"message": "List item must be a map",
+									"message": "List item must be a string or a map",
 								})
 							}
 						}
@@ -500,7 +503,7 @@ func (h *UIHandler) validateUIDefinition(def UIDefinition) []map[string]interfac
 // requiresID returns true if the component type requires an ID
 func (h *UIHandler) requiresID(componentType string) bool {
 	switch componentType {
-	case "text", "title":
+	case "text", "title", "list":
 		// These can optionally have IDs
 		return false
 	default:
