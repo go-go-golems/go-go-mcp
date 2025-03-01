@@ -87,10 +87,10 @@ Start the server with either stdio or SSE transport:
 
 ```bash
 # Start with stdio transport (default)
-go-go-mcp server start --transport stdio
+go-go-mcp start --transport stdio
 
 # Start with SSE transport
-go-go-mcp server start --transport sse --port 3001
+go-go-mcp start --transport sse --port 3001
 ```
 
 The server automatically watches configured repositories and files for changes, reloading tools when:
@@ -142,7 +142,7 @@ go-go-mcp server tools list --profile data
 Use the client subcommand to interact with an MCP server:
 
 ```bash
-# List available prompts (uses default server: go-go-mcp server start --transport stdio)
+# List available prompts (uses default server: go-go-mcp start --transport stdio)
 go-go-mcp client prompts list
 
 # List available tools
@@ -171,7 +171,7 @@ go-go-mcp can be used as a bridge to expose an SSE server as a stdio server. Thi
 
 ```bash
 # Start an SSE server on port 3000
-go-go-mcp server start --transport sse --port 3000
+go-go-mcp start --transport sse --port 3000
 
 # In another terminal, start the bridge to expose the SSE server as stdio
 go-go-mcp bridge --sse-url http://localhost:3000 --log-level debug
@@ -186,7 +186,7 @@ This is particularly useful when integrating with tools that only support stdio 
 Add the `--debug` flag to enable detailed logging:
 
 ```bash
-go-go-mcp server start --debug 
+go-go-mcp start --debug 
 ```
 
 ### Version Information
