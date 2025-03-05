@@ -1,7 +1,7 @@
 name: list-github-pull-requests
-short: List GitHub pull requests from mento-playground
+short: List GitHub pull requests from go-go-mcp
 long: |
-  Lists GitHub pull requests from the team-mento/mento-playground repository
+  Lists GitHub pull requests from the go-go-golems/go-go-mcp repository
   using the GitHub CLI (gh). Supports various filtering options and output formats.
   
   For search query syntax, see:
@@ -59,7 +59,7 @@ shell-script: |
   set -euo pipefail
 
   # Build the base command
-  CMD=(gh pr list -R team-mento/mento-playground)
+  CMD=(gh pr list -R go-go-golems/go-go-mcp)
 
   # Add filters
   {{ if ne .Args.state "open" }}

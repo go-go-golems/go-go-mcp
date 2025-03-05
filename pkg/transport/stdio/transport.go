@@ -15,6 +15,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type StdioTransport struct {
@@ -45,22 +46,12 @@ func NewStdioTransport(opts ...transport.TransportOption) (*StdioTransport, erro
 		scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB default
 	}
 
-	// Create a ConsoleWriter that writes to stderr with a SERVER tag
-	consoleWriter := zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		TimeFormat: time.RFC3339,
-		FormatMessage: func(i interface{}) string {
-			return fmt.Sprintf("[STDIO] %s", i)
-		},
-	}
-
-	// Create a new logger that writes to the tagged stderr
-	taggedLogger := options.Logger.Output(consoleWriter)
+	pid := os.Getpid()
 
 	return &StdioTransport{
 		scanner:    scanner,
 		writer:     json.NewEncoder(os.Stdout),
-		logger:     taggedLogger,
+		logger:     log.Logger.With().Int("pid", pid).Logger(),
 		signalChan: make(chan os.Signal, 1),
 	}, nil
 }
@@ -140,6 +131,7 @@ func (s *StdioTransport) Listen(ctx context.Context, handler transport.RequestHa
 			Msg("Scanner error in stdio transport")
 		return err
 	}
+
 }
 
 func (s *StdioTransport) Send(ctx context.Context, response *protocol.Response) error {
@@ -154,13 +146,16 @@ func (s *StdioTransport) Close(ctx context.Context) error {
 	s.logger.Info().Msg("Stopping stdio transport")
 
 	if s.cancel != nil {
+		s.logger.Debug().Msg("Cancelling context")
 		s.cancel()
 	}
 
 	// Wait for context to be done or timeout
 	done := make(chan struct{})
 	go func() {
+		s.logger.Debug().Msg("Waiting for goroutines to finish")
 		s.wg.Wait()
+		s.logger.Debug().Msg("Goroutines finished")
 		close(done)
 	}()
 

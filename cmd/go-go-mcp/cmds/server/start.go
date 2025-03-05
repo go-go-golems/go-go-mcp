@@ -139,9 +139,12 @@ func (c *StartCommand) Run(
 		if err := toolProvider.Watch(gctx); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				logger.Error().Err(err).Msg("failed to run file watcher")
+			} else {
+				logger.Debug().Msg("File watcher cancelled")
 			}
 			return err
 		}
+		logger.Info().Msg("File watcher finished")
 		return nil
 	})
 
@@ -151,6 +154,10 @@ func (c *StartCommand) Run(
 			logger.Error().Err(err).Msg("Server error")
 			return err
 		}
+		if err != nil {
+			logger.Warn().Err(err).Msg("Server stopped with error")
+		}
+		logger.Info().Msg("Server stopped")
 		return nil
 	})
 

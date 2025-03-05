@@ -279,6 +279,7 @@ func (h *UIHandler) handleUIUpdate() http.HandlerFunc {
 				"action":      response.Action,
 				"componentId": response.ComponentID,
 				"data":        response.Data,
+				"requestId":   response.RequestID,
 			}
 
 			// Add related events if there are any
@@ -380,6 +381,7 @@ func (h *UIHandler) handleUIAction() http.HandlerFunc {
 		if action.RequestID != "" && (action.Action == "clicked" || action.Action == "submitted") {
 			// Try to resolve the waiting request
 			resolved = h.waitRegistry.Resolve(action.RequestID, UIActionResponse{
+				RequestID:     action.RequestID,
 				Action:        action.Action,
 				ComponentID:   action.ComponentID,
 				Data:          action.Data,

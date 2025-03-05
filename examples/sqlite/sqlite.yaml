@@ -4,16 +4,20 @@ long: |
   This tool allows you to execute SQL commands on a SQLite database file.
   You can run queries, view schema information, or perform database operations.
   
+  If you don't specify a database file with --db, the tool will use the database
+  previously opened with the sql-open command.
+  
   Examples:
   - List all tables: go-go-mcp run-command sqlite.yaml --db my.db --sql ".tables"
   - Run a query: go-go-mcp run-command sqlite.yaml --db my.db --sql "SELECT * FROM users"
   - Export as CSV: go-go-mcp run-command sqlite.yaml --db my.db --sql "SELECT * FROM users" --csv
+  - Use previously opened database: go-go-mcp run-command sqlite.yaml --sql "SELECT * FROM users"
 
 flags:
   - name: db
     type: string
-    help: Path to the SQLite database file
-    required: true
+    help: Path to the SQLite database file (optional if previously opened with sql-open)
+    required: false
   - name: sql
     type: string
     help: SQL command to execute
@@ -41,10 +45,30 @@ shell-script: |
     exit 1
   fi
   
-  # Check if database file exists
-  if [[ ! -f "{{ .Args.db }}" ]]; then
-    echo "Warning: Database file '{{ .Args.db }}' does not exist. It will be created if you execute a CREATE statement." >&2
+  # Determine which database file to use
+  DB_FILE="{{ if .Args.db }}{{ .Args.db }}{{ end }}"
+  if [[ -z "$DB_FILE" ]]; then
+    if [[ -f "/tmp/db-name.txt" ]]; then
+      DB_FILE=$(cat /tmp/db-name.txt)
+      echo "Using database from sql-open: $DB_FILE"
+    else
+      echo "Error: No database specified and no previously opened database found." >&2
+      echo "Please specify a database with --db or use sql-open first." >&2
+      exit 1
+    fi
   fi
+  
+  # Check if database file exists
+  if [[ ! -f "$DB_FILE" ]]; then
+    echo "Warning: Database file '$DB_FILE' does not exist. It will be created if you execute a CREATE statement." >&2
+  fi
+  
+  # Escape the SQL command by writing it to a temporary file
+  SQL_FILE=$(mktemp)
+  trap 'rm -f "$SQL_FILE"' EXIT
+  
+  # Write the SQL command to the temporary file
+  echo "{{ .Args.sql }}" > "$SQL_FILE"
   
   # Build sqlite3 command with options
   CMD="sqlite3"
@@ -65,11 +89,11 @@ shell-script: |
   fi
   
   # Add database file
-  CMD+=" '{{ .Args.db }}'"
+  CMD+=" '$DB_FILE'"
   
-  # Add SQL command
-  CMD+=" '{{ .Args.sql }}'"
+  # Use the SQL file instead of passing the SQL directly
+  CMD+=" < '$SQL_FILE'"
   
   # Execute the command
-  echo "Executing: $CMD"
+  echo "Executing SQL from temporary file: $SQL_FILE"
   eval $CMD 

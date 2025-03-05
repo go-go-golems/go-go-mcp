@@ -1,7 +1,7 @@
 name: comment-issue
 short: Add a comment to a GitHub issue
 long: |
-  Adds a comment to a GitHub issue in the team-mento/mento-playground repository.
+  Adds a comment to a GitHub issue in the go-go-golems/go-go-mcp repository.
   If no body text is provided through flags, it will interactively prompt for the comment text.
 
 flags:
@@ -38,32 +38,41 @@ shell-script: |
   set -euo pipefail
 
   # Build the base command
-  CMD=(gh issue comment -R team-mento/mento-playground)
+  CMD=(gh issue comment -R go-go-golems/go-go-mcp)
 
   # Add issue number/URL
   CMD+=("{{ .Args.issue }}")
 
-  # Add comment options
-  {{ if .Args.body }}
-  CMD+=(--body "{{ .Args.body }}")
-  {{ end }}
-
-  {{ if .Args.body_file }}
-  CMD+=(--body-file "{{ .Args.body_file }}")
-  {{ end }}
-
-  {{ if .Args.edit_last }}
-  CMD+=(--edit-last)
-  {{ end }}
-
-  {{ if .Args.editor }}
-  CMD+=(--editor)
-  {{ end }}
-
-  {{ if .Args.web }}
-  CMD+=(--web)
-  {{ end }}
+  # Handle body content with proper escaping
+  if [[ "{{ .Args.body }}" != "" ]]; then
+    # Create a temporary file for the body content
+    BODY_FILE=$(mktemp)
+    trap 'rm -f "$BODY_FILE"' EXIT
+    
+    # Write the body content to the temporary file
+    echo "{{ .Args.body }}" > "$BODY_FILE"
+    
+    # Use the temporary file for the body
+    CMD+=(--body-file "$BODY_FILE")
+    echo "Using body content from command line argument (stored in temporary file)"
+  elif [[ "{{ .Args.body_file }}" != "" ]]; then
+    # Use the provided body file
+    CMD+=(--body-file "{{ .Args.body_file }}")
+    echo "Using body content from file: {{ .Args.body_file }}"
+  elif [[ "{{ .Args.edit_last }}" == "true" ]]; then
+    # Edit the last comment
+    CMD+=(--edit-last)
+    echo "Editing the last comment"
+  elif [[ "{{ .Args.editor }}" == "true" ]]; then
+    # Open in editor
+    CMD+=(--editor)
+    echo "Opening editor to write comment"
+  elif [[ "{{ .Args.web }}" == "true" ]]; then
+    # Open in web browser
+    CMD+=(--web)
+    echo "Opening web browser to write comment"
+  fi
 
   # Execute the command
-  echo "DEBUG: Executing: ${CMD[@]}"
+  echo "Executing GitHub issue comment command"
   "${CMD[@]}" 

@@ -1,0 +1,30 @@
+name: sql-open
+short: Open a SQLite database for subsequent operations
+long: |
+  This tool stores a SQLite database filename in a temporary file (/tmp/db-name.txt)
+  so that it can be used by subsequent sqlite commands without specifying the --db parameter.
+  
+  Examples:
+  - Open a database: go-go-mcp run-command sql-open.yaml --db my.db
+  - Then run queries: go-go-mcp run-command sqlite.yaml --sql "SELECT * FROM users"
+
+flags:
+  - name: db
+    type: string
+    help: Path to the SQLite database file
+    required: true
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Store the database filename in a temporary file
+  echo "{{ .Args.db }}" > /tmp/db-name.txt
+  
+  # Check if the database file exists
+  if [[ ! -f "{{ .Args.db }}" ]]; then
+    echo "Warning: Database file '{{ .Args.db }}' does not exist. It will be created when you execute a CREATE statement." >&2
+  else
+    echo "Database '{{ .Args.db }}' is now open for subsequent operations."
+  fi
+  
