@@ -1,7 +1,7 @@
 name: list-github-issues
-short: List GitHub issues from mento-playground
+short: List GitHub issues from go-go-mcp
 long: |
-  Lists GitHub issues from the team-mento/mento-playground repository
+  Lists GitHub issues from the go-go-golems/go-go-mcp repository
   using the GitHub CLI (gh). Supports various filtering options and output formats.
   
   For search query syntax, see:
@@ -54,7 +54,7 @@ shell-script: |
   set -euo pipefail
 
   # Build the base command
-  CMD=(gh issue list -R team-mento/mento-playground)
+  CMD=(gh issue list -R go-go-golems/go-go-mcp)
 
   # Add filters
   {{ if not (eq .Args.state "open") }}

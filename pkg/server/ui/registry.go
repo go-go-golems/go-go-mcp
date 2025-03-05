@@ -7,6 +7,7 @@ import (
 
 // UIActionResponse represents the response from a UI action
 type UIActionResponse struct {
+	RequestID     string
 	Action        string
 	ComponentID   string
 	Data          map[string]interface{}

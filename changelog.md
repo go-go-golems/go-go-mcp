@@ -1384,3 +1384,59 @@ The command supports multiple conversion methods (Python, yq, or basic sed) and 
 - Created example YAML form definition
 - Added comprehensive documentation in README.md
 - Created helper script for easy usage
+
+## Added SQLite Session Management
+
+Added SQLite session management to simplify working with databases across multiple commands.
+
+- Created new `sql-open` tool that stores a database filename for subsequent operations
+- Modified the `sqlite` tool to make the `db` parameter optional
+- Added automatic detection of previously opened databases
+- Improved error handling with helpful messages when no database is specified
+- Enhanced documentation with examples of session-based workflow
+- This improvement streamlines database operations by reducing repetitive parameter entry
+
+## Enhanced SQLite Tool Security
+
+Improved the SQLite shell command tool to safely handle SQL commands with special characters and prevent shell injection vulnerabilities.
+
+- Modified the tool to write SQL commands to a temporary file instead of passing them directly to the command line
+- Added proper cleanup of temporary files using trap
+- Improved command execution by using input redirection
+- Enhanced logging to show the temporary file path
+- This change makes the tool safer for use with complex SQL queries containing quotes, semicolons, or other special characters
+
+## Added SQLite Shell Command Tool
+
+Created a new shell command tool for interacting with SQLite databases, making it easy to execute SQL queries and commands.
+
+- Added `examples/sqlite/sqlite.yaml` with a complete SQLite command implementation
+- Implemented support for CSV output format
+- Added options for displaying column headers
+- Included query timeout configuration
+- Added error handling for missing SQLite installation and database files
+- Provided detailed examples in the command documentation
+
+## Enhanced GitHub Issue Comment Tool
+
+Improved the GitHub issue comment tool to safely handle comment bodies with special characters and prevent shell injection vulnerabilities.
+
+- Modified the tool to write comment bodies to a temporary file instead of passing them directly to the command line
+- Added proper cleanup of temporary files using trap
+- Improved command execution by using the --body-file option
+- Enhanced logging with descriptive messages for each operation mode
+- Simplified the command logic with a clear if-elif structure
+- This change makes the tool safer for use with complex comment bodies containing quotes, newlines, or other special characters
+
+## Logging Improvements
+
+Added millisecond precision to log timestamps by configuring zerolog to use RFC3339Nano format.
+
+- Configure zerolog to use RFC3339Nano timestamp format for more precise logging
+
+## Tool Name Format Control
+
+Added command-line flag to control dash/underscore conversion in tool names and arguments:
+- Added `--convert-dashes` flag to server command
+- Propagated conversion option through server layer to tool provider
+- Allows consistent handling of tool names and arguments across all tools

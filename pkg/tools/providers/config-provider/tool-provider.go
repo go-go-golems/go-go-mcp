@@ -33,6 +33,7 @@ type ConfigToolProvider struct {
 	directories   []repositories.Directory
 	files         []string
 	watching      bool
+	convertDashes bool // controls whether to convert dashes to underscores in tool names
 }
 
 type ConfigToolProviderOption func(*ConfigToolProvider) error
@@ -121,6 +122,13 @@ func WithWatch(watch bool) ConfigToolProviderOption {
 	}
 }
 
+func WithConvertDashes(convert bool) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.convertDashes = convert
+		return nil
+	}
+}
+
 // NewConfigToolProvider creates a new ConfigToolProvider with the given options
 func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	provider := &ConfigToolProvider{
@@ -130,6 +138,7 @@ func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProv
 		directories:   []repositories.Directory{},
 		files:         []string{},
 		watching:      false,
+		convertDashes: false,
 	}
 
 	for _, option := range options {
@@ -171,6 +180,22 @@ func ConvertCommandToTool(desc *cmds.CommandDescription) (protocol.Tool, error) 
 	return tool, nil
 }
 
+// convertToolName converts tool names between dash and underscore format based on the provider's configuration
+func (p *ConfigToolProvider) convertToolName(name string) string {
+	if !p.convertDashes {
+		return name
+	}
+	return strings.ReplaceAll(name, "-", "_")
+}
+
+// revertToolName converts tool names from underscore back to dash format based on the provider's configuration
+func (p *ConfigToolProvider) revertToolName(name string) string {
+	if !p.convertDashes {
+		return name
+	}
+	return strings.ReplaceAll(name, "_", "-")
+}
+
 // ListTools implements pkg.ToolProvider interface
 func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]protocol.Tool, string, error) {
 	var tools []protocol.Tool
@@ -182,6 +207,9 @@ func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]prot
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to convert command to tool")
 		}
+		if p.convertDashes {
+			tool.Name = p.convertToolName(tool.Name)
+		}
 		tools = append(tools, tool)
 	}
 
@@ -190,6 +218,9 @@ func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]prot
 		tool, err := ConvertCommandToTool(cmd.Description())
 		if err != nil {
 			return nil, "", errors.Wrapf(err, "failed to convert command to tool")
+		}
+		if p.convertDashes {
+			tool.Name = p.convertToolName(tool.Name)
 		}
 		tools = append(tools, tool)
 	}
@@ -209,14 +240,33 @@ func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]prot
 
 // CallTool implements pkg.ToolProvider interface
 func (p *ConfigToolProvider) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
-	cmd, ok := p.repository.GetCommand(name)
+	// Convert the tool name back to its original form if needed
+	originalName := p.revertToolName(name)
+
+	cmd, ok := p.repository.GetCommand(originalName)
 
 	if ok {
+		// Convert argument keys if needed
+		if p.convertDashes {
+			newArgs := make(map[string]interface{}, len(arguments))
+			for k, v := range arguments {
+				newArgs[p.revertToolName(k)] = v
+			}
+			arguments = newArgs
+		}
 		return p.executeCommand(ctx, cmd, arguments)
 	}
 
 	// Try shell commands
-	if cmd, ok := p.shellCommands[name]; ok {
+	if cmd, ok := p.shellCommands[originalName]; ok {
+		// Convert argument keys if needed
+		if p.convertDashes {
+			newArgs := make(map[string]interface{}, len(arguments))
+			for k, v := range arguments {
+				newArgs[p.revertToolName(k)] = v
+			}
+			arguments = newArgs
+		}
 		return p.executeCommand(ctx, cmd, arguments)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -59,9 +61,10 @@ type SSEHandlers struct {
 }
 
 func NewSSETransport(opts ...transport.TransportOption) (*SSETransport, error) {
+	pid := os.Getpid()
 	options := &transport.TransportOptions{
 		MaxMessageSize: 1024 * 1024, // 1MB default
-		Logger:         zerolog.Nop(),
+		Logger:         log.Logger.With().Int("pid", pid).Logger(),
 	}
 
 	for _, opt := range opts {
@@ -274,6 +277,9 @@ func (s *SSETransport) handleSSE(w http.ResponseWriter, r *http.Request) {
 		remoteAddr:  r.RemoteAddr,
 		userAgent:   r.UserAgent(),
 	}
+	log.Info().Str("client_id", clientID).
+		Str("session_id", sessionID).
+		Msg("New client connected")
 	s.clients[clientID] = client
 	s.mu.Unlock()
 
