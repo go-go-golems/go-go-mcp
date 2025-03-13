@@ -132,7 +132,8 @@ func (c *StartCommand) Run(
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	g, gctx := errgroup.WithContext(ctx)
+	cancelCtx, cancel := context.WithCancel(ctx)
+	g, gctx := errgroup.WithContext(cancelCtx)
 
 	// Start file watcher
 	g.Go(func() error {
@@ -150,6 +151,7 @@ func (c *StartCommand) Run(
 
 	// Start server
 	g.Go(func() error {
+		defer cancel()
 		if err := s.Start(gctx); err != nil && err != io.EOF {
 			logger.Error().Err(err).Msg("Server error")
 			return err
