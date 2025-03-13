@@ -207,13 +207,18 @@ prompt: |
        * Date: now, date, dateInZone
        * Encoding: b64enc, b64dec, toJson
 
-  5. Error Handling:
+  5. Shell Argument Safety:
+     - Always quote or escape shell arguments to avoid interpolation errors
+     - Use single quotes around variable expansions: {{ "'{{ .Args.value }}'" }}
+     - Be especially careful with user-provided input that might contain spaces or special characters
+
+  6. Error Handling:
      - Always use set -euo pipefail in shell scripts
      - Add input validation
      - Include proper error messages
      - Consider cleanup on failure
 
-  6. Security:
+  7. Security:
      - Validate and sanitize inputs
      - Use environment variables for secrets
      - Consider working directory implications
