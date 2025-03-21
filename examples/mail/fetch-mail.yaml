@@ -1,0 +1,125 @@
+# Metadata Section (Required)
+name: fetch_mail
+short: Fetch emails with specified filters
+long: |
+  Use this command to fetch emails from the server with various filters such as date, sender, recipient, and content.
+  This tool is specifically designed for precise email retrieval and is ideal for integration with language model tool calling.
+
+# Parameter Definition
+flags:
+  - name: before
+    type: date
+    help: Fetch emails before this date (YYYY-MM-DD)
+    
+  - name: body_contains
+    type: string
+    help: Fetch emails with body containing this string
+    
+  - name: content_max_length
+    type: int
+    help: Maximum length of content to display
+    default: 1000
+    
+  - name: has_flags
+    type: stringList
+    help: Fetch emails with specific flags
+    
+  - name: limit
+    type: int
+    help: Maximum number of emails to fetch
+    default: 10
+    
+  - name: not_has_flags
+    type: stringList
+    help: Fetch emails without specific flags
+    
+  - name: since
+    type: date
+    help: Fetch emails since this date (YYYY-MM-DD)
+    
+  - name: subject_contains
+    type: string
+    help: Fetch emails with subject containing this string
+    
+  - name: subject
+    type: string
+    help: Fetch emails with an exact subject match
+    
+  - name: from
+    type: string
+    help: Fetch emails from a specific sender (supports partial matches like @gmail.com)
+    
+  - name: to
+    type: string
+    help: Fetch emails sent to a specific recipient (supports partial matches like @gmail.com)
+    
+  - name: within_days
+    type: int
+    help: Fetch emails within the last N days
+
+# Execution Configuration
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  source /Users/manuel/code/wesen/corporate-headquarters/smailnail/.envrc
+  export PATH="/Users/manuel/.local/bin:$PATH"
+
+  CMD="smailnail fetch-mail"
+  
+  # Always include content
+  CMD="$CMD --include-content"
+  
+  # Add default parameters with set values
+  CMD="$CMD --content-max-length={{ .Args.content_max_length }}"
+  CMD="$CMD --limit={{ .Args.limit }}"
+  
+  # Add optional parameters only if they are set
+  {{ if .Args.before }}
+  CMD="$CMD --before='{{ .Args.before | date "2006-01-02" }}'"
+  {{ end }}
+  
+  {{ if .Args.body_contains }}
+  CMD="$CMD --body-contains='{{ .Args.body_contains }}'"
+  {{ end }}
+  
+  {{ if .Args.from }}
+  CMD="$CMD --from='{{ .Args.from }}'"
+  {{ end }}
+  
+  {{ if .Args.has_flags }}
+  CMD="$CMD --has-flags='{{ .Args.has_flags | join "," }}'"
+  {{ end }}
+  
+  {{ if .Args.not_has_flags }}
+  CMD="$CMD --not-has-flags='{{ .Args.not_has_flags | join "," }}'"
+  {{ end }}
+  
+  {{ if .Args.since }}
+  CMD="$CMD --since='{{ .Args.since | date "2006-01-02" }}'"
+  {{ end }}
+  
+  {{ if .Args.subject }}
+  CMD="$CMD --subject='{{ .Args.subject }}'"
+  {{ end }}
+  
+  {{ if .Args.subject_contains }}
+  CMD="$CMD --subject-contains='{{ .Args.subject_contains }}'"
+  {{ end }}
+  
+  {{ if .Args.to }}
+  CMD="$CMD --to='{{ .Args.to }}'"
+  {{ end }}
+  
+  {{ if .Args.within_days }}
+  CMD="$CMD --within-days='{{ .Args.within_days }}'"
+  {{ end }}
+
+  CMD="$CMD --output yaml"
+  
+  # Execute the command
+  echo "Executing: $CMD"
+  eval "$CMD"
+
+# Optional Configuration
+capture-stderr: true

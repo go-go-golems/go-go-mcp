@@ -128,6 +128,51 @@ func (c *ShellCommand) processTemplate(
 	return buf.String(), nil
 }
 
+// debugShellCommand is a helper function that executes a shell command and logs its output
+func (c *ShellCommand) debugShellCommand(ctx context.Context, name string, command string) error {
+	log.Info().Str("test", name).Str("command", command).Msg("Running test command")
+
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", command)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+
+	err := cmd.Run()
+	if err != nil {
+		log.Error().Err(err).Str("test", name).Str("output", output.String()).Msg("Command failed")
+		return errors.Wrapf(err, "failed to run %s test command", name)
+	}
+
+	log.Info().Str("test", name).Str("output", output.String()).Msg("Command succeeded")
+	return nil
+}
+
+// runDebugTests runs a series of debug tests to verify shell command execution
+func (c *ShellCommand) runDebugTests(ctx context.Context) error {
+	// First check if /bin/bash exists
+	if _, err := os.Stat("/bin/bash"); os.IsNotExist(err) {
+		log.Error().Msg("/bin/bash not found, cannot run shell commands")
+		return errors.New("/bin/bash not found")
+	}
+
+	// Test basic echo command
+	if err := c.debugShellCommand(ctx, "echo", "echo 'hello'"); err != nil {
+		return err
+	}
+
+	// Check PATH environment variable
+	if err := c.debugShellCommand(ctx, "path", "echo $PATH"); err != nil {
+		return err
+	}
+
+	// List contents of /tmp and /bin
+	if err := c.debugShellCommand(ctx, "ls", "ls -la /tmp && echo '=== /bin ===' && ls -la /bin"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ExecuteCommand handles the actual command execution
 func (c *ShellCommand) ExecuteCommand(
 	ctx context.Context,
@@ -149,25 +194,29 @@ func (c *ShellCommand) ExecuteCommand(
 		log.Debug().Str("script", script).Msg("executing shell script")
 
 		// Create temporary script file
-		tmpFile, err := os.CreateTemp("", "shell-*.sh")
+		tmpFile, err := os.CreateTemp("/Users/manuel/tmp", "shell-*.sh")
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create temporary script file")
 			return errors.Wrap(err, "failed to create temporary script file")
 		}
-		defer os.Remove(tmpFile.Name())
+		log.Info().Str("debug_file", tmpFile.Name()).Msg("created temporary script file")
+		defer func() {
+			os.Remove(tmpFile.Name())
+			log.Info().Str("debug_file", tmpFile.Name()).Msg("removed temporary script file")
+		}()
 
 		if _, err := tmpFile.WriteString(script); err != nil {
-			log.Error().Err(err).Msg("failed to write script to temporary file")
+			log.Error().Str("file", tmpFile.Name()).Err(err).Msg("failed to write script to temporary file")
 			return errors.Wrap(err, "failed to write script to temporary file")
 		}
 		if err := tmpFile.Close(); err != nil {
-			log.Error().Err(err).Msg("failed to close temporary file")
+			log.Error().Str("file", tmpFile.Name()).Err(err).Msg("failed to close temporary file")
 			return errors.Wrap(err, "failed to close temporary file")
 		}
 
 		// Make the script executable
 		if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
-			log.Error().Err(err).Msg("failed to make script executable")
+			log.Error().Str("file", tmpFile.Name()).Err(err).Msg("failed to make script executable")
 			return errors.Wrap(err, "failed to make script executable")
 		}
 
@@ -176,7 +225,16 @@ func (c *ShellCommand) ExecuteCommand(
 		if err := os.WriteFile(debugFile, []byte(script), 0644); err != nil {
 			log.Warn().Err(err).Str("debug_file", debugFile).Msg("failed to write debug script file")
 		}
-		cmd = exec.CommandContext(ctx, "bash", tmpFile.Name())
+		log.Info().Str("debug_file", debugFile).Msg("wrote debug script file")
+
+		// Run debug tests before executing the actual command
+		// if err := c.runDebugTests(ctx); err != nil {
+		// 	log.Error().Err(err).Msg("Debug tests failed")
+		// 	return err
+		// }
+
+		cmd = exec.CommandContext(ctx, "/bin/bash", tmpFile.Name())
+		log.Debug().Str("command", cmd.String()).Msg("command")
 	} else {
 		// Process command template
 		processedArgs := make([]string, len(c.Command))
@@ -214,8 +272,10 @@ func (c *ShellCommand) ExecuteCommand(
 	// Setup output streams
 	cmd.Stdout = w
 	if c.CaptureStderr {
+		log.Debug().Msg("capturing stderr")
 		cmd.Stderr = w
 	} else {
+		log.Debug().Msg("not capturing stderr")
 		cmd.Stderr = os.Stderr
 	}
 
@@ -233,7 +293,14 @@ func (c *ShellCommand) RunIntoWriter(
 	// Get arguments from parsed layers
 	args := parsedLayers.GetDefaultParameterLayer().Parameters.ToMap()
 
-	return c.ExecuteCommand(ctx, args, w)
+	log.Debug().Interface("args", args).Msg("executing command")
+	err := c.ExecuteCommand(ctx, args, w)
+	if err != nil {
+		log.Error().Interface("args", args).Err(err).Msg("failed to execute command")
+		return errors.Wrap(err, "failed to execute command")
+	}
+
+	return nil
 }
 
 // LoadShellCommandFromYAML creates a new ShellCommand from YAML data
