@@ -35,12 +35,6 @@ Supports both stdio and SSE transports for client-server communication.
 
 The server implements the Model Context Protocol (MCP) specification,
 providing a framework for building MCP servers and clients.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// reinitialize the logger because we can now parse --log-level and co
-		// from the command line flag
-		err := clay.InitLogger()
-		cobra.CheckErr(err)
-	},
 	Version: version,
 }
 

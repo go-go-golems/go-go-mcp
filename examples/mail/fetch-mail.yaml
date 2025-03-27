@@ -62,8 +62,8 @@ shell-script: |
   #!/bin/bash
   set -euo pipefail
 
-  source /Users/manuel/code/wesen/corporate-headquarters/smailnail/.envrc
-  export PATH="/Users/manuel/.local/bin:$PATH"
+  source /home/manuel/code/wesen/corporate-headquarters/smailnail/.envrc
+  export PATH="/home/manuel/.local/bin:$PATH"
 
   CMD="smailnail fetch-mail"
   
