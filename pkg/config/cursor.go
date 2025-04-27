@@ -9,7 +9,8 @@ import (
 
 // CursorMCPConfig represents the configuration for Cursor MCP
 type CursorMCPConfig struct {
-	MCPServers map[string]CursorMCPServer `json:"mcpServers"`
+	MCPServers      map[string]CursorMCPServer `json:"mcpServers"`
+	DisabledServers map[string]CursorMCPServer `json:"disabledServersConfig,omitempty"`
 }
 
 // CursorMCPServer represents a server configuration for Cursor
@@ -161,18 +162,93 @@ func (e *CursorMCPEditor) GetConfigPath() string {
 func (e *CursorMCPEditor) ListServers() map[string]CursorMCPServer {
 	servers := make(map[string]CursorMCPServer)
 
-	// Add MCP servers
+	// Add enabled MCP servers
 	for name, server := range e.config.MCPServers {
 		servers[name] = server
 	}
 
+	// Add disabled MCP servers
+	if e.config.DisabledServers != nil {
+		for name, server := range e.config.DisabledServers {
+			servers[name] = server
+		}
+	}
+
 	return servers
+}
+
+// EnableMCPServer enables a previously disabled MCP server
+func (e *CursorMCPEditor) EnableMCPServer(name string) error {
+	if len(e.config.DisabledServers) == 0 {
+		return fmt.Errorf("no disabled servers found")
+	}
+
+	// Check if server exists in disabled servers
+	server, exists := e.config.DisabledServers[name]
+	if !exists {
+		return fmt.Errorf("server '%s' is not disabled", name)
+	}
+
+	// Move server from disabled to enabled
+	if e.config.MCPServers == nil {
+		e.config.MCPServers = make(map[string]CursorMCPServer)
+	}
+	e.config.MCPServers[name] = server
+	delete(e.config.DisabledServers, name)
+
+	return nil
+}
+
+// DisableMCPServer disables an MCP server without removing its configuration
+func (e *CursorMCPEditor) DisableMCPServer(name string) error {
+	// Check if server exists
+	server, exists := e.config.MCPServers[name]
+	if !exists {
+		return fmt.Errorf("MCP server '%s' not found", name)
+	}
+
+	// Move server to disabled
+	if e.config.DisabledServers == nil {
+		e.config.DisabledServers = make(map[string]CursorMCPServer)
+	}
+	e.config.DisabledServers[name] = server
+	delete(e.config.MCPServers, name)
+
+	return nil
+}
+
+// IsServerDisabled checks if a server is disabled
+func (e *CursorMCPEditor) IsServerDisabled(name string) bool {
+	if e.config.DisabledServers == nil {
+		return false
+	}
+	_, exists := e.config.DisabledServers[name]
+	return exists
+}
+
+// ListDisabledServers returns a list of disabled server names
+func (e *CursorMCPEditor) ListDisabledServers() []string {
+	if e.config.DisabledServers == nil {
+		return []string{}
+	}
+	disabledServers := make([]string, 0, len(e.config.DisabledServers))
+	for name := range e.config.DisabledServers {
+		disabledServers = append(disabledServers, name)
+	}
+	return disabledServers
 }
 
 // GetServer retrieves a server's configuration by name
 func (e *CursorMCPEditor) GetServer(name string) (CursorMCPServer, error) {
 	server, exists := e.config.MCPServers[name]
 	if !exists {
+		// Check in disabled servers
+		if e.config.DisabledServers != nil {
+			server, exists = e.config.DisabledServers[name]
+			if exists {
+				return server, nil
+			}
+		}
 		return CursorMCPServer{}, fmt.Errorf("MCP server '%s' not found", name)
 	}
 	return server, nil

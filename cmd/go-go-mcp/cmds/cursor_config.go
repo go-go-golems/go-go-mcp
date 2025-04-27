@@ -25,6 +25,8 @@ func NewCursorConfigCommand() *cobra.Command {
 		newCursorConfigRemoveMCPServerCommand(),
 		newCursorConfigListServersCommand(),
 		newCursorConfigAddGoGoServerCommand(),
+		newCursorConfigEnableServerCommand(),
+		newCursorConfigDisableServerCommand(),
 	)
 
 	return cmd
@@ -426,7 +428,11 @@ func newCursorConfigListServersCommand() *cobra.Command {
 
 			fmt.Printf("Configured MCP servers in %s:\n\n", editor.GetConfigPath())
 			for name, server := range servers {
-				fmt.Printf("%s:\n", name)
+				disabled := ""
+				if editor.IsServerDisabled(name) {
+					disabled = " (disabled)"
+				}
+				fmt.Printf("%s%s:\n", name, disabled)
 				if server.Command != "" {
 					fmt.Printf("  Command: %s\n", server.Command)
 					if len(server.Args) > 0 {
@@ -442,6 +448,15 @@ func newCursorConfigListServersCommand() *cobra.Command {
 					}
 				}
 				fmt.Println()
+			}
+
+			// List disabled servers
+			disabled := editor.ListDisabledServers()
+			if len(disabled) > 0 {
+				fmt.Println("Disabled servers:")
+				for _, name := range disabled {
+					fmt.Printf("  - %s\n", name)
+				}
 			}
 
 			return nil
@@ -554,6 +569,122 @@ If a server with the same name already exists, the command will fail unless --ov
 	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Environment variables in KEY=VALUE format (can be specified multiple times)")
 	cmd.Flags().BoolVarP(&overwrite, "overwrite", "w", false, "Overwrite existing server if it exists")
 	cmd.Flags().StringArrayVar(&additionalArgs, "args", []string{}, "Additional arguments to pass to the server command")
+
+	return cmd
+}
+
+func newCursorConfigEnableServerCommand() *cobra.Command {
+	var configPath string
+	var projectDir string
+	var global bool
+
+	cmd := &cobra.Command{
+		Use:   "enable-server NAME",
+		Short: "Enable a disabled MCP server",
+		Long:  `Enables a previously disabled MCP server configuration.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if configPath == "" {
+				var err error
+				if global {
+					configPath, err = config.GetGlobalCursorMCPConfigPath()
+					if err != nil {
+						return err
+					}
+				} else {
+					if projectDir == "" {
+						var err error
+						projectDir, err = os.Getwd()
+						if err != nil {
+							return fmt.Errorf("could not get current directory: %w", err)
+						}
+					}
+					configPath = config.GetProjectCursorMCPConfigPath(projectDir)
+				}
+			}
+
+			editor, err := config.NewCursorMCPEditor(configPath)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			if err := editor.EnableMCPServer(name); err != nil {
+				return err
+			}
+
+			if err := editor.Save(); err != nil {
+				return err
+			}
+
+			fmt.Printf("Successfully enabled MCP server '%s'\n", name)
+			fmt.Printf("Configuration saved to: %s\n", editor.GetConfigPath())
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to config file")
+	cmd.Flags().StringVarP(&projectDir, "project-dir", "p", "", "Project directory (defaults to current directory)")
+	cmd.Flags().BoolVarP(&global, "global", "g", true, "Use global configuration (~/.cursor/mcp.json)")
+
+	return cmd
+}
+
+func newCursorConfigDisableServerCommand() *cobra.Command {
+	var configPath string
+	var projectDir string
+	var global bool
+
+	cmd := &cobra.Command{
+		Use:   "disable-server NAME",
+		Short: "Disable an MCP server",
+		Long:  `Disables an MCP server configuration without removing it.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if configPath == "" {
+				var err error
+				if global {
+					configPath, err = config.GetGlobalCursorMCPConfigPath()
+					if err != nil {
+						return err
+					}
+				} else {
+					if projectDir == "" {
+						var err error
+						projectDir, err = os.Getwd()
+						if err != nil {
+							return fmt.Errorf("could not get current directory: %w", err)
+						}
+					}
+					configPath = config.GetProjectCursorMCPConfigPath(projectDir)
+				}
+			}
+
+			editor, err := config.NewCursorMCPEditor(configPath)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			if err := editor.DisableMCPServer(name); err != nil {
+				return err
+			}
+
+			if err := editor.Save(); err != nil {
+				return err
+			}
+
+			fmt.Printf("Successfully disabled MCP server '%s'\n", name)
+			fmt.Printf("Configuration saved to: %s\n", editor.GetConfigPath())
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to config file")
+	cmd.Flags().StringVarP(&projectDir, "project-dir", "p", "", "Project directory (defaults to current directory)")
+	cmd.Flags().BoolVarP(&global, "global", "g", true, "Use global configuration (~/.cursor/mcp.json)")
 
 	return cmd
 }
