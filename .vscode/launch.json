@@ -17,7 +17,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/go-go-mcp",
-            "args": ["server", "start", "--profile", "all", "--log-level", "debug"],
+            "args": ["server", "start", "--log-level", "debug", "--internal-servers", "sqlite"],
             "cwd": "${workspaceFolder}"
         },
         {
