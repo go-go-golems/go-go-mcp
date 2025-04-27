@@ -128,51 +128,6 @@ func (c *ShellCommand) processTemplate(
 	return buf.String(), nil
 }
 
-// debugShellCommand is a helper function that executes a shell command and logs its output
-func (c *ShellCommand) debugShellCommand(ctx context.Context, name string, command string) error {
-	log.Info().Str("test", name).Str("command", command).Msg("Running test command")
-
-	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", command)
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-
-	err := cmd.Run()
-	if err != nil {
-		log.Error().Err(err).Str("test", name).Str("output", output.String()).Msg("Command failed")
-		return errors.Wrapf(err, "failed to run %s test command", name)
-	}
-
-	log.Info().Str("test", name).Str("output", output.String()).Msg("Command succeeded")
-	return nil
-}
-
-// runDebugTests runs a series of debug tests to verify shell command execution
-func (c *ShellCommand) runDebugTests(ctx context.Context) error {
-	// First check if /bin/bash exists
-	if _, err := os.Stat("/bin/bash"); os.IsNotExist(err) {
-		log.Error().Msg("/bin/bash not found, cannot run shell commands")
-		return errors.New("/bin/bash not found")
-	}
-
-	// Test basic echo command
-	if err := c.debugShellCommand(ctx, "echo", "echo 'hello'"); err != nil {
-		return err
-	}
-
-	// Check PATH environment variable
-	if err := c.debugShellCommand(ctx, "path", "echo $PATH"); err != nil {
-		return err
-	}
-
-	// List contents of /tmp and /bin
-	if err := c.debugShellCommand(ctx, "ls", "ls -la /tmp && echo '=== /bin ===' && ls -la /bin"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // ExecuteCommand handles the actual command execution
 func (c *ShellCommand) ExecuteCommand(
 	ctx context.Context,
@@ -201,7 +156,9 @@ func (c *ShellCommand) ExecuteCommand(
 		}
 		log.Info().Str("debug_file", tmpFile.Name()).Msg("created temporary script file")
 		defer func() {
-			os.Remove(tmpFile.Name())
+			if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+				log.Warn().Err(removeErr).Str("file", tmpFile.Name()).Msg("Failed to remove temporary file")
+			}
 			log.Info().Str("debug_file", tmpFile.Name()).Msg("removed temporary script file")
 		}()
 

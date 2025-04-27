@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -182,26 +183,54 @@ func (s *SSEBridgeServer) handleMessage(message string) error {
 		return s.sendError(nil, -32700, "Parse error", err)
 	}
 
-	// Forward the request to the SSE server
-	response, err := s.sseClient.Send(context.Background(), &request)
-	if err != nil {
-		s.logger.Error().
-			Err(err).
-			Str("method", request.Method).
-			Msg("Error forwarding request to SSE server")
-		return s.sendError(&request.ID, -32603, "Internal error", err)
+	// Handle cookie management
+	switch request.Method {
+	case "cookies/set":
+		var params struct {
+			Cookies []*http.Cookie `json:"cookies"`
+		}
+		if err := json.Unmarshal(request.Params, &params); err != nil {
+			return s.sendError(&request.ID, -32602, "Invalid params", err)
+		}
+		s.sseClient.SetCookies(params.Cookies)
+		return s.writer.Encode(&protocol.Response{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Result:  json.RawMessage(`{"success":true}`),
+		})
+	case "cookies/get":
+		cookies := s.sseClient.GetCookies()
+		cookiesJSON, err := json.Marshal(cookies)
+		if err != nil {
+			return s.sendError(&request.ID, -32603, "Internal error", err)
+		}
+		return s.writer.Encode(&protocol.Response{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Result:  cookiesJSON,
+		})
+	default:
+		// Forward the request to the SSE server
+		response, err := s.sseClient.Send(context.Background(), &request)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("method", request.Method).
+				Msg("Error forwarding request to SSE server")
+			return s.sendError(&request.ID, -32603, "Internal error", err)
+		}
+
+		if response == nil {
+			s.logger.Debug().Msg("No response from SSE server")
+			return nil
+		}
+
+		jsonResponse, _ := json.MarshalIndent(response, "", "  ")
+		s.logger.Debug().RawJSON("response", jsonResponse).Msg("Forwarded request to SSE server")
+
+		// Send the response back over stdio
+		return s.writer.Encode(response)
 	}
-
-	if response == nil {
-		s.logger.Debug().Msg("No response from SSE server")
-		return nil
-	}
-
-	jsonResponse, _ := json.MarshalIndent(response, "", "  ")
-	s.logger.Debug().RawJSON("response", jsonResponse).Msg("Forwarded request to SSE server")
-
-	// Send the response back over stdio
-	return s.writer.Encode(response)
 }
 
 // sendError sends an error response

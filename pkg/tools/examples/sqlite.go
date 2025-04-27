@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
+	tool_registry "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	_ "github.com/mattn/go-sqlite3"
 	"gopkg.in/yaml.v3"
 )
@@ -51,7 +51,13 @@ func RegisterSQLiteTool(registry *tool_registry.Registry) error {
 					protocol.WithError(fmt.Sprintf("error opening database: %v", err)),
 				), nil
 			}
-			defer db.Close()
+			defer func() {
+				if closeErr := db.Close(); closeErr != nil {
+					if err == nil {
+						err = closeErr
+					}
+				}
+			}()
 
 			rows, err := db.QueryContext(ctx, query)
 			if err != nil {
@@ -59,7 +65,13 @@ func RegisterSQLiteTool(registry *tool_registry.Registry) error {
 					protocol.WithError(fmt.Sprintf("error executing query: %v", err)),
 				), nil
 			}
-			defer rows.Close()
+			defer func() {
+				if closeErr := rows.Close(); closeErr != nil {
+					if err == nil {
+						err = closeErr
+					}
+				}
+			}()
 
 			// Get column names
 			columns, err := rows.Columns()

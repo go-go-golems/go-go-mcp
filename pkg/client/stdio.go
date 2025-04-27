@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -24,6 +25,7 @@ type StdioTransport struct {
 	cmd                 *exec.Cmd
 	logger              zerolog.Logger
 	notificationHandler func(*protocol.Response)
+	cookies             []*http.Cookie
 }
 
 // NewStdioTransport creates a new stdio transport
@@ -45,6 +47,20 @@ func (t *StdioTransport) SetNotificationHandler(handler func(*protocol.Response)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.notificationHandler = handler
+}
+
+// SetCookies sets the cookies to be used for requests
+func (t *StdioTransport) SetCookies(cookies []*http.Cookie) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.cookies = cookies
+}
+
+// GetCookies returns the current cookies
+func (t *StdioTransport) GetCookies() []*http.Cookie {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]*http.Cookie{}, t.cookies...)
 }
 
 var _ Transport = &StdioTransport{}

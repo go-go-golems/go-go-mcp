@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -18,6 +19,10 @@ type Transport interface {
 	Close(ctx context.Context) error
 	// SetNotificationHandler sets a handler for notifications
 	SetNotificationHandler(handler func(*protocol.Response))
+	// SetCookies sets the cookies to be used for requests
+	SetCookies(cookies []*http.Cookie)
+	// GetCookies returns the current cookies
+	GetCookies() []*http.Cookie
 }
 
 // Client represents an MCP client that can use different transports

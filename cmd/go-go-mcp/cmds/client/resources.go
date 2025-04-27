@@ -100,7 +100,15 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	var closeErr error
+	defer func() {
+		if cerr := client.Close(ctx); cerr != nil {
+			closeErr = errors.Wrap(cerr, "failed to close client")
+		}
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	resources, cursor, err := client.ListResources(ctx, "")
 	if err != nil {
@@ -147,7 +155,15 @@ func (c *ReadResourceCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	var closeErr error
+	defer func() {
+		if cerr := client.Close(ctx); cerr != nil {
+			closeErr = errors.Wrap(cerr, "failed to close client")
+		}
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	content, err := client.ReadResource(ctx, s.URI)
 	if err != nil {

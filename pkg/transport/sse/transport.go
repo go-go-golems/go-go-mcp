@@ -296,7 +296,10 @@ func (s *SSETransport) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial endpoint event
 	endpoint := fmt.Sprintf("%s?sessionId=%s", "/messages", sessionID)
-	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint)
+	if _, err := fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to write endpoint event")
+		return
+	}
 	w.(http.Flusher).Flush()
 
 	for {
@@ -312,7 +315,10 @@ func (s *SSETransport) handleSSE(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			fmt.Fprintf(w, "event: message\ndata: %s\n\n", data)
+			if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data); err != nil {
+				s.logger.Error().Err(err).Msg("Failed to write message event")
+				return
+			}
 			w.(http.Flusher).Flush()
 
 		case <-ctx.Done():
