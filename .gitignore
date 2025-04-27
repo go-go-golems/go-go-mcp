@@ -20,3 +20,5 @@ dist/
 .envrc
 .history
 __debug*
+
+.specstory
