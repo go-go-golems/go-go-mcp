@@ -4,7 +4,8 @@
 - [ ] Add environment variable pass through / .env loading to shell script tools
 - [ ] Add server log viewing integration
 
-- [ ] Add config editing UI
+- [ ] Refactor claude_config.go and cursor_config.go to use the new CommonServer abstraction and unify into one set of commands
+- [x] Add config editing UI
 
 ## Tool API
 

@@ -7,129 +7,151 @@ The go-go-mcp project is implementing a terminal user interface (TUI) using the 
 ## Current Implementation Status
 
 We have created the basic structure for a Bubble Tea application that allows users to:
-1. Navigate a main menu to select which configuration type to manage (Cursor or Claude)
-2. View a list of configured servers (although the display is still in progress)
-3. Navigation between different views (menu, list, form, etc.)
+1. Navigate a main menu to select which configuration type to manage (Cursor or Claude).
+2. View a list of configured servers, showing their name, type (CMD/SSE), primary identifier (Command/URL), and enabled/disabled status.
+3. Navigate between different views (menu, list, add/edit form, confirmation dialog).
+4. Enable or disable servers using the spacebar in the list view.
+5. Delete servers using the 'd' key, with a confirmation dialog.
+6. Enter add mode ('a') or edit mode ('e') for the selected server, which displays a form.
+7. The form allows editing the server name, type (via a checkbox), command/URL (conditionally shown), arguments (conditionally shown), and environment variables.
+8. Navigate the form fields using Tab/Shift+Tab (or Up/Down arrows).
+9. Toggle the server type between stdio (command/args) and SSE (url) using the checkbox (Space or Enter when focused).
+10. Cancel form edits (Esc) or submit them (Enter).
+11. Display context-aware help messages for each view.
 
-The following files have been created:
+The following files have been created and modified:
 
 ### 1. Command Entry Point
 
 **File:** `cmd/go-go-mcp/cmds/ui_cmd.go`
-This file defines the Cobra command for launching the UI:
-
-```go
-package cmds
-
-import (
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/go-go-golems/go-go-mcp/pkg/ui/tui"
-    "github.com/spf13/cobra"
-)
-
-func NewUICommand() *cobra.Command {
-    cmd := &cobra.Command{
-        Use:   "ui",
-        Short: "Interactive terminal UI for managing MCP servers",
-        Long:  `A terminal user interface for managing MCP server configurations for Cursor and Claude desktop.`,
-        RunE: func(cmd *cobra.Command, args []string) error {
-            p := tea.NewProgram(tui.NewModel(), tea.WithAltScreen())
-            _, err := p.Run()
-            return err
-        },
-    }
-
-    return cmd
-}
-```
-
-The UI command is registered in `cmd/go-go-mcp/main.go` within the `initRootCmd()` function:
-
-```go
-// Add UI command
-rootCmd.AddCommand(mcp_cmds.NewUICommand())
-```
+- Defines the Cobra command `mcp ui` to launch the TUI.
+- Initializes the Bubble Tea program with the main model.
 
 ### 2. Main Model
 
 **File:** `pkg/ui/tui/model.go`
-This file defines the main application model and implements the Bubble Tea Model interface (Init, Update, View). The model contains:
-
-- A keyMap for keyboard shortcuts
-- Multiple list models for different views (menu, cursor servers, claude servers)
-- Mode tracking for different UI states (menu, list, add/edit, confirm)
-- Configuration editors for both Cursor and Claude desktop
-- Error message handling
-
-The file defines several important types:
-- `mode` enum (modeMenu, modeList, modeAddEdit, modeConfirm)
-- `keyMap` struct for key bindings
-- `serverItem` for the server list items
-- `listItem` for menu items
-- `Model` as the main application model
+- Defines the main application `Model` and implements the Bubble Tea Model interface (Init, Update, View).
+- Contains:
+    - A `keyMap` for keyboard shortcuts.
+    - A `help.Model` for context-aware help display.
+    - An enum `ConfigType` (ConfigTypeCursor, ConfigTypeClaude, ConfigTypeNone).
+    - A `mode` enum (modeMenu, modeList, modeAddEdit, modeConfirm).
+    - A `list.Model` for the main menu (`menuList`).
+    - A pointer `*list.Model` for the currently active server list (`activeList`).
+    - A `types.ServerConfigEditor` interface (`currentEditor`) to interact with the configuration backend.
+    - State for the add/edit form (`formState`).
+    - State for the confirmation dialog (`confirmDialog`).
+    - Error message handling.
+- Defines item types for lists (`listItem`, `serverItem`).
+- Defines message types for async operations (`loadedServersMsg`, `serverDeletedMsg`, `serverToggleEnabledMsg`, `serverSavedMsg`, `errorMsg`).
+- Implements `Update` logic for handling key presses, mode switching, and messages from commands.
+- Implements `View` logic to render different UI states based on the current `mode`.
+- Implements `ShortHelp` and `FullHelp` for the `help.Model`.
+- Contains command functions (`loadServers`, `deleteServer`, `toggleServerEnabled`, `saveServer`) that interact with the `currentEditor` and return `tea.Msg`.
 
 ### 3. Form Handler
 
 **File:** `pkg/ui/tui/form.go`
-This file implements the form interface for adding and editing servers:
+- Implements the `FormModel` struct for adding and editing servers.
+- Uses focus constants (`focusName`, `focusType`, `focusCommand`, etc.) for navigation.
+- Defines text inputs for server details (`nameInput`, `commandInput`, `urlInput`, `argsInput`, `envInput`).
+- Includes a boolean `isSSE` to track the server type, toggled by a checkbox.
+- Implements `Update` logic:
+    - Handles navigation (Tab/Shift+Tab) between visible fields (Name -> Type Checkbox -> Command/Args or URL -> Env).
+    - Handles checkbox toggling (Enter/Space when focused).
+    - Handles form submission (Enter when a text input is focused) and cancellation (Esc).
+    - Passes key events to the currently focused text input.
+- Implements `View` logic:
+    - Renders the form title ("Add Server" or "Edit Server").
+    - Renders the Name input.
+    - Renders the Type checkbox `[ ] SSE (vs stdio)`, highlighting it when focused.
+    - Conditionally renders URL input (if `isSSE` is true) or Command/Args inputs (if `isSSE` is false).
+    - Renders the Env input.
+    - Renders dynamic help text based on `FormKeyMap`.
+- Includes helper methods like `updateFocus` (to manage text input focus) and `ToServer` (to convert form state to a `types.CommonServer`).
 
-- `FormModel` struct with text inputs for server details
-- Methods to handle form navigation and input
-- Basic view rendering (not fully implemented)
-- Helper methods for handling form data
+### 4. Confirmation Dialog
 
-### 4. Data Handlers
+**File:** `pkg/ui/tui/confirm.go`
+- Implements a simple `ConfirmModel` for yes/no dialogs.
+- Handles key presses for selection (Left/Right arrows) and confirmation/cancellation (Enter/Esc).
+- Renders the dialog with a title, message, and styled Yes/No options.
 
-**File:** `pkg/ui/tui/handlers.go`
-This file contains functions for loading and manipulating server configurations:
+### 5. Configuration Interfaces & Types
 
-- Message types for loading servers
-- Functions to load server configurations from both types of config files
-- Helper functions for converting between data formats
-- Utility functions for parsing arguments and environment variables
+**File:** `pkg/mcp/types/config.go` (and implementations in `pkg/config/`)
+- Defines the `ServerConfigEditor` interface used by the TUI model to abstract backend operations.
+- Defines the `CommonServer` struct used to pass server data between the form and the editor.
 
-## Configuration Interfaces
+**Interface:** `types.ServerConfigEditor`
+```go
+// ServerConfigEditor defines the interface for managing server configurations.
+type ServerConfigEditor interface {
+	ListServers() (map[string]CommonServer, error)
+	GetServer(name string) (CommonServer, bool, error)
+	ListDisabledServers() ([]string, error)
+	IsServerDisabled(name string) (bool, error)
+	EnableMCPServer(name string) error
+	DisableMCPServer(name string) error
+	AddMCPServer(server CommonServer, overwrite bool) error
+	RemoveMCPServer(name string) error
+	Save() error
+	GetConfigPath() string
+}
+```
 
-The UI interacts with two configuration interfaces:
+**Struct:** `types.CommonServer`
+```go
+type CommonServer struct {
+	Name    string            `json:"-"` // Name is map key in config
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	URL     string            `json:"url,omitempty"` // Specific to Cursor SSE
+	IsSSE   bool              `json:"is_sse,omitempty"` // Indicates if it's an SSE type
+}
+```
 
-1. **Cursor MCP Editor**: `pkg/config/cursor.go`
-   - `CursorMCPEditor` struct for editing Cursor MCP configurations
-   - Functions for adding, removing, enabling, and disabling servers
-
-2. **Claude Desktop Editor**: `pkg/config/claude_desktop.go`
-   - `ClaudeDesktopEditor` struct for editing Claude desktop configurations
-   - Similar functions to the Cursor editor
-
-Both editors provide a similar interface but work with slightly different configuration formats.
+**Implementations:**
+- `config.CursorMCPEditor` and `config.ClaudeDesktopEditor` implement `types.ServerConfigEditor`.
 
 ## Tasks to Complete
 
-### 1. Complete the Form View
+### 1. Form Functionality
 
-- [ ] Implement the `View()` method to properly render form fields
-- [ ] Add toggle functionality for the Cursor SSE/Command type
-- [ ] Improve form validation and submission handling
-- [ ] Add styling with lipgloss (github.com/charmbracelet/lipgloss)
+- [x] Implement the `View()` method to properly render form fields
+- [x] Add toggle functionality for the Cursor SSE/Command type (via checkbox)
+- [x] Conditionally hide/show URL or Command/Args fields based on type
+- [x] Improve form validation (basic name/URL/command checks exist in `ToServer`)
+- [ ] Enhance Env input (currently basic textinput, consider textarea bubble)
+- [ ] Add styling with lipgloss (basic styling exists, can be enhanced)
+- [x] Implement form submission handling (calls `saveServer` command)
 
-### 2. Implement Server Operations
+### 2. Server Operations
 
 - [x] Server deletion with confirmation dialog
-- [x] Server enabling/disabling (Note: User reported potential issue with spacebar, needs verification)
+- [x] Server enabling/disabling
 - [x] Loading selected server data into the form for editing
-- [x] Saving changes back to the configuration files (partially done via enable/disable/delete, needs add/edit save)
+- [x] Saving changes back to the configuration files (via `saveServer` command triggered by form submission)
 
 ### 3. Confirmation Dialog
 
-- [x] Implement a simple dialog model
+- [x] Implement a simple dialog model (`confirm.go`)
 - [x] Add yes/no navigation
-- [x] Handle confirmation actions
+- [x] Handle confirmation actions (triggers `deleteServer` command)
 
 ### 4. Style and Polish
 
-- [ ] Add consistent styling using lipgloss
-- [x] Improve the help text and keyboard shortcut display (now context-aware)
-- [ ] Add status messages for operations
-- [ ] Implement proper error handling and display
+- [ ] Add consistent styling using lipgloss (further improvements possible)
+- [x] Improve the help text and keyboard shortcut display (context-aware)
+- [ ] Add status messages for operations (e.g., "Server saved successfully")
+- [x] Implement basic error handling and display (via `errorMsg` at bottom)
+
+### 5. Known Issues/Refinements
+
+- [ ] The `argsInput` and `envInput` parsing helpers (`parseArgsString`, `parseEnvString`) are duplicated in `form.go` and `model.go`. Consolidate them.
+- [ ] Env input field could be improved (e.g., using `textarea` bubble).
+- [ ] Add more robust error handling (e.g., display errors within the form).
 
 ## Technical Details
 
@@ -137,159 +159,42 @@ Both editors provide a similar interface but work with slightly different config
 
 Bubble Tea follows the Elm architecture with three main components:
 
-1. **Model**: The application state
-2. **Update**: A function that updates the state based on messages
-3. **View**: A function that renders the current state
+1.  **Model**: The application state (`tui.Model`)
+2.  **Update**: A function that updates the state based on messages (`Model.Update`)
+3.  **View**: A function that renders the current state (`Model.View`)
 
-Messages are passed to the Update function, which returns an updated model and commands to run.
+Messages (`tea.Msg`) are passed to the Update function, which returns an updated model and commands (`tea.Cmd`) to run (e.g., for async operations like loading/saving files).
 
-### Refactoring: Abstracting Configuration Editing
+### Configuration Abstraction
 
-To simplify the `Model` logic and make it easier to potentially support other configuration types in the future, we should introduce an interface to abstract the configuration editing operations.
+The UI uses the `types.ServerConfigEditor` interface to interact with the configuration backend. This decouples the UI from the specific implementations (`config.CursorMCPEditor`, `config.ClaudeDesktopEditor`). The `currentEditor` field in the `Model` holds the active editor, determined when the user selects "Manage Cursor Configuration" or "Manage Claude Desktop Configuration" from the main menu.
 
-**Proposed Interface:**
+### Key Files and Functions to Modify for Next Steps
 
-```go
-// ServerConfigEditor defines the interface for managing server configurations.
-type ServerConfigEditor interface {
-	// ListServers retrieves all configured servers (both enabled and disabled).
-	// It might be beneficial to return a map[string]CommonServer where CommonServer is a struct
-	// that reconciles the fields of CursorMCPServer and MCPServer.
-	ListServers() map[string]interface{} 
-
-	// ListDisabledServers returns the names of disabled servers.
-	ListDisabledServers() []string
-
-	// EnableMCPServer enables a specific server.
-	EnableMCPServer(name string) error
-
-	// DisableMCPServer disables a specific server.
-	DisableMCPServer(name string) error
-
-	// AddMCPServer adds or updates a server.
-	// This will likely need a common Server representation passed in.
-	AddMCPServer(name string, server interface{}, overwrite bool) error
-
-	// RemoveMCPServer removes a specific server.
-	RemoveMCPServer(name string) error
-
-	// Save persists the configuration changes.
-	Save() error
-
-	// GetConfigPath returns the path of the configuration file.
-	GetConfigPath() string
-
-    // IsServerDisabled checks if a server is disabled.
-    IsServerDisabled(name string) bool
-
-    // A common `Server` struct could be defined to unify CursorMCPServer and MCPServer:
-    // type CommonServer struct {
-    //     Name    string // Added for convenience in the UI
-    //     Command string
-    //     Args    []string
-    //     Env     map[string]string
-    //     URL     string // Specific to Cursor SSE
-    //     Enabled bool   // Can be derived when loading
-    // }
-}
-```
-
-**Implementation:**
-
-- Both `config.CursorMCPEditor` and `config.ClaudeDesktopEditor` will be updated to implement this `ServerConfigEditor` interface. This might require adjustments to method signatures or return types, potentially introducing adapter methods or a common `Server` struct to handle the differing fields between `CursorMCPServer` and `MCPServer`.
-
-**Model Changes (`pkg/ui/tui/model.go`):**
-
-- The `Model` struct will no longer hold separate `cursorEditor` and `claudeEditor` fields. Instead, it will have a single field:
-  ```go
-  currentEditor ServerConfigEditor
-  ```
-- The `configType` string field might still be kept for display logic, but the core operations will go through `currentEditor`.
-- When loading a configuration type (e.g., in `loadCursorServers` or `loadClaudeServers`), the appropriate editor (`CursorMCPEditor` or `ClaudeDesktopEditor`) will be instantiated and assigned to `currentEditor` (cast to the interface type).
-- All calls within `Model` that previously accessed `m.cursorEditor` or `m.claudeEditor` (like in `toggleServerEnabled`, `deleteServer`, `loadServerToForm`) will now use methods on `m.currentEditor`.
-
-**Benefits:**
-
-- **Reduced Complexity:** The `Model`'s `Update` function becomes significantly simpler as it doesn't need to constantly check `m.configType` before calling editor methods.
-- **Improved Maintainability:** Easier to modify editor logic without touching the UI model extensively.
-- **Extensibility:** Adding support for new configuration types would primarily involve creating a new struct that implements `ServerConfigEditor` and updating the loading logic in `Model`, minimizing changes to the core UI operation handlers.
-
-### Key Files and Functions to Modify
-
-1. **form.go**: 
-   - `FormModel.View()` - Implement proper form rendering
-   - Add form submission handling
-
-2. **model.go**:
-   - Add handlers for server operations in the `Update()` method
-   - Improve the list view rendering
-
-3. **handlers.go**:
-   - Add functions for saving configuration changes
-   - Implement server enable/disable operations
-
-### Creating a Confirmation Dialog
-
-Create a new file `pkg/ui/tui/confirm.go` with:
-
-```go
-package tui
-
-import (
-    "github.com/charmbracelet/bubbles/key"
-    tea "github.com/charmbracelet/bubbletea"
-    "github.com/charmbracelet/lipgloss"
-)
-
-// ConfirmModel represents a confirmation dialog
-type ConfirmModel struct {
-    title    string
-    message  string
-    selected bool // true = yes, false = no
-}
-
-// NewConfirmModel creates a new confirmation dialog
-func NewConfirmModel(title, message string) ConfirmModel {
-    return ConfirmModel{
-        title:    title,
-        message:  message,
-        selected: false,
-    }
-}
-
-// Update handles confirmation dialog input
-func (m ConfirmModel) Update(msg tea.Msg) (ConfirmModel, tea.Cmd) {
-    // Handle key presses for yes/no selection and confirmation
-    // ...
-}
-
-// View renders the confirmation dialog
-func (m ConfirmModel) View() string {
-    // Render the dialog with yes/no options
-    // ...
-}
-```
-
-### Context-Aware Help
-
-The help view now dynamically changes based on the current mode (Menu, List, Add/Edit). The `Model` struct implements the `key.Map` interface, providing the relevant key bindings to the `help.Model` in the `View` function.
+1.  **form.go**:
+    *   Consider replacing `envInput` with `textarea.Model`.
+    *   Improve input validation within `ToServer` or add validation messages to the UI.
+2.  **model.go**:
+    *   Add user-friendly status messages after save/delete/toggle operations (perhaps clearing `errorMsg` on success and setting a temporary success message).
+    *   Refactor parsing helpers (`parseArgsString`, `parseEnvString`) to avoid duplication (e.g., move to a shared utility file or keep them in `model.go` and call from `form.go`).
+3.  **General Styling**:
+    *   Apply more `lipgloss` styling for a polished look.
 
 ## Useful Resources
 
-1. **Bubble Tea Documentation**: https://github.com/charmbracelet/bubbletea
-2. **Bubble Tea Examples**: https://github.com/charmbracelet/bubbletea/tree/master/examples
-3. **Lipgloss Documentation**: https://github.com/charmbracelet/lipgloss
-4. **Bubbles Components**: https://github.com/charmbracelet/bubbles
+1.  **Bubble Tea Documentation**: https://github.com/charmbracelet/bubbletea
+2.  **Bubble Tea Examples**: https://github.com/charmbracelet/bubbletea/tree/master/examples
+3.  **Lipgloss Documentation**: https://github.com/charmbracelet/lipgloss
+4.  **Bubbles Components (including textarea)**: https://github.com/charmbracelet/bubbles
 
 ## Development Approach
 
-1. Start by completing the form view to allow adding new servers
-2. Implement server listing with proper styling
-3. Add server operations (enable/disable, edit, delete)
-4. Create the confirmation dialog
-5. Polish the UI and error handling
+1.  Focus on improving the Env input field in the form.
+2.  Add status messages for feedback after operations.
+3.  Refactor parsing helpers.
+4.  Refine styling and error display.
 
-Use the `go run cmd/go-go-mcp/main.go ui` command to test your changes.
+Use the `go run ./cmd/go-go-mcp ui --log-level debug --log-file /tmp/ui.log` command to test changes and view logs.
 
 ## Design Guidelines
 
@@ -298,15 +203,5 @@ Use the `go run cmd/go-go-mcp/main.go ui` command to test your changes.
 - Provide clear feedback for all operations
 - Handle errors gracefully
 - Follow the keyboard navigation patterns used in other Bubble Tea applications
-
-## Testing
-
-Test each component individually:
-1. Test form input and navigation
-2. Test server listing and selection
-3. Test configuration loading and saving
-4. Test error handling
-
-Use manual testing to verify the UI works as expected. There are no automated tests for the UI components yet.
 
 Good luck with continuing the implementation! 
