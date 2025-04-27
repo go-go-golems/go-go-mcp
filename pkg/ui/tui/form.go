@@ -11,75 +11,81 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
 
+// Focus indices for the form fields
+const (
+	focusName = iota
+	focusType // The new checkbox
+	focusCommand
+	focusArgs
+	focusURL
+	focusEnv
+	focusMax // Keep track of the total number of potential focus points
+)
+
 // FormKeyMap defines keybindings specific to the form view
 type FormKeyMap struct {
-	Submit    key.Binding
-	Cancel    key.Binding
-	Next      key.Binding
-	Prev      key.Binding
-	ToggleSSE key.Binding // New keybinding for SSE toggle
+	Submit key.Binding
+	Cancel key.Binding
+	Next   key.Binding // Tab
+	Prev   key.Binding // Shift+Tab
+	// ToggleSSE key.Binding // Removed
 }
 
 var defaultFormKeyMap = FormKeyMap{
 	Submit: key.NewBinding(
 		key.WithKeys("enter"),
-		key.WithHelp("enter", "submit"),
+		key.WithHelp("enter", "submit/toggle"), // Updated help
 	),
 	Cancel: key.NewBinding(
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "cancel"),
 	),
 	Next: key.NewBinding(
-		key.WithKeys("tab", "down"),
+		key.WithKeys("tab", "down"), // Added down arrow
 		key.WithHelp("tab/↓", "next field"),
 	),
 	Prev: key.NewBinding(
-		key.WithKeys("shift+tab", "up"),
+		key.WithKeys("shift+tab", "up"), // Added up arrow
 		key.WithHelp("shift+tab/↑", "prev field"),
 	),
-	ToggleSSE: key.NewBinding(
-		key.WithKeys("s"),
-		key.WithHelp("s", "toggle stdio/sse"),
-	),
+	// ToggleSSE: key.NewBinding( ... ) // Removed
 }
 
 // FormModel represents the form for adding/editing servers
 type FormModel struct {
 	keyMap       FormKeyMap
 	nameInput    textinput.Model
-	commandInput textinput.Model
-	urlInput     textinput.Model
-	argsInput    textinput.Model
+	commandInput textinput.Model // Used for stdio
+	urlInput     textinput.Model // Used for SSE
+	argsInput    textinput.Model // Used for stdio
 	envInput     textinput.Model
-	isSSE        bool // True if the server uses SSE (Cursor), false for command (Claude)
+	isSSE        bool // True if the server uses SSE, false for stdio
 	isAddMode    bool // True if adding a new server, false if editing
-	activeInput  int  // Index of the currently focused input
+	activeInput  int  // Index of the currently focused element (using constants)
 	submitted    bool // Flag indicating form submission was triggered
 	cancelled    bool // Flag indicating form cancellation was triggered
-	width        int
-	height       int
 }
 
 // NewFormModel creates a new form model with initialized inputs
 func NewFormModel() FormModel {
 	nameInput := textinput.New()
 	nameInput.Placeholder = "Server name (required)"
-	nameInput.Focus()
+	nameInput.Focus() // Start focus on name
 	nameInput.CharLimit = 50
 	nameInput.Width = 40
 
 	commandInput := textinput.New()
-	commandInput.Placeholder = "Command path (if not SSE)"
+	commandInput.Placeholder = "Command path (stdio)"
 	commandInput.CharLimit = 200
 	commandInput.Width = 40
 
 	urlInput := textinput.New()
-	urlInput.Placeholder = "SSE URL (if SSE)"
+	urlInput.Placeholder = "SSE URL"
 	urlInput.CharLimit = 200
 	urlInput.Width = 40
 
 	argsInput := textinput.New()
-	argsInput.Placeholder = "Arguments (space separated, if not SSE)"
+	argsInput.Placeholder = "Arguments (stdio, space separated)"
 	argsInput.CharLimit = 500
 	argsInput.Width = 40
 
@@ -96,98 +102,144 @@ func NewFormModel() FormModel {
 		urlInput:     urlInput,
 		argsInput:    argsInput,
 		envInput:     envInput,
-		activeInput:  0,
-		isSSE:        false, // Default, can be overridden when opening form
-		isAddMode:    true,  // Default
+		activeInput:  focusName, // Start focus on name
+		isSSE:        false,     // Default to stdio
+		isAddMode:    true,      // Default
 	}
 }
 
 // Update handles form input messages
 func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Cancel):
 			m.cancelled = true
+			// Ensure all inputs are blurred on cancel
+			m.nameInput.Blur()
+			m.commandInput.Blur()
+			m.urlInput.Blur()
+			m.argsInput.Blur()
+			m.envInput.Blur()
 			return m, nil
 
 		case key.Matches(msg, m.keyMap.Submit):
-			// Trigger submission only if Enter is pressed on the *last* active input?
-			// Or allow submit anytime?
-			// For now, allow submit anytime Enter is pressed (might need refinement)
+			// If type checkbox focused, toggle it
+			if m.activeInput == focusType {
+				m.isSSE = !m.isSSE
+				// Update focus on the text input after toggling
+				cmds = append(cmds, m.updateFocus())
+				return m, tea.Batch(cmds...)
+			}
+			// Otherwise, if any text input focused, try to submit
 			m.submitted = true
 			return m, nil
 
-		case key.Matches(msg, m.keyMap.ToggleSSE):
+		// Handle checkbox toggle with space too
+		case msg.Type == tea.KeySpace && m.activeInput == focusType:
 			m.isSSE = !m.isSSE
-			// Determine which input *should* be focused after toggle
-			newFocusIndex := m.activeInput
-			currentInputs := m.VisibleInputs()
-			if newFocusIndex >= len(currentInputs) {
-				newFocusIndex = len(currentInputs) - 1
-			}
-			m.activeInput = newFocusIndex // Set the potentially adjusted index
-
-			// Reset focus to the correct field after toggling visibility
-			cmd := m.FocusField(m.activeInput)
-			return m, cmd
+			cmds = append(cmds, m.updateFocus())
+			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keyMap.Next), key.Matches(msg, m.keyMap.Prev):
-			// Handle navigation between inputs
-			currentInputs := m.VisibleInputs()
-
+			direction := 1
 			if key.Matches(msg, m.keyMap.Prev) {
-				m.activeInput--
-			} else {
-				m.activeInput++
+				direction = -1
 			}
 
-			if m.activeInput >= len(currentInputs) {
-				m.activeInput = 0
-			} else if m.activeInput < 0 {
-				m.activeInput = len(currentInputs) - 1
+			// Cycle through focusable elements, skipping hidden ones
+			for {
+				m.activeInput = (m.activeInput + direction + focusMax) % focusMax
+
+				// Skip Command/Args if SSE is enabled
+				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
+					continue
+				}
+				// Skip URL if SSE is disabled (stdio)
+				if !m.isSSE && m.activeInput == focusURL {
+					continue
+				}
+				// Found a valid, visible element to focus
+				break
 			}
 
-			// Set focus on the active input
-			for i, input := range currentInputs {
-				if i == m.activeInput {
-					cmds = append(cmds, input.Focus())
-				} else {
-					input.Blur()
-				}
-			}
-			// Update blur/focus state for all inputs (visible or not)
-			for _, input := range m.AllInputs() {
-				isFocused := false
-				for i, visibleInput := range currentInputs {
-					if i == m.activeInput && input == visibleInput {
-						isFocused = true
-						break
-					}
-				}
-				if !isFocused {
-					input.Blur()
-				}
-			}
-
+			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
+
+			// case key.Matches(msg, m.keyMap.ToggleSSE): // Removed
+			// 	...
+
 		}
 	}
 
-	// Handle text input for the focused field
-	focusedInput := m.VisibleInputs()[m.activeInput]
+	// --- Pass event to focused text input --- //
 	var cmd tea.Cmd
-	*focusedInput, cmd = focusedInput.Update(msg)
+	switch m.activeInput {
+	case focusName:
+		m.nameInput, cmd = m.nameInput.Update(msg)
+	case focusCommand:
+		if !m.isSSE {
+			m.commandInput, cmd = m.commandInput.Update(msg)
+		}
+	case focusArgs:
+		if !m.isSSE {
+			m.argsInput, cmd = m.argsInput.Update(msg)
+		}
+	case focusURL:
+		if m.isSSE {
+			m.urlInput, cmd = m.urlInput.Update(msg)
+		}
+	case focusEnv:
+		m.envInput, cmd = m.envInput.Update(msg)
+	}
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
+// updateFocus manages blurring/focusing the correct text input.
+func (m *FormModel) updateFocus() tea.Cmd {
+	inputs := []*textinput.Model{
+		&m.nameInput,
+		&m.commandInput,
+		&m.argsInput,
+		&m.urlInput,
+		&m.envInput,
+	}
+
+	cmds := make([]tea.Cmd, len(inputs))
+	for i := range inputs {
+		inputs[i].Blur() // Blur all first
+	}
+
+	// Focus the correct input based on activeInput and isSSE
+	switch m.activeInput {
+	case focusName:
+		cmds = append(cmds, m.nameInput.Focus())
+	case focusCommand:
+		if !m.isSSE {
+			cmds = append(cmds, m.commandInput.Focus())
+		}
+	case focusArgs:
+		if !m.isSSE {
+			cmds = append(cmds, m.argsInput.Focus())
+		}
+	case focusURL:
+		if m.isSSE {
+			cmds = append(cmds, m.urlInput.Focus())
+		}
+	case focusEnv:
+		cmds = append(cmds, m.envInput.Focus())
+		// case focusType: no text input to focus
+	}
+
+	return tea.Batch(cmds...)
+}
+
 // View renders the form
 func (m FormModel) View() string {
-	// TODO: Implement a proper form view using lipgloss
-	// For now, just show the input values for debugging
 	var sb strings.Builder
 
 	title := "Add Server"
@@ -196,19 +248,33 @@ func (m FormModel) View() string {
 	}
 	sb.WriteString(title + "\n\n")
 
-	sseStatus := "stdio (command/args)"
-	if m.isSSE {
-		sseStatus = "sse (url)"
-	}
-	sb.WriteString(fmt.Sprintf("Type: %s ([s] to toggle)\n\n", sseStatus))
+	// Name Input (Always visible)
+	sb.WriteString(m.nameInput.View() + "\n")
 
-	inputs := m.VisibleInputs()
-	for i, input := range inputs {
-		sb.WriteString(input.View())
-		if i < len(inputs)-1 {
-			sb.WriteString("\n")
-		}
+	// Type Checkbox
+	checkbox := "[ ]"
+	if m.isSSE {
+		checkbox = "[x]"
 	}
+	label := " SSE (vs stdio)"
+	checkboxView := lipgloss.JoinHorizontal(lipgloss.Left, checkbox, label)
+	if m.activeInput == focusType {
+		checkboxView = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(checkboxView)
+	}
+	sb.WriteString(checkboxView + "\n\n")
+
+	// Conditional Fields
+	if m.isSSE {
+		// SSE Type: URL
+		sb.WriteString(m.urlInput.View() + "\n")
+	} else {
+		// Stdio Type: Command, Args
+		sb.WriteString(m.commandInput.View() + "\n")
+		sb.WriteString(m.argsInput.View() + "\n")
+	}
+
+	// Env Input (Always visible)
+	sb.WriteString(m.envInput.View())
 
 	sb.WriteString("\n\n")
 	sb.WriteString(m.helpView())
@@ -218,91 +284,36 @@ func (m FormModel) View() string {
 
 // helpView renders the help text for the form
 func (m FormModel) helpView() string {
-	// You can generate this dynamically based on the keymap
-	return lipgloss.NewStyle().Faint(true).Render(
-		fmt.Sprintf("%s | %s | %s | %s | %s",
-			m.keyMap.Submit.Help().Key, m.keyMap.Submit.Help().Desc,
-			m.keyMap.Cancel.Help().Key, m.keyMap.Cancel.Help().Desc,
-			m.keyMap.Next.Help().Key, m.keyMap.Next.Help().Desc,
-			m.keyMap.Prev.Help().Key, m.keyMap.Prev.Help().Desc,
-			m.keyMap.ToggleSSE.Help().Key, m.keyMap.ToggleSSE.Help().Desc,
-		),
-	)
-}
+	// Use the keymap for dynamic help generation
+	keys := []key.Binding{
+		m.keyMap.Submit, // Enter toggles checkbox or submits form
+		m.keyMap.Cancel,
+		m.keyMap.Next,
+		m.keyMap.Prev,
+		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle checkbox")),
+	}
 
-// VisibleInputs returns the text inputs currently relevant based on isSSE
-func (m *FormModel) VisibleInputs() []*textinput.Model {
-	inputs := []*textinput.Model{
-		&m.nameInput,
+	helpParts := make([]string, len(keys))
+	for i, k := range keys {
+		helpParts[i] = fmt.Sprintf("%s %s", k.Help().Key, k.Help().Desc)
 	}
-	if m.isSSE {
-		inputs = append(inputs, &m.urlInput)
-	} else {
-		inputs = append(inputs, &m.commandInput, &m.argsInput)
-	}
-	inputs = append(inputs, &m.envInput)
-	return inputs
-}
 
-// AllInputs returns all text input fields, regardless of visibility
-func (m *FormModel) AllInputs() []*textinput.Model {
-	return []*textinput.Model{
-		&m.nameInput,
-		&m.commandInput,
-		&m.urlInput,
-		&m.argsInput,
-		&m.envInput,
-	}
+	return lipgloss.NewStyle().Faint(true).Render(strings.Join(helpParts, " | "))
 }
 
 // Reset clears all form inputs and resets state
-func (m *FormModel) Reset() {
+func (m *FormModel) Reset() tea.Cmd {
 	m.nameInput.Reset()
 	m.commandInput.Reset()
 	m.urlInput.Reset()
 	m.argsInput.Reset()
 	m.envInput.Reset()
-	m.activeInput = 0
+	m.activeInput = focusName // Reset focus to name
+	m.isSSE = false           // Reset to stdio
 	m.isAddMode = true
-	m.isSSE = false
 	m.submitted = false
 	m.cancelled = false
-	m.nameInput.Focus()
-	m.commandInput.Blur()
-	m.urlInput.Blur()
-	m.argsInput.Blur()
-	m.envInput.Blur()
-}
-
-// FocusField sets focus on the input at the given index among visible inputs.
-func (m *FormModel) FocusField(index int) tea.Cmd {
-	var cmds []tea.Cmd
-	currentInputs := m.VisibleInputs()
-
-	if index < 0 || index >= len(currentInputs) {
-		// Should not happen, but handle gracefully
-		index = 0
-	}
-
-	m.activeInput = index
-
-	// Set focus on the target input, blur others
-	for i, input := range m.AllInputs() { // Iterate through ALL inputs
-		isVisibleAndFocused := false
-		for _, visibleInput := range currentInputs { // Use _ to ignore the index j
-			if i == m.activeInput && input == visibleInput { // Check if it's the *visible* focused one
-				isVisibleAndFocused = true
-				break
-			}
-		}
-
-		if isVisibleAndFocused {
-			cmds = append(cmds, input.Focus())
-		} else {
-			input.Blur()
-		}
-	}
-	return tea.Batch(cmds...)
+	return m.updateFocus() // Return the command from updateFocus
 }
 
 // ToServer converts the current form state into a CommonServer object.

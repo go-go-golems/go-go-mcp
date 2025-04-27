@@ -124,14 +124,13 @@ func (i serverItem) FilterValue() string { return i.name }
 
 // Main application model
 type Model struct {
-	keys          keyMap
-	help          help.Model
-	mode          mode
-	menuList      list.Model
-	activeList    *list.Model // Pointer to the currently active server list
-	selectedIndex int
-	width         int
-	height        int
+	keys       keyMap
+	help       help.Model
+	mode       mode
+	menuList   list.Model
+	activeList *list.Model // Pointer to the currently active server list
+	width      int
+	height     int
 
 	// Configuration editor interface
 	currentEditor types.ServerConfigEditor
@@ -269,8 +268,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			newList.Title = "Cursor MCP Servers"
 		case ConfigTypeClaude:
 			newList.Title = "Claude Desktop MCP Servers"
+		case ConfigTypeNone:
+			newList.Title = "Unknown Server List"
 		default:
-			newList.Title = "Unknown Server List" // Should not happen ideally
+			// Handle ConfigTypeNone or other unexpected values
+			log.Warn().Str("configType", string(msg.configType)).Msg("Unexpected config type in loadedServersMsg")
+			newList.Title = "Unknown Server List"
 		}
 		newList.SetShowHelp(false)
 		m.activeList = &newList // Assign the pointer to the new list
@@ -409,6 +412,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Back):
 			// Handle going back based on current mode
 			switch m.mode {
+			case modeMenu:
+				return m, nil
 			case modeList:
 				m.mode = modeMenu
 				m.activeList = nil // Clear active list when going back to menu
@@ -466,13 +471,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.keys.Add):
 				// Reset form and switch to add mode
-				m.formState.Reset()
+				cmd := m.formState.Reset()
 				m.formState.isAddMode = true
 				m.mode = modeAddEdit
 				// Set IsSSE to false by default for both types
 				m.formState.isSSE = false
-				// Focus the first field (name)
-				cmd := m.formState.FocusField(0)
 				return m, cmd
 
 			case key.Matches(msg, m.keys.Edit):
@@ -571,6 +574,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.formState.cancelled = false
 			} else if m.formState.activeInput != prevFocus { // Use activeInput field
 				// Focus changed, maybe update help or context
+				_ = prevFocus
 			}
 
 		case modeConfirm:
@@ -740,18 +744,22 @@ func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType e
 		var err error
 		var configPath string
 
-		if configType == ConfigTypeCursor {
+		// Use switch statement for clarity
+		switch configType {
+		case ConfigTypeNone:
+			err = fmt.Errorf("unknown or unsupported config type: %s", configType)
+		case ConfigTypeCursor:
 			configPath, err = config.GetGlobalCursorMCPConfigPath()
 			if err == nil {
 				editor, err = config.NewCursorMCPEditor(configPath)
 			}
-		} else if configType == ConfigTypeClaude {
+		case ConfigTypeClaude:
 			configPath, err = config.GetDefaultClaudeDesktopConfigPath()
 			if err == nil {
 				editor, err = config.NewClaudeDesktopEditor(configPath)
 			}
-		} else {
-			err = fmt.Errorf("unknown config type: %s", configType)
+		default: // Handles ConfigTypeNone and any other unexpected values
+			err = fmt.Errorf("unknown or unsupported config type: %s", configType)
 		}
 
 		if err != nil {
@@ -894,25 +902,4 @@ func parseEnvString(envStr string) map[string]string {
 	}
 
 	return envMap
-}
-
-// envMapToString converts an environment map to a newline-separated string
-func envMapToString(env map[string]string) string {
-	if len(env) == 0 {
-		return ""
-	}
-
-	lines := make([]string, 0, len(env))
-	// Sort keys for consistent output
-	keys := make([]string, 0, len(env))
-	for k := range env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, key := range keys {
-		lines = append(lines, fmt.Sprintf("%s=%s", key, env[key]))
-	}
-
-	return strings.Join(lines, "\n")
 }
