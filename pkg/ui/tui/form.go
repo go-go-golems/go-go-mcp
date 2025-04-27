@@ -114,6 +114,7 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle key presses specifically for cancel/submit first
 		switch {
 		case key.Matches(msg, m.keyMap.Cancel):
 			m.cancelled = true
@@ -127,18 +128,17 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 		case key.Matches(msg, m.keyMap.Submit):
 			// If type checkbox focused, toggle it
-			if m.activeInput == focusType {
-				m.isSSE = !m.isSSE
-				// Update focus on the text input after toggling
-				cmds = append(cmds, m.updateFocus())
-				return m, tea.Batch(cmds...)
-			}
-			// Otherwise, if any text input focused, try to submit
 			m.submitted = true
 			return m, nil
 
-		// Handle checkbox toggle with space too
+		case key.Matches(msg, m.keyMap.Submit) && m.activeInput == focusType:
+			// Special handling for checkbox
+			m.isSSE = !m.isSSE
+			// Update focus on the text input after toggling
+			return m, tea.Batch(cmds...)
+
 		case msg.Type == tea.KeySpace && m.activeInput == focusType:
+			// Handle checkbox toggle with space
 			m.isSSE = !m.isSSE
 			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
@@ -167,34 +167,66 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
+		}
 
-			// case key.Matches(msg, m.keyMap.ToggleSSE): // Removed
-			// 	...
-
+		// --- Process the event in the active text input --- //
+		// This allows keys like 'q' to go to the text input if focused
+		var cmd tea.Cmd
+		switch m.activeInput {
+		case focusName:
+			m.nameInput, cmd = m.nameInput.Update(msg)
+			cmds = append(cmds, cmd)
+			// Check if Enter was pressed to submit the form
+			if msg.Type == tea.KeyEnter {
+				m.submitted = true
+			}
+			return m, tea.Batch(cmds...)
+		case focusCommand:
+			if !m.isSSE {
+				m.commandInput, cmd = m.commandInput.Update(msg)
+				cmds = append(cmds, cmd)
+				// Check if Enter was pressed to submit the form
+				if msg.Type == tea.KeyEnter {
+					m.submitted = true
+				}
+				return m, tea.Batch(cmds...)
+			}
+		case focusArgs:
+			if !m.isSSE {
+				m.argsInput, cmd = m.argsInput.Update(msg)
+				cmds = append(cmds, cmd)
+				// Check if Enter was pressed to submit the form
+				if msg.Type == tea.KeyEnter {
+					m.submitted = true
+				}
+				return m, tea.Batch(cmds...)
+			}
+		case focusURL:
+			if m.isSSE {
+				m.urlInput, cmd = m.urlInput.Update(msg)
+				cmds = append(cmds, cmd)
+				// Check if Enter was pressed to submit the form
+				if msg.Type == tea.KeyEnter {
+					m.submitted = true
+				}
+				return m, tea.Batch(cmds...)
+			}
+		case focusEnv:
+			m.envInput, cmd = m.envInput.Update(msg)
+			cmds = append(cmds, cmd)
+			// Check if Enter was pressed to submit the form
+			if msg.Type == tea.KeyEnter {
+				m.submitted = true
+			}
+			return m, tea.Batch(cmds...)
+		case focusType:
+			// Special case for the type checkbox focus - handle Enter as submit
+			if msg.Type == tea.KeyEnter {
+				m.submitted = true
+				return m, nil
+			}
 		}
 	}
-
-	// --- Pass event to focused text input --- //
-	var cmd tea.Cmd
-	switch m.activeInput {
-	case focusName:
-		m.nameInput, cmd = m.nameInput.Update(msg)
-	case focusCommand:
-		if !m.isSSE {
-			m.commandInput, cmd = m.commandInput.Update(msg)
-		}
-	case focusArgs:
-		if !m.isSSE {
-			m.argsInput, cmd = m.argsInput.Update(msg)
-		}
-	case focusURL:
-		if m.isSSE {
-			m.urlInput, cmd = m.urlInput.Update(msg)
-		}
-	case focusEnv:
-		m.envInput, cmd = m.envInput.Update(msg)
-	}
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }

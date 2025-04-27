@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
@@ -93,7 +94,22 @@ func (c *UpdateUICommand) Run(
 
 	// Send to API
 	url := fmt.Sprintf("http://%s:%d/api/ui-update", s.Host, s.Port)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+
+	// Create a client with a timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Create a new request with context
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send the request
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

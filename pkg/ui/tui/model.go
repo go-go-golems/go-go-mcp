@@ -404,7 +404,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		log.Debug().Str("key", msg.String()).Msg("Key pressed")
 
-		// Global keys
+		// For text inputs in form mode, prioritize sending the key to the form model
+		if m.mode == modeAddEdit {
+			// Let the form handle all keys when in form mode
+			formModel, cmd := m.formState.Update(msg)
+			m.formState = formModel
+			cmds = append(cmds, cmd)
+
+			// Check if the form was submitted or cancelled
+			if m.formState.submitted {
+				log.Debug().Msg("Form submitted, saving server")
+				// Form submitted, save the server
+				commonServer, err := m.formState.ToServer()
+				if err != nil {
+					m.errorMsg = fmt.Sprintf("Invalid form data: %s", err.Error())
+					// Reset submitted flag so user can fix and resubmit
+					m.formState.submitted = false
+					return m, nil // Stay in form mode with error
+				}
+				overwrite := !m.formState.isAddMode // Overwrite only if in edit mode
+				cmds = append(cmds, m.saveServer(commonServer, overwrite))
+				// Reset submitted flag after handling submission command
+				m.formState.submitted = false
+				m.mode = modeList
+			} else if m.formState.cancelled {
+				log.Debug().Msg("Form cancelled, going back to list")
+				// Form cancelled, go back to list
+				m.mode = modeList
+				// Reset cancelled flag
+				m.formState.cancelled = false
+			}
+
+			return m, tea.Batch(cmds...)
+		}
+
+		// Global keys (only processed if not in form mode or special cases)
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
@@ -459,6 +493,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, cmd)
 			}
 
+		case modeAddEdit:
 		case modeList:
 			// Ensure activeList is not nil
 			if m.activeList == nil {
@@ -478,7 +513,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.formState.isSSE = false
 				return m, cmd
 
-			case key.Matches(msg, m.keys.Edit):
+			case key.Matches(msg, m.keys.Edit), key.Matches(msg, m.keys.Enter):
 				// Load selected server into form and switch to edit mode
 				selectedItem := m.activeList.SelectedItem()
 				if selectedItem == nil {
@@ -545,36 +580,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmd tea.Cmd
 				*m.activeList, cmd = m.activeList.Update(msg)
 				cmds = append(cmds, cmd)
-			}
-
-		case modeAddEdit:
-			// Handle form input and submission
-			prevFocus := m.formState.activeInput // Use activeInput field
-			var cmd tea.Cmd
-			m.formState, cmd = m.formState.Update(msg)
-			cmds = append(cmds, cmd)
-
-			if m.formState.submitted {
-				// Form submitted, save the server
-				commonServer, err := m.formState.ToServer() // Get server data from form
-				if err != nil {
-					m.errorMsg = fmt.Sprintf("Invalid form data: %s", err.Error())
-					// Reset submitted flag so user can fix and resubmit
-					m.formState.submitted = false
-					return m, nil // Stay in form mode with error
-				}
-				overwrite := !m.formState.isAddMode // Overwrite only if in edit mode
-				cmds = append(cmds, m.saveServer(commonServer, overwrite))
-				// Reset submitted flag after handling submission command
-				m.formState.submitted = false
-			} else if m.formState.cancelled {
-				// Form cancelled, go back to list
-				m.mode = modeList
-				// Reset cancelled flag
-				m.formState.cancelled = false
-			} else if m.formState.activeInput != prevFocus { // Use activeInput field
-				// Focus changed, maybe update help or context
-				_ = prevFocus
 			}
 
 		case modeConfirm:
@@ -726,7 +731,7 @@ func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
 	form.commandInput.SetValue(server.Command)
 	// TODO: Properly handle conversion of slice/map to string for text input
 	// For now, using simple Sprintf - might need JSON or other format later
-	form.argsInput.SetValue(fmt.Sprintf("%v", server.Args))
+	form.argsInput.SetValue(strings.Join(server.Args, " "))
 	form.envInput.SetValue(fmt.Sprintf("%v", server.Env))
 	form.urlInput.SetValue(server.URL)
 	form.isSSE = server.IsSSE
@@ -841,12 +846,16 @@ func (m *Model) toggleServerEnabled(name string) tea.Cmd {
 // saveServer returns a command to add/update a server and save the config.
 func (m *Model) saveServer(server types.CommonServer, overwrite bool) tea.Cmd {
 	return func() tea.Msg {
+		log.Debug().Str("serverName", server.Name).Bool("overwrite", overwrite).Msg("Saving server")
 		if m.currentEditor == nil {
+			log.Debug().Msg("No editor loaded, returning error")
 			return serverSavedMsg{serverName: server.Name, err: fmt.Errorf("no editor loaded")}
 		}
 
+		log.Debug().Str("serverName", server.Name).Bool("overwrite", overwrite).Msg("Adding server")
 		err := m.currentEditor.AddMCPServer(server, overwrite)
 		if err != nil {
+			log.Debug().Msg("Error adding server, returning error")
 			// If error is about existing server and not overwriting, maybe trigger confirmation dialog?
 			// For now, just return the error.
 			return serverSavedMsg{serverName: server.Name, err: err}
@@ -854,6 +863,7 @@ func (m *Model) saveServer(server types.CommonServer, overwrite bool) tea.Cmd {
 
 		err = m.currentEditor.Save()
 		if err != nil {
+			log.Debug().Msg("Error saving config, returning error")
 			return serverSavedMsg{serverName: server.Name, err: fmt.Errorf("failed to save config after adding/updating server: %w", err)}
 		}
 

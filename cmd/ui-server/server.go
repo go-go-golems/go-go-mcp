@@ -130,8 +130,9 @@ func (s *Server) Start(ctx context.Context, port int) error {
 	})
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
-		Handler: s.mux,
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           s.mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	// Start server

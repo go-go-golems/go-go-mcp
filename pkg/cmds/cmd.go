@@ -172,7 +172,7 @@ func (c *ShellCommand) ExecuteCommand(
 		}
 
 		// Make the script executable
-		if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
+		if err := os.Chmod(tmpFile.Name(), 0755); err != nil { // #nosec G302
 			log.Error().Str("file", tmpFile.Name()).Err(err).Msg("failed to make script executable")
 			return errors.Wrap(err, "failed to make script executable")
 		}

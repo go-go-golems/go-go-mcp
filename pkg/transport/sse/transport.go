@@ -127,8 +127,9 @@ func (s *SSETransport) Listen(ctx context.Context, handler transport.RequestHand
 		s.RegisterHandlers(r)
 
 		s.server = &http.Server{
-			Addr:    fmt.Sprintf(":%d", s.port),
-			Handler: r,
+			Addr:              fmt.Sprintf(":%d", s.port),
+			Handler:           r,
+			ReadHeaderTimeout: 10 * time.Second,
 			BaseContext: func(l net.Listener) context.Context {
 				return ctx
 			},
