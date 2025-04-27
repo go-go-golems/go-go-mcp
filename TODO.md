@@ -1,6 +1,6 @@
 ## Features
 
-- [ ] Add tool/prompt profiles to switch between different collections of prompts and resources and other things
+- [x] Add tool/prompt profiles to switch between different collections of prompts and resources and other things
 - [ ] Add environment variable pass through / .env loading to shell script tools
 
 ## Tool API

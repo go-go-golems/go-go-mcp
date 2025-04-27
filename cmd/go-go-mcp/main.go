@@ -94,6 +94,10 @@ func initRootCmd() (*help.HelpSystem, error) {
 	claudeConfigCmd := mcp_cmds.NewClaudeConfigCommand()
 	rootCmd.AddCommand(claudeConfigCmd)
 
+	// Add Cursor config command group
+	cursorConfigCmd := mcp_cmds.NewCursorConfigCommand()
+	rootCmd.AddCommand(cursorConfigCmd)
+
 	return helpSystem, nil
 }
 
