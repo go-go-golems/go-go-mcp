@@ -80,7 +80,7 @@ fetch the most up-to-date information and let the user know that.  `,
 
 			// Convert HTML to Markdown
 			converter := md.NewConverter("", true, nil)
-			markdown, err := converter.ConvertString(string(body))
+			markdown, err := converter.ConvertString(string(body)) // #nosec G104
 			if err != nil {
 				return protocol.NewToolResult(
 					protocol.WithError(fmt.Sprintf("error converting to markdown: %v", err)),
