@@ -1,8 +1,6 @@
 module github.com/go-go-golems/go-go-mcp
 
-go 1.23
-
-toolchain go1.23.3
+go 1.24.2
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0

@@ -30,6 +30,7 @@ type SSETransport struct {
 	sessionID           string
 	endpoint            string
 	notificationHandler func(*protocol.Response)
+	cookies             []*http.Cookie
 }
 
 // NewSSETransport creates a new SSE transport
@@ -59,6 +60,20 @@ func isNotification(event *sse.Event) bool {
 		return false
 	}
 	return len(response.ID) == 0 || string(response.ID) == "null"
+}
+
+// SetCookies sets the cookies to be used for requests
+func (t *SSETransport) SetCookies(cookies []*http.Cookie) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.cookies = cookies
+}
+
+// GetCookies returns the current cookies
+func (t *SSETransport) GetCookies() []*http.Cookie {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]*http.Cookie{}, t.cookies...)
 }
 
 // Send sends a request and returns the response
@@ -100,12 +115,21 @@ func (t *SSETransport) Send(ctx context.Context, request *protocol.Request) (*pr
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// Add cookies to the request
+	for _, cookie := range t.cookies {
+		req.AddCookie(cookie)
+	}
+
 	resp, err := t.client.Do(req)
 	if err != nil {
 		t.logger.Error().Err(err).Msg("Failed to send HTTP request")
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.logger.Error().Err(closeErr).Msg("Failed to close response body")
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)

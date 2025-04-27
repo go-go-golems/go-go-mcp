@@ -18,7 +18,13 @@ func FindStartPosForLastNLines(filename string, n int) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			if err == nil {
+				err = closeErr
+			}
+		}
+	}()
 
 	// Get file size
 	stat, err := file.Stat()
