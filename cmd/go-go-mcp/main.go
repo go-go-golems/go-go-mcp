@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/go-go-golems/go-go-mcp/pkg/doc"
@@ -106,6 +109,9 @@ func initRootCmd() (*help.HelpSystem, error) {
 	cursorConfigCmd := mcp_cmds.NewCursorConfigCommand()
 	rootCmd.AddCommand(cursorConfigCmd)
 
+	// Add UI command
+	rootCmd.AddCommand(mcp_cmds.NewUICommand())
+
 	return helpSystem, nil
 }
 
@@ -154,12 +160,19 @@ func main() {
 	} else {
 		_, err := initRootCmd()
 		cobra.CheckErr(err)
-
 	}
 
+	// Handle interrupts
+	ctx, cancel := context.WithCancel(context.Background())
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
 	// Execute
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		log.Fatal().Err(err).Msg("Error executing root command")
 	}
 }

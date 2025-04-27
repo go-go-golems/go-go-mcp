@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/helpers"
+	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 	"github.com/hpcloud/tail"
 	"github.com/spf13/cobra"
 )
@@ -128,10 +129,16 @@ If a server with the same name already exists, the command will fail unless --ov
 				envMap[parts[0]] = parts[1]
 			}
 
-			if err := editor.AddMCPServer(name, command, cmdArgs, envMap, overwrite); err != nil {
+			commonServer := types.CommonServer{
+				Name:    name,
+				Command: command,
+				Args:    cmdArgs,
+				Env:     envMap,
+				IsSSE:   false,
+			}
+			if err := editor.AddMCPServer(commonServer, overwrite); err != nil {
 				return err
 			}
-
 			if err := editor.Save(); err != nil {
 				return err
 			}
@@ -212,7 +219,10 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 				return err
 			}
 
-			servers := editor.ListServers()
+			servers, err := editor.ListServers()
+			if err != nil {
+				return err
+			}
 			if len(servers) == 0 {
 				fmt.Println("No MCP servers configured.")
 				fmt.Printf("Configuration file: %s\n", editor.GetConfigPath())
@@ -222,7 +232,11 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 			fmt.Printf("Configured MCP servers in %s:\n\n", editor.GetConfigPath())
 			for name, server := range servers {
 				disabled := ""
-				if editor.IsServerDisabled(name) {
+				disabled_, err := editor.IsServerDisabled(name)
+				if err != nil {
+					return err
+				}
+				if disabled_ {
 					disabled = " (disabled)"
 				}
 				fmt.Printf("%s%s:\n", name, disabled)
@@ -240,7 +254,10 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 			}
 
 			// List disabled servers
-			disabled := editor.ListDisabledServers()
+			disabled, err := editor.ListDisabledServers()
+			if err != nil {
+				return err
+			}
 			if len(disabled) > 0 {
 				fmt.Println("Disabled servers:")
 				for _, name := range disabled {
@@ -491,10 +508,16 @@ If a server with the same name already exists, the command will fail unless --ov
 				return fmt.Errorf("could not find mcp executable in PATH: %w", err)
 			}
 
-			if err := editor.AddMCPServer(name, mcpPath, cmdArgs, envMap, overwrite); err != nil {
+			commonServer := types.CommonServer{
+				Name:    name,
+				Command: mcpPath,
+				Args:    cmdArgs,
+				Env:     envMap,
+				IsSSE:   false,
+			}
+			if err := editor.AddMCPServer(commonServer, overwrite); err != nil {
 				return err
 			}
-
 			if err := editor.Save(); err != nil {
 				return err
 			}

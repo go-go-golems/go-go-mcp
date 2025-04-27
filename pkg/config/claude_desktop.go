@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
+	"github.com/pkg/errors"
+	"maps"
 )
 
 // ClaudeDesktopConfig represents the configuration for the Claude desktop application
@@ -54,7 +58,8 @@ func NewClaudeDesktopEditor(path string) (*ClaudeDesktopEditor, error) {
 		// If file doesn't exist, create a new config
 		if os.IsNotExist(err) {
 			editor.config = &ClaudeDesktopConfig{
-				MCPServers: make(map[string]MCPServer),
+				MCPServers:      make(map[string]MCPServer),
+				DisabledServers: make(map[string]MCPServer),
 			}
 		} else {
 			return nil, fmt.Errorf("could not load config: %w", err)
@@ -68,12 +73,26 @@ func NewClaudeDesktopEditor(path string) (*ClaudeDesktopEditor, error) {
 func (e *ClaudeDesktopEditor) load() error {
 	data, err := os.ReadFile(e.path)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return errors.Wrapf(err, "failed to read config file %s", e.path)
+		}
+		e.config = &ClaudeDesktopConfig{
+			MCPServers:      make(map[string]MCPServer),
+			DisabledServers: make(map[string]MCPServer),
+		}
+		return nil
 	}
 
 	e.config = &ClaudeDesktopConfig{}
 	if err := json.Unmarshal(data, e.config); err != nil {
-		return fmt.Errorf("could not parse config: %w", err)
+		return errors.Wrapf(err, "could not parse config file %s", e.path)
+	}
+
+	if e.config.MCPServers == nil {
+		e.config.MCPServers = make(map[string]MCPServer)
+	}
+	if e.config.DisabledServers == nil {
+		e.config.DisabledServers = make(map[string]MCPServer)
 	}
 
 	return nil
@@ -84,52 +103,69 @@ func (e *ClaudeDesktopEditor) Save() error {
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(e.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("could not create config directory: %w", err)
+		return errors.Wrapf(err, "could not create config directory %s", dir)
 	}
 
 	data, err := json.MarshalIndent(e.config, "", "  ")
 	if err != nil {
-		return fmt.Errorf("could not marshal config: %w", err)
+		return errors.Wrap(err, "could not marshal config")
 	}
 
 	if err := os.WriteFile(e.path, data, 0644); err != nil {
-		return fmt.Errorf("could not write config: %w", err)
+		return errors.Wrapf(err, "could not write config to %s", e.path)
 	}
 
 	return nil
 }
 
-// AddMCPServer adds or updates an MCP server configuration
-func (e *ClaudeDesktopEditor) AddMCPServer(name string, command string, args []string, env map[string]string, overwrite bool) error {
+// AddMCPServer adds or updates a server configuration using the CommonServer struct.
+func (e *ClaudeDesktopEditor) AddMCPServer(server types.CommonServer, overwrite bool) error {
 	if e.config.MCPServers == nil {
 		e.config.MCPServers = make(map[string]MCPServer)
 	}
-
-	// Check if server already exists
-	if _, exists := e.config.MCPServers[name]; exists && !overwrite {
-		return fmt.Errorf("MCP server '%s' already exists. Use --overwrite to replace it", name)
+	if e.config.DisabledServers == nil {
+		e.config.DisabledServers = make(map[string]MCPServer)
 	}
 
-	e.config.MCPServers[name] = MCPServer{
-		Command: command,
-		Args:    args,
-		Env:     env,
+	name := server.Name
+	_, existsEnabled := e.config.MCPServers[name]
+	_, existsDisabled := e.config.DisabledServers[name]
+
+	if (existsEnabled || existsDisabled) && !overwrite {
+		return fmt.Errorf("MCP server '%s' already exists. Use overwrite option to replace it", name)
 	}
+
+	claudeServer := MCPServer{
+		Command: server.Command,
+		Args:    server.Args,
+		Env:     server.Env,
+	}
+
+	if existsDisabled {
+		delete(e.config.DisabledServers, name)
+	}
+
+	e.config.MCPServers[name] = claudeServer
 
 	return nil
 }
 
-// RemoveMCPServer removes an MCP server configuration
+// RemoveMCPServer removes an MCP server configuration from both enabled and disabled lists.
 func (e *ClaudeDesktopEditor) RemoveMCPServer(name string) error {
-	if e.config.MCPServers == nil {
-		return fmt.Errorf("no MCP servers configured")
+	_, existsEnabled := e.config.MCPServers[name]
+	_, existsDisabled := e.config.DisabledServers[name]
+
+	if !existsEnabled && !existsDisabled {
+		return fmt.Errorf("MCP server '%s' not found", name)
 	}
 
-	if _, exists := e.config.MCPServers[name]; !exists {
-		return fmt.Errorf("MCP server %s not found", name)
+	if existsEnabled {
+		delete(e.config.MCPServers, name)
+	}
+	if existsDisabled {
+		delete(e.config.DisabledServers, name)
 	}
 
-	delete(e.config.MCPServers, name)
 	return nil
 }
 
@@ -138,38 +174,56 @@ func (e *ClaudeDesktopEditor) GetConfigPath() string {
 	return e.path
 }
 
-// ListServers returns a list of configured MCP servers
-func (e *ClaudeDesktopEditor) ListServers() map[string]MCPServer {
-	servers := make(map[string]MCPServer)
+// ListServers returns a map of all configured servers (enabled and disabled) as CommonServer.
+func (e *ClaudeDesktopEditor) ListServers() (map[string]types.CommonServer, error) {
+	servers := make(map[string]types.CommonServer)
 
 	// Add enabled MCP servers
 	for name, server := range e.config.MCPServers {
-		servers[name] = server
+		servers[name] = types.CommonServer{
+			Name:    name,
+			Command: server.Command,
+			Args:    server.Args,
+			Env:     server.Env,
+			IsSSE:   false,
+		}
 	}
 
 	// Add disabled MCP servers
 	if e.config.DisabledServers != nil {
 		for name, server := range e.config.DisabledServers {
-			servers[name] = server
+			if _, exists := servers[name]; !exists {
+				servers[name] = types.CommonServer{
+					Name:    name,
+					Command: server.Command,
+					Args:    server.Args,
+					Env:     server.Env,
+					IsSSE:   false,
+				}
+			}
 		}
 	}
 
-	return servers
+	return servers, nil
 }
 
 // EnableMCPServer enables a previously disabled MCP server
 func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 	if len(e.config.DisabledServers) == 0 {
-		return fmt.Errorf("no disabled servers found")
+		if _, exists := e.config.MCPServers[name]; exists {
+			return fmt.Errorf("server '%s' is already enabled", name)
+		}
+		return fmt.Errorf("server '%s' not found in disabled servers", name)
 	}
 
-	// Check if server exists in disabled servers
 	server, exists := e.config.DisabledServers[name]
 	if !exists {
-		return fmt.Errorf("server '%s' is not disabled", name)
+		if _, enabledExists := e.config.MCPServers[name]; enabledExists {
+			return fmt.Errorf("server '%s' is already enabled", name)
+		}
+		return fmt.Errorf("server '%s' not found in disabled servers", name)
 	}
 
-	// Move server from disabled to enabled
 	if e.config.MCPServers == nil {
 		e.config.MCPServers = make(map[string]MCPServer)
 	}
@@ -181,13 +235,14 @@ func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 
 // DisableMCPServer disables an MCP server without removing its configuration
 func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
-	// Check if server exists
 	server, exists := e.config.MCPServers[name]
 	if !exists {
-		return fmt.Errorf("MCP server '%s' not found", name)
+		if _, disabledExists := e.config.DisabledServers[name]; disabledExists {
+			return fmt.Errorf("server '%s' is already disabled", name)
+		}
+		return fmt.Errorf("enabled MCP server '%s' not found", name)
 	}
 
-	// Check if already disabled
 	if e.config.DisabledServers == nil {
 		e.config.DisabledServers = make(map[string]MCPServer)
 	}
@@ -197,23 +252,91 @@ func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
 	return nil
 }
 
-// IsServerDisabled checks if a server is disabled
-func (e *ClaudeDesktopEditor) IsServerDisabled(name string) bool {
+// IsServerDisabled checks if a server is in the disabled list.
+func (e *ClaudeDesktopEditor) IsServerDisabled(name string) (bool, error) {
 	if e.config.DisabledServers == nil {
-		return false
+		if _, exists := e.config.MCPServers[name]; exists {
+			return false, nil
+		}
+		return false, fmt.Errorf("server '%s' not found", name)
 	}
 	_, exists := e.config.DisabledServers[name]
-	return exists
+	if !exists {
+		if _, enabledExists := e.config.MCPServers[name]; !enabledExists {
+			return false, fmt.Errorf("server '%s' not found", name)
+		}
+	}
+	return exists, nil
 }
 
 // ListDisabledServers returns a list of disabled server names
-func (e *ClaudeDesktopEditor) ListDisabledServers() []string {
+func (e *ClaudeDesktopEditor) ListDisabledServers() ([]string, error) {
 	if e.config.DisabledServers == nil {
-		return []string{}
+		return []string{}, nil
 	}
 	disabledServers := make([]string, 0, len(e.config.DisabledServers))
 	for name := range e.config.DisabledServers {
 		disabledServers = append(disabledServers, name)
 	}
-	return disabledServers
+	return disabledServers, nil
+}
+
+// GetServer retrieves a specific server configuration by name as CommonServer.
+func (e *ClaudeDesktopEditor) GetServer(name string) (types.CommonServer, bool, error) {
+	server, exists := e.config.MCPServers[name]
+	isDisabled := false
+	if !exists {
+		if e.config.DisabledServers != nil {
+			server, exists = e.config.DisabledServers[name]
+			if exists {
+				isDisabled = true
+			}
+		}
+	}
+
+	if !exists {
+		return types.CommonServer{}, false, nil
+	}
+
+	common := types.CommonServer{
+		Name:    name,
+		Command: server.Command,
+		Args:    server.Args,
+		Env:     server.Env,
+		IsSSE:   false,
+	}
+	_ = isDisabled
+
+	return common, true, nil
+}
+
+// --- Deprecated Methods (kept temporarily for compatibility, remove later) ---
+
+// AddMCPServer adds or updates an MCP server configuration
+// DEPRECATED: Use AddMCPServer with CommonServer instead.
+func (e *ClaudeDesktopEditor) AddMCPServerRaw(name string, command string, args []string, env map[string]string, overwrite bool) error {
+	common := types.CommonServer{
+		Name:    name,
+		Command: command,
+		Args:    args,
+		Env:     env,
+		IsSSE:   false,
+	}
+	return e.AddMCPServer(common, overwrite)
+}
+
+// ListServers returns a list of configured MCP servers
+// DEPRECATED: Use the new ListServers which returns map[string]CommonServer.
+func (e *ClaudeDesktopEditor) ListServersRaw() map[string]MCPServer {
+	servers := make(map[string]MCPServer)
+
+	// Add enabled MCP servers
+	maps.Copy(servers, e.config.MCPServers)
+
+	// Add disabled MCP servers
+	if e.config.DisabledServers != nil {
+		maps.Copy(servers, e.config.DisabledServers)
+	}
+
+	return servers
 }
