@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/helpers"
+	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 	"github.com/hpcloud/tail"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,7 @@ func NewClaudeConfigCommand() *cobra.Command {
 		newClaudeConfigEnableServerCommand(),
 		newClaudeConfigDisableServerCommand(),
 		newClaudeConfigTailCommand(),
+		newClaudeConfigAddGoGoServerCommand(),
 	)
 
 	return cmd
@@ -127,10 +129,16 @@ If a server with the same name already exists, the command will fail unless --ov
 				envMap[parts[0]] = parts[1]
 			}
 
-			if err := editor.AddMCPServer(name, command, cmdArgs, envMap, overwrite); err != nil {
+			commonServer := types.CommonServer{
+				Name:    name,
+				Command: command,
+				Args:    cmdArgs,
+				Env:     envMap,
+				IsSSE:   false,
+			}
+			if err := editor.AddMCPServer(commonServer, overwrite); err != nil {
 				return err
 			}
-
 			if err := editor.Save(); err != nil {
 				return err
 			}
@@ -211,7 +219,10 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 				return err
 			}
 
-			servers := editor.ListServers()
+			servers, err := editor.ListServers()
+			if err != nil {
+				return err
+			}
 			if len(servers) == 0 {
 				fmt.Println("No MCP servers configured.")
 				fmt.Printf("Configuration file: %s\n", editor.GetConfigPath())
@@ -221,7 +232,11 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 			fmt.Printf("Configured MCP servers in %s:\n\n", editor.GetConfigPath())
 			for name, server := range servers {
 				disabled := ""
-				if editor.IsServerDisabled(name) {
+				disabled_, err := editor.IsServerDisabled(name)
+				if err != nil {
+					return err
+				}
+				if disabled_ {
 					disabled = " (disabled)"
 				}
 				fmt.Printf("%s%s:\n", name, disabled)
@@ -239,7 +254,10 @@ func newClaudeConfigListServersCommand() *cobra.Command {
 			}
 
 			// List disabled servers
-			disabled := editor.ListDisabledServers()
+			disabled, err := editor.ListDisabledServers()
+			if err != nil {
+				return err
+			}
 			if len(disabled) > 0 {
 				fmt.Println("Disabled servers:")
 				for _, name := range disabled {
@@ -445,6 +463,92 @@ Use --lines/-n to output the last N lines of each file before tailing.`,
 
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "Tail all log files")
 	cmd.Flags().IntVarP(&lines, "lines", "n", 10, "Output the last N lines of each file before tailing")
+
+	return cmd
+}
+
+func newClaudeConfigAddGoGoServerCommand() *cobra.Command {
+	var configPath string
+	var env []string
+	var overwrite bool
+	var additionalArgs []string
+
+	cmd := &cobra.Command{
+		Use:   "add-go-go-server NAME PROFILE [ARGS...]",
+		Short: "Add an MCP server using go-go-mcp server",
+		Long: `Adds a new MCP server configuration that uses go-go-mcp server with the specified profile.
+		
+This is a shortcut for adding a server with command "mcp server start --profile PROFILE" and additional args.
+If a server with the same name already exists, the command will fail unless --overwrite is specified.`,
+		Args: cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			editor, err := config.NewClaudeDesktopEditor(configPath)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			profile := args[1]
+			cmdArgs := append([]string{"server", "start", "--profile", profile}, args[2:]...)
+			cmdArgs = append(cmdArgs, additionalArgs...)
+
+			// Parse environment variables
+			envMap := make(map[string]string)
+			for _, e := range env {
+				parts := strings.SplitN(e, "=", 2)
+				if len(parts) != 2 {
+					return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", e)
+				}
+				envMap[parts[0]] = parts[1]
+			}
+
+			// Find the path to the mcp binary
+			mcpPath, err := exec.LookPath("mcp")
+			if err != nil {
+				return fmt.Errorf("could not find mcp executable in PATH: %w", err)
+			}
+
+			commonServer := types.CommonServer{
+				Name:    name,
+				Command: mcpPath,
+				Args:    cmdArgs,
+				Env:     envMap,
+				IsSSE:   false,
+			}
+			if err := editor.AddMCPServer(commonServer, overwrite); err != nil {
+				return err
+			}
+			if err := editor.Save(); err != nil {
+				return err
+			}
+
+			// Print success message with configuration details
+			action := "Added"
+			if overwrite {
+				action = "Updated"
+			}
+			fmt.Printf("Successfully %s go-go-mcp server '%s':\n", action, name)
+			fmt.Printf("  Command: %s\n", mcpPath)
+			fmt.Printf("  Profile: %s\n", profile)
+			if len(cmdArgs) > 4 {
+				fmt.Printf("  Additional Args: %v\n", cmdArgs[4:])
+			}
+			if len(envMap) > 0 {
+				fmt.Printf("  Environment:\n")
+				for k, v := range envMap {
+					fmt.Printf("    %s: %s\n", k, v)
+				}
+			}
+			fmt.Printf("\nConfiguration saved to: %s\n", editor.GetConfigPath())
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to config file (default: $XDG_CONFIG_HOME/Claude/claude_desktop_config.json)")
+	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Environment variables in KEY=VALUE format (can be specified multiple times)")
+	cmd.Flags().BoolVarP(&overwrite, "overwrite", "w", false, "Overwrite existing server if it exists")
+	cmd.Flags().StringArrayVar(&additionalArgs, "args", []string{}, "Additional arguments to pass to the server command")
 
 	return cmd
 }

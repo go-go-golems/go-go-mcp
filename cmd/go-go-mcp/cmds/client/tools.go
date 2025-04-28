@@ -123,7 +123,13 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	defer func() {
+		if closeErr := client.Close(ctx); closeErr != nil {
+			if err == nil {
+				err = errors.Wrap(closeErr, "failed to close client")
+			}
+		}
+	}()
 
 	tools, cursor, err := client.ListTools(ctx, "")
 	if err != nil {
@@ -174,7 +180,13 @@ func (c *CallToolCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	defer func() {
+		if closeErr := client.Close(ctx); closeErr != nil {
+			if err == nil {
+				err = errors.Wrap(closeErr, "failed to close client")
+			}
+		}
+	}()
 
 	// Parse tool arguments - first try JSON string, then key-value pairs
 	toolArgMap := make(map[string]interface{})

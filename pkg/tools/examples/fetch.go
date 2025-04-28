@@ -10,7 +10,7 @@ import (
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
+	tool_registry "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 )
 
 func RegisterFetchTool(registry *tool_registry.Registry) error {
@@ -63,7 +63,13 @@ fetch the most up-to-date information and let the user know that.  `,
 					protocol.WithError(fmt.Sprintf("error fetching URL: %v", err)),
 				), nil
 			}
-			defer resp.Body.Close()
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					if err == nil {
+						err = closeErr
+					}
+				}
+			}()
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -74,7 +80,7 @@ fetch the most up-to-date information and let the user know that.  `,
 
 			// Convert HTML to Markdown
 			converter := md.NewConverter("", true, nil)
-			markdown, err := converter.ConvertString(string(body))
+			markdown, err := converter.ConvertString(string(body)) // #nosec G104
 			if err != nil {
 				return protocol.NewToolResult(
 					protocol.WithError(fmt.Sprintf("error converting to markdown: %v", err)),

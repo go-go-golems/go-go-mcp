@@ -8,48 +8,48 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 	"github.com/pkg/errors"
-	"maps"
 )
 
-// ClaudeDesktopConfig represents the configuration for the Claude desktop application
-type ClaudeDesktopConfig struct {
-	MCPServers      map[string]MCPServer `json:"mcpServers"`
-	DisabledServers map[string]MCPServer `json:"disabledServersConfig,omitempty"`
+// CursorMCPConfig represents the configuration for Cursor MCP
+type CursorMCPConfig struct {
+	MCPServers      map[string]CursorMCPServer `json:"mcpServers"`
+	DisabledServers map[string]CursorMCPServer `json:"disabledServersConfig,omitempty"`
 }
 
-// MCPServer represents a server configuration
-type MCPServer struct {
-	Command string            `json:"command"`
-	Args    []string          `json:"args"`
+// CursorMCPServer represents a server configuration for Cursor
+type CursorMCPServer struct {
+	// For stdio format
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
+
+	// For SSE format
+	URL string `json:"url,omitempty"`
 }
 
-// ClaudeDesktopEditor manages the Claude desktop configuration
-type ClaudeDesktopEditor struct {
-	config *ClaudeDesktopConfig
+// CursorMCPEditor manages the Cursor MCP configuration
+type CursorMCPEditor struct {
+	config *CursorMCPConfig
 	path   string
 }
 
-// GetDefaultClaudeDesktopConfigPath returns the default path for the Claude desktop configuration file
-func GetDefaultClaudeDesktopConfigPath() (string, error) {
-	xdgConfigPath, err := os.UserConfigDir()
+// GetGlobalCursorMCPConfigPath returns the path for the global Cursor MCP configuration file
+func GetGlobalCursorMCPConfigPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("could not get user config directory: %w", err)
+		return "", fmt.Errorf("could not get user home directory: %w", err)
 	}
-	return filepath.Join(xdgConfigPath, "Claude", "claude_desktop_config.json"), nil
+	return filepath.Join(homeDir, ".cursor", "mcp.json"), nil
 }
 
-// NewClaudeDesktopEditor creates a new editor for the Claude desktop configuration
-func NewClaudeDesktopEditor(path string) (*ClaudeDesktopEditor, error) {
-	if path == "" {
-		var err error
-		path, err = GetDefaultClaudeDesktopConfigPath()
-		if err != nil {
-			return nil, fmt.Errorf("could not get default config path: %w", err)
-		}
-	}
+// GetProjectCursorMCPConfigPath returns the path for the project-specific Cursor MCP configuration file
+func GetProjectCursorMCPConfigPath(projectDir string) string {
+	return filepath.Join(projectDir, ".cursor", "mcp.json")
+}
 
-	editor := &ClaudeDesktopEditor{
+// NewCursorMCPEditor creates a new editor for the Cursor MCP configuration
+func NewCursorMCPEditor(path string) (*CursorMCPEditor, error) {
+	editor := &CursorMCPEditor{
 		path: path,
 	}
 
@@ -57,9 +57,9 @@ func NewClaudeDesktopEditor(path string) (*ClaudeDesktopEditor, error) {
 	if err := editor.load(); err != nil {
 		// If file doesn't exist, create a new config
 		if os.IsNotExist(err) {
-			editor.config = &ClaudeDesktopConfig{
-				MCPServers:      make(map[string]MCPServer),
-				DisabledServers: make(map[string]MCPServer),
+			editor.config = &CursorMCPConfig{
+				MCPServers:      make(map[string]CursorMCPServer),
+				DisabledServers: make(map[string]CursorMCPServer),
 			}
 		} else {
 			return nil, fmt.Errorf("could not load config: %w", err)
@@ -70,36 +70,36 @@ func NewClaudeDesktopEditor(path string) (*ClaudeDesktopEditor, error) {
 }
 
 // load reads the configuration from disk
-func (e *ClaudeDesktopEditor) load() error {
+func (e *CursorMCPEditor) load() error {
 	data, err := os.ReadFile(e.path)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return errors.Wrapf(err, "failed to read config file %s", e.path)
 		}
-		e.config = &ClaudeDesktopConfig{
-			MCPServers:      make(map[string]MCPServer),
-			DisabledServers: make(map[string]MCPServer),
+		e.config = &CursorMCPConfig{
+			MCPServers:      make(map[string]CursorMCPServer),
+			DisabledServers: make(map[string]CursorMCPServer),
 		}
 		return nil
 	}
 
-	e.config = &ClaudeDesktopConfig{}
+	e.config = &CursorMCPConfig{}
 	if err := json.Unmarshal(data, e.config); err != nil {
 		return errors.Wrapf(err, "could not parse config file %s", e.path)
 	}
 
 	if e.config.MCPServers == nil {
-		e.config.MCPServers = make(map[string]MCPServer)
+		e.config.MCPServers = make(map[string]CursorMCPServer)
 	}
 	if e.config.DisabledServers == nil {
-		e.config.DisabledServers = make(map[string]MCPServer)
+		e.config.DisabledServers = make(map[string]CursorMCPServer)
 	}
 
 	return nil
 }
 
 // Save writes the configuration to disk
-func (e *ClaudeDesktopEditor) Save() error {
+func (e *CursorMCPEditor) Save() error {
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(e.path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -119,12 +119,12 @@ func (e *ClaudeDesktopEditor) Save() error {
 }
 
 // AddMCPServer adds or updates a server configuration using the CommonServer struct.
-func (e *ClaudeDesktopEditor) AddMCPServer(server types.CommonServer, overwrite bool) error {
+func (e *CursorMCPEditor) AddMCPServer(server types.CommonServer, overwrite bool) error {
 	if e.config.MCPServers == nil {
-		e.config.MCPServers = make(map[string]MCPServer)
+		e.config.MCPServers = make(map[string]CursorMCPServer)
 	}
 	if e.config.DisabledServers == nil {
-		e.config.DisabledServers = make(map[string]MCPServer)
+		e.config.DisabledServers = make(map[string]CursorMCPServer)
 	}
 
 	name := server.Name
@@ -135,23 +135,24 @@ func (e *ClaudeDesktopEditor) AddMCPServer(server types.CommonServer, overwrite 
 		return fmt.Errorf("MCP server '%s' already exists. Use overwrite option to replace it", name)
 	}
 
-	claudeServer := MCPServer{
+	cursorServer := CursorMCPServer{
 		Command: server.Command,
 		Args:    server.Args,
 		Env:     server.Env,
+		URL:     server.URL,
 	}
 
 	if existsDisabled {
 		delete(e.config.DisabledServers, name)
 	}
 
-	e.config.MCPServers[name] = claudeServer
+	e.config.MCPServers[name] = cursorServer
 
 	return nil
 }
 
 // RemoveMCPServer removes an MCP server configuration from both enabled and disabled lists.
-func (e *ClaudeDesktopEditor) RemoveMCPServer(name string) error {
+func (e *CursorMCPEditor) RemoveMCPServer(name string) error {
 	_, existsEnabled := e.config.MCPServers[name]
 	_, existsDisabled := e.config.DisabledServers[name]
 
@@ -170,12 +171,12 @@ func (e *ClaudeDesktopEditor) RemoveMCPServer(name string) error {
 }
 
 // GetConfigPath returns the path to the configuration file
-func (e *ClaudeDesktopEditor) GetConfigPath() string {
+func (e *CursorMCPEditor) GetConfigPath() string {
 	return e.path
 }
 
 // ListServers returns a map of all configured servers (enabled and disabled) as CommonServer.
-func (e *ClaudeDesktopEditor) ListServers() (map[string]types.CommonServer, error) {
+func (e *CursorMCPEditor) ListServers() (map[string]types.CommonServer, error) {
 	servers := make(map[string]types.CommonServer)
 
 	// Add enabled MCP servers
@@ -185,7 +186,8 @@ func (e *ClaudeDesktopEditor) ListServers() (map[string]types.CommonServer, erro
 			Command: server.Command,
 			Args:    server.Args,
 			Env:     server.Env,
-			IsSSE:   false,
+			URL:     server.URL,
+			IsSSE:   server.URL != "",
 		}
 	}
 
@@ -198,7 +200,8 @@ func (e *ClaudeDesktopEditor) ListServers() (map[string]types.CommonServer, erro
 					Command: server.Command,
 					Args:    server.Args,
 					Env:     server.Env,
-					IsSSE:   false,
+					URL:     server.URL,
+					IsSSE:   server.URL != "",
 				}
 			}
 		}
@@ -208,7 +211,7 @@ func (e *ClaudeDesktopEditor) ListServers() (map[string]types.CommonServer, erro
 }
 
 // EnableMCPServer enables a previously disabled MCP server
-func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
+func (e *CursorMCPEditor) EnableMCPServer(name string) error {
 	if len(e.config.DisabledServers) == 0 {
 		if _, exists := e.config.MCPServers[name]; exists {
 			return fmt.Errorf("server '%s' is already enabled", name)
@@ -225,7 +228,7 @@ func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 	}
 
 	if e.config.MCPServers == nil {
-		e.config.MCPServers = make(map[string]MCPServer)
+		e.config.MCPServers = make(map[string]CursorMCPServer)
 	}
 	e.config.MCPServers[name] = server
 	delete(e.config.DisabledServers, name)
@@ -234,7 +237,7 @@ func (e *ClaudeDesktopEditor) EnableMCPServer(name string) error {
 }
 
 // DisableMCPServer disables an MCP server without removing its configuration
-func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
+func (e *CursorMCPEditor) DisableMCPServer(name string) error {
 	server, exists := e.config.MCPServers[name]
 	if !exists {
 		if _, disabledExists := e.config.DisabledServers[name]; disabledExists {
@@ -244,7 +247,7 @@ func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
 	}
 
 	if e.config.DisabledServers == nil {
-		e.config.DisabledServers = make(map[string]MCPServer)
+		e.config.DisabledServers = make(map[string]CursorMCPServer)
 	}
 	e.config.DisabledServers[name] = server
 	delete(e.config.MCPServers, name)
@@ -253,7 +256,7 @@ func (e *ClaudeDesktopEditor) DisableMCPServer(name string) error {
 }
 
 // IsServerDisabled checks if a server is in the disabled list.
-func (e *ClaudeDesktopEditor) IsServerDisabled(name string) (bool, error) {
+func (e *CursorMCPEditor) IsServerDisabled(name string) (bool, error) {
 	if e.config.DisabledServers == nil {
 		if _, exists := e.config.MCPServers[name]; exists {
 			return false, nil
@@ -270,7 +273,7 @@ func (e *ClaudeDesktopEditor) IsServerDisabled(name string) (bool, error) {
 }
 
 // ListDisabledServers returns a list of disabled server names
-func (e *ClaudeDesktopEditor) ListDisabledServers() ([]string, error) {
+func (e *CursorMCPEditor) ListDisabledServers() ([]string, error) {
 	if e.config.DisabledServers == nil {
 		return []string{}, nil
 	}
@@ -282,7 +285,7 @@ func (e *ClaudeDesktopEditor) ListDisabledServers() ([]string, error) {
 }
 
 // GetServer retrieves a specific server configuration by name as CommonServer.
-func (e *ClaudeDesktopEditor) GetServer(name string) (types.CommonServer, bool, error) {
+func (e *CursorMCPEditor) GetServer(name string) (types.CommonServer, bool, error) {
 	server, exists := e.config.MCPServers[name]
 	isDisabled := false
 	if !exists {
@@ -303,7 +306,8 @@ func (e *ClaudeDesktopEditor) GetServer(name string) (types.CommonServer, bool, 
 		Command: server.Command,
 		Args:    server.Args,
 		Env:     server.Env,
-		IsSSE:   false,
+		URL:     server.URL,
+		IsSSE:   server.URL != "",
 	}
 	_ = isDisabled
 
@@ -312,9 +316,9 @@ func (e *ClaudeDesktopEditor) GetServer(name string) (types.CommonServer, bool, 
 
 // --- Deprecated Methods (kept temporarily for compatibility, remove later) ---
 
-// AddMCPServer adds or updates an MCP server configuration
+// AddMCPServer adds or updates an MCP server configuration (stdio format)
 // DEPRECATED: Use AddMCPServer with CommonServer instead.
-func (e *ClaudeDesktopEditor) AddMCPServerRaw(name string, command string, args []string, env map[string]string, overwrite bool) error {
+func (e *CursorMCPEditor) AddMCPServerStdio(name string, command string, args []string, env map[string]string, overwrite bool) error {
 	common := types.CommonServer{
 		Name:    name,
 		Command: command,
@@ -325,17 +329,49 @@ func (e *ClaudeDesktopEditor) AddMCPServerRaw(name string, command string, args 
 	return e.AddMCPServer(common, overwrite)
 }
 
+// AddMCPServerSSE adds or updates an MCP server configuration (SSE format)
+// DEPRECATED: Use AddMCPServer with CommonServer instead.
+func (e *CursorMCPEditor) AddMCPServerSSE(name string, url string, env map[string]string, overwrite bool) error {
+	common := types.CommonServer{
+		Name:  name,
+		URL:   url,
+		Env:   env,
+		IsSSE: true,
+	}
+	return e.AddMCPServer(common, overwrite)
+}
+
+// GetServer retrieves a server's configuration by name
+// DEPRECATED: Use the new GetServer which returns CommonServer.
+func (e *CursorMCPEditor) GetServerRaw(name string) (CursorMCPServer, error) {
+	server, exists := e.config.MCPServers[name]
+	if !exists {
+		if e.config.DisabledServers != nil {
+			server, exists = e.config.DisabledServers[name]
+			if exists {
+				return server, nil
+			}
+		}
+		return CursorMCPServer{}, fmt.Errorf("MCP server %s not found", name)
+	}
+	return server, nil
+}
+
 // ListServers returns a list of configured MCP servers
 // DEPRECATED: Use the new ListServers which returns map[string]CommonServer.
-func (e *ClaudeDesktopEditor) ListServersRaw() map[string]MCPServer {
-	servers := make(map[string]MCPServer)
+func (e *CursorMCPEditor) ListServersRaw() map[string]CursorMCPServer {
+	servers := make(map[string]CursorMCPServer)
 
 	// Add enabled MCP servers
-	maps.Copy(servers, e.config.MCPServers)
+	for name, server := range e.config.MCPServers {
+		servers[name] = server
+	}
 
 	// Add disabled MCP servers
 	if e.config.DisabledServers != nil {
-		maps.Copy(servers, e.config.DisabledServers)
+		for name, server := range e.config.DisabledServers {
+			servers[name] = server
+		}
 	}
 
 	return servers

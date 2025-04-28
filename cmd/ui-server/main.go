@@ -16,12 +16,6 @@ var rootCmd = &cobra.Command{
 	Short: "Start a UI server that renders YAML UI definitions",
 	Long: `A server that renders UI definitions from YAML files.
 The server watches for changes in the specified directory and automatically reloads pages.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// reinitialize the logger because we can now parse --log-level and co
-		// from the command line flag
-		err := clay.InitLogger()
-		cobra.CheckErr(err)
-	},
 }
 
 func main() {

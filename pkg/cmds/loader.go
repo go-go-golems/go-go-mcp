@@ -26,7 +26,13 @@ func (l *ShellCommandLoader) LoadCommands(
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not open file %s", filePath)
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = errors.Wrapf(closeErr, "could not close file %s", filePath)
+			}
+		}
+	}()
 
 	data, err := io.ReadAll(f)
 	if err != nil {

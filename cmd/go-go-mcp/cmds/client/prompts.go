@@ -105,7 +105,11 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	defer func() {
+		if closeErr := client.Close(ctx); closeErr != nil {
+			err = errors.Wrap(closeErr, "failed to close client")
+		}
+	}()
 
 	prompts, cursor, err := client.ListPrompts(ctx, "")
 	if err != nil {
@@ -161,7 +165,11 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close(ctx)
+	defer func() {
+		if closeErr := client.Close(ctx); closeErr != nil {
+			err = errors.Wrap(closeErr, "failed to close client")
+		}
+	}()
 
 	// Parse prompt arguments
 	promptArgMap := make(map[string]string)

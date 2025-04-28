@@ -70,6 +70,12 @@ func WithFiles(files []string) ConfigToolProviderOption {
 
 func WithConfig(config_ *config.Config, profile string) ConfigToolProviderOption {
 	return func(p *ConfigToolProvider) error {
+		if profile == "" {
+			profile = config_.DefaultProfile
+		}
+		if profile == "" {
+			return nil
+		}
 		profileConfig, ok := config_.Profiles[profile]
 		if !ok {
 			return errors.Errorf("profile %s not found", profile)

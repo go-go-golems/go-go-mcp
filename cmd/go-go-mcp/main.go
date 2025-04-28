@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/go-go-golems/go-go-mcp/pkg/doc"
@@ -12,6 +15,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server"
@@ -35,13 +39,14 @@ Supports both stdio and SSE transports for client-server communication.
 
 The server implements the Model Context Protocol (MCP) specification,
 providing a framework for building MCP servers and clients.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// reinitialize the logger because we can now parse --log-level and co
-		// from the command line flag
-		err := clay.InitLogger()
-		cobra.CheckErr(err)
-	},
 	Version: version,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		err := logging.InitLoggerFromViper()
+		if err != nil {
+			return err
+		}
+		return nil
+	},
 }
 
 var runCommandCmd = &cobra.Command{
@@ -100,6 +105,13 @@ func initRootCmd() (*help.HelpSystem, error) {
 	claudeConfigCmd := mcp_cmds.NewClaudeConfigCommand()
 	rootCmd.AddCommand(claudeConfigCmd)
 
+	// Add Cursor config command group
+	cursorConfigCmd := mcp_cmds.NewCursorConfigCommand()
+	rootCmd.AddCommand(cursorConfigCmd)
+
+	// Add UI command
+	rootCmd.AddCommand(mcp_cmds.NewUICommand())
+
 	return helpSystem, nil
 }
 
@@ -148,12 +160,19 @@ func main() {
 	} else {
 		_, err := initRootCmd()
 		cobra.CheckErr(err)
-
 	}
 
+	// Handle interrupts
+	ctx, cancel := context.WithCancel(context.Background())
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
 	// Execute
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		log.Fatal().Err(err).Msg("Error executing root command")
 	}
 }

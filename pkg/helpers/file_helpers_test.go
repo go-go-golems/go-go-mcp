@@ -12,7 +12,11 @@ func TestFindStartPosForLastNLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tests := []struct {
 		name     string
@@ -103,7 +107,11 @@ func TestFindStartPosForLastNLines(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to create large test file: %v", err)
 				}
-				defer f.Close()
+				defer func() {
+					if err := f.Close(); err != nil {
+						t.Errorf("Failed to close test file: %v", err)
+					}
+				}()
 
 				offset := 0
 				// Write 100 numbered lines
@@ -144,7 +152,11 @@ func TestFindStartPosForLastNLines(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Failed to create temp file: %v", err)
 				}
-				defer f.Close()
+				defer func() {
+					if err := f.Close(); err != nil {
+						t.Errorf("Failed to close temp file: %v", err)
+					}
+				}()
 				filepath = f.Name()
 				if _, err := f.WriteString(tt.content); err != nil {
 					t.Fatalf("Failed to write test content: %v", err)
@@ -162,7 +174,11 @@ func TestFindStartPosForLastNLines(t *testing.T) {
 
 				// For debugging: print the actual content from the found position
 				if file, err := os.Open(filepath); err == nil {
-					defer file.Close()
+					defer func() {
+						if err := file.Close(); err != nil {
+							t.Errorf("Failed to close file: %v", err)
+						}
+					}()
 					_, _ = file.Seek(gotPos, 0)
 					content := make([]byte, 1024)
 					n, _ := file.Read(content)
@@ -183,7 +199,11 @@ func TestFindStartPosForLastNLinesPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Create a file with no read permissions
 	noReadFile := filepath.Join(tmpDir, "no_read.txt")
