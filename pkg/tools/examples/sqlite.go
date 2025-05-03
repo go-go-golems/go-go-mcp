@@ -33,9 +33,6 @@ func RegisterSQLiteSessionTools(registry *tool_registry.Registry) error {
 	if err := registerSQLiteQueryTool(registry); err != nil {
 		return errors.Wrap(err, "failed to register sqlite_query tool")
 	}
-	if err := registerSQLiteCloseTool(registry); err != nil {
-		return errors.Wrap(err, "failed to register sqlite_close tool")
-	}
 	return nil
 }
 
@@ -99,46 +96,6 @@ func registerSQLiteOpenTool(registry *tool_registry.Registry) error {
 
 			return protocol.NewToolResult(
 				protocol.WithText(fmt.Sprintf("Successfully opened database: %s", dbPath)),
-			), nil
-		})
-
-	return nil
-}
-
-// registerSQLiteCloseTool registers the tool to close the session's database connection.
-func registerSQLiteCloseTool(registry *tool_registry.Registry) error {
-	schemaJson := `{
-		"type": "object",
-		"properties": {},
-		"required": []
-	}`
-
-	tool, err := tools.NewToolImpl(
-		"sqlite_close",
-		"Closes the SQLite database connection currently stored in the session.",
-		json.RawMessage(schemaJson))
-	if err != nil {
-		return err
-	}
-
-	registry.RegisterToolWithHandler(
-		tool,
-		func(ctx context.Context, _ tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
-			s, ok := session.GetSessionFromContext(ctx)
-			if !ok {
-				return protocol.NewToolResult(protocol.WithError("no session found in context")), nil
-			}
-
-			closedPath, closed := closeSessionDB(s)
-			if !closed {
-				return protocol.NewToolResult(
-					protocol.WithText("No active SQLite database connection found in the session to close."),
-				), nil
-			}
-
-			log.Info().Str("sessionID", string(s.ID)).Str("dbPath", closedPath).Msg("SQLite database closed from session")
-			return protocol.NewToolResult(
-				protocol.WithText(fmt.Sprintf("Successfully closed database connection for: %s", closedPath)),
 			), nil
 		})
 
@@ -298,8 +255,15 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 			var queryErr error // To store the first error encountered
 
 			for i, query := range queries {
+				queryLogger := log.With().Int("query_index", i).Str("query", query).Logger()
+
+				queryLogger.Debug().Msg("Executing SQLite query")
+
 				if queryErr != nil {
-					// If a previous query failed, add placeholders for subsequent queries
+					queryLogger.Warn().
+						Str("previous_error", queryErr.Error()).
+						Msg("Skipping query due to previous error")
+
 					allResults = append(allResults, map[string]interface{}{
 						"query": query,
 						"error": "Skipped due to previous error",
@@ -310,6 +274,10 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 				rows, err := db.QueryContext(ctx, query)
 				if err != nil {
 					queryErr = errors.Wrapf(err, "error executing query %d", i)
+					queryLogger.Error().
+						Err(err).
+						Msg("Failed to execute SQLite query")
+
 					allResults = append(allResults, map[string]interface{}{
 						"query": query,
 						"error": err.Error(),
@@ -317,15 +285,25 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 					continue // Move to the next query
 				}
 
+				queryLogger.Debug().Msg("Successfully executed query, processing results")
+
 				processResult, err := processQueryResults(rows, query)
 				_ = rows.Close() // Close rows immediately after processing
 				if err != nil {
 					queryErr = errors.Wrapf(err, "error processing results for query %d", i)
+					queryLogger.Error().
+						Err(err).
+						Msg("Failed to process query results")
+
 					// Add error information to this query's result map
 					processResult["error"] = err.Error()
 					allResults = append(allResults, processResult)
 					continue // Move to the next query
 				}
+
+				queryLogger.Debug().
+					Interface("result", processResult).
+					Msg("Successfully processed query results")
 
 				allResults = append(allResults, processResult)
 			}
