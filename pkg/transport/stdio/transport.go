@@ -13,20 +13,23 @@ import (
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 type StdioTransport struct {
-	mu         sync.Mutex
-	logger     zerolog.Logger
-	scanner    *bufio.Scanner
-	writer     *json.Encoder
-	handler    transport.RequestHandler
-	signalChan chan os.Signal
-	wg         sync.WaitGroup
-	cancel     context.CancelFunc
+	mu             sync.Mutex
+	logger         zerolog.Logger
+	scanner        *bufio.Scanner
+	writer         *json.Encoder
+	handler        transport.RequestHandler
+	sessionStore   session.SessionStore
+	currentSession *session.Session
+	signalChan     chan os.Signal
+	wg             sync.WaitGroup
+	cancel         context.CancelFunc
 }
 
 func NewStdioTransport(opts ...transport.TransportOption) (*StdioTransport, error) {
@@ -47,11 +50,12 @@ func NewStdioTransport(opts ...transport.TransportOption) (*StdioTransport, erro
 	}
 
 	pid := os.Getpid()
+	baseLogger := log.Logger.With().Int("pid", pid).Logger()
 
 	return &StdioTransport{
 		scanner:    scanner,
 		writer:     json.NewEncoder(os.Stdout),
-		logger:     log.Logger.With().Int("pid", pid).Logger(),
+		logger:     baseLogger.With().Str("component", "stdio_transport").Logger(),
 		signalChan: make(chan os.Signal, 1),
 	}, nil
 }
@@ -78,98 +82,105 @@ func (s *StdioTransport) Listen(ctx context.Context, handler transport.RequestHa
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		scanLogger := s.logger.With().Str("routine", "scanner").Logger()
+
 		for s.scanner.Scan() {
 			select {
 			case <-scannerCtx.Done():
-				s.logger.Debug().Msg("Context cancelled, stopping scanner")
+				scanLogger.Debug().Msg("Context cancelled, stopping scanner")
 				scanErrChan <- scannerCtx.Err()
 				return
 			default:
 				line := s.scanner.Text()
-				s.logger.Debug().
-					Str("line", line).
-					Msg("Received line")
-				if err := s.handleMessage(line); err != nil {
-					s.logger.Error().Err(err).Msg("Error handling message")
+				scanLogger.Debug().Msg("Received line")
+
+				// Parse the base message structure
+				var request protocol.Request
+				if err := json.Unmarshal([]byte(line), &request); err != nil {
+					scanLogger.Error().Err(err).Msg("Failed to parse message as JSON-RPC request")
+					continue // Skip this message
+				}
+
+				// Handle session creation/update based on method
+				ctx := s.manageSession(scannerCtx, &request)
+
+				if err := s.handleMessage(ctx, &request); err != nil {
+					scanLogger.Error().Err(err).Msg("Error handling message")
 					// Continue processing messages even if one fails
 				}
 			}
 		}
 
 		if err := s.scanner.Err(); err != nil {
-			s.logger.Error().
-				Err(err).
-				Msg("Scanner error")
+			scanLogger.Error().Err(err).Msg("Scanner error")
 			scanErrChan <- fmt.Errorf("scanner error: %w", err)
 			return
 		}
 
-		s.logger.Debug().Msg("Scanner reached EOF")
+		scanLogger.Debug().Msg("Scanner reached EOF")
 		scanErrChan <- io.EOF
 	}()
 
 	// Wait for either a signal, context cancellation, or scanner error
 	select {
 	case sig := <-s.signalChan:
-		s.logger.Debug().
-			Str("signal", sig.String()).
-			Msg("Received signal in stdio transport")
+		s.logger.Debug().Str("signal", sig.String()).Msg("Received signal in stdio transport")
 		cancelScanner()
 		return nil
 	case <-ctx.Done():
-		s.logger.Debug().
-			Err(ctx.Err()).
-			Msg("Context cancelled in stdio transport")
+		s.logger.Debug().Err(ctx.Err()).Msg("Context cancelled in stdio transport")
 		return ctx.Err()
 	case err := <-scanErrChan:
 		if err == io.EOF {
 			s.logger.Debug().Msg("Scanner completed normally")
 			return nil
 		}
-		s.logger.Error().
-			Err(err).
-			Msg("Scanner error in stdio transport")
+		s.logger.Error().Err(err).Msg("Scanner error in stdio transport")
 		return err
 	}
-
 }
 
 func (s *StdioTransport) Send(ctx context.Context, response *protocol.Response) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.logger.Debug().Interface("response", response).Msg("Sending response")
+	// Create a scoped logger for this response
+	respLogger := s.logger.With().Logger()
+	if session_, ok := session.GetSessionFromContext(ctx); ok {
+		respLogger = respLogger.With().Str("session_id", string(session_.ID)).Logger()
+	}
+
+	respLogger.Debug().Interface("response", response).Msg("Sending response")
 	return s.writer.Encode(response)
 }
 
 func (s *StdioTransport) Close(ctx context.Context) error {
-	s.logger.Info().Msg("Stopping stdio transport")
+	closeLogger := s.logger.With().Str("operation", "close").Logger()
+	closeLogger.Info().Msg("Stopping stdio transport")
 
 	if s.cancel != nil {
-		s.logger.Debug().Msg("Cancelling context")
+		closeLogger.Debug().Msg("Cancelling context")
 		s.cancel()
 	}
 
 	// Wait for context to be done or timeout
 	done := make(chan struct{})
 	go func() {
-		s.logger.Debug().Msg("Waiting for goroutines to finish")
+		closeLogger.Debug().Msg("Waiting for goroutines to finish")
 		s.wg.Wait()
-		s.logger.Debug().Msg("Goroutines finished")
+		closeLogger.Debug().Msg("Goroutines finished")
 		close(done)
 	}()
 
 	select {
 	case <-done:
-		s.logger.Debug().Msg("All goroutines finished")
+		closeLogger.Debug().Msg("All goroutines finished")
 		return nil
 	case <-ctx.Done():
-		s.logger.Debug().
-			Err(ctx.Err()).
-			Msg("Stop context cancelled before clean shutdown")
+		closeLogger.Debug().Err(ctx.Err()).Msg("Stop context cancelled before clean shutdown")
 		return ctx.Err()
 	case <-time.After(100 * time.Millisecond): // Give a small grace period for cleanup
-		s.logger.Debug().Msg("Stop completed with timeout")
+		closeLogger.Debug().Msg("Stop completed with timeout")
 		return nil
 	}
 }
@@ -187,63 +198,109 @@ func (s *StdioTransport) Info() transport.TransportInfo {
 	}
 }
 
-func (s *StdioTransport) handleMessage(message string) error {
-	s.logger.Debug().
-		Str("message", message).
-		Msg("Processing message")
+// SetSessionStore implements the transport.Transport interface
+func (s *StdioTransport) SetSessionStore(store session.SessionStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessionStore = store
+	s.logger.Info().Msg("Session store set for stdio transport")
+}
 
-	// Parse the base message structure
-	var request protocol.Request
-	if err := json.Unmarshal([]byte(message), &request); err != nil {
-		s.logger.Error().
-			Err(err).
-			Str("message", message).
-			Msg("Failed to parse message as JSON-RPC request")
-		return s.sendError(nil, transport.ErrCodeParse, "Parse error", err)
+// manageSession handles session logic for incoming requests.
+// It creates a new session for `initialize` requests and uses the existing one otherwise.
+// It returns a context enhanced with the appropriate session.
+func (s *StdioTransport) manageSession(baseCtx context.Context, req *protocol.Request) context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.sessionStore == nil {
+		s.logger.Error().Msg("Session store not set in stdio transport, cannot manage sessions")
+		return baseCtx // Return base context if store is missing
+	}
+
+	// Create a scoped logger for session operations
+	var sessionLogger zerolog.Logger
+	if s.currentSession != nil {
+		sessionLogger = s.logger.With().Str("session_id", string(s.currentSession.ID)).Logger()
+	} else {
+		sessionLogger = s.logger
+	}
+
+	// Create a new session specifically for the 'initialize' method
+	if req.Method == "initialize" {
+		// If there was an old session, maybe log its closure?
+		if s.currentSession != nil {
+			sessionLogger.Info().Msg("Replacing existing stdio session due to initialize request")
+			// Optionally delete the old session from the store if it shouldn't persist
+			// s.sessionStore.Delete(s.currentSession.ID)
+		}
+		s.currentSession = s.sessionStore.Create()
+		sessionLogger = s.logger.With().Str("session_id", string(s.currentSession.ID)).Logger()
+		sessionLogger.Info().Msg("Created new session for stdio connection (initialize)")
+	} else if s.currentSession == nil {
+		// If it's not 'initialize' and no session exists, create one.
+		// This handles the case where the first request isn't 'initialize'.
+		s.currentSession = s.sessionStore.Create()
+		sessionLogger = s.logger.With().Str("session_id", string(s.currentSession.ID)).Logger()
+		sessionLogger.Info().Msg("Created implicit session for stdio connection (first request was not initialize)")
+	}
+
+	// Enhance context with the current session
+	return session.WithSession(baseCtx, s.currentSession)
+}
+
+func (s *StdioTransport) handleMessage(ctx context.Context, request *protocol.Request) error {
+	// Create a scoped logger for this message
+	msgLogger := s.logger.With().Str("method", request.Method).Logger()
+	if session_, ok := session.GetSessionFromContext(ctx); ok {
+		msgLogger = msgLogger.With().Str("session_id", string(session_.ID)).Logger()
 	}
 
 	// Handle requests vs notifications based on ID presence
-	if !transport.IsNotification(&request) {
-		s.logger.Debug().
+	if !transport.IsNotification(request) {
+		msgLogger.Debug().
 			RawJSON("id", request.ID).
-			Str("method", request.Method).
 			Msg("Handling request")
-		return s.handleRequest(request)
+		return s.handleRequest(ctx, request)
 	}
 
-	s.logger.Debug().
-		Str("method", request.Method).
-		Msg("Handling notification")
-	return s.handleNotification(protocol.Notification{
+	msgLogger.Debug().Msg("Handling notification")
+	return s.handleNotification(ctx, protocol.Notification{
 		Method: request.Method,
 		Params: request.Params,
 	})
 }
 
-func (s *StdioTransport) handleRequest(request protocol.Request) error {
-	response, err := s.handler.HandleRequest(context.Background(), &request)
+func (s *StdioTransport) handleRequest(ctx context.Context, request *protocol.Request) error {
+	// Create a scoped logger for this request
+	reqLogger := s.logger.With().Str("method", request.Method).Logger()
+	if session_, ok := session.GetSessionFromContext(ctx); ok {
+		reqLogger = reqLogger.With().Str("session_id", string(session_.ID)).Logger()
+	}
+
+	response, err := s.handler.HandleRequest(ctx, request) // Pass context
 	if err != nil {
-		s.logger.Error().
-			Err(err).
-			Str("method", request.Method).
-			Msg("Error handling request")
-		return s.sendError(request.ID, transport.ErrCodeInternal, "Internal error", err)
+		reqLogger.Error().Err(err).Msg("Error handling request")
+		jsonErr := transport.ProcessError(err) // Convert to JSON-RPC error
+		return s.sendError(request.ID, jsonErr.Code, jsonErr.Message, jsonErr.Data)
 	}
 
 	if response != nil {
-		return s.Send(context.Background(), response)
+		return s.Send(ctx, response) // Pass context
 	}
 
 	return nil
 }
 
-func (s *StdioTransport) handleNotification(notification protocol.Notification) error {
+func (s *StdioTransport) handleNotification(ctx context.Context, notification protocol.Notification) error {
+	// Create a scoped logger for this notification
+	notifLogger := s.logger.With().Str("method", notification.Method).Logger()
+	if session_, ok := session.GetSessionFromContext(ctx); ok {
+		notifLogger = notifLogger.With().Str("session_id", string(session_.ID)).Logger()
+	}
 
-	if err := s.handler.HandleNotification(context.Background(), &notification); err != nil {
-		s.logger.Error().
-			Err(err).
-			Str("method", notification.Method).
-			Msg("Error handling notification")
+	if err := s.handler.HandleNotification(ctx, &notification); err != nil { // Pass context
+		notifLogger.Error().Err(err).Msg("Error handling notification")
 		// Don't send error responses for notifications
 	}
 
@@ -253,16 +310,30 @@ func (s *StdioTransport) handleNotification(notification protocol.Notification) 
 func (s *StdioTransport) sendError(id json.RawMessage, code int, message string, data interface{}) error {
 	var errorData json.RawMessage
 	if data != nil {
-		var err error
-		errorData, err = json.Marshal(data)
-		if err != nil {
-			// If we can't marshal the error data, log it and send a simpler error
-			s.logger.Error().Err(err).Interface("data", data).Msg("Failed to marshal error data")
-			return s.sendError(id, transport.ErrCodeInternal, "Internal error marshaling error data", nil)
+		// Check if data is already json.RawMessage
+		if rawData, ok := data.(json.RawMessage); ok {
+			errorData = rawData
+		} else {
+			var err error
+			errorData, err = json.Marshal(data)
+			if err != nil {
+				// If we can't marshal the error data, log it and send a simpler error
+				s.logger.Error().Err(err).Interface("data", data).Msg("Failed to marshal error data")
+				// Avoid recursion by creating the error struct directly
+				errorResponse := &protocol.Response{
+					Error: &protocol.Error{
+						Code:    transport.ErrCodeInternal,
+						Message: "Internal error marshaling error data",
+					},
+					ID: id,
+				}
+				return s.Send(context.Background(), errorResponse)
+			}
 		}
 	}
 
 	response := &protocol.Response{
+		JSONRPC: "2.0", // Ensure JSONRPC version is set
 		Error: &protocol.Error{
 			Code:    code,
 			Message: message,
@@ -271,6 +342,7 @@ func (s *StdioTransport) sendError(id json.RawMessage, code int, message string,
 		ID: id,
 	}
 
-	s.logger.Debug().Interface("response", response).Msg("Sending error response")
+	errLogger := s.logger.With().Int("error_code", code).Logger()
+	errLogger.Debug().Interface("response", response).Msg("Sending error response")
 	return s.Send(context.Background(), response)
 }

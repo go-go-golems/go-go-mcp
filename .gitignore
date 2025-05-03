@@ -21,4 +21,6 @@ dist/
 .history
 __debug*
 
-.specstory
+.specstory/
+.history/
+
