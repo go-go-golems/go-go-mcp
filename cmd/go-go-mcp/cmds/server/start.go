@@ -87,7 +87,7 @@ func registerInternalServers(registry *tool_registry.Registry, serverList []stri
 
 	// Register the requested servers
 	if serversMap["sqlite"] {
-		if err := examples.RegisterSQLiteTool(registry); err != nil {
+		if err := examples.RegisterSQLiteSessionTools(registry); err != nil {
 			return errors.Wrap(err, "failed to register sqlite tool")
 		}
 	}

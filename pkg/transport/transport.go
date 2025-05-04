@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 )
 
 // Transport handles the low-level communication between client and server
@@ -20,6 +21,9 @@ type Transport interface {
 
 	// Info returns metadata about the transport
 	Info() TransportInfo
+
+	// SetSessionStore provides the session store to the transport layer
+	SetSessionStore(store session.SessionStore)
 }
 
 // TransportInfo provides metadata about the transport

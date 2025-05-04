@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/rs/zerolog"
 )
@@ -18,6 +19,7 @@ type Server struct {
 	promptProvider   pkg.PromptProvider
 	resourceProvider pkg.ResourceProvider
 	toolProvider     pkg.ToolProvider
+	sessionStore     session.SessionStore
 	handler          *RequestHandler
 
 	serverName    string
@@ -27,8 +29,9 @@ type Server struct {
 // NewServer creates a new server instance
 func NewServer(logger zerolog.Logger, t transport.Transport, opts ...ServerOption) *Server {
 	s := &Server{
-		logger:    logger,
-		transport: t,
+		logger:       logger,
+		transport:    t,
+		sessionStore: session.NewInMemorySessionStore(),
 	}
 
 	// Apply options
@@ -48,6 +51,11 @@ func (s *Server) Start(ctx context.Context) error {
 		Str("transport", s.transport.Info().Type).
 		Interface("capabilities", s.transport.Info().Capabilities).
 		Msg("Starting MCP server")
+
+	// Pass the session store to the transport
+	if s.sessionStore != nil {
+		s.transport.SetSessionStore(s.sessionStore)
+	}
 
 	return s.transport.Listen(ctx, s.handler)
 }

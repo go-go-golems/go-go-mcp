@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 )
 
@@ -95,6 +96,17 @@ func (h *RequestHandler) handleInitialize(ctx context.Context, req *protocol.Req
 		return nil, transport.NewInvalidParamsError(err.Error())
 	}
 
+	// Log session ID if present
+	currentSession, sessionFound := session.GetSessionFromContext(ctx)
+	if sessionFound {
+		h.server.logger.Info().Str("session_id", string(currentSession.ID)).Msg("Handling initialize request for session")
+		// Optionally clear session state upon initialize, depending on desired behavior
+		// currentSession.State = make(session.SessionState)
+		// h.server.sessionStore.Update(currentSession) // Persist the cleared state
+	} else {
+		h.server.logger.Warn().Msg("Handling initialize request without session context (should not happen with stdio/sse)")
+	}
+
 	// Validate protocol version
 	supportedVersions := []string{"2024-11-05"}
 	isSupported := false
@@ -130,6 +142,12 @@ func (h *RequestHandler) handleInitialize(ctx context.Context, req *protocol.Req
 			Version: h.server.serverVersion,
 		},
 	}
+
+	// Add session ID to the result if available
+	// XXX there is no session ID in the 2024 spec
+	// if sessionFound {
+	// 	result.SessionID = currentSession.ID
+	// }
 
 	return h.newSuccessResponse(req.ID, result)
 }
