@@ -1,10 +1,13 @@
 package examples
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -69,6 +72,12 @@ func registerSQLiteOpenTool(registry *tool_registry.Registry) error {
 			dbPath := defaultDBPath
 			if filePath, pathOK := arguments["file_path"].(string); pathOK && filePath != "" {
 				dbPath = filePath
+			}
+
+			if !filepath.IsAbs(dbPath) {
+				return protocol.NewToolResult(
+					protocol.WithError(fmt.Sprintf("file_path must be an absolute path, got: %s", dbPath)),
+				), nil
 			}
 
 			// Check if this DB is already open in the session
@@ -165,6 +174,12 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 			"file_path": {
 				"type": "string",
 				"description": "Path to the SQLite database file. Only used if no connection is open in the session. If neither session connection nor file_path is provided, the default Cursor database path is used."
+			},
+			"output_format": {
+				"type": "string",
+				"enum": ["yaml", "csv"],
+				"default": "csv",
+				"description": "Output format for the results (yaml or csv)."
 			}
 		},
 		"required": ["queries"]
@@ -191,6 +206,11 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 			}
 			if len(queriesInterfaces) == 0 {
 				return protocol.NewToolResult(protocol.WithError("'queries' array must not be empty")), nil
+			}
+
+			outputFormat := "csv"
+			if formatArg, ok := arguments["output_format"].(string); ok && (formatArg == "csv" || formatArg == "yaml") {
+				outputFormat = formatArg
 			}
 
 			queries := make([]string, len(queriesInterfaces))
@@ -234,6 +254,13 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 					dbPath = filePathArg
 				}
 				log.Debug().Str("dbPath", dbPath).Msg("Opening temporary SQLite connection")
+
+				// Ensure the path is absolute when opening temporarily
+				if !filepath.IsAbs(dbPath) {
+					return protocol.NewToolResult(
+						protocol.WithError(fmt.Sprintf("file_path must be an absolute path when opening a temporary connection, got: %s", dbPath)),
+					), nil
+				}
 
 				var openErr error
 				db, openErr = sql.Open("sqlite3", dbPath)
@@ -409,25 +436,38 @@ func registerSQLiteQueryTool(registry *tool_registry.Registry) error {
 				allResults = append(allResults, processResult)
 			}
 
-			// Convert results to YAML
-			yamlData, err := yaml.Marshal(allResults)
-			if err != nil {
-				// This error happens after query execution, return results error
-				return protocol.NewToolResult(
-					protocol.WithError(fmt.Sprintf("error converting results to YAML: %v. Query execution status: %v", err, queryErr)),
-				), nil
+			// --- Output Formatting ---
+			var outputData []byte
+			var formatErr error
+
+			if outputFormat == "csv" {
+				outputData, formatErr = formatResultsToCSV(allResults)
+				if formatErr != nil {
+					// This error happens after query execution, return results error
+					return protocol.NewToolResult(
+						protocol.WithError(fmt.Sprintf("error converting results to CSV: %v. Query execution status: %v", formatErr, queryErr)),
+					), nil
+				}
+			} else { // Default to YAML
+				outputData, formatErr = yaml.Marshal(allResults)
+				if formatErr != nil {
+					// This error happens after query execution, return results error
+					return protocol.NewToolResult(
+						protocol.WithError(fmt.Sprintf("error converting results to YAML: %v. Query execution status: %v", formatErr, queryErr)),
+					), nil
+				}
 			}
 
 			// If there was a query error, return it in the protocol error field
 			if queryErr != nil {
 				return protocol.NewToolResult(
-					protocol.WithText(string(yamlData)),
+					protocol.WithText(string(outputData)),
 					protocol.WithError(queryErr.Error()),
 				), nil
 			}
 
 			return protocol.NewToolResult(
-				protocol.WithText(string(yamlData)),
+				protocol.WithText(string(outputData)),
 			), nil
 		})
 
@@ -517,7 +557,7 @@ func processQueryResults(rows *sql.Rows, query string) (map[string]interface{}, 
 		}
 
 		totalBytes = len(bytes)
-		if totalBytes > 10000 {
+		if totalBytes > 100000 {
 			// Remove last row that put us over the limit
 			queryResults = queryResults[:len(queryResults)-1]
 			queryResults = append(queryResults, map[string]interface{}{
@@ -541,6 +581,103 @@ func processQueryResults(rows *sql.Rows, query string) (map[string]interface{}, 
 
 	queryResultMap["results"] = queryResults
 	return queryResultMap, nil
+}
+
+// formatResultsToCSV converts the query results map structure into CSV format.
+// Each query's results become a separate section in the CSV.
+func formatResultsToCSV(allResults []map[string]interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	defer writer.Flush()
+
+	for i, result := range allResults {
+		query, _ := result["query"].(string)
+		queryError, _ := result["error"].(string)
+		status, _ := result["status"].(string)
+		warning, _ := result["warning"].(string)
+		resultsData, _ := result["results"].([]map[string]interface{})
+
+		// Write header for the query section
+		if i > 0 {
+			buf.WriteString("\n") // Add a blank line between query results
+		}
+		_ = writer.Write([]string{fmt.Sprintf("--- Query %d ---", i+1)})
+		_ = writer.Write([]string{"Query:", query})
+		if queryError != "" {
+			_ = writer.Write([]string{"Error:", queryError})
+			writer.Flush() // Flush before continuing to next result
+			continue
+		}
+		if status != "" && status != "executed successfully" { // Avoid redundant status
+			_ = writer.Write([]string{"Status:", status})
+		}
+		if warning != "" {
+			_ = writer.Write([]string{"Warning:", warning})
+		}
+
+		if len(resultsData) == 0 {
+			if status == "" && queryError == "" { // Only add if no other status/error
+				_ = writer.Write([]string{"Result:", "No rows returned"})
+			}
+			writer.Flush()
+			continue
+		}
+
+		// Extract headers from the first row
+		var headers []string
+		if len(resultsData) > 0 {
+			firstRow := resultsData[0]
+			// Check for warning/info messages within the results list
+			if _, isWarning := firstRow["warning"]; isWarning || len(firstRow) == 0 {
+				// Handle case where resultsData might contain only a warning map
+				// or be empty maps after truncation.
+				// Just write the warning/info and skip header/row processing.
+				for _, rowMap := range resultsData {
+					for key, val := range rowMap {
+						_ = writer.Write([]string{fmt.Sprintf("%s:", key), fmt.Sprintf("%v", val)})
+					}
+				}
+				writer.Flush()
+				continue
+			}
+			headers = make([]string, 0, len(firstRow))
+			for k := range firstRow {
+				headers = append(headers, k)
+			}
+			// Consider sorting headers for consistent order? For now, use map order.
+			_ = writer.Write(headers)
+		}
+
+		// Write data rows
+		for _, rowMap := range resultsData {
+			// Handle potential warning/info rows mixed in
+			if _, isWarning := rowMap["warning"]; isWarning || len(rowMap) == 0 {
+				for key, val := range rowMap {
+					_ = writer.Write([]string{fmt.Sprintf("%s:", key), fmt.Sprintf("%v", val)})
+				}
+				continue // Skip trying to format this as a data row
+			}
+
+			row := make([]string, len(headers))
+			for j, h := range headers {
+				// Convert nil to empty string for CSV
+				if val, ok := rowMap[h]; ok && val != nil {
+					row[j] = fmt.Sprintf("%v", val)
+				} else {
+					row[j] = "" // Handle nil or missing key
+				}
+			}
+			_ = writer.Write(row)
+		}
+		writer.Flush() // Flush after each query's results
+	}
+
+	err := writer.Error()
+	if err != nil {
+		return nil, errors.Wrap(err, "csv writer error")
+	}
+
+	return buf.Bytes(), nil
 }
 
 // TODO: Remove the old registration function or rename it if needed elsewhere
