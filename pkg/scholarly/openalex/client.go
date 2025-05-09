@@ -95,17 +95,9 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 	return convertToSearchResults(oaResp.Results), nil
 }
 
-// min returns the smaller of x or y
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // reconstructAbstract reconstructs the abstract from the inverted index
 func reconstructAbstract(invertedIndex map[string][]int) string {
-	if invertedIndex == nil || len(invertedIndex) == 0 {
+	if len(invertedIndex) == 0 {
 		return ""
 	}
 	maxLength := 0

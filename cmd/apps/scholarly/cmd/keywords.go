@@ -32,7 +32,9 @@ Example:
 	Run: func(cmd *cobra.Command, args []string) {
 		if keywordsText == "" {
 			fmt.Println("Error: text cannot be empty")
-			cmd.Help()
+			if err := cmd.Help(); err != nil {
+				log.Error().Err(err).Msg("Failed to show help")
+			}
 			os.Exit(1)
 		}
 
@@ -70,7 +72,9 @@ func init() {
 	keywordsCmd.Flags().IntVarP(&keywordsMaxCount, "max", "m", 10, "Maximum number of keywords to return")
 	keywordsCmd.Flags().BoolVarP(&keywordsJsonOutput, "json", "j", false, "Output as JSON")
 
-	keywordsCmd.MarkFlagRequired("text")
+	if err := keywordsCmd.MarkFlagRequired("text"); err != nil {
+		log.Fatal().Err(err).Msg("Failed to mark text flag as required")
+	}
 }
 
 // truncateText truncates text to a specified length with ellipsis

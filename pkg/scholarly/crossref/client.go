@@ -80,14 +80,6 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 	return convertToSearchResults(crossrefResp.Message.Items), nil
 }
 
-// min returns the smaller of x or y
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // convertToSearchResults converts Crossref items to the common search result format
 func convertToSearchResults(items []CrossrefItem) []common.SearchResult {
 	results := make([]common.SearchResult, len(items))
@@ -119,7 +111,7 @@ func convertToSearchResults(items []CrossrefItem) []common.SearchResult {
 		result.Authors = authors
 
 		// Add publication date - prefer issued date over created date
-		if item.Issued.DateParts != nil && len(item.Issued.DateParts) > 0 && len(item.Issued.DateParts[0]) > 0 {
+		if len(item.Issued.DateParts) > 0 && len(item.Issued.DateParts[0]) > 0 {
 			dateStr := fmt.Sprintf("%d", item.Issued.DateParts[0][0])
 			if len(item.Issued.DateParts[0]) > 1 {
 				dateStr += fmt.Sprintf("-%02d", item.Issued.DateParts[0][1])

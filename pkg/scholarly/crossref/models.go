@@ -2,48 +2,48 @@ package crossref
 
 // CrossrefResponse represents the top-level structure of the Crossref API response.
 type CrossrefResponse struct {
-	Status  string         `json:"status"`
-	MessageType string `json:"message-type"`
-	MessageVersion string `json:"message-version"`
-	Message CrossrefMessage `json:"message"`
+	Status         string          `json:"status"`
+	MessageType    string          `json:"message-type"`
+	MessageVersion string          `json:"message-version"`
+	Message        CrossrefMessage `json:"message"`
 }
 
 // CrossrefMessage contains the actual search results.
 type CrossrefMessage struct {
-	TotalResults int             `json:"total-results"`
-	Items        []CrossrefItem  `json:"items"`
-	Query        CrossrefQuery   `json:"query"`
-	ItemsPerPage int `json:"items-per-page"`
+	TotalResults int            `json:"total-results"`
+	Items        []CrossrefItem `json:"items"`
+	Query        CrossrefQuery  `json:"query"`
+	ItemsPerPage int            `json:"items-per-page"`
 }
 
 // CrossrefQuery details the query performed.
 type CrossrefQuery struct {
 	SearchTerms string `json:"search-terms"`
-	StartIndex int `json:"start-index"`
+	StartIndex  int    `json:"start-index"`
 }
 
 // CrossrefItem represents a single work item from Crossref.
 type CrossrefItem struct {
-	DOI       string   `json:"DOI"`
-	Title     []string `json:"title"`
-	Author    []CrossrefAuthor `json:"author,omitempty"`
-	Publisher string   `json:"publisher"`
-	Type      string   `json:"type"`
-	Created   CrossrefDate   `json:"created,omitempty"`
+	DOI       string            `json:"DOI"`
+	Title     []string          `json:"title"`
+	Author    []CrossrefAuthor  `json:"author,omitempty"`
+	Publisher string            `json:"publisher"`
+	Type      string            `json:"type"`
+	Created   CrossrefDate      `json:"created,omitempty"`
 	Issued    CrossrefDateParts `json:"issued,omitempty"` // Contains date-parts
-	URL       string   `json:"URL"`
-	Abstract  string   `json:"abstract,omitempty"` // May not always be present or may be truncated
-	ISSN      []string `json:"ISSN,omitempty"`
-	ISBN      []string `json:"ISBN,omitempty"`
-	Subject   []string `json:"subject,omitempty"`
-	Link      []CrossrefLink `json:"link,omitempty"`
+	URL       string            `json:"URL"`
+	Abstract  string            `json:"abstract,omitempty"` // May not always be present or may be truncated
+	ISSN      []string          `json:"ISSN,omitempty"`
+	ISBN      []string          `json:"ISBN,omitempty"`
+	Subject   []string          `json:"subject,omitempty"`
+	Link      []CrossrefLink    `json:"link,omitempty"`
 }
 
 // CrossrefAuthor represents an author.
 type CrossrefAuthor struct {
-	Given   string `json:"given,omitempty"`
-	Family  string `json:"family,omitempty"`
-	Sequence string `json:"sequence,omitempty"`
+	Given       string                `json:"given,omitempty"`
+	Family      string                `json:"family,omitempty"`
+	Sequence    string                `json:"sequence,omitempty"`
 	Affiliation []CrossrefAffiliation `json:"affiliation,omitempty"`
 }
 
@@ -66,8 +66,8 @@ type CrossrefDateParts struct {
 
 // CrossrefLink represents a link associated with a work.
 type CrossrefLink struct {
-	URL string `json:"URL"`
-	ContentType string `json:"content-type,omitempty"`
-	ContentVersion string `json:"content-version,omitempty"`
+	URL                 string `json:"URL"`
+	ContentType         string `json:"content-type,omitempty"`
+	ContentVersion      string `json:"content-version,omitempty"`
 	IntendedApplication string `json:"intended-application,omitempty"`
 }

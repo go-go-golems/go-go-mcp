@@ -16,9 +16,9 @@ type Work struct {
 
 // SearchWorksRequest represents parameters for searching works
 type SearchWorksRequest struct {
-	Query  string `json:"query"`
-	Source string `json:"source"` // "openalex", "crossref", "arxiv"
-	Limit  int    `json:"limit,omitempty"`
+	Query  string            `json:"query"`
+	Source string            `json:"source"` // "openalex", "crossref", "arxiv"
+	Limit  int               `json:"limit,omitempty"`
 	Filter map[string]string `json:"filter,omitempty"`
 }
 
@@ -57,12 +57,12 @@ type GetMetricsRequest struct {
 
 // Metrics represents quantitative metrics for a work
 type Metrics struct {
-	CitationCount   int  `json:"citation_count"`
-	CitedByCount    int  `json:"cited_by_count"`
-	ReferenceCount  int  `json:"reference_count"`
-	IsOA            bool `json:"is_oa"`
-	OAStatus        string `json:"oa_status,omitempty"`
-	Altmetrics      map[string]int `json:"altmetrics,omitempty"`
+	CitationCount  int            `json:"citation_count"`
+	CitedByCount   int            `json:"cited_by_count"`
+	ReferenceCount int            `json:"reference_count"`
+	IsOA           bool           `json:"is_oa"`
+	OAStatus       string         `json:"oa_status,omitempty"`
+	Altmetrics     map[string]int `json:"altmetrics,omitempty"`
 }
 
 // GetCitationsRequest represents parameters for getting citations
@@ -82,23 +82,23 @@ type Citation struct {
 
 // GetCitationsResponse represents the response from get_citations
 type GetCitationsResponse struct {
-	Citations   []Citation `json:"citations"`
-	NextCursor  string     `json:"next_cursor,omitempty"`
+	Citations  []Citation `json:"citations"`
+	NextCursor string     `json:"next_cursor,omitempty"`
 }
 
 // FindFullTextRequest represents parameters for finding full text
 type FindFullTextRequest struct {
-	DOI          string `json:"doi,omitempty"`
-	Title        string `json:"title,omitempty"`
+	DOI           string `json:"doi,omitempty"`
+	Title         string `json:"title,omitempty"`
 	PreferVersion string `json:"prefer_version,omitempty"`
 }
 
 // FindFullTextResponse represents the response from find_full_text
 type FindFullTextResponse struct {
-	PDFURL   string `json:"pdf_url"`      // Can be PDF or HTML URL depending on what's available
+	PDFURL   string `json:"pdf_url"` // Can be PDF or HTML URL depending on what's available
 	Source   string `json:"source"`
 	OAStatus string `json:"oa_status,omitempty"`
 	License  string `json:"license,omitempty"`
-	MD5      string `json:"md5,omitempty"` // Only for LibGen
+	MD5      string `json:"md5,omitempty"`    // Only for LibGen
 	IsPDF    bool   `json:"is_pdf,omitempty"` // Indicates if the URL is for a PDF (false means HTML)
 }

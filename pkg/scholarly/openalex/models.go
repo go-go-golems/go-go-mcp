@@ -2,9 +2,9 @@ package openalex
 
 // OpenAlexResponse represents the top-level structure of the OpenAlex API response for works.
 type OpenAlexResponse struct {
-	Meta    OpenAlexMeta     `json:"meta"`
-	Results []OpenAlexWork   `json:"results"`
-	GroupBy []interface{}    `json:"group_by"`
+	Meta    OpenAlexMeta   `json:"meta"`
+	Results []OpenAlexWork `json:"results"`
+	GroupBy []interface{}  `json:"group_by"`
 }
 
 // OpenAlexMeta contains metadata about the response.
@@ -81,21 +81,21 @@ type OpenAlexConcept struct {
 
 // OpenAlexWork represents a single scholarly work.
 type OpenAlexWork struct {
-	ID                    string                  `json:"id"`
-	DOI                   string                  `json:"doi"`
-	Title                 string                  `json:"title"` 
-	DisplayName           string                  `json:"display_name"`
-	PublicationYear       int                     `json:"publication_year"`
-	PublicationDate       string                  `json:"publication_date"`
-	CitedByCount          int                     `json:"cited_by_count"`
-	Authorships           []OpenAlexAuthorship    `json:"authorships"`
-	PrimaryLocation       *OpenAlexPrimaryLocation  `json:"primary_location,omitempty"`
-	OpenAccess            *OpenAlexOpenAccess     `json:"open_access,omitempty"`
-	Type                  string                  `json:"type"`
-	AbstractInvertedIndex map[string][]int        `json:"abstract_inverted_index,omitempty"`
-	Abstract              string                  // This is reconstructed, not directly from JSON
-	Concepts              []OpenAlexConcept       `json:"concepts,omitempty"`
-	ReferencedWorks       []string                `json:"referenced_works,omitempty"`
-	RelatedWorks          []string                `json:"related_works,omitempty"`
-	RelevanceScore        float64                 `json:"relevance_score,omitempty"`
+	ID                    string                   `json:"id"`
+	DOI                   string                   `json:"doi"`
+	Title                 string                   `json:"title"`
+	DisplayName           string                   `json:"display_name"`
+	PublicationYear       int                      `json:"publication_year"`
+	PublicationDate       string                   `json:"publication_date"`
+	CitedByCount          int                      `json:"cited_by_count"`
+	Authorships           []OpenAlexAuthorship     `json:"authorships"`
+	PrimaryLocation       *OpenAlexPrimaryLocation `json:"primary_location,omitempty"`
+	OpenAccess            *OpenAlexOpenAccess      `json:"open_access,omitempty"`
+	Type                  string                   `json:"type"`
+	AbstractInvertedIndex map[string][]int         `json:"abstract_inverted_index,omitempty"`
+	Abstract              string                   // This is reconstructed, not directly from JSON
+	Concepts              []OpenAlexConcept        `json:"concepts,omitempty"`
+	ReferencedWorks       []string                 `json:"referenced_works,omitempty"`
+	RelatedWorks          []string                 `json:"related_works,omitempty"`
+	RelevanceScore        float64                  `json:"relevance_score,omitempty"`
 }

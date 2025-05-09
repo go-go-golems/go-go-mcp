@@ -216,7 +216,7 @@ func findFullTextUnpaywall(doi string, preferVersion string) (*FindFullTextRespo
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unpaywall API request failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("unpaywall API request failed with status %d", resp.StatusCode)
 	}
 
 	var unpaywall UnpaywallResponse

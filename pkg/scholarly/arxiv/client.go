@@ -66,32 +66,24 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 	return convertToSearchResults(feed.Entries), nil
 }
 
-// min returns the smaller of x or y
-func min(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // convertToSearchResults converts Arxiv entries to the common search result format
 func convertToSearchResults(entries []Entry) []common.SearchResult {
 	results := make([]common.SearchResult, len(entries))
 
 	for i, entry := range entries {
 		result := common.SearchResult{
-			Title:      strings.Join(strings.Fields(entry.Title), " "), // Clean up whitespace
-			Abstract:   strings.Join(strings.Fields(entry.Summary), " "), // Clean up whitespace
-			Published:  entry.Published,
-			DOI:        entry.DOI,
-			SourceURL:  entry.ID,
-			SourceName: "arxiv",
-			OAStatus:   "green", // Arxiv is considered green OA
-			License:    "", // Arxiv doesn't provide license info via API
+			Title:       strings.Join(strings.Fields(entry.Title), " "),   // Clean up whitespace
+			Abstract:    strings.Join(strings.Fields(entry.Summary), " "), // Clean up whitespace
+			Published:   entry.Published,
+			DOI:         entry.DOI,
+			SourceURL:   entry.ID,
+			SourceName:  "arxiv",
+			OAStatus:    "green", // Arxiv is considered green OA
+			License:     "",      // Arxiv doesn't provide license info via API
 			JournalInfo: entry.JournalRef,
 			Metadata: map[string]interface{}{
-				"updated": entry.Updated,
-				"comment": entry.Comment,
+				"updated":          entry.Updated,
+				"comment":          entry.Comment,
 				"primary_category": entry.PrimaryCategory.Term,
 			},
 		}

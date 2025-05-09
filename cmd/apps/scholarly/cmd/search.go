@@ -33,7 +33,9 @@ Examples:
 	Run: func(cmd *cobra.Command, args []string) {
 		if searchQuery == "" {
 			fmt.Println("Error: query cannot be empty")
-			cmd.Help()
+			if err := cmd.Help(); err != nil {
+				log.Error().Err(err).Msg("Failed to show help")
+			}
 			os.Exit(1)
 		}
 
@@ -82,7 +84,9 @@ func init() {
 	searchCmd.Flags().StringVarP(&searchFilter, "filter", "f", "", "Filter string (format: key1:value1,key2:value2)")
 	searchCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output results as JSON")
 
-	searchCmd.MarkFlagRequired("query")
+	if err := searchCmd.MarkFlagRequired("query"); err != nil {
+		log.Fatal().Err(err).Msg("Failed to mark query flag as required")
+	}
 }
 
 // isValidSource checks if the provided source is valid

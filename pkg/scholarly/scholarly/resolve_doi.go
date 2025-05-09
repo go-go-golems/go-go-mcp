@@ -109,7 +109,7 @@ func getCrossrefData(doi string) (*Work, error) {
 
 	results, err := client.Search(params)
 	if err != nil {
-		return nil, fmt.Errorf("Crossref error: %w", err)
+		return nil, fmt.Errorf("crossref error: %w", err)
 	}
 
 	if len(results) == 0 {

@@ -123,12 +123,14 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		return err
 	}
 
-	toolProvider, err := layers.CreateToolProvider(serverSettings)
+	// Create tool provider from server settings
+	configToolProvider, err := layers.CreateToolProvider(serverSettings)
 	if err != nil {
 		return err
 	}
 
-	tools, cursor, err := toolProvider.ListTools(ctx, "")
+	// Get tools from provider
+	tools, cursor, err := configToolProvider.ListTools(ctx, "")
 	if err != nil {
 		return err
 	}
@@ -178,7 +180,8 @@ func (c *CallToolCommand) RunIntoWriter(
 		return err
 	}
 
-	toolProvider, err := layers.CreateToolProvider(serverSettings)
+	// Create tool provider from server settings
+	configToolProvider, err := layers.CreateToolProvider(serverSettings)
 	if err != nil {
 		return err
 	}
@@ -196,7 +199,7 @@ func (c *CallToolCommand) RunIntoWriter(
 		toolArgMap = s.Args
 	}
 
-	result, err := toolProvider.CallTool(ctx, s.ToolName, toolArgMap)
+	result, err := configToolProvider.CallTool(ctx, s.ToolName, toolArgMap)
 	if err != nil {
 		return err
 	}

@@ -30,7 +30,9 @@ Example:
 	Run: func(cmd *cobra.Command, args []string) {
 		if metricsWorkID == "" {
 			fmt.Println("Error: work_id cannot be empty")
-			cmd.Help()
+			if err := cmd.Help(); err != nil {
+				log.Error().Err(err).Msg("Failed to show help")
+			}
 			os.Exit(1)
 		}
 
@@ -61,7 +63,9 @@ func init() {
 	metricsCmd.Flags().StringVarP(&metricsWorkID, "id", "i", "", "Work ID (DOI or OpenAlex ID) (required)")
 	metricsCmd.Flags().BoolVarP(&metricsJsonOutput, "json", "j", false, "Output as JSON")
 
-	metricsCmd.MarkFlagRequired("id")
+	if err := metricsCmd.MarkFlagRequired("id"); err != nil {
+		log.Fatal().Err(err).Msg("Failed to mark id flag as required")
+	}
 }
 
 // printMetricsAsJSON prints the metrics as JSON

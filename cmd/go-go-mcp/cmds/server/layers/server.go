@@ -13,14 +13,15 @@ import (
 
 // ServerSettings contains settings for the server
 type ServerSettings struct {
-	ConfigFile    string   `glazed.parameter:"config-file"`
-	Profile       string   `glazed.parameter:"profile"`
-	Directories   []string `glazed.parameter:"directories"`
-	Files         []string `glazed.parameter:"files"`
-	Debug         bool     `glazed.parameter:"debug"`
-	TracingDir    string   `glazed.parameter:"tracing-dir"`
-	Watch         bool     `glazed.parameter:"watch"`
-	ConvertDashes bool     `glazed.parameter:"convert-dashes"`
+	ConfigFile      string   `glazed.parameter:"config-file"`
+	Profile         string   `glazed.parameter:"profile"`
+	Directories     []string `glazed.parameter:"directories"`
+	Files           []string `glazed.parameter:"files"`
+	Debug           bool     `glazed.parameter:"debug"`
+	TracingDir      string   `glazed.parameter:"tracing-dir"`
+	Watch           bool     `glazed.parameter:"watch"`
+	ConvertDashes   bool     `glazed.parameter:"convert-dashes"`
+	InternalServers []string `glazed.parameter:"internal-servers"`
 }
 
 const ServerLayerSlug = "mcp-server"
@@ -82,6 +83,12 @@ func NewServerParameterLayer() (layers.ParameterLayer, error) {
 				parameters.WithHelp("Convert dashes to underscores in tool names and arguments"),
 				parameters.WithDefault(false),
 			),
+			parameters.NewParameterDefinition(
+				"internal-servers",
+				parameters.ParameterTypeStringList,
+				parameters.WithHelp("List of internal servers to register (comma-separated). Available: sqlite,fetch,echo,scholarly"),
+				parameters.WithDefault([]string{}),
+			),
 		),
 	)
 }
@@ -96,6 +103,11 @@ func CreateToolProvider(serverSettings *ServerSettings) (*config_provider.Config
 	}
 	if serverSettings.TracingDir != "" {
 		toolProviderOptions = append(toolProviderOptions, config_provider.WithTracingDir(serverSettings.TracingDir))
+	}
+
+	// Add internal servers if specified
+	if len(serverSettings.InternalServers) > 0 {
+		toolProviderOptions = append(toolProviderOptions, config_provider.WithInternalServers(serverSettings.InternalServers))
 	}
 
 	var toolProvider *config_provider.ConfigToolProvider
