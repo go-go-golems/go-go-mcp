@@ -45,9 +45,7 @@ func RegisterScholarlyTools(registry *tool_registry.Registry) error {
 // registerSearchWorksTool registers the search_works tool
 func registerSearchWorksTool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"query": {
 				"type": "string",
@@ -148,9 +146,7 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
 // registerResolveDOITool registers the resolve_doi tool
 func registerResolveDOITool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"doi": {
 				"type": "string",
@@ -205,9 +201,7 @@ func registerResolveDOITool(registry *tool_registry.Registry) error {
 // registerSuggestKeywordsTool registers the suggest_keywords tool
 func registerSuggestKeywordsTool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"text": {
 				"type": "string",
@@ -275,9 +269,7 @@ func registerSuggestKeywordsTool(registry *tool_registry.Registry) error {
 // registerGetMetricsTool registers the get_metrics tool
 func registerGetMetricsTool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"work_id": {
 				"type": "string",
@@ -331,9 +323,7 @@ func registerGetMetricsTool(registry *tool_registry.Registry) error {
 // registerGetCitationsTool registers the get_citations tool
 func registerGetCitationsTool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"work_id": {
 				"type": "string",
@@ -414,9 +404,7 @@ func registerGetCitationsTool(registry *tool_registry.Registry) error {
 // registerFindFullTextTool registers the find_full_text tool
 func registerFindFullTextTool(registry *tool_registry.Registry) error {
 	schemaJSON := `{
-		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type": "object",
-		"additionalProperties": false,
 		"properties": {
 			"doi": {
 				"type": "string",
@@ -432,11 +420,7 @@ func registerFindFullTextTool(registry *tool_registry.Registry) error {
 				"default": "any",
 				"description": "Preferred version: 'published' for final published version, 'preprint' for author manuscript, 'any' for either"
 			}
-		},
-		"anyOf": [
-			{"required": ["doi"]},
-			{"required": ["title"]}
-		]
+		}
 	}`
 
 	tool, err := tools.NewToolImpl(
