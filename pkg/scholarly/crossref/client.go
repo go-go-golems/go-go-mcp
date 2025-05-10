@@ -40,6 +40,25 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 		apiParams.Add("filter", filter)
 	}
 
+	// Add author-specific query if provided
+	if author, ok := params.Filters["crossref_query.author"]; ok {
+		apiParams.Add("query.author", author)
+	}
+
+	// Add title-specific query if provided
+	if title, ok := params.Filters["crossref_query.title"]; ok {
+		apiParams.Add("query.title", title)
+	}
+
+	// Add sort parameters if provided
+	if sort, ok := params.Filters["crossref_sort"]; ok {
+		apiParams.Add("sort", sort)
+	}
+
+	if order, ok := params.Filters["crossref_order"]; ok {
+		apiParams.Add("order", order)
+	}
+
 	// Add select for common fields to keep response manageable
 	apiParams.Add("select", "DOI,title,author,publisher,type,created,issued,URL,abstract,ISSN,ISBN,subject,link")
 

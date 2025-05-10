@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 // HTTPResponse represents a standardized HTTP response
@@ -24,7 +26,7 @@ func MakeHTTPRequest(req *http.Request) *HTTPResponse {
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			fmt.Printf("error closing response body: %v\n", err)
+			log.Warn().Err(err).Msg("error closing response body")
 		}
 	}()
 
@@ -33,6 +35,11 @@ func MakeHTTPRequest(req *http.Request) *HTTPResponse {
 		return &HTTPResponse{
 			Error: fmt.Errorf("error reading response body: %w", err),
 		}
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Warn().Int("status_code", resp.StatusCode).Str("url", req.URL.String()).Msg("HTTP request failed")
+		log.Debug().Str("url", req.URL.String()).Bytes("response_body", body).Msg("HTTP request failed body")
 	}
 
 	return &HTTPResponse{

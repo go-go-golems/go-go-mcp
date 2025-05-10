@@ -2,6 +2,8 @@ package scholarly
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/arxiv"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
@@ -58,28 +60,102 @@ func Search(ctx context.Context, query *querydsl.Query, opts SearchOptions) ([]c
 
 			switch provider {
 			case ProviderArxiv:
-				params.Query = query.ToArxiv()
+				values := query.ToArxiv()
+				// Don't URL-encode the search_query since it's already properly formatted
+				// The raw query string has the correct syntax for ArXiv API
+				params.Query = values.Get("search_query")
+				params.Filters = make(map[string]string)
+
+				// Extract sort parameters
+				if sortBy := values.Get("sortBy"); sortBy != "" {
+					params.Filters["sortBy"] = sortBy
+				}
+				if sortOrder := values.Get("sortOrder"); sortOrder != "" {
+					params.Filters["sortOrder"] = sortOrder
+				}
 				results, err = arxivClient.Search(params)
 
 			case ProviderCrossref:
 				values := query.ToCrossref()
 				params.Query = values.Get("query")
 				params.Filters = make(map[string]string)
+
+				// Extract filter
 				if filter := values.Get("filter"); filter != "" {
 					params.Filters["filter"] = filter
 				}
+
+				// Extract author and title specific query params
+				if author := values.Get("query.author"); author != "" {
+					params.Filters["crossref_query.author"] = author
+				}
+				if title := values.Get("query.title"); title != "" {
+					params.Filters["crossref_query.title"] = title
+				}
+
+				// Extract sort parameters
+				if sort := values.Get("sort"); sort != "" {
+					params.Filters["crossref_sort"] = sort
+				}
+				if order := values.Get("order"); order != "" {
+					params.Filters["crossref_order"] = order
+				}
+
 				results, err = crossrefClient.Search(params)
 
 			case ProviderOpenAlex:
 				values := query.ToOpenAlex()
 				params.Query = values.Get("search")
 				params.Filters = make(map[string]string)
-				if filter := values.Get("filter"); filter != "" {
-					params.Filters["filter"] = filter
+
+				// Build filter string
+				var filters []string
+
+				// Let the client handle author lookup and filtering
+				if query.Author != "" {
+					params.Filters["author"] = query.Author
 				}
-				if sort := values.Get("sort"); sort != "" {
-					params.Filters["sort"] = sort
+
+				// Handle year filter
+				if query.FromYear > 0 {
+					// XXX: This was publication_year:%d before, ensure this is what OpenAlex client expects
+					// The client.go Search function looks for "from-publication_year"
+					params.Filters["from-publication_year"] = fmt.Sprintf("%d", query.FromYear)
 				}
+
+				// Handle work type
+				if query.WorkType != "" {
+					filters = append(filters, fmt.Sprintf("type:%s", query.WorkType))
+				}
+
+				// Handle open access filter
+				if query.OpenAccess != nil {
+					filters = append(filters, fmt.Sprintf("is_oa:%v", *query.OpenAccess))
+				}
+
+				// Combine additional filters (work type, OA status)
+				if len(filters) > 0 {
+					// Check if a base filter string already exists from ToOpenAlex() (e.g. from raw query)
+					if existingFilter := values.Get("filter"); existingFilter != "" {
+						params.Filters["filter"] = existingFilter + "," + strings.Join(filters, ",")
+					} else {
+						params.Filters["filter"] = strings.Join(filters, ",")
+					}
+				}
+
+				// Handle sort order
+				switch query.Sort {
+				case querydsl.SortNewest:
+					params.Filters["sort"] = "publication_date:desc"
+				case querydsl.SortOldest:
+					params.Filters["sort"] = "publication_date:asc"
+				default:
+					// If sort was already set by ToOpenAlex (e.g. from raw query), don't override
+					if _, ok := params.Filters["sort"]; !ok {
+						params.Filters["sort"] = "relevance_score:desc"
+					}
+				}
+
 				results, err = openalexClient.Search(params)
 			}
 

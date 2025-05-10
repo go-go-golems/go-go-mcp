@@ -46,17 +46,19 @@ func (q *Query) WithMaxResults(n int) *Query  { q.MaxResults = n; return q }
 
 // -------- Wire-format builders --------
 
-// ToArxiv returns the value of search_query (caller still adds start/max_results)
-func (q *Query) ToArxiv() string {
+// ToArxiv returns url.Values containing search_query and sort parameters
+func (q *Query) ToArxiv() url.Values {
 	parts := make([]string, 0, 6)
 	if q.Text != "" {
 		parts = append(parts, "all:"+escapePhrase(q.Text))
 	}
 	if q.Author != "" {
-		parts = append(parts, `au:`+quote(q.Author))
+		// Don't quote the author field, just use au: prefix directly
+		parts = append(parts, "au:"+q.Author)
 	}
 	if q.Title != "" {
-		parts = append(parts, `ti:`+quote(q.Title))
+		// Quote the title for exact phrase matching
+		parts = append(parts, "ti:"+quote(q.Title))
 	}
 	if q.Category != "" {
 		parts = append(parts, "cat:"+q.Category)
@@ -64,11 +66,31 @@ func (q *Query) ToArxiv() string {
 	if q.FromYear > 0 || q.ToYear > 0 {
 		start := yearStart(q.FromYear)
 		end := yearEnd(q.ToYear)
-		parts = append(parts,
-			"submittedDate:["+
-				start+"+TO+"+end+"]")
+		// Format date range according to arXiv API: submittedDate:[YYYYMMDDHHMM+TO+YYYYMMDDHHMM]
+		parts = append(parts, "submittedDate:["+start+"+TO+"+end+"]")
 	}
-	return strings.Join(parts, "+AND+")
+
+	// Construct a raw query string that won't be further encoded
+	rawQuery := strings.Join(parts, "+AND+")
+
+	// Create values object for other parameters
+	values := url.Values{}
+	values.Set("search_query", rawQuery)
+
+	// Add sort parameters
+	switch q.Sort {
+	case SortNewest:
+		values.Set("sortBy", "submittedDate")
+		values.Set("sortOrder", "descending")
+	case SortOldest:
+		values.Set("sortBy", "submittedDate")
+		values.Set("sortOrder", "ascending")
+	default:
+		values.Set("sortBy", "relevance")
+	}
+
+	values.Set("max_results", strconv.Itoa(q.MaxResults))
+	return values
 }
 
 // ToCrossref returns querystring params ready for api.crossref.org/works

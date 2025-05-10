@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
@@ -20,18 +19,31 @@ type Client struct {
 // NewClient creates a new Arxiv API client
 func NewClient() *Client {
 	return &Client{
-		BaseURL: "http://export.arxiv.org/api/query",
+		// Use HTTPS for the base URL
+		BaseURL: "https://export.arxiv.org/api/query",
 	}
 }
 
 // Search searches Arxiv for papers matching the given parameters
 func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, error) {
-	apiParams := url.Values{}
-	apiParams.Add("search_query", params.Query)
-	apiParams.Add("max_results", fmt.Sprintf("%d", params.MaxResults))
-	apiParams.Add("sortBy", "relevance") // Default sort order
+	// Don't use url.Values.Encode() for the search_query which would double-encode it
+	// Instead, build the URL manually to preserve the proper syntax
+	apiURL := c.BaseURL + "?search_query=" + params.Query
 
-	apiURL := c.BaseURL + "?" + apiParams.Encode()
+	// Add max_results parameter
+	apiURL += "&max_results=" + fmt.Sprintf("%d", params.MaxResults)
+
+	// Apply sorting parameters if provided
+	if sortBy, ok := params.Filters["sortBy"]; ok {
+		apiURL += "&sortBy=" + sortBy
+	} else {
+		apiURL += "&sortBy=relevance" // Default sort order
+	}
+
+	if sortOrder, ok := params.Filters["sortOrder"]; ok {
+		apiURL += "&sortOrder=" + sortOrder
+	}
+
 	log.Debug().Str("url", apiURL).Msg("Requesting Arxiv API URL")
 
 	req, err := http.NewRequest("GET", apiURL, nil)

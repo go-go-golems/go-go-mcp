@@ -79,6 +79,10 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
 						"filter": {
 							"type": "object",
 							"description": "Optional source-specific filters as key-value pairs. For arxiv: category, author, title. For openalex: is_oa, publication_year, has_doi. For crossref: type, from-pub-date, until-pub-date"
+						},
+						"original_query_intent": {
+							"type": "string",
+							"description": "The human language intent that caused this tool to be called and why"
 						}
 					},
 					"required": ["query", "source"]
@@ -104,6 +108,10 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
 			"filter": {
 				"type": "object",
 				"description": "Filters for single query (legacy parameter, use queries for batch processing)"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`
@@ -270,6 +278,10 @@ func registerResolveDOITool(registry *tool_registry.Registry) error {
 				"type": "string",
 				"pattern": "^10\\..+/.+",
 				"description": "Digital Object Identifier (DOI) for a single scholarly work (legacy parameter, use dois for batch processing)"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`
@@ -369,6 +381,10 @@ func registerSuggestKeywordsTool(registry *tool_registry.Registry) error {
 							"minimum": 1,
 							"maximum": 50,
 							"description": "Maximum number of keywords to return for this text (1-50)"
+						},
+						"original_query_intent": {
+							"type": "string",
+							"description": "The human language intent that caused this tool to be called and why"
 						}
 					},
 					"required": ["text"]
@@ -385,6 +401,10 @@ func registerSuggestKeywordsTool(registry *tool_registry.Registry) error {
 				"minimum": 1,
 				"maximum": 50,
 				"description": "Maximum number of keywords to return for single text (legacy parameter, use texts for batch processing)"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`
@@ -502,6 +522,10 @@ func registerGetMetricsTool(registry *tool_registry.Registry) error {
 			"work_id": {
 				"type": "string",
 				"description": "Identifier for a single work (legacy parameter, use work_ids for batch processing). Can be a DOI (10.xxxx/yyyy), OpenAlex ID (W12345678), or arXiv ID (2101.12345)"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`
@@ -607,6 +631,10 @@ func registerGetCitationsTool(registry *tool_registry.Registry) error {
 							"minimum": 1,
 							"maximum": 200,
 							"description": "Maximum number of citations to return for this work"
+						},
+						"original_query_intent": {
+							"type": "string",
+							"description": "The human language intent that caused this tool to be called and why"
 						}
 					},
 					"required": ["work_id"]
@@ -629,6 +657,10 @@ func registerGetCitationsTool(registry *tool_registry.Registry) error {
 				"minimum": 1,
 				"maximum": 200,
 				"description": "Maximum number of citations to return for single work (legacy parameter)"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`
@@ -767,6 +799,10 @@ func registerFindFullTextTool(registry *tool_registry.Registry) error {
 							"enum": ["published", "preprint", "any"],
 							"default": "any",
 							"description": "Preferred version for this paper"
+						},
+						"original_query_intent": {
+							"type": "string",
+							"description": "The human language intent that caused this tool to be called and why"
 						}
 					}
 				},
@@ -785,6 +821,10 @@ func registerFindFullTextTool(registry *tool_registry.Registry) error {
 				"enum": ["published", "preprint", "any"],
 				"default": "any",
 				"description": "Preferred version for single paper (legacy parameter): 'published' for final version, 'preprint' for author manuscript, 'any' for either"
+			},
+			"original_query_intent": {
+				"type": "string",
+				"description": "The human language intent that caused this tool to be called and why"
 			}
 		}
 	}`

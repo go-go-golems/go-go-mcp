@@ -21,9 +21,59 @@ type Client struct {
 // NewClient creates a new OpenAlex API client
 func NewClient(mailto string) *Client {
 	return &Client{
-		BaseURL: "https://api.openalex.org/works",
+		BaseURL: "https://api.openalex.org",
 		Mailto:  mailto,
 	}
+}
+
+// searchAuthor searches for an author by name and returns their OpenAlex ID
+func (c *Client) searchAuthor(name string) (string, error) {
+	apiParams := url.Values{}
+	apiParams.Add("search", name)
+	apiParams.Add("per_page", "1") // We just need the top match
+
+	if c.Mailto != "" {
+		apiParams.Add("mailto", c.Mailto)
+	}
+
+	apiURL := fmt.Sprintf("%s/authors?%s", c.BaseURL, apiParams.Encode())
+	log.Debug().Str("url", apiURL).Msg("Requesting OpenAlex API URL for author search")
+
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating OpenAlex API request: %w", err)
+	}
+
+	if c.Mailto != "" {
+		req.Header.Set("User-Agent", fmt.Sprintf("go-go-mcp/0.1 (mailto:%s)", c.Mailto))
+	} else {
+		req.Header.Set("User-Agent", "go-go-mcp/0.1 (https://github.com/go-go-golems/go-go-mcp)")
+	}
+
+	resp := common.MakeHTTPRequest(req)
+	if resp.Error != nil {
+		return "", resp.Error
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("openAlex API request failed with status %d", resp.StatusCode)
+	}
+
+	var authorResp struct {
+		Results []struct {
+			ID string `json:"id"`
+		} `json:"results"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &authorResp); err != nil {
+		return "", fmt.Errorf("error parsing OpenAlex API response: %w", err)
+	}
+
+	if len(authorResp.Results) == 0 {
+		return "", nil
+	}
+
+	return authorResp.Results[0].ID, nil
 }
 
 // Search searches OpenAlex for papers matching the given parameters
@@ -37,24 +87,65 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 
 	apiParams.Add("per_page", fmt.Sprintf("%d", params.MaxResults))
 
+	// Build filter string
+	var filters []string
+
+	// Handle author filter - first try to get the author ID
+	if author, ok := params.Filters["author"]; ok {
+		authorID, err := c.searchAuthor(author)
+		if err != nil {
+			log.Warn().Err(err).Str("author", author).Msg("Failed to get author ID, falling back to display_name.search")
+			filters = append(filters, fmt.Sprintf("display_name.search:%s", url.QueryEscape(author)))
+		} else if authorID != "" {
+			log.Debug().Str("author", author).Str("id", authorID).Msg("Found author ID")
+			filters = append(filters, fmt.Sprintf("author.id:%s", strings.TrimPrefix(authorID, "https://openalex.org/")))
+		} else {
+			log.Debug().Str("author", author).Msg("No author ID found, falling back to display_name.search")
+			filters = append(filters, fmt.Sprintf("display_name.search:%s", url.QueryEscape(author)))
+		}
+	}
+
+	// Handle publication year filter
+	if fromYear, ok := params.Filters["from-publication_year"]; ok {
+		filters = append(filters, fmt.Sprintf("publication_year:%s", fromYear))
+	}
+
+	// Add any other filters from the params
+	if filter, ok := params.Filters["filter"]; ok {
+		filters = append(filters, filter)
+	}
+
+	// Combine all filters with proper URL encoding
+	if len(filters) > 0 {
+		apiParams.Set("filter", strings.Join(filters, ","))
+	}
+
+	// Determine sort order
+	sortOrder := "relevance_score:desc" // Default assumption
+	if userSpecifiedSort, ok := params.Filters["sort"]; ok {
+		sortOrder = userSpecifiedSort
+	}
+
+	// If there is no search query, and the sort is by relevance_score,
+	// OpenAlex will return an error.
+	// In this case, change sort to 'cited_by_count:desc' as a sensible default,
+	// which is also OpenAlex's default for non-search queries.
+	if params.Query == "" && strings.HasPrefix(sortOrder, "relevance_score") {
+		sortOrder = "cited_by_count:desc"
+		log.Debug().Msg("No search query and sort was relevance_score; changed sort to cited_by_count:desc")
+	}
+	apiParams.Add("sort", sortOrder)
+
+	// Add mailto parameter for polite pool
 	if c.Mailto != "" {
 		apiParams.Add("mailto", c.Mailto)
-	}
-
-	if filter, ok := params.Filters["filter"]; ok {
-		apiParams.Add("filter", filter)
-	}
-
-	if sort, ok := params.Filters["sort"]; ok {
-		apiParams.Add("sort", sort)
-	} else {
-		apiParams.Add("sort", "relevance_score:desc")
 	}
 
 	// Ensure select fields are valid according to OpenAlex documentation
 	apiParams.Add("select", "id,doi,title,display_name,publication_year,publication_date,cited_by_count,authorships,primary_location,open_access,type,concepts,abstract_inverted_index,relevance_score,referenced_works,related_works")
 
-	apiURL := c.BaseURL + "?" + apiParams.Encode()
+	// Build the URL with proper encoding
+	apiURL := fmt.Sprintf("%s/works?%s", c.BaseURL, apiParams.Encode())
 	log.Debug().Str("url", apiURL).Msg("Requesting OpenAlex API URL")
 
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -63,9 +154,9 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 	}
 
 	if c.Mailto != "" {
-		req.Header.Set("User-Agent", fmt.Sprintf("arxiv-libgen-cli/0.1 (mailto:%s)", c.Mailto))
+		req.Header.Set("User-Agent", fmt.Sprintf("go-go-mcp/0.1 (mailto:%s)", c.Mailto))
 	} else {
-		req.Header.Set("User-Agent", "arxiv-libgen-cli/0.1 (https://github.com/user/repo - please update with actual repo if public)")
+		req.Header.Set("User-Agent", "go-go-mcp/0.1 (https://github.com/go-go-golems/go-go-mcp)")
 	}
 
 	resp := common.MakeHTTPRequest(req)
