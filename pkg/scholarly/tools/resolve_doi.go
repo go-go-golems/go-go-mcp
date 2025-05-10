@@ -1,19 +1,18 @@
-package scholarly
+package tools
 
 import (
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/crossref"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/crossref"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
-
 	"github.com/rs/zerolog/log"
 )
 
 // ResolveDOI fetches complete metadata for a DOI from both Crossref and OpenAlex
 // and merges them into a single rich record
-func ResolveDOI(req ResolveDOIRequest) (*Work, error) {
+func ResolveDOI(req common.ResolveDOIRequest) (*common.Work, error) {
 	if !isValidDOI(req.DOI) {
 		return nil, fmt.Errorf("invalid DOI format: %s", req.DOI)
 	}
@@ -43,7 +42,7 @@ func isValidDOI(doi string) bool {
 }
 
 // getOpenAlexData fetches metadata from OpenAlex for a given DOI
-func getOpenAlexData(doi string) (*Work, error) {
+func getOpenAlexData(doi string) (*common.Work, error) {
 	client := openalex.NewClient("")
 
 	// OpenAlex expects DOIs with a URL prefix
@@ -85,7 +84,7 @@ func getOpenAlexData(doi string) (*Work, error) {
 		isOA = oa
 	}
 
-	work := &Work{
+	work := &common.Work{
 		ID:            result.SourceURL,
 		DOI:           doi,
 		Title:         result.Title,
@@ -102,7 +101,7 @@ func getOpenAlexData(doi string) (*Work, error) {
 }
 
 // getCrossrefData fetches metadata from Crossref for a given DOI
-func getCrossrefData(doi string) (*Work, error) {
+func getCrossrefData(doi string) (*common.Work, error) {
 	client := crossref.NewClient("")
 
 	log.Debug().Str("doi", doi).Msg("Requesting work from Crossref")
@@ -138,7 +137,7 @@ func getCrossrefData(doi string) (*Work, error) {
 		citationCount = c
 	}
 
-	work := &Work{
+	work := &common.Work{
 		ID:            doi,
 		DOI:           doi,
 		Title:         result.Title,
@@ -154,7 +153,7 @@ func getCrossrefData(doi string) (*Work, error) {
 }
 
 // mergeWorkData merges data from Crossref and OpenAlex with precedence rules
-func mergeWorkData(crossref, openalex *Work) *Work {
+func mergeWorkData(crossref, openalex *common.Work) *common.Work {
 	log.Debug().Bool("has_crossref", crossref != nil).Bool("has_openalex", openalex != nil).Msg("Merging work data from sources")
 
 	if crossref == nil && openalex == nil {

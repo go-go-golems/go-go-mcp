@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
@@ -11,7 +13,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/scholarly"
 	"github.com/rs/zerolog/log"
 )
 
@@ -54,14 +55,14 @@ func (c *CitationsCommand) RunIntoGlazeProcessor(
 
 	log.Debug().Str("work_id", s.WorkID).Str("direction", s.Direction).Int("limit", s.Limit).Msg("Getting citations")
 
-	req := scholarly.GetCitationsRequest{
+	req := common.GetCitationsRequest{
 		WorkID:    s.WorkID,
 		Direction: s.Direction,
 		Limit:     s.Limit,
 	}
 
 	// Get citations
-	response, err := scholarly.GetCitations(req)
+	response, err := tools.GetCitations(req)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get citations")
 		return err

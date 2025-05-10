@@ -1,17 +1,16 @@
-package scholarly
+package tools
 
 import (
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
-
 	"github.com/rs/zerolog/log"
 )
 
 // GetCitations retrieves one hop of the citation graph
-func GetCitations(req GetCitationsRequest) (*GetCitationsResponse, error) {
+func GetCitations(req common.GetCitationsRequest) (*common.GetCitationsResponse, error) {
 	if req.WorkID == "" {
 		return nil, fmt.Errorf("work_id cannot be empty")
 	}
@@ -75,7 +74,7 @@ func getOpenAlexIDFromDOI(doi string) (string, error) {
 }
 
 // getReferencedWorks gets the outgoing references (works cited by this work)
-func getReferencedWorks(workID string, limit int) (*GetCitationsResponse, error) {
+func getReferencedWorks(workID string, limit int) (*common.GetCitationsResponse, error) {
 	// First, get the work itself to access its referenced_works
 	client := openalex.NewClient("")
 
@@ -98,7 +97,7 @@ func getReferencedWorks(workID string, limit int) (*GetCitationsResponse, error)
 	// Extract referenced works from metadata
 	referencedWorks, ok := result.Metadata["referenced_works"].([]interface{})
 	if !ok || len(referencedWorks) == 0 {
-		return &GetCitationsResponse{Citations: []Citation{}}, nil
+		return &common.GetCitationsResponse{Citations: []common.Citation{}}, nil
 	}
 
 	// Limit the number of references to process
@@ -107,7 +106,7 @@ func getReferencedWorks(workID string, limit int) (*GetCitationsResponse, error)
 	}
 
 	// Get details for each referenced work
-	citations := make([]Citation, 0, len(referencedWorks))
+	citations := make([]common.Citation, 0, len(referencedWorks))
 	for _, refID := range referencedWorks {
 		refIDStr, ok := refID.(string)
 		if !ok {
@@ -133,7 +132,7 @@ func getReferencedWorks(workID string, limit int) (*GetCitationsResponse, error)
 			year = y
 		}
 
-		citations = append(citations, Citation{
+		citations = append(citations, common.Citation{
 			ID:    refResult.SourceURL,
 			DOI:   refResult.DOI,
 			Title: refResult.Title,
@@ -146,11 +145,11 @@ func getReferencedWorks(workID string, limit int) (*GetCitationsResponse, error)
 		}
 	}
 
-	return &GetCitationsResponse{Citations: citations}, nil
+	return &common.GetCitationsResponse{Citations: citations}, nil
 }
 
 // getCitedByWorks gets the incoming citations (works that cite this work)
-func getCitedByWorks(workID string, limit int) (*GetCitationsResponse, error) {
+func getCitedByWorks(workID string, limit int) (*common.GetCitationsResponse, error) {
 	client := openalex.NewClient("")
 
 	// Use filter to get works that cite the given work
@@ -168,14 +167,14 @@ func getCitedByWorks(workID string, limit int) (*GetCitationsResponse, error) {
 		return nil, fmt.Errorf("OpenAlex error: %w", err)
 	}
 
-	citations := make([]Citation, 0, len(results))
+	citations := make([]common.Citation, 0, len(results))
 	for _, result := range results {
 		year := 0
 		if y, ok := result.Metadata["publication_year"].(int); ok {
 			year = y
 		}
 
-		citations = append(citations, Citation{
+		citations = append(citations, common.Citation{
 			ID:    result.SourceURL,
 			DOI:   result.DOI,
 			Title: result.Title,
@@ -186,5 +185,5 @@ func getCitedByWorks(workID string, limit int) (*GetCitationsResponse, error) {
 	// TODO: Implement cursor-based pagination if more results exist
 	// This would require modifying the OpenAlex client to return cursor tokens
 
-	return &GetCitationsResponse{Citations: citations}, nil
+	return &common.GetCitationsResponse{Citations: citations}, nil
 }

@@ -3,9 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
 	"os"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/scholarly"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -40,12 +41,12 @@ Example:
 
 		log.Debug().Str("text_sample", truncateText(keywordsText, 30)).Int("max_keywords", keywordsMaxCount).Msg("Suggesting keywords")
 
-		req := scholarly.SuggestKeywordsRequest{
+		req := common.SuggestKeywordsRequest{
 			Text:        keywordsText,
 			MaxKeywords: keywordsMaxCount,
 		}
 
-		response, err := scholarly.SuggestKeywords(req)
+		response, err := tools.SuggestKeywords(req)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to suggest keywords")
 			fmt.Printf("Error: %s\n", err.Error())
@@ -86,7 +87,7 @@ func truncateText(text string, length int) string {
 }
 
 // printKeywordsAsJSON prints the keywords as JSON
-func printKeywordsAsJSON(response *scholarly.SuggestKeywordsResponse) {
+func printKeywordsAsJSON(response *common.SuggestKeywordsResponse) {
 	jsonData, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal keywords to JSON")
@@ -98,7 +99,7 @@ func printKeywordsAsJSON(response *scholarly.SuggestKeywordsResponse) {
 }
 
 // printKeywordsNice prints the keywords in a nice format
-func printKeywordsNice(response *scholarly.SuggestKeywordsResponse) {
+func printKeywordsNice(response *common.SuggestKeywordsResponse) {
 	fmt.Printf("Found %d keywords:\n", len(response.Keywords))
 	fmt.Println("--------------------------------------------------")
 

@@ -1,21 +1,20 @@
-package scholarly
+package tools
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/libgen"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/libgen"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
-
 	"github.com/rs/zerolog/log"
 )
 
 // FindFullText finds the best PDF or HTML URL for a work
-func FindFullText(req FindFullTextRequest) (*FindFullTextResponse, error) {
+func FindFullText(req common.FindFullTextRequest) (*common.FindFullTextResponse, error) {
 	if req.DOI == "" && req.Title == "" {
 		return nil, fmt.Errorf("either DOI or title must be provided")
 	}
@@ -63,7 +62,7 @@ func FindFullText(req FindFullTextRequest) (*FindFullTextResponse, error) {
 }
 
 // findFullTextOpenAlex tries to find full text via OpenAlex
-func findFullTextOpenAlex(doi string, preferVersion string) (*FindFullTextResponse, error) {
+func findFullTextOpenAlex(doi string, preferVersion string) (*common.FindFullTextResponse, error) {
 	client := openalex.NewClient("")
 
 	// OpenAlex expects DOIs with a URL prefix
@@ -93,7 +92,7 @@ func findFullTextOpenAlex(doi string, preferVersion string) (*FindFullTextRespon
 	if result.PDFURL != "" {
 		// Check if it's open access
 		if result.OAStatus != "" {
-			return &FindFullTextResponse{
+			return &common.FindFullTextResponse{
 				PDFURL:   result.PDFURL,
 				Source:   "openalex",
 				OAStatus: result.OAStatus,
@@ -159,7 +158,7 @@ func findFullTextOpenAlex(doi string, preferVersion string) (*FindFullTextRespon
 		}
 
 		if url != "" {
-			return &FindFullTextResponse{
+			return &common.FindFullTextResponse{
 				PDFURL:   url,
 				Source:   "openalex",
 				OAStatus: oaStatus,
@@ -195,7 +194,7 @@ type UnpaywallResponse struct {
 }
 
 // findFullTextUnpaywall tries to find full text via Unpaywall API
-func findFullTextUnpaywall(doi string, preferVersion string) (*FindFullTextResponse, error) {
+func findFullTextUnpaywall(doi string, preferVersion string) (*common.FindFullTextResponse, error) {
 	// Clean DOI format
 	cleanDOI := strings.TrimPrefix(doi, "https://doi.org/")
 	cleanDOI = strings.TrimPrefix(cleanDOI, "doi.org/")
@@ -259,7 +258,7 @@ func findFullTextUnpaywall(doi string, preferVersion string) (*FindFullTextRespo
 		}
 
 		if url != "" {
-			return &FindFullTextResponse{
+			return &common.FindFullTextResponse{
 				PDFURL:   url,
 				Source:   "unpaywall",
 				OAStatus: unpaywall.OAStatus,
@@ -280,7 +279,7 @@ func findFullTextUnpaywall(doi string, preferVersion string) (*FindFullTextRespo
 			isPDF = unpaywall.BestOALocation.IsPDF
 		}
 
-		return &FindFullTextResponse{
+		return &common.FindFullTextResponse{
 			PDFURL:   pdfURL,
 			Source:   "unpaywall",
 			OAStatus: unpaywall.OAStatus,
@@ -293,7 +292,7 @@ func findFullTextUnpaywall(doi string, preferVersion string) (*FindFullTextRespo
 }
 
 // findFullTextLibGen tries to find full text via LibGen
-func findFullTextLibGen(searchTerm string) (*FindFullTextResponse, error) {
+func findFullTextLibGen(searchTerm string) (*common.FindFullTextResponse, error) {
 	client := libgen.NewClient("https://libgen.rs")
 
 	// Search LibGen
@@ -321,7 +320,7 @@ func findFullTextLibGen(searchTerm string) (*FindFullTextResponse, error) {
 				md5 = md5Val
 			}
 
-			return &FindFullTextResponse{
+			return &common.FindFullTextResponse{
 				PDFURL:   result.PDFURL,
 				Source:   "libgen",
 				OAStatus: "closed", // LibGen content is not officially OA

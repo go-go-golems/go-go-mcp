@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
@@ -11,7 +13,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/scholarly"
 	"github.com/rs/zerolog/log"
 )
 
@@ -49,14 +50,14 @@ func (c *FulltextCommand) RunIntoGlazeProcessor(
 
 	log.Debug().Str("doi", s.DOI).Str("title", s.Title).Str("version", s.PreferVersion).Msg("Finding full text")
 
-	req := scholarly.FindFullTextRequest{
+	req := common.FindFullTextRequest{
 		DOI:           s.DOI,
 		Title:         s.Title,
 		PreferVersion: s.PreferVersion,
 	}
 
 	// Find the full text
-	response, err := scholarly.FindFullText(req)
+	response, err := tools.FindFullText(req)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to find full text")
 		return err

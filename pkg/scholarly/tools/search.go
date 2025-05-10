@@ -1,14 +1,14 @@
-package scholarly
+package tools
 
 import (
 	"context"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/arxiv"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/crossref"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"strings"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/arxiv"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/crossref"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/querydsl"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"

@@ -1,16 +1,14 @@
-package scholarly
+package tools
 
 import (
 	"fmt"
-
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
-
 	"github.com/rs/zerolog/log"
 )
 
 // GetMetrics retrieves quantitative metrics for a work
-func GetMetrics(req GetMetricsRequest) (*Metrics, error) {
+func GetMetrics(req common.GetMetricsRequest) (*common.Metrics, error) {
 	if req.WorkID == "" {
 		return nil, fmt.Errorf("work_id cannot be empty")
 	}
@@ -27,9 +25,9 @@ func GetMetrics(req GetMetricsRequest) (*Metrics, error) {
 }
 
 // getMetricsByDOI gets metrics for a work identified by DOI
-func getMetricsByDOI(doi string) (*Metrics, error) {
+func getMetricsByDOI(doi string) (*common.Metrics, error) {
 	// Resolve the DOI to get the OpenAlex ID
-	resolveReq := ResolveDOIRequest{
+	resolveReq := common.ResolveDOIRequest{
 		DOI: doi,
 	}
 
@@ -43,7 +41,7 @@ func getMetricsByDOI(doi string) (*Metrics, error) {
 }
 
 // getMetricsByOpenAlexID gets metrics for a work identified by OpenAlex ID
-func getMetricsByOpenAlexID(workID string) (*Metrics, error) {
+func getMetricsByOpenAlexID(workID string) (*common.Metrics, error) {
 	client := openalex.NewClient("")
 
 	// TODO: Implement a direct GetWork method in the OpenAlex client
@@ -65,7 +63,7 @@ func getMetricsByOpenAlexID(workID string) (*Metrics, error) {
 	result := results[0]
 
 	// Extract metrics from the result
-	metrics := &Metrics{
+	metrics := &common.Metrics{
 		CitationCount:  result.Citations,
 		CitedByCount:   result.Citations, // Same as citation_count in OpenAlex
 		ReferenceCount: 0,                // Not directly available

@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/arxiv"
 	"strings"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/arxiv"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 
 	"github.com/go-go-golems/glazed/pkg/cli"

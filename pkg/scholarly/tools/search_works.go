@@ -1,20 +1,19 @@
-package scholarly
+package tools
 
 import (
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/arxiv"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/crossref"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"strconv"
 	"strings"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/arxiv"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/crossref"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/openalex"
-
 	"github.com/rs/zerolog/log"
 )
 
 // SearchWorks searches for works across different providers
-func SearchWorks(req SearchWorksRequest) (*SearchWorksResponse, error) {
+func SearchWorks(req common.SearchWorksRequest) (*common.SearchWorksResponse, error) {
 	// Start detailed request logging
 	log.Debug().Str("function", "SearchWorks").Str("query", req.Query).Str("source", req.Source).Int("limit", req.Limit).Msg("Starting SearchWorks request")
 	if req.Query == "" {
@@ -41,7 +40,7 @@ func SearchWorks(req SearchWorksRequest) (*SearchWorksResponse, error) {
 }
 
 // searchArxiv searches for works in Arxiv
-func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
+func searchArxiv(req common.SearchWorksRequest) (*common.SearchWorksResponse, error) {
 	client := arxiv.NewClient()
 
 	params := common.SearchParams{
@@ -78,7 +77,7 @@ func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
 		return nil, fmt.Errorf("arxiv search error: %w", err)
 	}
 
-	works := make([]Work, 0, len(results))
+	works := make([]common.Work, 0, len(results))
 	for _, result := range results {
 		// Parse year from published date (format: YYYY-MM-DD)
 		year := 0
@@ -86,7 +85,7 @@ func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
 			year, _ = strconv.Atoi(result.Published[:4])
 		}
 
-		work := Work{
+		work := common.Work{
 			ID:         result.SourceURL,
 			DOI:        result.DOI,
 			Title:      result.Title,
@@ -101,7 +100,7 @@ func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
 	}
 
 	// Log the response structure
-	result := &SearchWorksResponse{Works: works}
+	result := &common.SearchWorksResponse{Works: works}
 	log.Debug().Str("source", "arxiv").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
 
 	// Log a sample of the first result if available
@@ -114,7 +113,7 @@ func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
 }
 
 // searchCrossref searches for works in Crossref
-func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
+func searchCrossref(req common.SearchWorksRequest) (*common.SearchWorksResponse, error) {
 	client := crossref.NewClient("") // No mailto for now, could add as an option in the future
 
 	params := common.SearchParams{
@@ -134,7 +133,7 @@ func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
 	}
 
 	// Convert to common Work format
-	works := make([]Work, 0, len(results))
+	works := make([]common.Work, 0, len(results))
 	for _, result := range results {
 		year := 0
 		if y, ok := result.Metadata["year"].(int); ok {
@@ -146,7 +145,7 @@ func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
 			citationCount = c
 		}
 
-		work := Work{
+		work := common.Work{
 			ID:            result.DOI, // Crossref uses DOI as ID
 			DOI:           result.DOI,
 			Title:         result.Title,
@@ -159,7 +158,7 @@ func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
 	}
 
 	// Log the response structure
-	result := &SearchWorksResponse{Works: works}
+	result := &common.SearchWorksResponse{Works: works}
 	log.Debug().Str("source", "crossref").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
 
 	// Log a sample of the first result if available
@@ -172,7 +171,7 @@ func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
 }
 
 // searchOpenAlex searches for works in OpenAlex
-func searchOpenAlex(req SearchWorksRequest) (*SearchWorksResponse, error) {
+func searchOpenAlex(req common.SearchWorksRequest) (*common.SearchWorksResponse, error) {
 	client := openalex.NewClient("") // No mailto for now, could add as an option in the future
 
 	params := common.SearchParams{
@@ -192,7 +191,7 @@ func searchOpenAlex(req SearchWorksRequest) (*SearchWorksResponse, error) {
 	}
 
 	// Convert to common Work format
-	works := make([]Work, 0, len(results))
+	works := make([]common.Work, 0, len(results))
 	for _, result := range results {
 		year := 0
 		if y, ok := result.Metadata["publication_year"].(int); ok {
@@ -204,7 +203,7 @@ func searchOpenAlex(req SearchWorksRequest) (*SearchWorksResponse, error) {
 			isOA = oa
 		}
 
-		work := Work{
+		work := common.Work{
 			ID:            result.SourceURL, // OpenAlex ID
 			DOI:           result.DOI,
 			Title:         result.Title,
@@ -220,7 +219,7 @@ func searchOpenAlex(req SearchWorksRequest) (*SearchWorksResponse, error) {
 	}
 
 	// Log the response structure
-	result := &SearchWorksResponse{Works: works}
+	result := &common.SearchWorksResponse{Works: works}
 	log.Debug().Str("source", "openalex").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
 
 	// Log a sample of the first result if available

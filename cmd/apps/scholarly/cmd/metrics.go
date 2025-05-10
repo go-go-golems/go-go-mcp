@@ -3,9 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
 	"os"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/scholarly"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -38,11 +39,11 @@ Example:
 
 		log.Debug().Str("work_id", metricsWorkID).Msg("Getting metrics")
 
-		req := scholarly.GetMetricsRequest{
+		req := common.GetMetricsRequest{
 			WorkID: metricsWorkID,
 		}
 
-		metrics, err := scholarly.GetMetrics(req)
+		metrics, err := tools.GetMetrics(req)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to get metrics")
 			fmt.Printf("Error: %s\n", err.Error())
@@ -69,7 +70,7 @@ func init() {
 }
 
 // printMetricsAsJSON prints the metrics as JSON
-func printMetricsAsJSON(metrics *scholarly.Metrics) {
+func printMetricsAsJSON(metrics *common.Metrics) {
 	jsonData, err := json.MarshalIndent(metrics, "", "  ")
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal metrics to JSON")
@@ -81,7 +82,7 @@ func printMetricsAsJSON(metrics *scholarly.Metrics) {
 }
 
 // printMetricsNice prints the metrics in a nice format
-func printMetricsNice(metrics *scholarly.Metrics) {
+func printMetricsNice(metrics *common.Metrics) {
 	fmt.Println("--------------------------------------------------")
 	fmt.Println("Work Metrics:")
 	fmt.Printf("  Citation Count: %d\n", metrics.CitationCount)

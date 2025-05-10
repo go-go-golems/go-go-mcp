@@ -3,6 +3,7 @@ package config_provider
 import (
 	"context"
 	"encoding/json"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/mcp"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	parka_config "github.com/go-go-golems/parka/pkg/handlers/config"
@@ -535,7 +535,7 @@ func registerInternalServers(registry *tool_registry.Registry, serverList []stri
 	}
 
 	if serversMap["scholarly"] {
-		if err := scholarly.RegisterScholarlyTools(registry); err != nil {
+		if err := mcp.RegisterScholarlyTools(registry); err != nil {
 			return errors.Wrap(err, "failed to register scholarly tools")
 		}
 	}

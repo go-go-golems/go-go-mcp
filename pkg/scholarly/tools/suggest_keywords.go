@@ -1,4 +1,4 @@
-package scholarly
+package tools
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ type OpenAlexConceptResponse struct {
 }
 
 // SuggestKeywords suggests keywords for the given text using OpenAlex's text-aboutness endpoint
-func SuggestKeywords(req SuggestKeywordsRequest) (*SuggestKeywordsResponse, error) {
+func SuggestKeywords(req common.SuggestKeywordsRequest) (*common.SuggestKeywordsResponse, error) {
 	if req.Text == "" {
 		return nil, fmt.Errorf("text cannot be empty")
 	}
@@ -43,7 +43,7 @@ func SuggestKeywords(req SuggestKeywordsRequest) (*SuggestKeywordsResponse, erro
 		return nil, err
 	}
 
-	response := &SuggestKeywordsResponse{
+	response := &common.SuggestKeywordsResponse{
 		Keywords: keywords,
 	}
 
@@ -51,7 +51,7 @@ func SuggestKeywords(req SuggestKeywordsRequest) (*SuggestKeywordsResponse, erro
 }
 
 // getKeywordsFromOpenAlex calls the OpenAlex text-aboutness endpoint to get keywords
-func getKeywordsFromOpenAlex(text string, maxKeywords int) ([]Keyword, error) {
+func getKeywordsFromOpenAlex(text string, maxKeywords int) ([]common.Keyword, error) {
 	// OpenAlex text-aboutness endpoint with query parameters
 	url := fmt.Sprintf("https://api.openalex.org/text?title=%s", url.QueryEscape(text))
 
@@ -81,9 +81,9 @@ func getKeywordsFromOpenAlex(text string, maxKeywords int) ([]Keyword, error) {
 	}
 
 	// Convert to our keyword format
-	keywords := make([]Keyword, 0, len(openAlexResp.Concepts))
+	keywords := make([]common.Keyword, 0, len(openAlexResp.Concepts))
 	for _, concept := range openAlexResp.Concepts {
-		keywords = append(keywords, Keyword{
+		keywords = append(keywords, common.Keyword{
 			ID:          concept.ID,
 			DisplayName: concept.DisplayName,
 			Relevance:   concept.Score,
