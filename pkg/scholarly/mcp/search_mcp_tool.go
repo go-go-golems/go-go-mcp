@@ -147,7 +147,7 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
 
 	tool, err := tools.NewToolImpl(
 		"scholarly_search_works",
-		"Search for scholarly works across academic databases including arXiv (pre-prints), OpenAlex (open access research), and Crossref (comprehensive scholarly records). Returns metadata about matching papers including titles, authors, and publication details.",
+		"Search for scholarly works across academic databases including arXiv (pre-prints), OpenAlex (open access research), and Crossref (comprehensive scholarly records). Returns metadata about matching papers including titles, authors, and publication details. Don't use this tool to find citations or cited works, use the citations tool.",
 		json.RawMessage(schemaJSON),
 	)
 	if err != nil {

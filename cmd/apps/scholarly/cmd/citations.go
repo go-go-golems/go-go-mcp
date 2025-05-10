@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
 
@@ -155,9 +156,10 @@ Example:
 			),
 			parameters.NewParameterDefinition(
 				"direction",
-				parameters.ParameterTypeString,
+				parameters.ParameterTypeChoice,
 				parameters.WithHelp("Citation direction: 'refs' (outgoing) or 'cited_by' (incoming)"),
 				parameters.WithDefault("cited_by"),
+				parameters.WithChoices("refs", "cited_by"),
 				parameters.WithShortFlag("r"),
 			),
 			parameters.NewParameterDefinition(

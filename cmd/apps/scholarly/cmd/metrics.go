@@ -1,110 +1,139 @@
 package cmd
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
+
+	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds"
+	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/middlewares"
+	"github.com/go-go-golems/glazed/pkg/settings"
+	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
-	"os"
-
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 )
 
-var (
-	metricsWorkID     string
-	metricsJsonOutput bool
-)
+// MetricsCommand is a glazed command for getting metrics for a scholarly work
+type MetricsCommand struct {
+	*cmds.CommandDescription
+}
 
-// metricsCmd represents the metrics command
-var metricsCmd = &cobra.Command{
-	Use:   "metrics",
-	Short: "Get metrics for a scholarly work",
-	Long: `Get quantitative metrics for a scholarly work, including
+// Ensure interface implementation
+var _ cmds.GlazeCommand = &MetricsCommand{}
+
+// MetricsSettings holds the parameters for metrics retrieval
+type MetricsSettings struct {
+	WorkID string `glazed.parameter:"work_id"`
+}
+
+// RunIntoGlazeProcessor executes the metrics retrieval and processes results
+func (c *MetricsCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	// Parse settings from layers
+	s := &MetricsSettings{}
+	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+		return err
+	}
+
+	// Validate work ID
+	if s.WorkID == "" {
+		return fmt.Errorf("work_id cannot be empty")
+	}
+
+	log.Debug().Str("work_id", s.WorkID).Msg("Getting metrics")
+
+	req := common.GetMetricsRequest{
+		WorkID: s.WorkID,
+	}
+
+	// Get metrics
+	metrics, err := tools.GetMetrics(req)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get metrics")
+		return err
+	}
+
+	// Create a row from the metrics
+	row := types.NewRow()
+
+	// Add all available fields to the row
+	row.Set("citation_count", metrics.CitationCount)
+	row.Set("cited_by_count", metrics.CitedByCount)
+	row.Set("reference_count", metrics.ReferenceCount)
+	row.Set("is_open_access", metrics.IsOA)
+	row.Set("open_access_status", metrics.OAStatus)
+
+	// Add altmetrics if available
+	for metric, value := range metrics.Altmetrics {
+		row.Set("altmetric_"+metric, value)
+	}
+
+	return gp.AddRow(ctx, row)
+}
+
+// NewMetricsCommand creates a new metrics command
+func NewMetricsCommand() (*MetricsCommand, error) {
+	// Create the Glazed layer for output formatting
+	glazedLayer, err := settings.NewGlazedParameterLayers()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create command description
+	cmdDesc := cmds.NewCommandDescription(
+		"metrics",
+		cmds.WithShort("Get metrics for a scholarly work"),
+		cmds.WithLong(`Get quantitative metrics for a scholarly work, including
 citation counts, reference counts, and open access status.
 
 The work_id can be either a DOI or an OpenAlex Work ID.
 
 Example:
-  arxiv-libgen-cli metrics --id "10.1038/nphys1170"
-  arxiv-libgen-cli metrics --id "W2741809809" --json`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if metricsWorkID == "" {
-			fmt.Println("Error: work_id cannot be empty")
-			if err := cmd.Help(); err != nil {
-				log.Error().Err(err).Msg("Failed to show help")
-			}
-			os.Exit(1)
-		}
+  arxiv-libgen-cli metrics --work-id "10.1038/nphys1170"
+  arxiv-libgen-cli metrics --work-id "W2741809809" --output json`),
 
-		log.Debug().Str("work_id", metricsWorkID).Msg("Getting metrics")
+		// Define command flags
+		cmds.WithFlags(
+			parameters.NewParameterDefinition(
+				"work_id",
+				parameters.ParameterTypeString,
+				parameters.WithHelp("Work ID (DOI or OpenAlex ID) (required)"),
+				parameters.WithRequired(true),
+				parameters.WithShortFlag("i"),
+			),
+		),
 
-		req := common.GetMetricsRequest{
-			WorkID: metricsWorkID,
-		}
+		// Add parameter layers
+		cmds.WithLayersList(
+			glazedLayer,
+		),
+	)
 
-		metrics, err := tools.GetMetrics(req)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to get metrics")
-			fmt.Printf("Error: %s\n", err.Error())
-			os.Exit(1)
-		}
-
-		if metricsJsonOutput {
-			printMetricsAsJSON(metrics)
-		} else {
-			printMetricsNice(metrics)
-		}
-	},
+	return &MetricsCommand{
+		CommandDescription: cmdDesc,
+	}, nil
 }
 
+// init registers the metrics command
 func init() {
-	rootCmd.AddCommand(metricsCmd)
-
-	metricsCmd.Flags().StringVarP(&metricsWorkID, "id", "i", "", "Work ID (DOI or OpenAlex ID) (required)")
-	metricsCmd.Flags().BoolVarP(&metricsJsonOutput, "json", "j", false, "Output as JSON")
-
-	if err := metricsCmd.MarkFlagRequired("id"); err != nil {
-		log.Fatal().Err(err).Msg("Failed to mark id flag as required")
-	}
-}
-
-// printMetricsAsJSON prints the metrics as JSON
-func printMetricsAsJSON(metrics *common.Metrics) {
-	jsonData, err := json.MarshalIndent(metrics, "", "  ")
+	// Create the metrics command
+	metricsCmd, err := NewMetricsCommand()
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal metrics to JSON")
-		fmt.Println("Error formatting metrics as JSON")
-		return
+		log.Fatal().Err(err).Msg("Failed to create metrics command")
 	}
 
-	fmt.Println(string(jsonData))
-}
-
-// printMetricsNice prints the metrics in a nice format
-func printMetricsNice(metrics *common.Metrics) {
-	fmt.Println("--------------------------------------------------")
-	fmt.Println("Work Metrics:")
-	fmt.Printf("  Citation Count: %d\n", metrics.CitationCount)
-	fmt.Printf("  Cited By Count: %d\n", metrics.CitedByCount)
-	fmt.Printf("  Reference Count: %d\n", metrics.ReferenceCount)
-
-	if metrics.IsOA {
-		fmt.Printf("  Open Access: Yes")
-		if metrics.OAStatus != "" {
-			fmt.Printf(" (%s)\n", metrics.OAStatus)
-		} else {
-			fmt.Println()
-		}
-	} else {
-		fmt.Println("  Open Access: No")
+	// Convert to Cobra command
+	metricsCobraCmd, err := cli.BuildCobraCommandFromCommand(metricsCmd)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to build metrics cobra command")
 	}
 
-	if len(metrics.Altmetrics) > 0 {
-		fmt.Println("  Altmetrics:")
-		for metric, value := range metrics.Altmetrics {
-			fmt.Printf("    %s: %d\n", metric, value)
-		}
-	}
-	fmt.Println("--------------------------------------------------")
+	// Add to root command
+	rootCmd.AddCommand(metricsCobraCmd)
 }

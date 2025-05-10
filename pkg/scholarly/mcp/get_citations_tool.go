@@ -30,9 +30,9 @@ func registerGetCitationsTool(registry *tool_registry.Registry) error {
 						},
 						"direction": {
 							"type": "string",
-							"enum": ["cited_by", "references"],
+							"enum": ["cited_by", "refs"],
 							"default": "cited_by",
-							"description": "Direction of citations for this work"
+							"description": "Direction of citations for this work: 'cited_by' for works that cite this one, 'refs' for works this one cites"
 						},
 						"limit": {
 							"type": "integer",

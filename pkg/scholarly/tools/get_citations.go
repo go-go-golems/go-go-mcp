@@ -9,6 +9,16 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// XXX - fix the bug with openalex client
+
+// error getting citations: work not found in OpenAlex
+
+//   "work_id": "10.1162/neco.1992.4.2.234",
+//   "direction": "refs",
+//   "limit": 50,
+//   "original_query_intent": "Finding what works Schmidhuber cited in his 1992 history compression paper"
+// }
+
 // GetCitations retrieves one hop of the citation graph
 func GetCitations(req common.GetCitationsRequest) (*common.GetCitationsResponse, error) {
 	if req.WorkID == "" {

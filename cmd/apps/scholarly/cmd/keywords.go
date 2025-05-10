@@ -1,81 +1,87 @@
 package cmd
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
+
+	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds"
+	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/middlewares"
+	"github.com/go-go-golems/glazed/pkg/settings"
+	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/tools"
-	"os"
-
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/cobra"
 )
 
-var (
-	keywordsText       string
-	keywordsMaxCount   int
-	keywordsJsonOutput bool
-)
-
-// keywordsCmd represents the keywords command
-var keywordsCmd = &cobra.Command{
-	Use:   "keywords",
-	Short: "Suggest keywords for a text",
-	Long: `Generate suggested keywords for a given text using
-OpenAlex's controlled vocabulary concepts.
-
-This command analyzes the provided text and returns relevant
-keywords that can be used for further searches.
-
-Example:
-  arxiv-libgen-cli keywords --text "Quantum computing uses qubits to perform calculations"
-  arxiv-libgen-cli keywords --text "Climate change mitigation strategies" --max 5`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if keywordsText == "" {
-			fmt.Println("Error: text cannot be empty")
-			if err := cmd.Help(); err != nil {
-				log.Error().Err(err).Msg("Failed to show help")
-			}
-			os.Exit(1)
-		}
-
-		log.Debug().Str("text_sample", truncateText(keywordsText, 30)).Int("max_keywords", keywordsMaxCount).Msg("Suggesting keywords")
-
-		req := common.SuggestKeywordsRequest{
-			Text:        keywordsText,
-			MaxKeywords: keywordsMaxCount,
-		}
-
-		response, err := tools.SuggestKeywords(req)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to suggest keywords")
-			fmt.Printf("Error: %s\n", err.Error())
-			os.Exit(1)
-		}
-
-		if len(response.Keywords) == 0 {
-			fmt.Println("No keywords found for the given text.")
-			return
-		}
-
-		if keywordsJsonOutput {
-			printKeywordsAsJSON(response)
-		} else {
-			printKeywordsNice(response)
-		}
-	},
+// KeywordsCommand is a glazed command for suggesting keywords from text
+type KeywordsCommand struct {
+	*cmds.CommandDescription
 }
 
-func init() {
-	rootCmd.AddCommand(keywordsCmd)
+// Ensure interface implementation
+var _ cmds.GlazeCommand = &KeywordsCommand{}
 
-	keywordsCmd.Flags().StringVarP(&keywordsText, "text", "t", "", "Text to analyze for keywords (required)")
-	keywordsCmd.Flags().IntVarP(&keywordsMaxCount, "max", "m", 10, "Maximum number of keywords to return")
-	keywordsCmd.Flags().BoolVarP(&keywordsJsonOutput, "json", "j", false, "Output as JSON")
+// KeywordsSettings holds the parameters for keyword suggestion
+type KeywordsSettings struct {
+	Text     string `glazed.parameter:"text"`
+	MaxCount int    `glazed.parameter:"max_count"`
+}
 
-	if err := keywordsCmd.MarkFlagRequired("text"); err != nil {
-		log.Fatal().Err(err).Msg("Failed to mark text flag as required")
+// RunIntoGlazeProcessor executes the keyword suggestion and processes results
+func (c *KeywordsCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	// Parse settings from layers
+	s := &KeywordsSettings{}
+	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+		return err
 	}
+
+	// Validate text
+	if s.Text == "" {
+		return fmt.Errorf("text cannot be empty")
+	}
+
+	log.Debug().
+		Str("text_sample", truncateText(s.Text, 30)).
+		Int("max_keywords", s.MaxCount).
+		Msg("Suggesting keywords")
+
+	req := common.SuggestKeywordsRequest{
+		Text:        s.Text,
+		MaxKeywords: s.MaxCount,
+	}
+
+	// Get keyword suggestions
+	response, err := tools.SuggestKeywords(req)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to suggest keywords")
+		return err
+	}
+
+	if len(response.Keywords) == 0 {
+		log.Info().Msg("No keywords found for the given text")
+		return nil
+	}
+
+	// Output each keyword as a row
+	for _, keyword := range response.Keywords {
+		row := types.NewRow()
+		row.Set("display_name", keyword.DisplayName)
+		row.Set("id", keyword.ID)
+		row.Set("relevance", keyword.Relevance)
+
+		if err := gp.AddRow(ctx, row); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // truncateText truncates text to a specified length with ellipsis
@@ -86,27 +92,71 @@ func truncateText(text string, length int) string {
 	return text[:length] + "..."
 }
 
-// printKeywordsAsJSON prints the keywords as JSON
-func printKeywordsAsJSON(response *common.SuggestKeywordsResponse) {
-	jsonData, err := json.MarshalIndent(response, "", "  ")
+// NewKeywordsCommand creates a new keywords command
+func NewKeywordsCommand() (*KeywordsCommand, error) {
+	// Create the Glazed layer for output formatting
+	glazedLayer, err := settings.NewGlazedParameterLayers()
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal keywords to JSON")
-		fmt.Println("Error formatting keywords as JSON")
-		return
+		return nil, err
 	}
 
-	fmt.Println(string(jsonData))
+	// Create command description
+	cmdDesc := cmds.NewCommandDescription(
+		"keywords",
+		cmds.WithShort("Suggest keywords for a text"),
+		cmds.WithLong(`Generate suggested keywords for a given text using
+OpenAlex's controlled vocabulary concepts.
+
+This command analyzes the provided text and returns relevant
+keywords that can be used for further searches.
+
+Example:
+  arxiv-libgen-cli keywords --text "Quantum computing uses qubits to perform calculations"
+  arxiv-libgen-cli keywords --text "Climate change mitigation strategies" --max-count 5 --output json`),
+
+		// Define command flags
+		cmds.WithFlags(
+			parameters.NewParameterDefinition(
+				"text",
+				parameters.ParameterTypeString,
+				parameters.WithHelp("Text to analyze for keywords (required)"),
+				parameters.WithRequired(true),
+				parameters.WithShortFlag("t"),
+			),
+			parameters.NewParameterDefinition(
+				"max_count",
+				parameters.ParameterTypeInteger,
+				parameters.WithHelp("Maximum number of keywords to return"),
+				parameters.WithDefault(10),
+				parameters.WithShortFlag("m"),
+			),
+		),
+
+		// Add parameter layers
+		cmds.WithLayersList(
+			glazedLayer,
+		),
+	)
+
+	return &KeywordsCommand{
+		CommandDescription: cmdDesc,
+	}, nil
 }
 
-// printKeywordsNice prints the keywords in a nice format
-func printKeywordsNice(response *common.SuggestKeywordsResponse) {
-	fmt.Printf("Found %d keywords:\n", len(response.Keywords))
-	fmt.Println("--------------------------------------------------")
-
-	for i, keyword := range response.Keywords {
-		fmt.Printf("%d. %s (relevance: %.2f)\n", i+1, keyword.DisplayName, keyword.Relevance)
-		fmt.Printf("   ID: %s\n", keyword.ID)
+// init registers the keywords command
+func init() {
+	// Create the keywords command
+	keywordsCmd, err := NewKeywordsCommand()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create keywords command")
 	}
 
-	fmt.Println("--------------------------------------------------")
+	// Convert to Cobra command
+	keywordsCobraCmd, err := cli.BuildCobraCommandFromCommand(keywordsCmd)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to build keywords cobra command")
+	}
+
+	// Add to root command
+	rootCmd.AddCommand(keywordsCobraCmd)
 }
