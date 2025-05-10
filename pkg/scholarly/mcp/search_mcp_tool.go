@@ -62,13 +62,18 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
  							"description": "Sort order for results"
  						},
  						"providers": {
- 							"type": "array",
- 							"items": {
- 								"type": "string",
- 								"enum": ["arxiv", "openalex", "crossref"]
- 							},
- 							"description": "List of providers to search (default: all)"
- 						},
+ 						  "type": "array",
+ 						  "items": {
+ 						   "type": "string",
+ 						   "enum": ["arxiv", "openalex", "crossref"]
+ 						 },
+ 						  "description": "List of providers to search (default: all)"
+ 						 },
+  				"use_reranker": {
+  					"type": "boolean",
+  					"default": true,
+  					"description": "Whether to use the reranker service to improve search results"
+  				},
  						"max_results": {
  							"type": "integer",
  							"minimum": 1,
@@ -124,13 +129,18 @@ func registerSearchWorksTool(registry *tool_registry.Registry) error {
  				"description": "Sort order for results (single query mode)"
  			},
  			"providers": {
- 				"type": "array",
- 				"items": {
- 					"type": "string",
- 					"enum": ["arxiv", "openalex", "crossref"]
- 				},
- 				"description": "List of providers to search (default: all) (single query mode)"
- 			},
+ 			  "type": "array",
+ 			  "items": {
+ 			   "type": "string",
+ 			   "enum": ["arxiv", "openalex", "crossref"]
+ 			 },
+ 			  "description": "List of providers to search (default: all) (single query mode)"
+ 			 },
+  			"use_reranker": {
+  				"type": "boolean",
+  				"default": true,
+  				"description": "Whether to use the reranker service to improve search results (single query mode)"
+  			},
  			"max_results": {
  				"type": "integer",
  				"minimum": 1,
@@ -332,6 +342,14 @@ func buildSearchOptions(params map[string]interface{}) (scholarly_tools.SearchOp
 		if len(providers) > 0 {
 			opts.Providers = providers
 		}
+	}
+
+	// Process reranker flag
+	if useReranker, ok := params["use_reranker"].(bool); ok {
+		opts.UseReranker = useReranker
+	} else {
+		// Default to true if not specified
+		opts.UseReranker = true
 	}
 
 	return opts, nil

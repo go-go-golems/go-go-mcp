@@ -25,8 +25,9 @@ const (
 
 // SearchOptions configures a multi-provider search
 type SearchOptions struct {
-	Providers []SearchProvider // which providers to search (default: all)
-	Mailto    string           // email for polite pool access
+	Providers   []SearchProvider // which providers to search (default: all)
+	Mailto      string           // email for polite pool access
+	UseReranker bool             // whether to use the reranker (default: true)
 }
 
 // Search performs a unified search across multiple providers using the query DSL
@@ -199,6 +200,26 @@ func Search(ctx context.Context, query *querydsl.Query, opts SearchOptions) ([]c
 	// Check for any search errors
 	if err := g.Wait(); err != nil {
 		return nil, err
+	}
+
+	// Apply reranking if enabled (default is true)
+	if opts.UseReranker || opts.UseReranker == false && len(opts.Providers) > 0 { // Default to true if not explicitly set
+		// Create reranker client
+		rerankerClient := NewRerankerClient("", 0)
+
+		// Check if reranker is available
+		if rerankerClient.IsRerankerAvailable(ctx) {
+			// Only rerank if we have a text query
+			if query.Text != "" {
+				rerankedResults, err := rerankerClient.Rerank(ctx, query.Text, allResults, query.MaxResults)
+				if err == nil {
+					return rerankedResults, nil
+				}
+				// If reranking fails, fall back to original results
+				// Log the error but continue with original results
+				fmt.Printf("Warning: reranking failed: %v, falling back to original results\n", err)
+			}
+		}
 	}
 
 	return allResults, nil

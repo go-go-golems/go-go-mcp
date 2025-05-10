@@ -105,21 +105,24 @@ type FindFullTextResponse struct {
 
 // SearchResult represents a standardized search result from any source
 type SearchResult struct {
-	Title       string
-	Authors     []string
-	Abstract    string
-	Published   string
-	DOI         string
-	PDFURL      string
-	SourceURL   string
-	SourceName  string
-	OAStatus    string
-	License     string
-	FileSize    string
-	Citations   int
-	Type        string
-	JournalInfo string
-	Metadata    map[string]interface{} // Additional source-specific data
+	Title          string
+	Authors        []string
+	Abstract       string
+	Published      string
+	DOI            string
+	PDFURL         string
+	SourceURL      string
+	SourceName     string
+	OAStatus       string
+	License        string
+	FileSize       string
+	Citations      int
+	Type           string
+	JournalInfo    string
+	Metadata       map[string]interface{} // Additional source-specific data
+	Reranked       bool                   `json:"reranked,omitempty"`       // Whether this result was reranked
+	RerankerScore  float64                `json:"reranker_score,omitempty"` // Score from the reranker
+	OriginalIndex  int                    `json:"original_index,omitempty"` // Original position before reranking
 }
 
 // SearchParams contains common search parameters

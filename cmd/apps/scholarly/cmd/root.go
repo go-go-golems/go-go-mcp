@@ -52,7 +52,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&debugMode, "debug", "d", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug logging")
 	// Remove the default toggle flag if it exists from the initial cobra init
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

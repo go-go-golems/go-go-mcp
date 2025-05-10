@@ -28,18 +28,19 @@ var _ cmds.GlazeCommand = &SearchCommand{}
 
 // SearchSettings holds the parameters for scholarly search
 type SearchSettings struct {
-	Query      string   `glazed.parameter:"query"`
-	Sources    []string `glazed.parameter:"sources"`
-	Limit      int      `glazed.parameter:"limit"`
-	Author     string   `glazed.parameter:"author"`
-	Title      string   `glazed.parameter:"title"`
-	Category   string   `glazed.parameter:"category"`
-	WorkType   string   `glazed.parameter:"work-type"`
-	FromYear   int      `glazed.parameter:"from-year"`
-	ToYear     int      `glazed.parameter:"to-year"`
-	SortOrder  string   `glazed.parameter:"sort"`
-	OpenAccess string   `glazed.parameter:"open-access"`
-	Mailto     string   `glazed.parameter:"mailto"`
+	Query         string   `glazed.parameter:"query"`
+	Sources       []string `glazed.parameter:"sources"`
+	Limit         int      `glazed.parameter:"limit"`
+	Author        string   `glazed.parameter:"author"`
+	Title         string   `glazed.parameter:"title"`
+	Category      string   `glazed.parameter:"category"`
+	WorkType      string   `glazed.parameter:"work-type"`
+	FromYear      int      `glazed.parameter:"from-year"`
+	ToYear        int      `glazed.parameter:"to-year"`
+	SortOrder     string   `glazed.parameter:"sort"`
+	OpenAccess    string   `glazed.parameter:"open-access"`
+	Mailto        string   `glazed.parameter:"mailto"`
+	DisableRerank bool     `glazed.parameter:"disable-rerank"`
 }
 
 // RunIntoGlazeProcessor executes the scholarly search and processes results
@@ -123,8 +124,9 @@ func (c *SearchCommand) RunIntoGlazeProcessor(
 
 	// Create options
 	opts := tools.SearchOptions{
-		Providers: providers,
-		Mailto:    s.Mailto,
+		Providers:   providers,
+		Mailto:      s.Mailto,
+		UseReranker: !s.DisableRerank,
 	}
 
 	// Create filters map for OpenAlex
@@ -155,6 +157,7 @@ func (c *SearchCommand) RunIntoGlazeProcessor(
 			year, _ = strconv.Atoi(result.Published[:4])
 		}
 
+		// Create row with basic properties
 		row := types.NewRow(
 			types.MRP("id", result.SourceURL),
 			types.MRP("doi", result.DOI),
@@ -167,6 +170,13 @@ func (c *SearchCommand) RunIntoGlazeProcessor(
 			types.MRP("source_name", result.SourceName),
 			types.MRP("pdf_url", result.PDFURL),
 		)
+
+		// Add reranker information if available
+		if result.Reranked {
+			row.Set("reranked", true)
+			row.Set("reranker_score", result.RerankerScore)
+			row.Set("original_index", result.OriginalIndex)
+		}
 
 		if err := gp.AddRow(ctx, row); err != nil {
 			return err
@@ -276,6 +286,12 @@ Examples:
 				parameters.ParameterTypeString,
 				parameters.WithHelp("Email address for OpenAlex polite pool (highly recommended)"),
 				parameters.WithDefault("wesen@ruinwesen.com"),
+			),
+			parameters.NewParameterDefinition(
+				"disable-rerank",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Disable reranking of search results using the local reranker service"),
+				parameters.WithDefault(false),
 			),
 		),
 

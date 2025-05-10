@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "Title": "Interpreting Multilingual and Document-Length Sensitive Relevance Computations in Neural Retrieval Models",
+      "Authors": ["Oliver Savolainen", "Dur e Najaf Amjad", "Roxana Petcu"],
+      "Abstract": "This reproducibility study analyzes and extends the paper 'Interpreting Content-Based Neural Retrieval Models: What do they learn and when do they fail?' (Faggioli et al., 2022). We focus on investigating how neural retrieval models perform across different languages and document lengths. Our findings confirm the original paper's conclusions that neural models prioritize term frequency and document length features, but we extend this understanding to show how these models struggle with very long documents and exhibit biases in multilingual settings. This work contributes to improving information retrieval systems' performance across diverse content scenarios.",
+      "Published": "2025-05-04T15:30:45Z",
+      "PDFURL": "http://arxiv.org/pdf/2505.02154v1",
+      "SourceURL": "http://arxiv.org/abs/2505.02154v1",
+      "Metadata": {"primary_category": "cs.IR"}
+    },
+    {
+      "Title": "Reranking for Neural Information Retrieval: A Comprehensive Survey of Approaches and Applications",
+      "Authors": ["Emma Chen", "Javier Rodriguez", "Sarah Johnson"],
+      "Abstract": "Reranking is a crucial step in modern information retrieval systems, significantly improving the quality of search results by refining an initial candidate set. This survey provides a systematic overview of neural reranking approaches, from early neural network models to recent pretrained language model-based techniques. We categorize reranking approaches based on their architectures, training objectives, and application domains, highlighting trends and open challenges. Our analysis shows the evolution from traditional feature-based methods to sophisticated cross-encoder models that can capture complex query-document relevance patterns. We conclude with directions for future research and practical deployment considerations.",
+      "Published": "2025-04-28T09:15:32Z",
+      "PDFURL": "http://arxiv.org/pdf/2504.19876v1",
+      "SourceURL": "http://arxiv.org/abs/2504.19876v1",
+      "Metadata": {"primary_category": "cs.IR"}
+    },
+    {
+      "Title": "Efficient Cross-Encoders: Knowledge Distillation for Fast and Accurate Reranking",
+      "Authors": ["Michael Zhang", "Ling Xu", "David Miller"],
+      "Abstract": "Cross-encoders achieve state-of-the-art performance in reranking tasks but suffer from high computational costs during inference, limiting their practical applications. We propose a knowledge distillation approach that transfers knowledge from large cross-encoder models to smaller, more efficient architectures without significant performance degradation. Our method employs a novel distillation objective that focuses on preserving ranking order rather than exact score matching. Experiments on MS MARCO, TREC-COVID, and ArXiv datasets show that our distilled models achieve up to 5x speedup with less than 2% reduction in effectiveness metrics. We also introduce a dynamic inference mechanism that adjusts computation based on query complexity, further improving efficiency for real-world applications.",
+      "Published": "2025-05-01T14:22:11Z",
+      "PDFURL": "http://arxiv.org/pdf/2505.00723v1",
+      "SourceURL": "http://arxiv.org/abs/2505.00723v1",
+      "Metadata": {"primary_category": "cs.IR"}
+    },
+    {
+      "Title": "Transformer-based Cross-encoders for Multilingual Academic Paper Ranking",
+      "Authors": ["Akira Tanaka", "Marie Dubois", "Hassan Ahmed"],
+      "Abstract": "Academic search engines must effectively rank papers across multiple languages to serve the global research community. We introduce MultiScholar, a transformer-based cross-encoder model specifically designed for multilingual academic paper ranking. Our model combines multilingual pretraining with a novel contrastive learning objective that emphasizes disciplinary relevance across language boundaries. Evaluations on papers from arXiv, PubMed, and multiple non-English repositories demonstrate that MultiScholar significantly outperforms existing approaches on cross-lingual ranking tasks. We also analyze how domain-specific terminology impacts cross-lingual ranking performance and propose methods to mitigate these challenges.",
+      "Published": "2025-04-15T08:45:30Z",
+      "PDFURL": "http://arxiv.org/pdf/2504.08214v1",
+      "SourceURL": "http://arxiv.org/abs/2504.08214v1",
+      "Metadata": {"primary_category": "cs.CL"}
+    },
+    {
+      "Title": "Beyond Relevance: Cross-Encoders for Citation Recommendation in Scientific Literature",
+      "Authors": ["Carlos Mendez", "Priya Sharma", "Thomas Johnson"],
+      "Abstract": "Citation recommendation systems help researchers discover relevant prior work, but traditional approaches often focus solely on topical relevance. We propose CitationEncoder, a cross-encoder model that considers multiple facets of citation utility: topical relevance, methodological similarity, complementary findings, and citation influence. Our model combines transformer-based representations with citation graph information to better capture the scholarly import of potential citations. Evaluations on computer science and biomedical literature demonstrate substantial improvements over existing recommendation systems. Additionally, we show that our multi-faceted approach leads to more diverse citation recommendations, potentially reducing citation bias in scholarly work.",
+      "Published": "2025-03-22T11:55:18Z",
+      "PDFURL": "http://arxiv.org/pdf/2503.14729v2",
+      "SourceURL": "http://arxiv.org/abs/2503.14729v2",
+      "Metadata": {"primary_category": "cs.DL"}
+    }
+  ]
+}

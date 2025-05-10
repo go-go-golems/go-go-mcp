@@ -46,6 +46,20 @@
             "program": "${workspaceFolder}/cmd/ui-server",
             "args": ["start", "examples/pages", "--log-level", "debug"],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Launch ArXiv Reranker Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/python/reranker-server/arxiv_reranker_server.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "LOG_LEVEL": "DEBUG",
+                "LOG_FILE": "reranker.log",
+                "MODEL_NAME": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+            },
+            "cwd": "${workspaceFolder}/python/reranker-server"
         }
     ]
 }
