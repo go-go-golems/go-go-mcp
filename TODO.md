@@ -7,6 +7,16 @@
 - [ ] Refactor claude_config.go and cursor_config.go to use the new CommonServer abstraction and unify into one set of commands
 - [x] Add config editing UI
 
+
+## Scholarly
+
+- [ ] Web API / Web UI for search doesn't seem to rerank
+- [ ] Merge both web applications 
+- [ ] Better weighting of search results (crossref seems very empty)
+- [ ] Integrate bge-reranker into go using ollama (see stuff in labs)
+- [ ] Make Web UI for the other verbs
+- [ ] Add query intent for reranking 
+
 ## Tool API
 
 - [x] Add context to the tool call

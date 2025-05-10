@@ -31,3 +31,8 @@ Use the "defaults" package name, instead of "default" package name, as it's rese
 Use github.com/pkg/errors for wrapping errors.
 When starting goroutines, use errgroup.
 </goGuidelines>
+
+<webGuidelines>
+Use bun, react and rtk-query. Use typescript.
+Use bootstrap for styling.
+</webGuidelines>
