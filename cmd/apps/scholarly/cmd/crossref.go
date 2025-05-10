@@ -202,7 +202,9 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	cfCobraCmd, err := cli.BuildCobraCommandFromCommand(crossrefCmd)
+	cfCobraCmd, err := cli.BuildCobraCommandFromCommand(crossrefCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build crossref cobra command")
 	}

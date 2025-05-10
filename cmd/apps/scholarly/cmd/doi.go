@@ -128,7 +128,9 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	doiCobraCmd, err := cli.BuildCobraCommandFromCommand(doiCmd)
+	doiCobraCmd, err := cli.BuildCobraCommandFromCommand(doiCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build DOI cobra command")
 	}

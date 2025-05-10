@@ -164,7 +164,9 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	ftCobraCmd, err := cli.BuildCobraCommandFromCommand(fulltextCmd)
+	ftCobraCmd, err := cli.BuildCobraCommandFromCommand(fulltextCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build fulltext cobra command")
 	}

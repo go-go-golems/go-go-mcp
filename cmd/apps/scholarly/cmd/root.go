@@ -1,13 +1,11 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
 	"os"
-	"time"
 
-	"github.com/rs/zerolog"
+	clay "github.com/go-go-golems/clay/pkg"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
+	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -27,22 +25,27 @@ Examples:
   scholarly libgen -q "artificial intelligence" -m "https://libgen.is"
   scholarly crossref -q "climate change mitigation"
   scholarly openalex -q "machine learning applications"`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-		if debugMode {
-			zerolog.SetGlobalLevel(zerolog.DebugLevel)
-			// Use console writer for more readable debug logs
-			log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		err := logging.InitLoggerFromViper()
+		if err != nil {
+			return err
 		}
-		log.Debug().Msg("Debug mode enabled")
+		return nil
 	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	err := rootCmd.Execute()
+	helpSystem := help.NewHelpSystem()
+	helpSystem.SetupCobraRootCommand(rootCmd)
+
+	err := clay.InitViper("mcp", rootCmd)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize viper")
+	}
+
+	err = rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}

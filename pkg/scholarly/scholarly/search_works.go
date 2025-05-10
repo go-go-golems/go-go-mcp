@@ -15,6 +15,8 @@ import (
 
 // SearchWorks searches for works across different providers
 func SearchWorks(req SearchWorksRequest) (*SearchWorksResponse, error) {
+	// Start detailed request logging
+	log.Debug().Str("function", "SearchWorks").Str("query", req.Query).Str("source", req.Source).Int("limit", req.Limit).Msg("Starting SearchWorks request")
 	if req.Query == "" {
 		return nil, fmt.Errorf("query cannot be empty")
 	}
@@ -98,7 +100,17 @@ func searchArxiv(req SearchWorksRequest) (*SearchWorksResponse, error) {
 		works = append(works, work)
 	}
 
-	return &SearchWorksResponse{Works: works}, nil
+	// Log the response structure
+	result := &SearchWorksResponse{Works: works}
+	log.Debug().Str("source", "arxiv").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
+
+	// Log a sample of the first result if available
+	if len(works) > 0 {
+		firstWork := works[0]
+		log.Debug().Str("source", "arxiv").Str("first_title", firstWork.Title).Str("first_id", firstWork.ID).Msg("Sample search result")
+	}
+
+	return result, nil
 }
 
 // searchCrossref searches for works in Crossref
@@ -146,7 +158,17 @@ func searchCrossref(req SearchWorksRequest) (*SearchWorksResponse, error) {
 		works = append(works, work)
 	}
 
-	return &SearchWorksResponse{Works: works}, nil
+	// Log the response structure
+	result := &SearchWorksResponse{Works: works}
+	log.Debug().Str("source", "crossref").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
+
+	// Log a sample of the first result if available
+	if len(works) > 0 {
+		firstWork := works[0]
+		log.Debug().Str("source", "crossref").Str("first_title", firstWork.Title).Str("first_id", firstWork.ID).Int("citation_count", firstWork.CitationCount).Msg("Sample search result")
+	}
+
+	return result, nil
 }
 
 // searchOpenAlex searches for works in OpenAlex
@@ -197,5 +219,15 @@ func searchOpenAlex(req SearchWorksRequest) (*SearchWorksResponse, error) {
 		works = append(works, work)
 	}
 
-	return &SearchWorksResponse{Works: works}, nil
+	// Log the response structure
+	result := &SearchWorksResponse{Works: works}
+	log.Debug().Str("source", "openalex").Int("result_count", len(works)).Msg("SearchWorks completed successfully")
+
+	// Log a sample of the first result if available
+	if len(works) > 0 {
+		firstWork := works[0]
+		log.Debug().Str("source", "openalex").Str("first_title", firstWork.Title).Str("first_id", firstWork.ID).Int("citation_count", firstWork.CitationCount).Bool("is_oa", firstWork.IsOA).Msg("Sample search result")
+	}
+
+	return result, nil
 }

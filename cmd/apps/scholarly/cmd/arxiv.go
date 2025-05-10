@@ -150,7 +150,10 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	axCobraCmd, err := cli.BuildCobraCommandFromCommand(arxivCmd)
+	axCobraCmd, err := cli.BuildCobraCommandFromCommand(
+		arxivCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build arxiv cobra command")
 	}

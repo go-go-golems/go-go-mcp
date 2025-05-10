@@ -67,6 +67,9 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 		return nil, fmt.Errorf("crossref API request failed with status %d", resp.StatusCode)
 	}
 
+	// Log response body for debugging
+	log.Debug().Str("response_body", string(resp.Body[:min(2000, len(resp.Body))])).Msg("Crossref API raw response")
+
 	var crossrefResp CrossrefResponse
 	if err := json.Unmarshal(resp.Body, &crossrefResp); err != nil {
 		log.Error().Err(err).Bytes("body", resp.Body[:min(500, len(resp.Body))]).Msg("Error unmarshalling Crossref JSON response")
@@ -82,6 +85,15 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 
 // convertToSearchResults converts Crossref items to the common search result format
 func convertToSearchResults(items []CrossrefItem) []common.SearchResult {
+	// Log the number of results and a representative sample
+	if len(items) > 0 {
+		sampleItem := items[0]
+		sampleTitle := ""
+		if len(sampleItem.Title) > 0 {
+			sampleTitle = sampleItem.Title[0]
+		}
+		log.Debug().Int("total_items", len(items)).Str("first_item_title", sampleTitle).Str("first_item_doi", sampleItem.DOI).Str("first_item_type", sampleItem.Type).Msg("Crossref parsed items sample")
+	}
 	results := make([]common.SearchResult, len(items))
 
 	for i, item := range items {

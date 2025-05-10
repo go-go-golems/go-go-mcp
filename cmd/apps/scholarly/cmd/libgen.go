@@ -193,7 +193,9 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	lgCobraCmd, err := cli.BuildCobraCommandFromCommand(libgenCmd)
+	lgCobraCmd, err := cli.BuildCobraCommandFromCommand(libgenCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build libgen cobra command")
 	}

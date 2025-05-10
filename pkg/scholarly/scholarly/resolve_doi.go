@@ -52,6 +52,8 @@ func getOpenAlexData(doi string) (*Work, error) {
 		doiURL = "https://doi.org/" + doi
 	}
 
+	log.Debug().Str("doi", doi).Str("doi_url", doiURL).Msg("Requesting work from OpenAlex")
+
 	// TODO: Implement a direct GetWorkByDOI method in the OpenAlex client
 	// For now, simulate with a search query
 	params := common.SearchParams{
@@ -61,13 +63,16 @@ func getOpenAlexData(doi string) (*Work, error) {
 
 	results, err := client.Search(params)
 	if err != nil {
+		log.Error().Err(err).Str("doi", doi).Msg("Failed to get data from OpenAlex")
 		return nil, fmt.Errorf("OpenAlex error: %w", err)
 	}
 
 	if len(results) == 0 {
+		log.Warn().Str("doi", doi).Msg("DOI not found in OpenAlex")
 		return nil, fmt.Errorf("DOI not found in OpenAlex")
 	}
 
+	log.Debug().Str("doi", doi).Str("title", results[0].Title).Msg("Successfully found work in OpenAlex")
 	result := results[0]
 
 	year := 0
@@ -100,6 +105,8 @@ func getOpenAlexData(doi string) (*Work, error) {
 func getCrossrefData(doi string) (*Work, error) {
 	client := crossref.NewClient("")
 
+	log.Debug().Str("doi", doi).Msg("Requesting work from Crossref")
+
 	// TODO: Implement a direct GetWorkByDOI method in the Crossref client
 	// For now, simulate with a search query
 	params := common.SearchParams{
@@ -109,13 +116,16 @@ func getCrossrefData(doi string) (*Work, error) {
 
 	results, err := client.Search(params)
 	if err != nil {
+		log.Error().Err(err).Str("doi", doi).Msg("Failed to get data from Crossref")
 		return nil, fmt.Errorf("crossref error: %w", err)
 	}
 
 	if len(results) == 0 {
+		log.Warn().Str("doi", doi).Msg("DOI not found in Crossref")
 		return nil, fmt.Errorf("DOI not found in Crossref")
 	}
 
+	log.Debug().Str("doi", doi).Str("title", results[0].Title).Msg("Successfully found work in Crossref")
 	result := results[0]
 
 	year := 0
@@ -145,15 +155,20 @@ func getCrossrefData(doi string) (*Work, error) {
 
 // mergeWorkData merges data from Crossref and OpenAlex with precedence rules
 func mergeWorkData(crossref, openalex *Work) *Work {
+	log.Debug().Bool("has_crossref", crossref != nil).Bool("has_openalex", openalex != nil).Msg("Merging work data from sources")
+
 	if crossref == nil && openalex == nil {
+		log.Warn().Msg("No data available from any source to merge")
 		return nil
 	}
 
 	if crossref == nil {
+		log.Debug().Msg("Using OpenAlex data only (Crossref data missing)")
 		return openalex
 	}
 
 	if openalex == nil {
+		log.Debug().Msg("Using Crossref data only (OpenAlex data missing)")
 		return crossref
 	}
 
@@ -178,6 +193,11 @@ func mergeWorkData(crossref, openalex *Work) *Work {
 
 	// Set combined source
 	merged.SourceName = "combined"
+
+	// Log the merged result details
+	log.Debug().Str("doi", merged.DOI).Str("title", merged.Title).Int("citation_count", merged.CitationCount).
+		Bool("has_abstract", merged.Abstract != "").Bool("has_pdf", merged.PDFURL != "").Bool("is_oa", merged.IsOA).
+		Msg("Successfully merged work data")
 
 	return &merged
 }

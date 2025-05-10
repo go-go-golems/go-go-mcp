@@ -221,7 +221,9 @@ func init() {
 	}
 
 	// Convert to Cobra command
-	oaCobraCmd, err := cli.BuildCobraCommandFromCommand(openalexCmd)
+	oaCobraCmd, err := cli.BuildCobraCommandFromCommand(openalexCmd,
+		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build openalex cobra command")
 	}

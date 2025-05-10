@@ -77,6 +77,9 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 		return nil, fmt.Errorf("openAlex API request failed with status %d", resp.StatusCode)
 	}
 
+	// Log response body for debugging
+	log.Debug().Str("response_body", string(resp.Body[:min(2000, len(resp.Body))])).Msg("OpenAlex API raw response")
+
 	var oaResp OpenAlexResponse
 	if err := json.Unmarshal(resp.Body, &oaResp); err != nil {
 		log.Error().Err(err).Str("body_snippet", string(resp.Body[:min(500, len(resp.Body))])).Msg("Error unmarshalling OpenAlex JSON response")
@@ -130,6 +133,11 @@ func reconstructAbstract(invertedIndex map[string][]int) string {
 
 // convertToSearchResults converts OpenAlex works to the common search result format
 func convertToSearchResults(works []OpenAlexWork) []common.SearchResult {
+	// Log the number of results and a representative sample
+	if len(works) > 0 {
+		sampleWork := works[0]
+		log.Debug().Int("total_works", len(works)).Str("first_work_title", sampleWork.DisplayName).Str("first_work_id", sampleWork.ID).Int("first_work_citations", sampleWork.CitedByCount).Msg("OpenAlex parsed works sample")
+	}
 	results := make([]common.SearchResult, len(works))
 
 	for i, work := range works {

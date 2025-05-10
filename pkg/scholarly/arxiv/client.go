@@ -52,6 +52,9 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 	}
 
 	var feed AtomFeed
+	// Log response body for debugging
+	log.Debug().Str("response_body", string(resp.Body[:min(1000, len(resp.Body))])).Msg("ArXiv API raw response")
+
 	if err := xml.Unmarshal(resp.Body, &feed); err != nil {
 		log.Error().Err(err).Str("body_prefix", string(resp.Body[:min(500, len(resp.Body))])).Msg("Error unmarshalling Arxiv XML response") // Log prefix of body
 		return nil, fmt.Errorf("error parsing Arxiv API response: %w", err)
@@ -68,6 +71,11 @@ func (c *Client) Search(params common.SearchParams) ([]common.SearchResult, erro
 
 // convertToSearchResults converts Arxiv entries to the common search result format
 func convertToSearchResults(entries []Entry) []common.SearchResult {
+	// Log the number of results and a representative sample
+	if len(entries) > 0 {
+		sampleEntry := entries[0]
+		log.Debug().Int("total_entries", len(entries)).Str("first_entry_title", sampleEntry.Title).Str("first_entry_id", sampleEntry.ID).Msg("ArXiv parsed entries sample")
+	}
 	results := make([]common.SearchResult, len(entries))
 
 	for i, entry := range entries {
