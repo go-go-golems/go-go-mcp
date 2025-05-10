@@ -2,6 +2,8 @@ package tools
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/rs/zerolog/log"
@@ -44,45 +46,30 @@ func getMetricsByDOI(doi string) (*common.Metrics, error) {
 func getMetricsByOpenAlexID(workID string) (*common.Metrics, error) {
 	client := openalex.NewClient("")
 
-	// TODO: Implement a direct GetWork method in the OpenAlex client
-	// For now, simulate with a search query
-	params := common.SearchParams{
-		Query:      fmt.Sprintf("id:%s", workID),
-		MaxResults: 1,
-	}
-
-	results, err := client.Search(params)
+	// Use direct works endpoint
+	work, err := client.GetWorkByDOI(workID)
 	if err != nil {
+		// If we have Crossref data, we can still return some metrics
+		if strings.Contains(err.Error(), "not found") {
+			// Return metrics with just the data we have
+			return &common.Metrics{
+				CitationCount:  0,
+				CitedByCount:   0,
+				ReferenceCount: 0,
+				IsOA:           false,
+				Altmetrics:     make(map[string]int),
+			}, nil
+		}
 		return nil, fmt.Errorf("OpenAlex error: %w", err)
 	}
 
-	if len(results) == 0 {
-		return nil, fmt.Errorf("work not found in OpenAlex")
-	}
-
-	result := results[0]
-
 	// Extract metrics from the result
 	metrics := &common.Metrics{
-		CitationCount:  result.Citations,
-		CitedByCount:   result.Citations, // Same as citation_count in OpenAlex
-		ReferenceCount: 0,                // Not directly available
-		IsOA:           false,
+		CitationCount:  work.CitationCount,
+		CitedByCount:   work.CitationCount, // Same as citation_count in OpenAlex
+		ReferenceCount: 0,                  // Not directly available
+		IsOA:           work.IsOA,
 		Altmetrics:     make(map[string]int),
-	}
-
-	// Extract OA status
-	if oa, ok := result.Metadata["is_oa"].(bool); ok {
-		metrics.IsOA = oa
-	}
-
-	if result.OAStatus != "" {
-		metrics.OAStatus = result.OAStatus
-	}
-
-	// Try to extract reference count if available
-	if refCount, ok := result.Metadata["referenced_works_count"].(int); ok {
-		metrics.ReferenceCount = refCount
 	}
 
 	return metrics, nil

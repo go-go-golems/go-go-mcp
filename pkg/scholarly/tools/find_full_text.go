@@ -3,11 +3,12 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/libgen"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/libgen"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/rs/zerolog/log"
@@ -199,8 +200,8 @@ func findFullTextUnpaywall(doi string, preferVersion string) (*common.FindFullTe
 	cleanDOI := strings.TrimPrefix(doi, "https://doi.org/")
 	cleanDOI = strings.TrimPrefix(cleanDOI, "doi.org/")
 
-	// Unpaywall API endpoint - use a standard email address that will likely work
-	apiURL := fmt.Sprintf("https://api.unpaywall.org/v2/%s?email=test@example.com", url.PathEscape(cleanDOI))
+	// Unpaywall API endpoint - use manuel's email address
+	apiURL := fmt.Sprintf("https://api.unpaywall.org/v2/%s?email=manuel@bl0rg.net", url.PathEscape(cleanDOI))
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {

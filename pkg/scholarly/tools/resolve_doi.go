@@ -2,9 +2,10 @@ package tools
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/crossref"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
-	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/rs/zerolog/log"
@@ -45,58 +46,15 @@ func isValidDOI(doi string) bool {
 func getOpenAlexData(doi string) (*common.Work, error) {
 	client := openalex.NewClient("")
 
-	// OpenAlex expects DOIs with a URL prefix
-	doiURL := doi
-	if !strings.HasPrefix(doi, "https://doi.org/") {
-		doiURL = "https://doi.org/" + doi
-	}
+	log.Debug().Str("doi", doi).Msg("Requesting work from OpenAlex")
 
-	log.Debug().Str("doi", doi).Str("doi_url", doiURL).Msg("Requesting work from OpenAlex")
-
-	// TODO: Implement a direct GetWorkByDOI method in the OpenAlex client
-	// For now, simulate with a search query
-	params := common.SearchParams{
-		Query:      doiURL,
-		MaxResults: 1,
-	}
-
-	results, err := client.Search(params)
+	work, err := client.GetWorkByDOI(doi)
 	if err != nil {
 		log.Error().Err(err).Str("doi", doi).Msg("Failed to get data from OpenAlex")
 		return nil, fmt.Errorf("OpenAlex error: %w", err)
 	}
 
-	if len(results) == 0 {
-		log.Warn().Str("doi", doi).Msg("DOI not found in OpenAlex")
-		return nil, fmt.Errorf("DOI not found in OpenAlex")
-	}
-
-	log.Debug().Str("doi", doi).Str("title", results[0].Title).Msg("Successfully found work in OpenAlex")
-	result := results[0]
-
-	year := 0
-	if y, ok := result.Metadata["publication_year"].(int); ok {
-		year = y
-	}
-
-	isOA := false
-	if oa, ok := result.Metadata["is_oa"].(bool); ok {
-		isOA = oa
-	}
-
-	work := &common.Work{
-		ID:            result.SourceURL,
-		DOI:           doi,
-		Title:         result.Title,
-		Authors:       result.Authors,
-		Year:          year,
-		IsOA:          isOA,
-		CitationCount: result.Citations,
-		Abstract:      result.Abstract,
-		SourceName:    "openalex",
-		PDFURL:        result.PDFURL,
-	}
-
+	log.Debug().Str("doi", doi).Str("title", work.Title).Msg("Successfully found work in OpenAlex")
 	return work, nil
 }
 

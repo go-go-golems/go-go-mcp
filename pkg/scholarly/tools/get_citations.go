@@ -2,8 +2,8 @@ package tools
 
 import (
 	"fmt"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/clients/openalex"
-	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/rs/zerolog/log"
@@ -49,28 +49,12 @@ func GetCitations(req common.GetCitationsRequest) (*common.GetCitationsResponse,
 func getOpenAlexIDFromDOI(doi string) (string, error) {
 	client := openalex.NewClient("")
 
-	// OpenAlex expects DOIs with a URL prefix
-	doiURL := doi
-	if !strings.HasPrefix(doi, "https://doi.org/") {
-		doiURL = "https://doi.org/" + doi
-	}
-
-	// Search for the DOI
-	params := common.SearchParams{
-		Query:      doiURL,
-		MaxResults: 1,
-	}
-
-	results, err := client.Search(params)
+	work, err := client.GetWorkByDOI(doi)
 	if err != nil {
 		return "", fmt.Errorf("OpenAlex error: %w", err)
 	}
 
-	if len(results) == 0 {
-		return "", fmt.Errorf("DOI not found in OpenAlex")
-	}
-
-	return results[0].SourceURL, nil
+	return work.ID, nil
 }
 
 // getReferencedWorks gets the outgoing references (works cited by this work)
@@ -152,38 +136,21 @@ func getReferencedWorks(workID string, limit int) (*common.GetCitationsResponse,
 func getCitedByWorks(workID string, limit int) (*common.GetCitationsResponse, error) {
 	client := openalex.NewClient("")
 
-	// Use filter to get works that cite the given work
-	params := common.SearchParams{
-		Query:      "*", // Using wildcard query since empty query with sort is not allowed
-		MaxResults: limit,
-		Filters: map[string]string{
-			"filter": fmt.Sprintf("cites:%s", workID),
-			"sort":   "cited_by_count:desc", // Sort by citation count instead of relevance
-		},
-	}
-
-	results, err := client.Search(params)
+	// Get works that cite this work
+	results, err := client.GetCitedWorks(workID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAlex error: %w", err)
 	}
 
 	citations := make([]common.Citation, 0, len(results))
 	for _, result := range results {
-		year := 0
-		if y, ok := result.Metadata["publication_year"].(int); ok {
-			year = y
-		}
-
 		citations = append(citations, common.Citation{
-			ID:    result.SourceURL,
+			ID:    result.ID,
 			DOI:   result.DOI,
-			Title: result.Title,
-			Year:  year,
+			Title: result.DisplayName,
+			Year:  result.PublicationYear,
 		})
 	}
-
-	// TODO: Implement cursor-based pagination if more results exist
-	// This would require modifying the OpenAlex client to return cursor tokens
 
 	return &common.GetCitationsResponse{Citations: citations}, nil
 }
