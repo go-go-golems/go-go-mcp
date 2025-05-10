@@ -149,6 +149,8 @@ func Search(ctx context.Context, query *querydsl.Query, opts SearchOptions) ([]c
 					params.Filters["sort"] = "publication_date:desc"
 				case querydsl.SortOldest:
 					params.Filters["sort"] = "publication_date:asc"
+				case querydsl.SortRelevance:
+					fallthrough
 				default:
 					// If sort was already set by ToOpenAlex (e.g. from raw query), don't override
 					if _, ok := params.Filters["sort"]; !ok {
@@ -174,7 +176,7 @@ func Search(ctx context.Context, query *querydsl.Query, opts SearchOptions) ([]c
 
 	// Close results channel when all searches complete
 	go func() {
-		g.Wait()
+		_ = g.Wait()
 		close(resultsChan)
 	}()
 

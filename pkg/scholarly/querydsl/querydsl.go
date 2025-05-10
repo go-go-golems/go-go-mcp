@@ -85,6 +85,8 @@ func (q *Query) ToArxiv() url.Values {
 	case SortOldest:
 		values.Set("sortBy", "submittedDate")
 		values.Set("sortOrder", "ascending")
+	case SortRelevance:
+		fallthrough
 	default:
 		values.Set("sortBy", "relevance")
 	}
@@ -124,6 +126,7 @@ func (q *Query) ToCrossref() url.Values {
 	case SortOldest:
 		v.Set("sort", "published")
 		v.Set("order", "asc")
+	case SortRelevance:
 	}
 	v.Set("rows", strconv.Itoa(q.MaxResults))
 	return v
@@ -159,6 +162,8 @@ func (q *Query) ToOpenAlex() url.Values {
 		v.Set("sort", "publication_date:desc")
 	case SortOldest:
 		v.Set("sort", "publication_date:asc")
+	case SortRelevance:
+		fallthrough
 	default:
 		v.Set("sort", "relevance_score:desc")
 	}
