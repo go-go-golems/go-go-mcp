@@ -3,6 +3,7 @@ package config_provider
 import (
 	"context"
 	"encoding/json"
+	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/mcp"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
+	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	parka_config "github.com/go-go-golems/parka/pkg/handlers/config"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -24,16 +27,17 @@ import (
 
 // ConfigToolProvider implements pkg.ToolProvider interface
 type ConfigToolProvider struct {
-	repository    *repositories.Repository
-	shellCommands map[string]cmds.Command
-	toolConfigs   map[string]*config.SourceConfig
-	helpSystem    *help.HelpSystem
-	debug         bool
-	tracingDir    string
-	directories   []repositories.Directory
-	files         []string
-	watching      bool
-	convertDashes bool // controls whether to convert dashes to underscores in tool names
+	repository      *repositories.Repository
+	shellCommands   map[string]cmds.Command
+	toolConfigs     map[string]*config.SourceConfig
+	helpSystem      *help.HelpSystem
+	debug           bool
+	tracingDir      string
+	directories     []repositories.Directory
+	files           []string
+	watching        bool
+	convertDashes   bool // controls whether to convert dashes to underscores in tool names
+	internalServers []string
 }
 
 type ConfigToolProviderOption func(*ConfigToolProvider) error
@@ -135,6 +139,13 @@ func WithConvertDashes(convert bool) ConfigToolProviderOption {
 	}
 }
 
+func WithInternalServers(internalServers []string) ConfigToolProviderOption {
+	return func(p *ConfigToolProvider) error {
+		p.internalServers = internalServers
+		return nil
+	}
+}
+
 // NewConfigToolProvider creates a new ConfigToolProvider with the given options
 func NewConfigToolProvider(options ...ConfigToolProviderOption) (*ConfigToolProvider, error) {
 	provider := &ConfigToolProvider{
@@ -203,8 +214,24 @@ func (p *ConfigToolProvider) revertToolName(name string) string {
 }
 
 // ListTools implements pkg.ToolProvider interface
-func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]protocol.Tool, string, error) {
+func (p *ConfigToolProvider) ListTools(ctx context.Context, cursor string) ([]protocol.Tool, string, error) {
 	var tools []protocol.Tool
+
+	// If internal servers are enabled, create a registry with those tools
+	var internalRegistry *tool_registry.Registry
+	if len(p.internalServers) > 0 {
+		internalRegistry = tool_registry.NewRegistry()
+		if err := registerInternalServers(internalRegistry, p.internalServers); err != nil {
+			return nil, "", errors.Wrap(err, "failed to register internal servers")
+		}
+
+		// List internal tools first
+		internalTools, _, err := internalRegistry.ListTools(ctx, "")
+		if err != nil {
+			return nil, "", errors.Wrap(err, "failed to list internal tools")
+		}
+		tools = append(tools, internalTools...)
+	}
 
 	repoCommands := p.repository.CollectCommands([]string{}, true)
 
@@ -248,6 +275,24 @@ func (p *ConfigToolProvider) ListTools(_ context.Context, cursor string) ([]prot
 func (p *ConfigToolProvider) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (*protocol.ToolResult, error) {
 	// Convert the tool name back to its original form if needed
 	originalName := p.revertToolName(name)
+
+	// First check if the tool is available from internal servers
+	if len(p.internalServers) > 0 {
+		internalRegistry := tool_registry.NewRegistry()
+		if err := registerInternalServers(internalRegistry, p.internalServers); err != nil {
+			return nil, errors.Wrap(err, "failed to register internal servers")
+		}
+
+		result, err := internalRegistry.CallTool(ctx, originalName, arguments)
+		if err == nil {
+			return result, nil
+		}
+		// If the error is not "tool not found", return the error
+		if !errors.Is(err, pkg.ErrToolNotFound) {
+			return nil, err
+		}
+		// Otherwise continue looking in other providers
+	}
 
 	cmd, ok := p.repository.GetCommand(originalName)
 
@@ -460,4 +505,40 @@ func CreateToolProviderFromDirectories(directories []string, options ...ConfigTo
 	}
 
 	return provider, nil
+}
+
+// registerInternalServers registers the requested internal servers in the registry
+func registerInternalServers(registry *tool_registry.Registry, serverList []string) error {
+	// Create a map for faster lookups
+	serversMap := make(map[string]bool)
+	for _, server := range serverList {
+		serversMap[server] = true
+	}
+
+	// Register the requested servers
+	if serversMap["sqlite"] {
+		if err := examples.RegisterSQLiteSessionTools(registry); err != nil {
+			return errors.Wrap(err, "failed to register sqlite tool")
+		}
+	}
+
+	if serversMap["fetch"] {
+		if err := examples.RegisterFetchTool(registry); err != nil {
+			return errors.Wrap(err, "failed to register fetch tool")
+		}
+	}
+
+	if serversMap["echo"] {
+		if err := examples.RegisterEchoTool(registry); err != nil {
+			return errors.Wrap(err, "failed to register echo tool")
+		}
+	}
+
+	if serversMap["scholarly"] {
+		if err := mcp.RegisterScholarlyTools(registry); err != nil {
+			return errors.Wrap(err, "failed to register scholarly tools")
+		}
+	}
+
+	return nil
 }

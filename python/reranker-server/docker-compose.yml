@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  reranker:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    environment:
+      - MODEL_NAME=cross-encoder/ms-marco-MiniLM-L-6-v2
+      - LOG_LEVEL=DEBUG
+      - LOG_FILE=/app/reranker.log
+    restart: unless-stopped

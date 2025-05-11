@@ -16,9 +16,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/resources"
 	"github.com/go-go-golems/go-go-mcp/pkg/server"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools"
-	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
-	tool_registry "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/sse"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/stdio"
@@ -28,9 +25,8 @@ import (
 )
 
 type StartCommandSettings struct {
-	Transport       string   `glazed.parameter:"transport"`
-	Port            int      `glazed.parameter:"port"`
-	InternalServers []string `glazed.parameter:"internal-servers"`
+	Transport string `glazed.parameter:"transport"`
+	Port      int    `glazed.parameter:"port"`
 }
 
 type StartCommand struct {
@@ -65,46 +61,10 @@ Available transports:
 					parameters.WithHelp("Port to listen on for SSE transport"),
 					parameters.WithDefault(3001),
 				),
-				parameters.NewParameterDefinition(
-					"internal-servers",
-					parameters.ParameterTypeStringList,
-					parameters.WithHelp("List of internal servers to register (comma-separated). Available: sqlite,fetch,echo"),
-					parameters.WithDefault([]string{}),
-				),
 			),
 			cmds.WithLayersList(serverLayer),
 		),
 	}, nil
-}
-
-// registerInternalServers registers the requested internal servers in the registry
-func registerInternalServers(registry *tool_registry.Registry, serverList []string) error {
-	// Create a map for faster lookups
-	serversMap := make(map[string]bool)
-	for _, server := range serverList {
-		serversMap[server] = true
-	}
-
-	// Register the requested servers
-	if serversMap["sqlite"] {
-		if err := examples.RegisterSQLiteSessionTools(registry); err != nil {
-			return errors.Wrap(err, "failed to register sqlite tool")
-		}
-	}
-
-	if serversMap["fetch"] {
-		if err := examples.RegisterFetchTool(registry); err != nil {
-			return errors.Wrap(err, "failed to register fetch tool")
-		}
-	}
-
-	if serversMap["echo"] {
-		if err := examples.RegisterEchoTool(registry); err != nil {
-			return errors.Wrap(err, "failed to register echo tool")
-		}
-	}
-
-	return nil
 }
 
 func (c *StartCommand) Run(
@@ -160,19 +120,6 @@ func (c *StartCommand) Run(
 
 	// Initialize the final tool provider
 	var toolProvider pkg.ToolProvider = configToolProvider
-
-	// Register internal servers if specified
-	if len(s_.InternalServers) > 0 {
-		registry := tool_registry.NewRegistry()
-
-		// Register the internal servers
-		if err := registerInternalServers(registry, s_.InternalServers); err != nil {
-			return err
-		}
-
-		// Combine the registry with the config tool provider
-		toolProvider = tools.CombineProviders(configToolProvider, registry)
-	}
 
 	// Create resource provider
 	resourceProvider := resources.NewRegistry()

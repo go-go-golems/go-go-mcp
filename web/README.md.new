@@ -1,0 +1,53 @@
+# ArXiv Paper Reranker
+
+This project provides a system for reranking arXiv paper search results based on their relevance to a search query using cross-encoder models.
+
+## Project Structure
+
+- `python/reranker-server/`: FastAPI backend service that handles paper reranking
+- `web/`: React frontend for interacting with the reranking API
+
+## Getting Started
+
+### Backend Setup
+
+```bash
+cd python/reranker-server
+pip install sentence-transformers fastapi uvicorn pydantic torch
+python arxiv_reranker_server.py
+```
+
+The server will start on http://localhost:8000
+
+### Frontend Setup
+
+```bash
+cd web
+bun install
+bun run dev
+```
+
+The frontend will start on http://localhost:5173
+
+### Running Both Together
+
+Use the provided start script:
+
+```bash
+cd web
+./start-dev.sh
+```
+
+## Features
+
+- Cross-encoder based reranking of arXiv papers
+- Modern React frontend with Redux Toolkit
+- Support for different reranking models
+- API documentation available at http://localhost:8000/docs
+
+## Requirements
+
+- Python 3.8+
+- Bun.js
+- PyTorch and sentence-transformers
+- FastAPI and uvicorn
