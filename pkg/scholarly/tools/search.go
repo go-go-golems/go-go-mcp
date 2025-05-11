@@ -203,7 +203,7 @@ func Search(ctx context.Context, query *querydsl.Query, opts SearchOptions) ([]c
 	}
 
 	// Apply reranking if enabled (default is true)
-	if opts.UseReranker || opts.UseReranker == false && len(opts.Providers) > 0 { // Default to true if not explicitly set
+	if opts.UseReranker || len(opts.Providers) > 0 { // Default to true if not explicitly set
 		// Create reranker client
 		rerankerClient := NewRerankerClient("", 0)
 

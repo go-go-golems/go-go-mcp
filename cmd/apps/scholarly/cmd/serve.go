@@ -27,9 +27,9 @@ var (
 // ScholarlySearchResponse represents the API response structure
 type ScholarlySearchResponse struct {
 	Results []common.SearchResult `json:"results"`
-	Query   string               `json:"query"`
-	Count   int                  `json:"count"`
-	Sources []string             `json:"sources"`
+	Query   string                `json:"query"`
+	Count   int                   `json:"count"`
+	Sources []string              `json:"sources"`
 }
 
 // ServeCommand starts an HTTP server that provides the scholarly search API
@@ -83,7 +83,7 @@ Examples:
 // handleSearch handles the /api/search endpoint
 func handleSearch(w http.ResponseWriter, r *http.Request) {
 	log.Debug().Msg("Handling search request")
-	
+
 	// Parse query parameters
 	queryParams := r.URL.Query()
 	queryText := queryParams.Get("query")
@@ -99,7 +99,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 	openAccess := queryParams.Get("open-access")
 	mailto := queryParams.Get("mailto")
 	disableRerankStr := queryParams.Get("disable-rerank")
-	
+
 	log.Debug().Str("query", queryText).Str("sources", sourcesStr).Str("author", author).Msg("Search parameters")
 
 	// Set default values
@@ -221,7 +221,7 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Debug log the response
 	respBytes, _ := json.MarshalIndent(response, "", "  ")
 	log.Debug().RawJSON("response", respBytes).Msg("Preparing response")
-	
+
 	// Encode and write the response
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")

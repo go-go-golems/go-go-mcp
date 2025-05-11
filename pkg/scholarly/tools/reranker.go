@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/common"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -117,7 +118,7 @@ func (c *RerankerClient) Rerank(ctx context.Context, query string, results []com
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal reranker request")
 	}
-	
+
 	// Log the request payload for debugging
 	fmt.Printf("Reranker request payload: %s\n", string(reqBody))
 
@@ -133,7 +134,11 @@ func (c *RerankerClient) Rerank(ctx context.Context, query string, results []com
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to send reranker request")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close reranker response body")
+		}
+	}()
 
 	// Check the response status
 	if resp.StatusCode != http.StatusOK {
@@ -194,7 +199,11 @@ func (c *RerankerClient) IsRerankerAvailable(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error().Err(err).Msg("failed to close reranker response body")
+		}
+	}()
 
 	return resp.StatusCode == http.StatusOK
 }
