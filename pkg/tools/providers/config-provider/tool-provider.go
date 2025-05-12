@@ -534,6 +534,12 @@ func registerInternalServers(registry *tool_registry.Registry, serverList []stri
 		}
 	}
 
+	if serversMap["prompto"] {
+		if err := examples.RegisterPromptoTools(registry); err != nil {
+			return errors.Wrap(err, "failed to register prompto tools")
+		}
+	}
+
 	if serversMap["scholarly"] {
 		if err := mcp.RegisterScholarlyTools(registry); err != nil {
 			return errors.Wrap(err, "failed to register scholarly tools")
