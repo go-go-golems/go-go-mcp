@@ -36,16 +36,17 @@ const (
 
 // Define key bindings
 type keyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Enter  key.Binding
-	Back   key.Binding
-	Quit   key.Binding
-	Add    key.Binding
-	Edit   key.Binding
-	Delete key.Binding
-	Enable key.Binding
-	Help   key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	Enter     key.Binding
+	Back      key.Binding
+	Quit      key.Binding
+	Add       key.Binding
+	Edit      key.Binding
+	Delete    key.Binding
+	Duplicate key.Binding
+	Enable    key.Binding
+	Help      key.Binding
 }
 
 // Set up default key bindings
@@ -79,8 +80,12 @@ var defaultKeyMap = keyMap{
 		key.WithHelp("e", "edit selected server"),
 	),
 	Delete: key.NewBinding(
+		key.WithKeys("x"),
+		key.WithHelp("x", "delete selected server"),
+	),
+	Duplicate: key.NewBinding(
 		key.WithKeys("d"),
-		key.WithHelp("d", "delete selected server"),
+		key.WithHelp("d", "duplicate selected server"),
 	),
 	Enable: key.NewBinding(
 		key.WithKeys("space", " "),
@@ -556,6 +561,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 
+			case key.Matches(msg, m.keys.Duplicate):
+				// Duplicate server and go to edit mode
+				selectedItem := m.activeList.SelectedItem()
+				if selectedItem == nil {
+					m.errorMsg = "No server selected"
+					return m, nil
+				}
+				if sItem, ok := selectedItem.(serverItem); ok {
+					// Load server data into form
+					form, err := m.loadServerToForm(sItem.name)
+					if err != nil {
+						m.errorMsg = err.Error()
+						return m, nil
+					}
+					// Change name to indicate it's a duplicate
+					form.nameInput.SetValue(sItem.name + "-copy")
+					form.isAddMode = true // Set to add mode since we're creating a new server
+					m.formState = form
+					m.mode = modeAddEdit
+				} else {
+					m.errorMsg = "Invalid item type selected"
+				}
+				return m, nil
+
 			case key.Matches(msg, m.keys.Enable):
 				log.Debug().Msg("Enable key pressed in modeList")
 				selectedItem := m.activeList.SelectedItem()
@@ -667,7 +696,7 @@ func (m Model) ShortHelp() []key.Binding {
 		return []key.Binding{m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Help, m.keys.Quit}
 	case modeList:
 		// Action focused short help for the list view
-		return []key.Binding{m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Enable, m.keys.Back, m.keys.Help, m.keys.Quit}
+		return []key.Binding{m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Duplicate, m.keys.Enable, m.keys.Back, m.keys.Help, m.keys.Quit}
 	case modeAddEdit:
 		// TODO: Add specific form keys (like Tab) later if needed
 		return []key.Binding{m.formState.keyMap.Submit, m.formState.keyMap.Cancel, m.keys.Back, m.keys.Help, m.keys.Quit}
@@ -689,9 +718,9 @@ func (m Model) FullHelp() [][]key.Binding {
 		}
 	case modeList:
 		return [][]key.Binding{
-			{m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back},     // Navigation
-			{m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Enable}, // Server Actions
-			{m.keys.Help, m.keys.Quit},                              // General
+			{m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back},                       // Navigation
+			{m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Duplicate, m.keys.Enable}, // Server Actions
+			{m.keys.Help, m.keys.Quit},                                                // General
 		}
 	case modeAddEdit:
 		// TODO: Add specific form keys later if needed
@@ -729,10 +758,24 @@ func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
 	form := NewFormModel()
 	form.nameInput.SetValue(server.Name)
 	form.commandInput.SetValue(server.Command)
-	// TODO: Properly handle conversion of slice/map to string for text input
-	// For now, using simple Sprintf - might need JSON or other format later
 	form.argsInput.SetValue(strings.Join(server.Args, " "))
-	form.envInput.SetValue(fmt.Sprintf("%v", server.Env))
+
+	// Format environment variables as KEY=VALUE pairs, one per line
+	envText := ""
+	keys := make([]string, 0, len(server.Env))
+	for k := range server.Env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // Sort keys for consistent display
+
+	for _, k := range keys {
+		if envText != "" {
+			envText += "\n"
+		}
+		envText += fmt.Sprintf("%s=%s", k, server.Env[k])
+	}
+
+	form.envInput.SetValue(envText)
 	form.urlInput.SetValue(server.URL)
 	form.isSSE = server.IsSSE
 	form.isAddMode = false // Explicitly set to edit mode
@@ -891,6 +934,9 @@ func parseEnvString(envStr string) map[string]string {
 		return envMap
 	}
 
+	// Handle both newline and carriage return + newline
+	envStr = strings.ReplaceAll(envStr, "\r\n", "\n")
+
 	lines := strings.Split(envStr, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -901,6 +947,7 @@ func parseEnvString(envStr string) map[string]string {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
 			// Consider logging a warning for invalid lines
+			log.Warn().Str("line", line).Msg("Invalid environment variable format, expected KEY=VALUE")
 			continue
 		}
 
