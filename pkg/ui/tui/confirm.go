@@ -34,20 +34,34 @@ var defaultConfirmKeyMap = confirmKeyMap{
 
 // ConfirmModel represents a confirmation dialog
 type ConfirmModel struct {
-	title    string
-	message  string
-	selected bool // true = yes, false = no
-	keyMap   confirmKeyMap
+	title     string
+	message   string
+	selected  bool // true = yes, false = no
+	keyMap    confirmKeyMap
+	confirmed bool // Whether confirm was selected
+	cancelled bool // Whether cancel was selected
 }
 
 // NewConfirmModel creates a new confirmation dialog
 func NewConfirmModel(title, message string) ConfirmModel {
 	return ConfirmModel{
-		title:    title,
-		message:  message,
-		selected: false,
-		keyMap:   defaultConfirmKeyMap,
+		title:     title,
+		message:   message,
+		selected:  false,
+		keyMap:    defaultConfirmKeyMap,
+		confirmed: false,
+		cancelled: false,
 	}
+}
+
+// Confirmed returns whether the dialog was confirmed
+func (m ConfirmModel) Confirmed() bool {
+	return m.confirmed && m.selected
+}
+
+// Cancelled returns whether the dialog was cancelled
+func (m ConfirmModel) Cancelled() bool {
+	return m.cancelled || (m.confirmed && !m.selected)
 }
 
 // ConfirmMsg is returned when a selection is confirmed
@@ -69,11 +83,15 @@ func (m ConfirmModel) Update(msg tea.Msg) (ConfirmModel, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, m.keyMap.Confirm):
+			m.confirmed = true
+			m.cancelled = false
 			return m, func() tea.Msg {
 				return ConfirmMsg{Confirmed: m.selected}
 			}
 
 		case key.Matches(msg, m.keyMap.Cancel):
+			m.confirmed = false
+			m.cancelled = true
 			return m, func() tea.Msg {
 				return ConfirmMsg{Confirmed: false}
 			}

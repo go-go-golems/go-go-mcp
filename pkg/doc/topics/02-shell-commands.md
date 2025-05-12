@@ -90,6 +90,7 @@ environment:                # Optional: Environment variables
   ENV_VAR: "{{ .Args.flag_name }}"
 cwd: /path/to/working/dir  # Optional: Working directory
 capture-stderr: true       # Optional: Capture stderr in output
+save-script-dir: /tmp/scripts # Optional: Save scripts and args to directory
 ```
 
 ### Parameter Types
@@ -271,6 +272,50 @@ shell-script: |
   
   echo "Searching for {{ .Args.pattern }}"
   find . -type f -name "*.log" -exec grep -H "{{ .Args.pattern }}" {} \; > {{ .Args.output }}
+```
+
+### Accessing Arguments as JSON
+
+All command arguments are automatically stored in a temporary JSON file, with its path available via the `MCP_ARGUMENTS_JSON_PATH` environment variable. This makes it easier to access complex arguments in your scripts:
+
+```yaml
+# tools/shell-commands/process-json-args.yaml
+name: process-json-args
+short: Process using JSON arguments file
+flags:
+  - name: filters
+    type: stringList
+    help: List of filters to apply
+  - name: config
+    type: objectFromFile
+    help: Configuration object
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+  
+  # Load all arguments from the JSON file
+  args_file="$MCP_ARGUMENTS_JSON_PATH"
+  echo "Loading arguments from: $args_file"
+  
+  # Example: Use jq to parse specific arguments
+  filters=$(jq -r '.filters | join(",")' "$args_file")
+  echo "Filters: $filters"
+  
+  # Process complex nested objects
+  config_name=$(jq -r '.config.name' "$args_file")
+  echo "Config name: $config_name"
+```
+
+If you specify the `save-script-dir` option, both the shell script and arguments JSON file will be preserved in that directory with a timestamp:
+
+```yaml
+name: debug-command
+short: Command with saved script and arguments
+# Save scripts and arguments to this directory
+save-script-dir: /tmp/debug-scripts
+shell-script: |
+  #!/bin/bash
+  # Your script here
 ```
 
 ### Environment Variables
@@ -487,6 +532,17 @@ flags:
 3. Check command help:
    ```bash
    go-go-mcp run-command command.yaml --help
+   ```
+
+4. Use `save-script-dir` to preserve scripts and arguments:
+   ```bash
+   go-go-mcp run-command command.yaml --save-script-dir=/tmp/debug
+   ```
+   This will save both the shell script and the JSON arguments file for inspection.
+
+5. Access arguments directly in your scripts via the JSON file:
+   ```bash
+   jq . "$MCP_ARGUMENTS_JSON_PATH"  # Print all arguments
    ```
 
 ## Integration with Configuration

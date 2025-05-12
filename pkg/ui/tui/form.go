@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -33,8 +34,8 @@ type FormKeyMap struct {
 
 var defaultFormKeyMap = FormKeyMap{
 	Submit: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "submit/toggle"), // Updated help
+		key.WithKeys("alt+s"),
+		key.WithHelp("alt+s", "submit"),
 	),
 	Cancel: key.NewBinding(
 		key.WithKeys("esc"),
@@ -58,12 +59,12 @@ type FormModel struct {
 	commandInput textinput.Model // Used for stdio
 	urlInput     textinput.Model // Used for SSE
 	argsInput    textinput.Model // Used for stdio
-	envInput     textinput.Model
-	isSSE        bool // True if the server uses SSE, false for stdio
-	isAddMode    bool // True if adding a new server, false if editing
-	activeInput  int  // Index of the currently focused element (using constants)
-	submitted    bool // Flag indicating form submission was triggered
-	cancelled    bool // Flag indicating form cancellation was triggered
+	envInput     textarea.Model  // Changed from textinput to textarea
+	isSSE        bool            // True if the server uses SSE, false for stdio
+	isAddMode    bool            // True if adding a new server, false if editing
+	activeInput  int             // Index of the currently focused element (using constants)
+	submitted    bool            // Flag indicating form submission was triggered
+	cancelled    bool            // Flag indicating form cancellation was triggered
 }
 
 // NewFormModel creates a new form model with initialized inputs
@@ -72,28 +73,29 @@ func NewFormModel() FormModel {
 	nameInput.Placeholder = "Server name (required)"
 	nameInput.Focus() // Start focus on name
 	nameInput.CharLimit = 50
-	nameInput.Width = 40
+	nameInput.Width = 80
 
 	commandInput := textinput.New()
 	commandInput.Placeholder = "Command path (stdio)"
 	commandInput.CharLimit = 200
-	commandInput.Width = 40
+	commandInput.Width = 80
 
 	urlInput := textinput.New()
 	urlInput.Placeholder = "SSE URL"
 	urlInput.CharLimit = 200
-	urlInput.Width = 40
+	urlInput.Width = 80
 
 	argsInput := textinput.New()
 	argsInput.Placeholder = "Arguments (stdio, space separated)"
 	argsInput.CharLimit = 500
-	argsInput.Width = 40
+	argsInput.Width = 80
 
-	envInput := textinput.New()
+	// Create textarea for envInput instead of textinput
+	envInput := textarea.New()
 	envInput.Placeholder = "Environment variables (KEY=VALUE, one per line)"
 	envInput.CharLimit = 1000
-	envInput.Width = 40
-	// TODO: Make envInput a textarea for better multi-line editing?
+	envInput.SetWidth(80)
+	envInput.SetHeight(5) // Show 5 lines by default
 
 	return FormModel{
 		keyMap:       defaultFormKeyMap,
@@ -114,7 +116,8 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Handle key presses specifically for cancel/submit first
+		// Global key handling - only handle special keys like ESC, Alt+s
+		// Let other keys (like 'q') pass through to the active input
 		switch {
 		case key.Matches(msg, m.keyMap.Cancel):
 			m.cancelled = true
@@ -127,15 +130,9 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, m.keyMap.Submit):
-			// If type checkbox focused, toggle it
+			// For submit, mark as submitted and return
 			m.submitted = true
 			return m, nil
-
-		case key.Matches(msg, m.keyMap.Submit) && m.activeInput == focusType:
-			// Special handling for checkbox
-			m.isSSE = !m.isSSE
-			// Update focus on the text input after toggling
-			return m, tea.Batch(cmds...)
 
 		case msg.Type == tea.KeySpace && m.activeInput == focusType:
 			// Handle checkbox toggle with space
@@ -176,53 +173,35 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 		case focusName:
 			m.nameInput, cmd = m.nameInput.Update(msg)
 			cmds = append(cmds, cmd)
-			// Check if Enter was pressed to submit the form
-			if msg.Type == tea.KeyEnter {
-				m.submitted = true
-			}
 			return m, tea.Batch(cmds...)
 		case focusCommand:
 			if !m.isSSE {
 				m.commandInput, cmd = m.commandInput.Update(msg)
 				cmds = append(cmds, cmd)
-				// Check if Enter was pressed to submit the form
-				if msg.Type == tea.KeyEnter {
-					m.submitted = true
-				}
 				return m, tea.Batch(cmds...)
 			}
 		case focusArgs:
 			if !m.isSSE {
 				m.argsInput, cmd = m.argsInput.Update(msg)
 				cmds = append(cmds, cmd)
-				// Check if Enter was pressed to submit the form
-				if msg.Type == tea.KeyEnter {
-					m.submitted = true
-				}
 				return m, tea.Batch(cmds...)
 			}
 		case focusURL:
 			if m.isSSE {
 				m.urlInput, cmd = m.urlInput.Update(msg)
 				cmds = append(cmds, cmd)
-				// Check if Enter was pressed to submit the form
-				if msg.Type == tea.KeyEnter {
-					m.submitted = true
-				}
 				return m, tea.Batch(cmds...)
 			}
 		case focusEnv:
+			// Update for textarea
+			var cmd tea.Cmd
 			m.envInput, cmd = m.envInput.Update(msg)
 			cmds = append(cmds, cmd)
-			// Check if Enter was pressed to submit the form
-			if msg.Type == tea.KeyEnter {
-				m.submitted = true
-			}
 			return m, tea.Batch(cmds...)
 		case focusType:
-			// Special case for the type checkbox focus - handle Enter as submit
+			// Special case for the type checkbox focus - handle Enter as toggle
 			if msg.Type == tea.KeyEnter {
-				m.submitted = true
+				m.isSSE = !m.isSSE
 				return m, nil
 			}
 		}
@@ -233,18 +212,15 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 // updateFocus manages blurring/focusing the correct text input.
 func (m *FormModel) updateFocus() tea.Cmd {
-	inputs := []*textinput.Model{
-		&m.nameInput,
-		&m.commandInput,
-		&m.argsInput,
-		&m.urlInput,
-		&m.envInput,
-	}
+	// Blur all inputs first
+	m.nameInput.Blur()
+	m.commandInput.Blur()
+	m.argsInput.Blur()
+	m.urlInput.Blur()
+	m.envInput.Blur()
 
-	cmds := make([]tea.Cmd, len(inputs))
-	for i := range inputs {
-		inputs[i].Blur() // Blur all first
-	}
+	// Initialize command slice
+	var cmds []tea.Cmd
 
 	// Focus the correct input based on activeInput and isSSE
 	switch m.activeInput {
@@ -305,7 +281,7 @@ func (m FormModel) View() string {
 		sb.WriteString(m.argsInput.View() + "\n")
 	}
 
-	// Env Input (Always visible)
+	// Env Input (Always visible) - now a textarea
 	sb.WriteString(m.envInput.View())
 
 	sb.WriteString("\n\n")
@@ -316,13 +292,14 @@ func (m FormModel) View() string {
 
 // helpView renders the help text for the form
 func (m FormModel) helpView() string {
-	// Use the keymap for dynamic help generation
+	// Build help keys list
 	keys := []key.Binding{
-		m.keyMap.Submit, // Enter toggles checkbox or submits form
+		m.keyMap.Submit, // Alt+s to submit form
 		m.keyMap.Cancel,
 		m.keyMap.Next,
 		m.keyMap.Prev,
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle checkbox")),
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "toggle checkbox (when focused)")),
 	}
 
 	helpParts := make([]string, len(keys))
@@ -339,7 +316,7 @@ func (m *FormModel) Reset() tea.Cmd {
 	m.commandInput.Reset()
 	m.urlInput.Reset()
 	m.argsInput.Reset()
-	m.envInput.Reset()
+	m.envInput.Reset()        // Textarea also has Reset() method
 	m.activeInput = focusName // Reset focus to name
 	m.isSSE = false           // Reset to stdio
 	m.isAddMode = true
