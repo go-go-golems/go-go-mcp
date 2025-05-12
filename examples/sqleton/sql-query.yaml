@@ -1,0 +1,40 @@
+name: sql-query
+short: Execute SQL query using sqleton
+long: |
+  Execute a SQL query against a database using sqleton.
+  The query is properly escaped to ensure safe execution.
+  Results are displayed in CSV format by default.
+
+flags:
+  - name: query
+    type: string
+    help: SQL query to execute
+    required: true
+  - name: format
+    type: choice
+    help: Output format
+    choices:
+      - table
+      - json
+      - csv
+    default: csv
+
+shell-script: |
+  #!/bin/bash
+  set -euo pipefail
+
+  # Get args from JSON file
+  ARGS_FILE="$MCP_ARGUMENTS_JSON_PATH"
+  echo "ARGS_FILE: $ARGS_FILE"
+  
+  # Extract and escape the query
+  QUERY=$(jq -r '.query' "$ARGS_FILE" | sed 's/"/\\"/g')
+  FORMAT=$(jq -r '.format' "$ARGS_FILE")
+
+  # Execute sqleton with proper escaping
+  sqleton query "$QUERY" --output "$FORMAT"
+
+# Save debug information
+save-script-dir: /tmp/sqleton-scripts
+debug: true
+capture-stderr: true
