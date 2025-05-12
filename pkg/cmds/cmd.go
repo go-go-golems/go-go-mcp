@@ -3,6 +3,7 @@ package cmds
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,8 @@ type ShellCommandDescription struct {
 	Cwd           string                            `yaml:"cwd,omitempty"`
 	Environment   map[string]string                 `yaml:"environment,omitempty"`
 	CaptureStderr bool                              `yaml:"capture-stderr,omitempty"`
+	Debug         bool                              `yaml:"debug,omitempty"`
+	SaveScriptDir string                            `yaml:"save-script-dir,omitempty"`
 }
 
 // ShellCommand is the runtime representation of a shell command
@@ -41,6 +44,8 @@ type ShellCommand struct {
 	Cwd           string
 	Environment   map[string]string
 	CaptureStderr bool
+	Debug         bool
+	SaveScriptDir string
 }
 
 var _ cmds.WriterCommand = &ShellCommand{}
@@ -136,6 +141,45 @@ func (c *ShellCommand) ExecuteCommand(
 ) error {
 	var cmd *exec.Cmd
 
+	// Create temp JSON file with args
+	argsJSON, err := json.MarshalIndent(args, "", "  ")
+	if err != nil {
+		log.Error().Err(err).Msg("failed to marshal args to JSON")
+		return errors.Wrap(err, "failed to marshal args to JSON")
+	}
+
+	// Write args to temp file
+	argsTmpFile, err := os.CreateTemp("", "args-*.json")
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create temporary args file")
+		return errors.Wrap(err, "failed to create temporary args file")
+	}
+	defer func() {
+		if removeErr := os.Remove(argsTmpFile.Name()); removeErr != nil {
+			log.Warn().Err(removeErr).Str("file", argsTmpFile.Name()).Msg("Failed to remove temporary args file")
+		}
+		log.Info().Str("args_file", argsTmpFile.Name()).Msg("removed temporary args file")
+	}()
+
+	if _, err := argsTmpFile.Write(argsJSON); err != nil {
+		log.Error().Str("file", argsTmpFile.Name()).Err(err).Msg("failed to write args to temporary file")
+		return errors.Wrap(err, "failed to write args to temporary file")
+	}
+	if err := argsTmpFile.Close(); err != nil {
+		log.Error().Str("file", argsTmpFile.Name()).Err(err).Msg("failed to close temporary args file")
+		return errors.Wrap(err, "failed to close temporary args file")
+	}
+
+	log.Info().Str("args_file", argsTmpFile.Name()).Msg("created temporary args file")
+
+	if c.SaveScriptDir != "" {
+		scriptFile := fmt.Sprintf("%s/shell-%s.args.json", c.SaveScriptDir, time.Now().Format("20060102-150405"))
+		if err := os.WriteFile(scriptFile, argsJSON, 0644); err != nil {
+			log.Warn().Err(err).Str("args_file", scriptFile).Msg("failed to write args file")
+		}
+		log.Info().Str("args_file", scriptFile).Msg("wrote args file")
+	}
+
 	if c.ShellScript != "" {
 		// Process script template
 		script, err := c.processTemplate(c.ShellScript, args)
@@ -144,12 +188,13 @@ func (c *ShellCommand) ExecuteCommand(
 			return errors.Wrap(err, "failed to process shell script template")
 		}
 
-		fmt.Fprintln(os.Stderr, script)
-		// Debug log the processed script
-		log.Debug().Str("script", script).Msg("executing shell script")
+		if c.Debug {
+			// Debug log the processed script
+			log.Debug().Str("script", script).Msg("executing shell script")
+		}
 
 		// Create temporary script file
-		tmpFile, err := os.CreateTemp("/Users/manuel/tmp", "shell-*.sh")
+		tmpFile, err := os.CreateTemp("", "shell-*.sh")
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create temporary script file")
 			return errors.Wrap(err, "failed to create temporary script file")
@@ -177,18 +222,14 @@ func (c *ShellCommand) ExecuteCommand(
 			return errors.Wrap(err, "failed to make script executable")
 		}
 
-		// Copy script to debug file with timestamp
-		debugFile := fmt.Sprintf("/tmp/debug-%s.sh", time.Now().Format("20060102-150405"))
-		if err := os.WriteFile(debugFile, []byte(script), 0644); err != nil {
-			log.Warn().Err(err).Str("debug_file", debugFile).Msg("failed to write debug script file")
+		if c.SaveScriptDir != "" {
+			// Copy script to debug file with timestamp
+			debugFile := fmt.Sprintf("/tmp/debug-%s.sh", time.Now().Format("20060102-150405"))
+			if err := os.WriteFile(debugFile, []byte(script), 0644); err != nil {
+				log.Warn().Err(err).Str("debug_file", debugFile).Msg("failed to write debug script file")
+			}
+			log.Info().Str("debug_file", debugFile).Msg("wrote debug script file")
 		}
-		log.Info().Str("debug_file", debugFile).Msg("wrote debug script file")
-
-		// Run debug tests before executing the actual command
-		// if err := c.runDebugTests(ctx); err != nil {
-		// 	log.Error().Err(err).Msg("Debug tests failed")
-		// 	return err
-		// }
 
 		cmd = exec.CommandContext(ctx, "/bin/bash", tmpFile.Name())
 		log.Debug().Str("command", cmd.String()).Msg("command")
@@ -213,8 +254,11 @@ func (c *ShellCommand) ExecuteCommand(
 	}
 
 	// Process and set environment variables
+	env := os.Environ()
+	// Add the arguments JSON file path to environment
+	env = append(env, fmt.Sprintf("MCP_ARGUMENTS_JSON_PATH=%s", argsTmpFile.Name()))
+
 	if len(c.Environment) > 0 {
-		env := os.Environ()
 		for k, v := range c.Environment {
 			processed, err := c.processTemplate(v, args)
 			if err != nil {
@@ -223,8 +267,8 @@ func (c *ShellCommand) ExecuteCommand(
 			}
 			env = append(env, fmt.Sprintf("%s=%s", k, processed))
 		}
-		cmd.Env = env
 	}
+	cmd.Env = env
 
 	// Setup output streams
 	cmd.Stdout = w

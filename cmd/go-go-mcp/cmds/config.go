@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -63,6 +64,7 @@ func NewConfigGroupCommand() *cobra.Command {
 	cmd.AddCommand(NewConfigAddProfileCommand())
 	cmd.AddCommand(NewConfigDuplicateProfileCommand())
 	cmd.AddCommand(NewConfigSetDefaultProfileCommand())
+	// UI command already exists in ui_cmd.go and ui_command.go
 
 	return cmd
 }
@@ -224,7 +226,7 @@ func NewConfigListProfilesCommand() *cobra.Command {
 
 			defaultProfile, err := editor.GetDefaultProfile()
 			if err != nil {
-				return fmt.Errorf("could not get default profile: %w", err)
+				log.Warn().Msgf("could not get default profile: %v", err)
 			}
 
 			profiles, err := editor.GetProfiles()
@@ -422,3 +424,5 @@ func NewConfigSetDefaultProfileCommand() *cobra.Command {
 		},
 	}
 }
+
+// Using existing UI command instead
