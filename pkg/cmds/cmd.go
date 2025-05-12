@@ -82,6 +82,18 @@ func WithCaptureStderr(capture bool) ShellCommandOption {
 	}
 }
 
+func WithSaveScriptDir(dir string) ShellCommandOption {
+	return func(c *ShellCommand) {
+		c.SaveScriptDir = dir
+	}
+}
+
+func WithDebug(debug bool) ShellCommandOption {
+	return func(c *ShellCommand) {
+		c.Debug = debug
+	}
+}
+
 // NewShellCommand creates a new ShellCommand with the given options
 func NewShellCommand(
 	description *cmds.CommandDescription,
@@ -147,6 +159,9 @@ func (c *ShellCommand) ExecuteCommand(
 		log.Error().Err(err).Msg("failed to marshal args to JSON")
 		return errors.Wrap(err, "failed to marshal args to JSON")
 	}
+
+	log.Debug().Str("args_json", string(argsJSON)).Msg("args JSON")
+	log.Debug().Str("save-script-dir", c.SaveScriptDir).Msg("save-script-dir")
 
 	// Write args to temp file
 	argsTmpFile, err := os.CreateTemp("", "args-*.json")
@@ -223,12 +238,33 @@ func (c *ShellCommand) ExecuteCommand(
 		}
 
 		if c.SaveScriptDir != "" {
-			// Copy script to debug file with timestamp
-			debugFile := fmt.Sprintf("/tmp/debug-%s.sh", time.Now().Format("20060102-150405"))
-			if err := os.WriteFile(debugFile, []byte(script), 0644); err != nil {
-				log.Warn().Err(err).Str("debug_file", debugFile).Msg("failed to write debug script file")
+			// Create SaveScriptDir if it doesn't exist
+			if _, err := os.Stat(c.SaveScriptDir); os.IsNotExist(err) {
+				log.Info().Str("dir", c.SaveScriptDir).Msg("creating save script directory")
+				if err := os.MkdirAll(c.SaveScriptDir, 0755); err != nil {
+					log.Warn().Err(err).Str("dir", c.SaveScriptDir).Msg("failed to create save script directory")
+					return errors.Wrapf(err, "failed to create save script directory: %s", c.SaveScriptDir)
+				}
 			}
-			log.Info().Str("debug_file", debugFile).Msg("wrote debug script file")
+
+			log.Info().Str("dir", c.SaveScriptDir).Msg("saving script and args to debug directory")
+
+			// Save both script and args to debug directory with timestamp
+			timestamp := time.Now().Format("20060102-150405")
+			scriptFile := fmt.Sprintf("%s/shell-%s.sh", c.SaveScriptDir, timestamp)
+			argsFile := fmt.Sprintf("%s/shell-%s.args.json", c.SaveScriptDir, timestamp)
+
+			if err := os.WriteFile(scriptFile, []byte(script), 0644); err != nil {
+				log.Warn().Err(err).Str("script_file", scriptFile).Msg("failed to write debug script file")
+			} else {
+				log.Info().Str("script_file", scriptFile).Msg("wrote debug script file")
+			}
+
+			if err := os.WriteFile(argsFile, argsJSON, 0644); err != nil {
+				log.Warn().Err(err).Str("args_file", argsFile).Msg("failed to write debug args file")
+			} else {
+				log.Info().Str("args_file", argsFile).Msg("wrote debug args file")
+			}
 		}
 
 		cmd = exec.CommandContext(ctx, "/bin/bash", tmpFile.Name())
@@ -257,6 +293,7 @@ func (c *ShellCommand) ExecuteCommand(
 	env := os.Environ()
 	// Add the arguments JSON file path to environment
 	env = append(env, fmt.Sprintf("MCP_ARGUMENTS_JSON_PATH=%s", argsTmpFile.Name()))
+	log.Debug().Str("arguments_json_path", argsTmpFile.Name()).Msg("added arguments JSON path to environment")
 
 	if len(c.Environment) > 0 {
 		for k, v := range c.Environment {
@@ -327,5 +364,7 @@ func LoadShellCommandFromYAML(data []byte) (*ShellCommand, error) {
 		WithCwd(desc.Cwd),
 		WithEnvironment(desc.Environment),
 		WithCaptureStderr(desc.CaptureStderr),
+		WithSaveScriptDir(desc.SaveScriptDir),
+		WithDebug(desc.Debug),
 	)
 }

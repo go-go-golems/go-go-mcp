@@ -3,6 +3,7 @@ package config_provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/mcp"
 	"os"
 	"path/filepath"
@@ -369,7 +370,7 @@ func (p *ConfigToolProvider) executeCommand(ctx context.Context, cmd cmds.Comman
 	switch c := cmd.(type) {
 	case cmds.WriterCommand:
 		if err := c.RunIntoWriter(ctx, parsedLayers, buf); err != nil {
-			return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
+			return protocol.NewErrorToolResult(protocol.NewTextContent(fmt.Sprintf("%s\n\nOutput so far:\n%s", err.Error(), buf.String()))), nil
 		}
 	case cmds.BareCommand:
 		panic("BareCommand not supported yet")
