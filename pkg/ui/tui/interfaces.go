@@ -56,3 +56,4 @@ type ServerConfigEditor interface {
 // Ensure config types implement the interface (compile-time check)
 var _ types.ServerConfigEditor = &config.CursorMCPEditor{}
 var _ types.ServerConfigEditor = &config.ClaudeDesktopEditor{}
+var _ types.ServerConfigEditor = &config.AmpSettingsEditor{}
