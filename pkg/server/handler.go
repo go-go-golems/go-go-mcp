@@ -108,7 +108,7 @@ func (h *RequestHandler) handleInitialize(ctx context.Context, req *protocol.Req
 	}
 
 	// Validate protocol version
-	supportedVersions := []string{"2024-11-05"}
+	supportedVersions := []string{"2024-11-05", "2025-03-26"}
 	isSupported := false
 	for _, version := range supportedVersions {
 		if params.ProtocolVersion == version {
