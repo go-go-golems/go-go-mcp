@@ -42,12 +42,12 @@ var defaultFormKeyMap = FormKeyMap{
 		key.WithHelp("esc", "cancel"),
 	),
 	Next: key.NewBinding(
-		key.WithKeys("tab", "down"), // Added down arrow
-		key.WithHelp("tab/↓", "next field"),
+		key.WithKeys("tab"),
+		key.WithHelp("tab", "next field"),
 	),
 	Prev: key.NewBinding(
-		key.WithKeys("shift+tab", "up"), // Added up arrow
-		key.WithHelp("shift+tab/↑", "prev field"),
+		key.WithKeys("shift+tab"),
+		key.WithHelp("shift+tab", "prev field"),
 	),
 	// ToggleSSE: key.NewBinding( ... ) // Removed
 }
@@ -116,6 +116,17 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Special handling for textarea - pass arrow keys through when focused
+		if m.activeInput == focusEnv {
+			// Let special navigation keys like arrows pass through to textarea
+			if msg.Type == tea.KeyUp || msg.Type == tea.KeyDown ||
+				msg.Type == tea.KeyLeft || msg.Type == tea.KeyRight {
+				var cmd tea.Cmd
+				m.envInput, cmd = m.envInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		// Global key handling - only handle special keys like ESC, Alt+s
 		// Let other keys (like 'q') pass through to the active input
 		switch {
@@ -149,6 +160,48 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			// Cycle through focusable elements, skipping hidden ones
 			for {
 				m.activeInput = (m.activeInput + direction + focusMax) % focusMax
+
+				// Skip Command/Args if SSE is enabled
+				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
+					continue
+				}
+				// Skip URL if SSE is disabled (stdio)
+				if !m.isSSE && m.activeInput == focusURL {
+					continue
+				}
+				// Found a valid, visible element to focus
+				break
+			}
+
+			cmds = append(cmds, m.updateFocus())
+			return m, tea.Batch(cmds...)
+
+		case msg.Type == tea.KeyDown && m.activeInput != focusEnv:
+			// Down key for navigation between fields when not in textarea
+			// Cycle through focusable elements, skipping hidden ones
+			for {
+				m.activeInput = (m.activeInput + 1) % focusMax
+
+				// Skip Command/Args if SSE is enabled
+				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
+					continue
+				}
+				// Skip URL if SSE is disabled (stdio)
+				if !m.isSSE && m.activeInput == focusURL {
+					continue
+				}
+				// Found a valid, visible element to focus
+				break
+			}
+
+			cmds = append(cmds, m.updateFocus())
+			return m, tea.Batch(cmds...)
+
+		case msg.Type == tea.KeyUp && m.activeInput != focusEnv:
+			// Up key for navigation between fields when not in textarea
+			// Cycle through focusable elements, skipping hidden ones
+			for {
+				m.activeInput = (m.activeInput - 1 + focusMax) % focusMax
 
 				// Skip Command/Args if SSE is enabled
 				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
@@ -293,13 +346,26 @@ func (m FormModel) View() string {
 // helpView renders the help text for the form
 func (m FormModel) helpView() string {
 	// Build help keys list
-	keys := []key.Binding{
-		m.keyMap.Submit, // Alt+s to submit form
-		m.keyMap.Cancel,
-		m.keyMap.Next,
-		m.keyMap.Prev,
-		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle checkbox")),
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "toggle checkbox (when focused)")),
+	var keys []key.Binding
+
+	// Common keys
+	keys = append(keys, m.keyMap.Submit, m.keyMap.Cancel, m.keyMap.Next, m.keyMap.Prev)
+
+	// Conditional help text based on focus
+	switch m.activeInput {
+	case focusType:
+		keys = append(keys,
+			key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle checkbox")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "toggle checkbox (when focused)")),
+		)
+	case focusEnv:
+		keys = append(keys,
+			key.NewBinding(key.WithKeys("↑/↓"), key.WithHelp("↑/↓", "navigate in textarea")),
+		)
+	default:
+		keys = append(keys,
+			key.NewBinding(key.WithKeys("↑/↓"), key.WithHelp("↑/↓", "previous/next field")),
+		)
 	}
 
 	helpParts := make([]string, len(keys))

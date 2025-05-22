@@ -4,11 +4,14 @@ long: |
   Execute a SQL query against a database using sqleton.
   The query is properly escaped to ensure safe execution.
   Results are displayed in CSV format by default.
+  
+  Provide one or more queries with the queries parameter.
+  Multi-line SQL queries are supported.
 
 flags:
-  - name: query
-    type: string
-    help: SQL query to execute
+  - name: queries
+    type: stringList
+    help: List of SQL queries to execute
     required: true
   - name: format
     type: choice
@@ -18,6 +21,10 @@ flags:
       - json
       - csv
     default: csv
+  - name: dbt_profile
+    type: string
+    help: DBT profile to use for connection
+    required: false
 
 shell-script: |
   #!/bin/bash
@@ -27,12 +34,40 @@ shell-script: |
   ARGS_FILE="$MCP_ARGUMENTS_JSON_PATH"
   echo "ARGS_FILE: $ARGS_FILE"
   
-  # Extract and escape the query
-  QUERY=$(jq -r '.query' "$ARGS_FILE" | sed 's/"/\\"/g')
+  # Extract format and optional dbt profile
   FORMAT=$(jq -r '.format' "$ARGS_FILE")
-
-  # Execute sqleton with proper escaping
-  sqleton query "$QUERY" --output "$FORMAT"
+  
+  # Check if dbt_profile is specified
+  DBT_PROFILE_ARGS=""
+  if jq -e '.dbt_profile' "$ARGS_FILE" > /dev/null 2>&1; then
+    DBT_PROFILE=$(jq -r '.dbt_profile' "$ARGS_FILE")
+    DBT_PROFILE_ARGS="--dbt-profile $DBT_PROFILE"
+    echo "Using DBT profile: $DBT_PROFILE"
+  fi
+  
+  # Create a temporary file for each query
+  TMP_DIR=$(mktemp -d)
+  trap 'rm -rf "$TMP_DIR"' EXIT
+  
+  # Extract each query to a separate file to preserve multiline formatting
+  QUERY_COUNT=$(jq '.queries | length' "$ARGS_FILE")
+  for ((i=0; i<QUERY_COUNT; i++)); do
+    QUERY_FILE="$TMP_DIR/query_$i.sql"
+    jq -r ".queries[$i]" "$ARGS_FILE" > "$QUERY_FILE"
+    
+    echo "Executing query #$((i+1)):"
+    # Print the query with line numbers for debugging
+    cat -n "$QUERY_FILE"
+    
+    # Execute sqleton with the query file
+    # shellcheck disable=SC2086
+    sqleton query "$(cat "$QUERY_FILE")" --output "$FORMAT" $DBT_PROFILE_ARGS
+    
+    # Add a separator between query results
+    if [ "$FORMAT" = "csv" ]; then
+      echo "----------------------------------------"
+    fi
+  done
 
 # Save debug information
 save-script-dir: /tmp/sqleton-scripts

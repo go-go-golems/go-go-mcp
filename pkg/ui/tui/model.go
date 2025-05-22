@@ -32,6 +32,7 @@ type ConfigType string
 const (
 	ConfigTypeCursor  ConfigType = "cursor"
 	ConfigTypeClaude  ConfigType = "claude"
+	ConfigTypeAmpCode ConfigType = "ampcode" // Configuration for AmpCode (VS Code/Cursor)
 	ConfigTypeProfile ConfigType = "profile" // New config type for profiles
 	ConfigTypeNone    ConfigType = ""        // Represents no config loaded
 )
@@ -245,6 +246,7 @@ func NewModel() Model {
 	items := []list.Item{
 		listItem{title: "Claude Config", description: "Configure Claude API settings"},
 		listItem{title: "Cursor Config", description: "Configure Cursor API settings"},
+		listItem{title: "AmpCode Config", description: "Configure AmpCode MCP servers in settings.json"},
 		listItem{title: "Profile Config", description: "Configure MCP profiles"}, // New item for profiles
 	}
 
@@ -316,6 +318,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "Cursor Config":
 					m.configType = ConfigTypeCursor
 					return m, m.loadServers(ConfigTypeCursor)
+				case "AmpCode Config":
+					m.configType = ConfigTypeAmpCode
+					return m, m.loadServers(ConfigTypeAmpCode)
 				case "Profile Config":
 					m.configType = ConfigTypeProfile
 					return m, m.loadProfiles()
@@ -624,6 +629,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			serverList.Title = "Cursor MCP Servers"
 		case ConfigTypeClaude:
 			serverList.Title = "Claude MCP Servers"
+		case ConfigTypeAmpCode:
+			serverList.Title = "AmpCode MCP Servers"
 		case ConfigTypeProfile:
 			serverList.Title = "Profiles"
 		case ConfigTypeNone:
@@ -886,6 +893,11 @@ func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType e
 			configPath, err = config.GetDefaultClaudeDesktopConfigPath()
 			if err == nil {
 				editor, err = config.NewClaudeDesktopEditor(configPath)
+			}
+		case ConfigTypeAmpCode:
+			configPath, err = config.GetAmpCodeConfigPath()
+			if err == nil {
+				editor, err = config.NewAmpCodeEditor(configPath)
 			}
 		case ConfigTypeProfile:
 			// Profile config type doesn't use the server config editor

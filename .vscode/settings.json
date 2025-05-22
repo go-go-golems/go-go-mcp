@@ -1,0 +1,9 @@
+{
+    "amp.commands.allowlist": [
+        "npm",
+        "go build",
+        "sed -i 's/json:\\\"/json:\"/g' pkg/config/ampcode.go.new",
+        "go get github.com/tailscale/hujson",
+        "sed -i 's/json:\\\"amp/json:\"amp/g' pkg/config/ampcode.go.new"
+    ]
+}
