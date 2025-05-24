@@ -185,6 +185,14 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		cancel()
 	}()
 
+	// Call startup hook if configured
+	if config.hooks != nil && config.hooks.OnServerStart != nil {
+		logger.Debug().Msg("Calling startup hook")
+		if err := config.hooks.OnServerStart(ctx); err != nil {
+			return fmt.Errorf("startup hook failed: %w", err)
+		}
+	}
+
 	// Start server
 	logger.Info().
 		Str("transport", transportType).

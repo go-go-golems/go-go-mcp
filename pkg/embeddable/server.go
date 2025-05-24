@@ -46,6 +46,7 @@ type ToolMiddleware func(next ToolHandler) ToolHandler
 
 // Hooks allows customization of server behavior
 type Hooks struct {
+	OnServerStart  func(ctx context.Context) error
 	BeforeToolCall func(ctx context.Context, toolName string, args map[string]interface{}) error
 	AfterToolCall  func(ctx context.Context, toolName string, result *protocol.ToolResult, err error)
 }

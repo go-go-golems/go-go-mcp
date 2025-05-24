@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/dop251/goja"
 	"github.com/rs/zerolog/log"
@@ -149,66 +150,66 @@ func (e *Engine) registerFile(path string, handler goja.Value) {
 // consoleLog provides console.log functionality
 func (e *Engine) consoleLog(args ...interface{}) {
 	log.Info().Interface("args", args).Msg("JS console.log")
-	fmt.Print("[JS] ")
+	fmt.Fprint(os.Stderr, "[JS] ")
 	for i, arg := range args {
 		if i > 0 {
-			fmt.Print(" ")
+			fmt.Fprint(os.Stderr, " ")
 		}
-		fmt.Print(arg)
+		fmt.Fprint(os.Stderr, arg)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // consoleError provides console.error functionality
 func (e *Engine) consoleError(args ...interface{}) {
 	log.Error().Interface("args", args).Msg("JS console.error")
-	fmt.Print("[JS ERROR] ")
+	fmt.Fprint(os.Stderr, "[JS ERROR] ")
 	for i, arg := range args {
 		if i > 0 {
-			fmt.Print(" ")
+			fmt.Fprint(os.Stderr, " ")
 		}
-		fmt.Print(arg)
+		fmt.Fprint(os.Stderr, arg)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // consoleInfo provides console.info functionality
 func (e *Engine) consoleInfo(args ...interface{}) {
 	log.Info().Interface("args", args).Msg("JS console.info")
-	fmt.Print("[JS INFO] ")
+	fmt.Fprint(os.Stderr, "[JS INFO] ")
 	for i, arg := range args {
 		if i > 0 {
-			fmt.Print(" ")
+			fmt.Fprint(os.Stderr, " ")
 		}
-		fmt.Print(arg)
+		fmt.Fprint(os.Stderr, arg)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // consoleWarn provides console.warn functionality
 func (e *Engine) consoleWarn(args ...interface{}) {
 	log.Warn().Interface("args", args).Msg("JS console.warn")
-	fmt.Print("[JS WARN] ")
+	fmt.Fprint(os.Stderr, "[JS WARN] ")
 	for i, arg := range args {
 		if i > 0 {
-			fmt.Print(" ")
+			fmt.Fprint(os.Stderr, " ")
 		}
-		fmt.Print(arg)
+		fmt.Fprint(os.Stderr, arg)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // consoleDebug provides console.debug functionality
 func (e *Engine) consoleDebug(args ...interface{}) {
 	log.Debug().Interface("args", args).Msg("JS console.debug")
-	fmt.Print("[JS DEBUG] ")
+	fmt.Fprint(os.Stderr, "[JS DEBUG] ")
 	for i, arg := range args {
 		if i > 0 {
-			fmt.Print(" ")
+			fmt.Fprint(os.Stderr, " ")
 		}
-		fmt.Print(arg)
+		fmt.Fprint(os.Stderr, arg)
 	}
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 }
 
 // jsonStringify provides JSON.stringify functionality

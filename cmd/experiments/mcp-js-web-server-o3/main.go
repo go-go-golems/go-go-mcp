@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/api"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/engine"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/mcp"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/web"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -35,7 +36,7 @@ func main() {
 			setupLogging()
 		},
 	}
-	
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "debug", "Log level (trace, debug, info, warn, error, fatal, panic)")
 
@@ -66,6 +67,11 @@ func main() {
 	}
 	testCmd.Flags().StringVarP(&serverURL, "url", "u", "http://localhost:8080", "Server URL")
 
+	// MCP command - expose JavaScript execution as MCP tool
+	if err := mcp.AddMCPCommand(rootCmd); err != nil {
+		log.Fatal().Err(err).Msg("Failed to add MCP command")
+	}
+
 	rootCmd.AddCommand(serverCmd, executeCmd, testCmd)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -74,10 +80,10 @@ func main() {
 }
 
 func setupLogging() {
-	// Configure zerolog
+	// Configure zerolog - always log to stderr to avoid interfering with MCP protocol
 	zerolog.TimeFieldFormat = time.RFC3339
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
-	
+
 	// Set log level
 	level, err := zerolog.ParseLevel(logLevel)
 	if err != nil {
@@ -85,13 +91,13 @@ func setupLogging() {
 		level = zerolog.DebugLevel
 	}
 	zerolog.SetGlobalLevel(level)
-	
+
 	log.Debug().Str("level", level.String()).Msg("Logging initialized")
 }
 
 func runServer(cmd *cobra.Command, args []string) {
 	log.Info().Msg("Starting JavaScript playground server")
-	
+
 	// Ensure scripts directory exists
 	if err := os.MkdirAll("scripts", 0755); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create scripts directory")
@@ -108,7 +114,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	// Start dispatcher goroutine first
 	log.Debug().Msg("Starting JavaScript dispatcher")
 	go jsEngine.StartDispatcher()
-	
+
 	// Give dispatcher time to start
 	time.Sleep(100 * time.Millisecond)
 
@@ -270,7 +276,7 @@ func loadScriptsFromDir(jsEngine *engine.Engine, dir string) {
 				Code: string(data),
 				Done: done,
 			}
-			
+
 			log.Debug().Str("file", path).Msg("Submitting job to engine")
 			jsEngine.SubmitJob(job)
 

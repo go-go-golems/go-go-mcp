@@ -592,12 +592,19 @@ func (p *JSPlayground) clearStateHandler(w http.ResponseWriter, r *http.Request)
 
 // loadJSFolder loads all JavaScript files from a directory on startup
 func (p *JSPlayground) loadJSFolder(folderPath string) error {
+	log.Info().Str("folder", folderPath).Msg("Scanning for JavaScript files")
+	
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		log.Warn().Str("folder", folderPath).Msg("JS folder does not exist, skipping")
 		return fmt.Errorf("JS folder does not exist: %s", folderPath)
 	}
 
-	return filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+	var loadedFiles []string
+	var failedFiles []string
+
+	err := filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			log.Error().Str("path", path).Err(err).Msg("Error walking directory")
 			return err
 		}
 
@@ -609,42 +616,142 @@ func (p *JSPlayground) loadJSFolder(folderPath string) error {
 		// Read JavaScript file
 		content, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("Error reading JS file %s: %v", path, err)
+			log.Error().Str("file", path).Err(err).Msg("Error reading JS file")
+			failedFiles = append(failedFiles, path)
 			return nil // Continue with other files
 		}
 
 		// Execute the JavaScript file
-		log.Info().Str("file", path).Msg("Loading JS file")
+		log.Info().
+			Str("file", path).
+			Int("size_bytes", len(content)).
+			Msg("Loading JavaScript file")
+		
 		record := p.ExecuteJS(string(content))
 		if !record.Success {
-			log.Error().Str("file", path).Str("error", record.Error).Msg("Error executing JS file")
+			log.Error().
+				Str("file", path).
+				Str("error", record.Error).
+				Int("execution_id", record.ID).
+				Msg("Failed to execute JS file")
+			failedFiles = append(failedFiles, path)
+		} else {
+			log.Debug().
+				Str("file", path).
+				Int("execution_id", record.ID).
+				Msg("Successfully executed JS file")
+			loadedFiles = append(loadedFiles, path)
 		}
 
 		return nil
 	})
+
+	// Log summary
+	log.Info().
+		Int("loaded", len(loadedFiles)).
+		Int("failed", len(failedFiles)).
+		Strs("loaded_files", loadedFiles).
+		Msg("JavaScript file loading complete")
+
+	if len(failedFiles) > 0 {
+		log.Warn().Strs("failed_files", failedFiles).Msg("Some JavaScript files failed to load")
+	}
+
+	return err
 }
 
 // Start starts the web server
 func (p *JSPlayground) Start(addr string) error {
-	log.Info().Str("address", addr).Msg("Starting JavaScript Playground server")
-	
-	// Log all registered routes
+	// Log detailed startup information
 	p.mu.RLock()
 	handlerCount := len(p.handlerMap)
 	fileHandlerCount := len(p.fileMap)
+	
+	// Log all registered HTTP handlers
+	if handlerCount > 0 {
+		log.Info().Msg("Registered HTTP handlers:")
+		for path, handler := range p.handlerMap {
+			log.Info().
+				Str("method", handler.Method).
+				Str("path", path).
+				Msg("  HTTP handler")
+		}
+	}
+	
+	// Log all registered file handlers
+	if fileHandlerCount > 0 {
+		log.Info().Msg("Registered file handlers:")
+		for path, handler := range p.fileMap {
+			log.Info().
+				Str("path", path).
+				Str("mime_type", handler.MimeType).
+				Msg("  File handler")
+		}
+	}
 	p.mu.RUnlock()
 	
+	// Database info
+	var dbStats struct {
+		Posts int `json:"posts"`
+		Todos int `json:"todos"`
+	}
+	
+	if posts, err := p.db.Query("SELECT COUNT(*) as count FROM posts"); err == nil {
+		defer posts.Close()
+		if posts.Next() {
+			var count int64
+			posts.Scan(&count)
+			dbStats.Posts = int(count)
+		}
+	}
+	
+	if todos, err := p.db.Query("SELECT COUNT(*) as count FROM todos"); err == nil {
+		defer todos.Close()
+		if todos.Next() {
+			var count int64
+			todos.Scan(&count)
+			dbStats.Todos = int(count)
+		}
+	}
+	
 	log.Info().
+		Int("posts", dbStats.Posts).
+		Int("todos", dbStats.Todos).
+		Msg("Database statistics")
+	
+	// Server configuration
+	host := "localhost"
+	if addr[0] == ':' {
+		host = "localhost" + addr
+	} else {
+		host = addr
+	}
+	
+	log.Info().
+		Str("address", addr).
+		Str("host", host).
 		Int("http_handlers", handlerCount).
 		Int("file_handlers", fileHandlerCount).
-		Msg("Server ready with registered handlers")
+		Msg("Starting JavaScript Playground server")
 	
-	// Log available endpoints
+	// Log available web interfaces with full URLs
+	baseURL := "http://" + host
+	log.Info().Msg("Available web interfaces:")
+	log.Info().Str("url", baseURL+"/files/dashboard.html").Msg("  📊 Dashboard - Main interface")
+	log.Info().Str("url", baseURL+"/files/blog.html").Msg("  📝 Blog - Post management")
+	log.Info().Str("url", baseURL+"/files/todos.html").Msg("  ✅ Todos - Task management")
+	
+	// Log API endpoints
+	log.Info().Msg("Available API endpoints:")
+	log.Info().Str("endpoint", "POST "+baseURL+"/api/execute").Msg("  Execute JavaScript code")
+	log.Info().Str("endpoint", "GET "+baseURL+"/api/executions").Msg("  Get execution history")
+	log.Info().Str("endpoint", "GET "+baseURL+"/api/handlers").Msg("  List registered handlers")
+	log.Info().Str("endpoint", "GET "+baseURL+"/api/state").Msg("  Get global state")
+	
 	log.Info().
-		Str("dashboard", "http://"+addr+"/files/dashboard.html").
-		Str("blog", "http://"+addr+"/files/blog.html").
-		Str("todos", "http://"+addr+"/files/todos.html").
-		Msg("Available web interfaces")
+		Str("address", addr).
+		Str("pid", fmt.Sprintf("%d", os.Getpid())).
+		Msg("🚀 Server is ready and listening for connections")
 	
 	return http.ListenAndServe(addr, p.router)
 }
@@ -653,22 +760,51 @@ func main() {
 	// Parse command line flags
 	var logLevel = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	var port = flag.String("port", "8080", "Server port")
+	var jsFolder = flag.String("js-folder", "./js-apps", "Directory containing JavaScript applications")
 	flag.Parse()
 
 	// Setup zerolog
 	setupLogging(*logLevel)
 
-	log.Info().Str("version", "1.0.0").Msg("JavaScript Playground Server starting")
+	log.Info().
+		Str("version", "1.0.0").
+		Str("port", *port).
+		Str("log_level", *logLevel).
+		Str("js_folder", *jsFolder).
+		Msg("🎮 JavaScript Playground Server initializing")
+
+	// Log system information
+	log.Info().
+		Str("go_version", fmt.Sprintf("go%s", os.Getenv("GOVERSION"))).
+		Str("pid", fmt.Sprintf("%d", os.Getpid())).
+		Str("working_dir", mustGetWorkingDir()).
+		Msg("System information")
 
 	playground, err := NewJSPlayground()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create playground")
 	}
 
+	// Override JS folder if specified
+	if *jsFolder != "./js-apps" {
+		log.Info().Str("folder", *jsFolder).Msg("Using custom JavaScript folder")
+		if err := playground.loadJSFolder(*jsFolder); err != nil {
+			log.Warn().Err(err).Msg("Failed to load custom JS folder")
+		}
+	}
+
 	addr := ":" + *port
 	if err := playground.Start(addr); err != nil {
 		log.Fatal().Err(err).Msg("Server failed to start")
 	}
+}
+
+// mustGetWorkingDir returns the current working directory or "unknown"
+func mustGetWorkingDir() string {
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return "unknown"
 }
 
 // setupLogging configures zerolog with the specified level

@@ -9,3 +9,7 @@
 
 - API to register functions as REST handlers
 - API to register function that returns a file under a URL
+
+## TODO
+
+- [ ] Hot reload on the browser side when an endpoint is updated
