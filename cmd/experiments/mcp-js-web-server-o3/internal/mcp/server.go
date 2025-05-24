@@ -86,13 +86,19 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 	// Start HTTP server in background
 	go func() {
 		r := mux.NewRouter()
+		
+		// API routes
 		r.HandleFunc("/v1/execute", api.ExecuteHandler(GlobalJSEngine)).Methods("POST")
-		r.HandleFunc("/admin/scripts", web.ScriptsHandler(GlobalJSEngine)).Methods("GET", "POST")
-		r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			web.HandleDynamicRoute(GlobalJSEngine, w, r)
-		})
+		log.Debug().Msg("Registered API endpoint: POST /v1/execute (MCP mode)")
 
-		log.Info().Str("address", ":8080").Msg("Starting background HTTP server for MCP mode")
+		// Setup all admin routes (including logs console)
+		web.SetupAdminRoutes(r, GlobalJSEngine)
+
+		// Setup dynamic routes with request logging
+		web.SetupDynamicRoutes(r, GlobalJSEngine)
+
+		log.Info().Str("address", ":8080").Msg("Starting background HTTP server for MCP mode with admin console")
+		log.Info().Msg("Admin console available at http://localhost:8080/admin/logs")
 		if err := http.ListenAndServe(":8080", r); err != nil {
 			log.Error().Err(err).Msg("Background HTTP server failed")
 		}
@@ -171,7 +177,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 			"result":     result.Value,
 			"consoleLog": result.ConsoleLog,
 			"savedAs":    filename,
-			"message":    "JavaScript code executed successfully. Check http://localhost:8080 for any web endpoints created.",
+			"message":    "JavaScript code executed successfully. Check http://localhost:8080 for any web endpoints created. Monitor execution at http://localhost:8080/admin/logs",
 		}
 
 		// Convert to JSON
@@ -264,7 +270,7 @@ func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*pr
 			"result":       result.Value,
 			"consoleLog":   result.ConsoleLog,
 			"executedFile": filePath,
-			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created.", filepath.Base(filePath)),
+			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created. Monitor execution at http://localhost:8080/admin/logs", filepath.Base(filePath)),
 		}
 
 		// Convert to JSON

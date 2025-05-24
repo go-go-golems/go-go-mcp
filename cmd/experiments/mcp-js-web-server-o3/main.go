@@ -133,21 +133,11 @@ func runServer(cmd *cobra.Command, args []string) {
 	r.HandleFunc("/v1/execute", api.ExecuteHandler(jsEngine)).Methods("POST")
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
 
-	// Admin routes
-	r.HandleFunc("/admin/scripts", web.ScriptsHandler(jsEngine)).Methods("GET", "POST")
-	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/scripts")
+	// Setup admin routes (consolidated)
+	web.SetupAdminRoutes(r, jsEngine)
 
-	// Admin log routes
-	adminHandler := web.NewAdminHandler(jsEngine.GetRequestLogger())
-	r.PathPrefix("/admin/logs").HandlerFunc(adminHandler.HandleAdminLogs)
-	log.Debug().Msg("Registered admin endpoint: /admin/logs")
-
-	// Dynamic routes (handled by JS) - wrapped with request logging
-	dynamicHandler := jsEngine.GetRequestLogger().RequestLoggerMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		web.HandleDynamicRoute(jsEngine, w, r)
-	})
-	r.PathPrefix("/").HandlerFunc(dynamicHandler)
-	log.Debug().Msg("Registered dynamic route handler with request logging")
+	// Setup dynamic routes with logging (consolidated)
+	web.SetupDynamicRoutes(r, jsEngine)
 
 	addr := ":" + port
 	log.Info().Str("address", addr).Str("database", db).Msg("Server configuration")

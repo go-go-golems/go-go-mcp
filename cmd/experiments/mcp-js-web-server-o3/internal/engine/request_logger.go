@@ -10,21 +10,22 @@ import (
 
 // RequestLog represents a single request and its associated logs
 type RequestLog struct {
-	ID        string                 `json:"id"`
-	Method    string                 `json:"method"`
-	Path      string                 `json:"path"`
-	URL       string                 `json:"url"`
-	Status    int                    `json:"status"`
-	StartTime time.Time              `json:"startTime"`
-	EndTime   time.Time              `json:"endTime"`
-	Duration  time.Duration          `json:"duration"`
-	Headers   map[string]interface{} `json:"headers"`
-	Query     map[string]interface{} `json:"query"`
-	Body      string                 `json:"body,omitempty"`
-	Response  string                 `json:"response,omitempty"`
-	Logs      []LogEntry             `json:"logs"`
-	Error     string                 `json:"error,omitempty"`
-	RemoteIP  string                 `json:"remoteIP"`
+	ID          string                 `json:"id"`
+	Method      string                 `json:"method"`
+	Path        string                 `json:"path"`
+	URL         string                 `json:"url"`
+	Status      int                    `json:"status"`
+	StartTime   time.Time              `json:"startTime"`
+	EndTime     time.Time              `json:"endTime"`
+	Duration    time.Duration          `json:"duration"`
+	Headers     map[string]interface{} `json:"headers"`
+	Query       map[string]interface{} `json:"query"`
+	Body        string                 `json:"body,omitempty"`
+	Response    string                 `json:"response,omitempty"`
+	Logs        []LogEntry             `json:"logs"`
+	DatabaseOps []DatabaseOperation    `json:"databaseOps"`
+	Error       string                 `json:"error,omitempty"`
+	RemoteIP    string                 `json:"remoteIP"`
 }
 
 // LogEntry represents a single log message during request processing
@@ -33,6 +34,19 @@ type LogEntry struct {
 	Level     string      `json:"level"`
 	Message   string      `json:"message"`
 	Data      interface{} `json:"data,omitempty"`
+}
+
+// DatabaseOperation represents a database operation during request processing
+type DatabaseOperation struct {
+	Timestamp    time.Time     `json:"timestamp"`
+	Type         string        `json:"type"` // "query" or "exec"
+	SQL          string        `json:"sql"`
+	Parameters   interface{}   `json:"parameters,omitempty"`
+	Result       interface{}   `json:"result,omitempty"`
+	Error        string        `json:"error,omitempty"`
+	Duration     time.Duration `json:"duration"`
+	RowsAffected int64         `json:"rowsAffected,omitempty"`
+	LastInsertId int64         `json:"lastInsertId,omitempty"`
 }
 
 // RequestLogger manages request logging and provides real-time access
@@ -102,16 +116,17 @@ func (rl *RequestLogger) StartRequest(r *http.Request) *RequestLog {
 	}
 
 	requestLog := &RequestLog{
-		ID:        requestID,
-		Method:    r.Method,
-		Path:      r.URL.Path,
-		URL:       r.URL.String(),
-		StartTime: time.Now(),
-		Headers:   headers,
-		Query:     query,
-		Body:      body,
-		RemoteIP:  remoteIP,
-		Logs:      make([]LogEntry, 0),
+		ID:          requestID,
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		URL:         r.URL.String(),
+		StartTime:   time.Now(),
+		Headers:     headers,
+		Query:       query,
+		Body:        body,
+		RemoteIP:    remoteIP,
+		Logs:        make([]LogEntry, 0),
+		DatabaseOps: make([]DatabaseOperation, 0),
 	}
 
 	// Add to requests map and order tracking
@@ -157,6 +172,16 @@ func (rl *RequestLogger) AddLog(requestID, level, message string, data interface
 			Data:      data,
 		}
 		requestLog.Logs = append(requestLog.Logs, logEntry)
+	}
+}
+
+// AddDatabaseOperation adds a database operation to a specific request
+func (rl *RequestLogger) AddDatabaseOperation(requestID string, dbOp DatabaseOperation) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if requestLog, exists := rl.requests[requestID]; exists {
+		requestLog.DatabaseOps = append(requestLog.DatabaseOps, dbOp)
 	}
 }
 

@@ -147,7 +147,7 @@ Registers an HTTP endpoint that will be handled by a JavaScript function.
 
 **Parameters:**
 - `method` (string): HTTP method (`GET`, `POST`, `PUT`, `DELETE`, etc.)
-- `path` (string): URL path (e.g., `/api/users`, `/health`, `/users/:id`)
+- `path` (string): URL path (e.g., `/api/users`, `/health`, `/users/:id` for path parameters)
 - `handler` (function): JavaScript function to handle requests
 - `options` (object|string, optional): Handler options or content type string for backward compatibility
 
@@ -167,6 +167,10 @@ The JavaScript Playground Server includes a powerful admin console for monitorin
 
 Access the live request console at `http://localhost:8080/admin/logs` to:
 
+**Available in both server modes:**
+- **Serve mode**: `./js-server serve` - Admin console at `http://localhost:8080/admin/logs`
+- **MCP mode**: `./js-server mcp` - Admin console automatically available at `http://localhost:8080/admin/logs`
+
 - **View all HTTP requests** in real-time with detailed information
 - **See console logs** generated during request processing  
 - **Monitor performance** with request timing and statistics
@@ -184,10 +188,10 @@ Access the live request console at `http://localhost:8080/admin/logs` to:
 
 The admin console automatically captures:
 - All JavaScript console output during request processing
+- **Database operations** with SQL queries, parameters, results, and timing
 - Request timing and performance metrics  
 - Full request and response data
 - Error details and stack traces
-- Database query logs (if enabled)
 
 **Example Usage:**
 ```javascript
@@ -199,44 +203,60 @@ registerHandler("GET", "/debug", (req) => {
         userAgent: req.headers["user-agent"]
     });
     
-    console.warn("This is a warning message");
+    // Database operations are automatically logged
+    const userCount = db.query("SELECT COUNT(*) as count FROM users")[0].count;
+    console.warn("Current user count:", userCount);
+    
+    // This insert operation will also be logged
+    db.exec("INSERT INTO access_log (endpoint, timestamp) VALUES (?, ?)", 
+            [req.path, new Date().toISOString()]);
+    
     console.error("This is an error for testing");
     
     return Response.json({
-        message: "Check the admin console for logs",
+        message: "Check the admin console for logs and database operations",
+        userCount: userCount,
         timestamp: new Date().toISOString()
     });
 });
 ```
 
-When you call this endpoint, all the console messages will be captured and displayed in the admin interface, associated with that specific request.
+When you call this endpoint, all the console messages AND database operations will be captured and displayed in the admin interface, associated with that specific request. You'll see:
+- Console logs with timestamps and levels
+- Database queries with SQL, parameters, results, and execution time
+- Performance metrics and timing information
 
 ---
 
 **Request Object Properties:**
+
+**Note:** Use capitalized field names for direct property access in JavaScript:
+
 ```javascript
 {
-    method: "GET",           // HTTP method
-    url: "/api/users?page=1", // Full URL with query string
-    path: "/api/users",      // URL path only
-    query: {                 // Parsed query parameters
+    Method: "GET",           // HTTP method (use request.Method)
+    URL: "/api/users?page=1", // Full URL with query string (use request.URL)
+    Path: "/api/users",      // URL path only (use request.Path)
+    Query: {                 // Parsed query parameters (use request.Query)
         page: "1",           // String values for single params
         tags: ["a", "b"]     // Array for multiple values
     },
-    headers: {               // Request headers
+    Headers: {               // Request headers (use request.Headers)
         "content-type": "application/json",
         "authorization": "Bearer token123"
     },
-    body: "...",            // Request body as string (for POST/PUT)
-    params: {               // URL path parameters (from patterns like /users/:id)
-        id: "123"
+    Body: "...",            // Request body as string (use request.Body)
+    Params: {               // URL path parameters (use request.Params)
+        id: "123"           // Automatically extracted from URL path
     },
-    cookies: {              // Request cookies
+    Cookies: {              // Request cookies (use request.Cookies)
         session: "abc123"
     },
-    remoteIP: "192.168.1.1" // Client IP address
+    RemoteIP: "192.168.1.1" // Client IP address (use request.RemoteIP)
 }
 ```
+
+**Important:** While `JSON.stringify(request)` shows lowercase field names (JSON tags), direct property access requires **capitalized field names** (Go struct fields). Use `request.Params`, `request.Path`, `request.Method`, etc.
 
 **Response Formats:**
 
@@ -275,6 +295,59 @@ return {
     redirect: "https://example.com" // Redirect URL (sets 302 status if not specified)
 };
 ```
+
+### Path Parameter Routing
+
+The server supports path parameters using the `:paramName` syntax. Parameters are automatically extracted and available in `request.params`.
+
+```javascript
+// Single path parameter
+registerHandler("GET", "/users/:id", (request) => {
+    const userId = request.Params.id;  // Use request.Params (capitalized)
+    console.log("User ID:", userId);
+    
+    const user = db.query("SELECT * FROM users WHERE id = ?", [userId]);
+    if (user.length === 0) {
+        return Response.error("User not found", 404);
+    }
+    
+    return Response.json(user[0]);
+});
+
+// Multiple path parameters
+registerHandler("GET", "/api/:version/users/:userId/posts/:postId", (request) => {
+    const { version, userId, postId } = request.Params;  // Use request.Params (capitalized)
+    
+    return Response.json({
+        apiVersion: version,
+        userId: userId,
+        postId: postId,
+        data: "Post content here..."
+    });
+});
+
+// Trivia game answer endpoint example
+registerHandler("GET", "/answer/:answerIndex", (request) => {
+    const answerIndex = parseInt(request.Params.answerIndex);  // Use request.Params (capitalized)
+    
+    if (isNaN(answerIndex) || answerIndex < 0) {
+        return Response.error("Invalid answer index", 400);
+    }
+    
+    // Game logic here...
+    return Response.json({
+        selectedAnswer: answerIndex,
+        correct: checkAnswer(answerIndex)
+    });
+});
+```
+
+**Path Parameter Rules:**
+- Use `:paramName` syntax in the path pattern
+- Parameters are automatically extracted to `request.Params` (capitalized!)
+- Parameter names can contain letters, numbers, and underscores
+- All path segments must match exactly except parameter segments
+- Parameters are always strings - convert with `parseInt()`, etc. as needed
 
 ### Basic Examples
 
@@ -613,13 +686,17 @@ if (existingUsers[0].count === 0) {
 ```javascript
 // Create
 registerHandler("POST", "/api/users", (req) => {
-    const { name, email } = req.query;
+    const { name, email } = req.Query;  // Use req.Query (capitalized)
     if (!name || !email) {
-        return { error: "Name and email required" };
+        return Response.error("Name and email required", 400);
     }
     
-    db.query("INSERT INTO users (name, email) VALUES (?, ?)", [name, email]);
-    return { success: true, message: "User created" };
+    const result = db.exec("INSERT INTO users (name, email) VALUES (?, ?)", [name, email]);
+    return Response.json({ 
+        success: true, 
+        message: "User created",
+        id: result.lastInsertId
+    });
 });
 
 // Read
@@ -628,20 +705,45 @@ registerHandler("GET", "/api/users", () => {
     return { users, count: users.length };
 });
 
+// Read single user
+registerHandler("GET", "/api/users/:id", (req) => {
+    const id = req.Params.id;  // Use req.Params (capitalized)
+    const users = db.query("SELECT * FROM users WHERE id = ?", [id]);
+    
+    if (users.length === 0) {
+        return Response.error("User not found", 404);
+    }
+    
+    return Response.json(users[0]);
+});
+
 // Update
 registerHandler("PUT", "/api/users/:id", (req) => {
-    const id = req.path.split('/').pop();
-    const { name, email } = req.query;
+    const id = req.Params.id;  // Use req.Params (capitalized)
+    const { name, email } = req.Query;  // Use req.Query (capitalized)
     
-    db.query("UPDATE users SET name = ?, email = ? WHERE id = ?", [name, email, id]);
-    return { success: true, message: "User updated" };
+    if (!name || !email) {
+        return Response.error("Name and email required", 400);
+    }
+    
+    const result = db.exec("UPDATE users SET name = ?, email = ? WHERE id = ?", [name, email, id]);
+    if (result.rowsAffected === 0) {
+        return Response.error("User not found", 404);
+    }
+    
+    return Response.json({ success: true, message: "User updated" });
 });
 
 // Delete
 registerHandler("DELETE", "/api/users/:id", (req) => {
-    const id = req.path.split('/').pop();
-    db.query("DELETE FROM users WHERE id = ?", [id]);
-    return { success: true, message: "User deleted" };
+    const id = req.Params.id;  // Use req.Params (capitalized)
+    const result = db.exec("DELETE FROM users WHERE id = ?", [id]);
+    
+    if (result.rowsAffected === 0) {
+        return Response.error("User not found", 404);
+    }
+    
+    return Response.json({ success: true, message: "User deleted" });
 });
 ```
 

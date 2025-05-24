@@ -36,6 +36,9 @@
 - [ ] download session zip
 - [ ] MCP session ID is wrong
 - [ ] Prompt engineering for separating js / css /html into multiple endpoints
+- [ ] More clever routes (and params capture?)
+- [ ] how to dispatch to multiple sessions on the rest side, since they will all have different routes? multiple ports? subpaths? use cool names for session ids instead of uuids / cool encoding?
+- [ ] make registerHandler sytnax more express.js like to leverage training corpus
 
 ## Features
 

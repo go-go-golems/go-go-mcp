@@ -281,6 +281,100 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
             margin: 0 0.5rem;
         }
         
+        .db-operations-container {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .db-operation {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 4px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .db-operation.error {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .db-operation.success {
+            border-left-color: #28a745;
+            background: #f0fff4;
+        }
+        
+        .db-op-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .db-op-type {
+            background: #007bff;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        
+        .db-op-time {
+            color: #666;
+            font-size: 0.8rem;
+        }
+        
+        .db-op-duration {
+            background: #6c757d;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+        
+        .db-op-error {
+            background: #dc3545;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        
+        .db-op-sql {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .db-op-params {
+            color: #495057;
+            font-size: 0.9rem;
+            margin: 0.25rem 0;
+        }
+        
+        .db-op-result {
+            color: #28a745;
+            font-size: 0.9rem;
+            margin: 0.25rem 0;
+        }
+        
+        .db-op-error-msg {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin: 0.25rem 0;
+        }
+        
         .json-display {
             background: #f8f9fa;
             border: 1px solid #ddd;
@@ -501,7 +595,41 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
                     html += '</div>';
                 }
                 
-                // Logs
+                // Database Operations
+                if (request.databaseOps && request.databaseOps.length > 0) {
+                    html += '<div class="section">';
+                    html += '  <h3>Database Operations (' + request.databaseOps.length + ')</h3>';
+                    html += '  <div class="db-operations-container">';
+                    request.databaseOps.forEach(op => {
+                        const time = new Date(op.timestamp).toLocaleTimeString();
+                        const durationMs = Math.round(op.duration / 1000000); // Convert nanoseconds to milliseconds
+                        const statusClass = op.error ? 'error' : 'success';
+                        
+                        html += '<div class="db-operation ' + statusClass + '">';
+                        html += '  <div class="db-op-header">';
+                        html += '    <span class="db-op-type">' + op.type.toUpperCase() + '</span>';
+                        html += '    <span class="db-op-time">' + time + '</span>';
+                        html += '    <span class="db-op-duration">' + durationMs + 'ms</span>';
+                        if (op.error) {
+                            html += '    <span class="db-op-error">ERROR</span>';
+                        }
+                        html += '  </div>';
+                        html += '  <div class="db-op-sql"><code>' + op.sql + '</code></div>';
+                        if (op.parameters && op.parameters.length > 0) {
+                            html += '  <div class="db-op-params">Parameters: <code>' + JSON.stringify(op.parameters) + '</code></div>';
+                        }
+                        if (op.error) {
+                            html += '  <div class="db-op-error-msg">Error: ' + op.error + '</div>';
+                        } else if (op.result) {
+                            html += '  <div class="db-op-result">Result: ' + op.result + '</div>';
+                        }
+                        html += '</div>';
+                    });
+                    html += '  </div>';
+                    html += '</div>';
+                }
+
+                // Console Logs
                 if (request.logs && request.logs.length > 0) {
                     html += '<div class="section">';
                     html += '  <h3>Console Logs (' + request.logs.length + ')</h3>';

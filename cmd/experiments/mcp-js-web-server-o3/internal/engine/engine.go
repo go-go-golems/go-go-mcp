@@ -123,16 +123,27 @@ console.log("Bootstrap complete - server ready");`
 	return e.executeCode(string(data))
 }
 
-// GetHandler returns a registered HTTP handler
+// GetHandler returns a registered HTTP handler, supporting path parameters
 func (e *Engine) GetHandler(method, path string) (*HandlerInfo, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
+	// First try exact match
 	if methods, exists := e.handlers[path]; exists {
 		if handler, exists := methods[method]; exists {
 			return handler, true
 		}
 	}
+
+	// Try pattern matching for path parameters
+	for pattern, methods := range e.handlers {
+		if handler, exists := methods[method]; exists {
+			if pathMatches(pattern, path) {
+				return handler, true
+			}
+		}
+	}
+
 	return nil, false
 }
 

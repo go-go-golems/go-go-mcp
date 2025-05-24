@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -53,6 +54,7 @@ func (e *Engine) setupBindings() {
 
 // jsQuery executes SQL queries and returns results as JavaScript objects
 func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interface{} {
+	startTime := time.Now()
 	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL query")
 
 	// Convert JavaScript arrays to individual arguments
@@ -72,6 +74,20 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 	rows, err := e.db.Query(query, flatArgs...)
 	if err != nil {
 		log.Error().Err(err).Str("query", query).Interface("args", flatArgs).Msg("SQL query error")
+		
+		// Log database operation if we have a current request
+		if e.currentReqID != "" {
+			dbOp := DatabaseOperation{
+				Timestamp:  startTime,
+				Type:       "query",
+				SQL:        query,
+				Parameters: flatArgs,
+				Error:      err.Error(),
+				Duration:   time.Since(startTime),
+			}
+			e.reqLogger.AddDatabaseOperation(e.currentReqID, dbOp)
+		}
+		
 		return nil
 	}
 	defer rows.Close()
@@ -102,12 +118,28 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 		result = append(result, rec)
 	}
 
-	log.Debug().Int("rows", len(result)).Msg("SQL query completed")
+	duration := time.Since(startTime)
+	log.Debug().Int("rows", len(result)).Dur("duration", duration).Msg("SQL query completed")
+
+	// Log database operation if we have a current request
+	if e.currentReqID != "" {
+		dbOp := DatabaseOperation{
+			Timestamp:  startTime,
+			Type:       "query",
+			SQL:        query,
+			Parameters: flatArgs,
+			Result:     fmt.Sprintf("%d rows returned", len(result)),
+			Duration:   duration,
+		}
+		e.reqLogger.AddDatabaseOperation(e.currentReqID, dbOp)
+	}
+
 	return result
 }
 
 // jsExec executes SQL statements without returning rows (INSERT, UPDATE, DELETE, CREATE, etc.)
 func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{} {
+	startTime := time.Now()
 	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL exec")
 
 	// Convert JavaScript arrays to individual arguments
@@ -127,6 +159,20 @@ func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{
 	result, err := e.db.Exec(query, flatArgs...)
 	if err != nil {
 		log.Error().Err(err).Str("query", query).Interface("args", flatArgs).Msg("SQL exec error")
+		
+		// Log database operation if we have a current request
+		if e.currentReqID != "" {
+			dbOp := DatabaseOperation{
+				Timestamp:  startTime,
+				Type:       "exec",
+				SQL:        query,
+				Parameters: flatArgs,
+				Error:      err.Error(),
+				Duration:   time.Since(startTime),
+			}
+			e.reqLogger.AddDatabaseOperation(e.currentReqID, dbOp)
+		}
+		
 		return map[string]interface{}{
 			"error":   err.Error(),
 			"success": false,
@@ -137,7 +183,23 @@ func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{
 	rowsAffected, _ := result.RowsAffected()
 	lastInsertId, _ := result.LastInsertId()
 
-	log.Debug().Int64("rowsAffected", rowsAffected).Int64("lastInsertId", lastInsertId).Msg("SQL exec completed")
+	duration := time.Since(startTime)
+	log.Debug().Int64("rowsAffected", rowsAffected).Int64("lastInsertId", lastInsertId).Dur("duration", duration).Msg("SQL exec completed")
+
+	// Log database operation if we have a current request
+	if e.currentReqID != "" {
+		dbOp := DatabaseOperation{
+			Timestamp:    startTime,
+			Type:         "exec",
+			SQL:          query,
+			Parameters:   flatArgs,
+			Result:       fmt.Sprintf("success: %d rows affected", rowsAffected),
+			Duration:     duration,
+			RowsAffected: rowsAffected,
+			LastInsertId: lastInsertId,
+		}
+		e.reqLogger.AddDatabaseOperation(e.currentReqID, dbOp)
+	}
 
 	return map[string]interface{}{
 		"success":      true,

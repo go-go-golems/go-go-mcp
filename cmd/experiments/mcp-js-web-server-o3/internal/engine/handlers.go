@@ -75,6 +75,12 @@ func (e *Engine) registerHandler(method, path string, handler goja.Value, args .
 		}
 	}
 
+	// Store the original path pattern for parameter extraction
+	if options == nil {
+		options = make(map[string]interface{})
+	}
+	options["pathPattern"] = path
+
 	handlerInfo := &HandlerInfo{
 		Fn:          callable,
 		ContentType: contentType,
@@ -166,9 +172,9 @@ func (e *Engine) createEnhancedRequestObject(r *http.Request) *RequestObject {
 		Query:    query,
 		Headers:  headers,
 		Body:     body,
+		Params:   make(map[string]string), // Initialize empty params map
 		Cookies:  cookies,
 		RemoteIP: remoteIP,
-		// Params will be populated by path parameter matching if implemented
 	}
 }
 
@@ -511,6 +517,24 @@ func (e *Engine) jsResponseError(message string, args ...interface{}) map[string
 		"status":      status,
 		"contentType": "application/json",
 	}
+}
+
+// pathMatches checks if a URL path matches a pattern with parameters
+func pathMatches(pattern, path string) bool {
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+
+	if len(patternParts) != len(pathParts) {
+		return false
+	}
+
+	for i, part := range patternParts {
+		if !strings.HasPrefix(part, ":") && part != pathParts[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // parsePathParams extracts path parameters from URL (basic implementation)
