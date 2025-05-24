@@ -35,6 +35,7 @@
 - [ ] allow editing of sent JS and reload it for manual fixing
 - [ ] download session zip
 - [ ] MCP session ID is wrong
+- [ ] Prompt engineering for separating js / css /html into multiple endpoints
 
 ## Features
 

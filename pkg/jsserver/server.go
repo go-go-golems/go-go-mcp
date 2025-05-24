@@ -33,17 +33,17 @@ type JSWebServer struct {
 }
 
 type JSRoute struct {
-	Method   string    `json:"method"`
-	Path     string    `json:"path"`
-	Handler  goja.Value `json:"-"`
-	Created  time.Time `json:"created"`
+	Method  string     `json:"method"`
+	Path    string     `json:"path"`
+	Handler goja.Value `json:"-"`
+	Created time.Time  `json:"created"`
 }
 
 type JSFile struct {
-	Path      string    `json:"path"`
+	Path      string     `json:"path"`
 	Generator goja.Value `json:"-"`
-	MimeType  string    `json:"mime_type"`
-	Created   time.Time `json:"created"`
+	MimeType  string     `json:"mime_type"`
+	Created   time.Time  `json:"created"`
 }
 
 type ExecuteRequest struct {
@@ -99,18 +99,18 @@ func (s *JSWebServer) Close() error {
 
 func (s *JSWebServer) setupAPIRoutes() {
 	api := s.router.PathPrefix("/api").Subrouter()
-	
+
 	// Code execution
 	api.HandleFunc("/execute", s.handleExecute).Methods("POST")
-	
+
 	// Route management
 	api.HandleFunc("/routes", s.handleListRoutes).Methods("GET")
 	api.HandleFunc("/routes/{path:.*}", s.handleDeleteRoute).Methods("DELETE")
-	
+
 	// File management
 	api.HandleFunc("/files", s.handleListFiles).Methods("GET")
 	api.HandleFunc("/files/{path:.*}", s.handleDeleteFile).Methods("DELETE")
-	
+
 	// State management
 	api.HandleFunc("/state", s.handleGetAllState).Methods("GET")
 	api.HandleFunc("/state/{key}", s.handleGetState).Methods("GET")
@@ -129,7 +129,7 @@ func (s *JSWebServer) handleExecute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := s.executeJavaScript(req)
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }

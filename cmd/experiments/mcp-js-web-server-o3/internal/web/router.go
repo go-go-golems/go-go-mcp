@@ -22,7 +22,7 @@ func HandleDynamicRoute(jsEngine *engine.Engine, w http.ResponseWriter, r *http.
 		}
 
 		jsEngine.SubmitJob(job)
-		
+
 		// Wait for completion
 		<-done
 		return
@@ -39,7 +39,7 @@ func HandleDynamicRoute(jsEngine *engine.Engine, w http.ResponseWriter, r *http.
 		}
 
 		jsEngine.SubmitJob(job)
-		
+
 		// Wait for completion
 		<-done
 		return

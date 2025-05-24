@@ -113,7 +113,7 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	// Start dispatcher goroutine first
 	log.Debug().Msg("Starting JavaScript dispatcher")
-	go jsEngine.StartDispatcher()
+	jsEngine.StartDispatcher()
 
 	// Give dispatcher time to start
 	time.Sleep(100 * time.Millisecond)
@@ -137,11 +137,17 @@ func runServer(cmd *cobra.Command, args []string) {
 	r.HandleFunc("/admin/scripts", web.ScriptsHandler(jsEngine)).Methods("GET", "POST")
 	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/scripts")
 
-	// Dynamic routes (handled by JS)
-	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Admin log routes
+	adminHandler := web.NewAdminHandler(jsEngine.GetRequestLogger())
+	r.PathPrefix("/admin/logs").HandlerFunc(adminHandler.HandleAdminLogs)
+	log.Debug().Msg("Registered admin endpoint: /admin/logs")
+
+	// Dynamic routes (handled by JS) - wrapped with request logging
+	dynamicHandler := jsEngine.GetRequestLogger().RequestLoggerMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		web.HandleDynamicRoute(jsEngine, w, r)
 	})
-	log.Debug().Msg("Registered dynamic route handler")
+	r.PathPrefix("/").HandlerFunc(dynamicHandler)
+	log.Debug().Msg("Registered dynamic route handler with request logging")
 
 	addr := ":" + port
 	log.Info().Str("address", addr).Str("database", db).Msg("Server configuration")

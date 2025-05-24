@@ -593,7 +593,7 @@ func (p *JSPlayground) clearStateHandler(w http.ResponseWriter, r *http.Request)
 // loadJSFolder loads all JavaScript files from a directory on startup
 func (p *JSPlayground) loadJSFolder(folderPath string) error {
 	log.Info().Str("folder", folderPath).Msg("Scanning for JavaScript files")
-	
+
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
 		log.Warn().Str("folder", folderPath).Msg("JS folder does not exist, skipping")
 		return fmt.Errorf("JS folder does not exist: %s", folderPath)
@@ -626,7 +626,7 @@ func (p *JSPlayground) loadJSFolder(folderPath string) error {
 			Str("file", path).
 			Int("size_bytes", len(content)).
 			Msg("Loading JavaScript file")
-		
+
 		record := p.ExecuteJS(string(content))
 		if !record.Success {
 			log.Error().
@@ -666,7 +666,7 @@ func (p *JSPlayground) Start(addr string) error {
 	p.mu.RLock()
 	handlerCount := len(p.handlerMap)
 	fileHandlerCount := len(p.fileMap)
-	
+
 	// Log all registered HTTP handlers
 	if handlerCount > 0 {
 		log.Info().Msg("Registered HTTP handlers:")
@@ -677,7 +677,7 @@ func (p *JSPlayground) Start(addr string) error {
 				Msg("  HTTP handler")
 		}
 	}
-	
+
 	// Log all registered file handlers
 	if fileHandlerCount > 0 {
 		log.Info().Msg("Registered file handlers:")
@@ -689,13 +689,13 @@ func (p *JSPlayground) Start(addr string) error {
 		}
 	}
 	p.mu.RUnlock()
-	
+
 	// Database info
 	var dbStats struct {
 		Posts int `json:"posts"`
 		Todos int `json:"todos"`
 	}
-	
+
 	if posts, err := p.db.Query("SELECT COUNT(*) as count FROM posts"); err == nil {
 		defer posts.Close()
 		if posts.Next() {
@@ -704,7 +704,7 @@ func (p *JSPlayground) Start(addr string) error {
 			dbStats.Posts = int(count)
 		}
 	}
-	
+
 	if todos, err := p.db.Query("SELECT COUNT(*) as count FROM todos"); err == nil {
 		defer todos.Close()
 		if todos.Next() {
@@ -713,12 +713,12 @@ func (p *JSPlayground) Start(addr string) error {
 			dbStats.Todos = int(count)
 		}
 	}
-	
+
 	log.Info().
 		Int("posts", dbStats.Posts).
 		Int("todos", dbStats.Todos).
 		Msg("Database statistics")
-	
+
 	// Server configuration
 	host := "localhost"
 	if addr[0] == ':' {
@@ -726,33 +726,33 @@ func (p *JSPlayground) Start(addr string) error {
 	} else {
 		host = addr
 	}
-	
+
 	log.Info().
 		Str("address", addr).
 		Str("host", host).
 		Int("http_handlers", handlerCount).
 		Int("file_handlers", fileHandlerCount).
 		Msg("Starting JavaScript Playground server")
-	
+
 	// Log available web interfaces with full URLs
 	baseURL := "http://" + host
 	log.Info().Msg("Available web interfaces:")
 	log.Info().Str("url", baseURL+"/files/dashboard.html").Msg("  📊 Dashboard - Main interface")
 	log.Info().Str("url", baseURL+"/files/blog.html").Msg("  📝 Blog - Post management")
 	log.Info().Str("url", baseURL+"/files/todos.html").Msg("  ✅ Todos - Task management")
-	
+
 	// Log API endpoints
 	log.Info().Msg("Available API endpoints:")
 	log.Info().Str("endpoint", "POST "+baseURL+"/api/execute").Msg("  Execute JavaScript code")
 	log.Info().Str("endpoint", "GET "+baseURL+"/api/executions").Msg("  Get execution history")
 	log.Info().Str("endpoint", "GET "+baseURL+"/api/handlers").Msg("  List registered handlers")
 	log.Info().Str("endpoint", "GET "+baseURL+"/api/state").Msg("  Get global state")
-	
+
 	log.Info().
 		Str("address", addr).
 		Str("pid", fmt.Sprintf("%d", os.Getpid())).
 		Msg("🚀 Server is ready and listening for connections")
-	
+
 	return http.ListenAndServe(addr, p.router)
 }
 

@@ -12,7 +12,7 @@ import (
 func (s *JSWebServer) archiveCode(code, name, executionID string) (string, error) {
 	// Create filename with timestamp and execution ID
 	timestamp := time.Now().Format("2006-01-02T15-04-05Z")
-	
+
 	var filename string
 	if name != "" {
 		// Sanitize name for filesystem
@@ -89,7 +89,7 @@ func (s *JSWebServer) getArchivedFile(filename string) (string, error) {
 	}
 
 	filepath := filepath.Join(s.config.ArchiveDir, filename)
-	
+
 	content, err := os.ReadFile(filepath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -109,7 +109,7 @@ func (s *JSWebServer) deleteArchivedFile(filename string) error {
 	}
 
 	filepath := filepath.Join(s.config.ArchiveDir, filename)
-	
+
 	if err := os.Remove(filepath); err != nil {
 		if os.IsNotExist(err) {
 			return errors.New("archived file not found")
@@ -169,7 +169,7 @@ func sanitizeFilename(filename string) string {
 	// Replace common unsafe characters
 	unsafe := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", " "}
 	safe := filename
-	
+
 	for _, char := range unsafe {
 		safe = filepath.Clean(safe)
 		// Replace unsafe characters with underscores

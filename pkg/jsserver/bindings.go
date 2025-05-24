@@ -203,7 +203,7 @@ func (s *JSWebServer) createServerRouteFunc(vm *goja.Runtime, method string) fun
 		}
 
 		routeKey := fmt.Sprintf("%s %s", method, path)
-		
+
 		s.mu.Lock()
 		s.routes[routeKey] = JSRoute{
 			Method:  method,
@@ -240,10 +240,10 @@ func (s *JSWebServer) createServerStaticFunc(vm *goja.Runtime) func(string, stri
 	return func(path, content, mimeType string) {
 		s.mu.Lock()
 		s.files[path] = JSFile{
-			Path:     path,
+			Path:      path,
 			Generator: vm.ToValue(func() string { return content }),
-			MimeType: mimeType,
-			Created:  time.Now(),
+			MimeType:  mimeType,
+			Created:   time.Now(),
 		}
 		s.mu.Unlock()
 
@@ -319,7 +319,7 @@ func (s *JSWebServer) createUtilsSleepFunc(vm *goja.Runtime) func(int) {
 func (s *JSWebServer) createUtilsFetchFunc(vm *goja.Runtime) func(string, ...map[string]interface{}) map[string]interface{} {
 	return func(url string, options ...map[string]interface{}) map[string]interface{} {
 		client := &http.Client{Timeout: 30 * time.Second}
-		
+
 		method := "GET"
 		var body []byte
 		headers := make(map[string]string)

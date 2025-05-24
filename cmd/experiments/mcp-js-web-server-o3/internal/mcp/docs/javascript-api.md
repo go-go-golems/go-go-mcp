@@ -44,17 +44,75 @@ The server runs a **single JavaScript runtime** backed by Go's performance, SQLi
 
 The JavaScript Playground Server provides a rich API for creating dynamic web applications entirely in JavaScript. This API includes HTTP endpoint registration, database access, file serving, and state management.
 
+### Execution Model
+
+JavaScript code executes directly in the **global scope** of a persistent JavaScript runtime. This means:
+
+- **Persistent State**: Variables and functions remain in memory between executions
+- **No Function Wrapping**: Your code runs directly, not wrapped in functions
+- **Global Scope**: All code shares the same global context
+- **Re-execution Safe**: Code should be written to handle multiple executions
+
+**Key Implications:**
+- Use `var` or direct assignment instead of `let`/`const` for reloadable code
+- Use `globalState` object for application data
+- Functions can be redefined safely
+- Handlers are replaced when re-registered
+
 ## Table of Contents
 
 - [Global Objects](#global-objects)
 - [HTTP Handler Registration](#http-handler-registration)
 - [Database Operations](#database-operations)
 - [File Serving](#file-serving)
+- [HTTP Requests](#http-requests)
 - [Console Logging](#console-logging)
 - [State Management](#state-management)
 - [Utility Functions](#utility-functions)
 - [Best Practices](#best-practices)
 - [Examples](#examples)
+
+## Quick Reference
+
+### Database Operations
+- `db.query(sql, ...args)` - Execute SELECT queries, returns array of objects
+- `db.exec(sql, ...args)` - Execute INSERT/UPDATE/DELETE/CREATE, returns {success, rowsAffected, lastInsertId}
+
+### HTTP Handlers
+- `registerHandler(method, path, handler [, options])` - Register HTTP endpoint with enhanced features
+- `registerFile(path, handler)` - Register file endpoint
+
+### HTTP Requests
+- `fetch(url [, options])` - Modern fetch API for HTTP requests
+- `HTTP.get(url [, options])` - GET request shortcut
+- `HTTP.post(url [, options])` - POST request shortcut  
+- `HTTP.put(url [, options])` - PUT request shortcut
+- `HTTP.delete(url [, options])` - DELETE request shortcut
+- `HTTP.patch(url [, options])` - PATCH request shortcut
+- `HTTP.head(url [, options])` - HEAD request shortcut
+
+### HTTP Constants & Helpers
+- `HTTP.OK`, `HTTP.CREATED`, `HTTP.NOT_FOUND`, `HTTP.INTERNAL_SERVER_ERROR`, etc. - Status code constants
+- `Response.json(data [, status])` - Create JSON response
+- `Response.text(text [, status])` - Create text response  
+- `Response.html(html [, status])` - Create HTML response
+- `Response.redirect(url [, status])` - Create redirect response
+- `Response.error(message [, status])` - Create error response
+
+### Console
+- `console.log(...)`, `console.info(...)`, `console.warn(...)`, `console.error(...)`, `console.debug(...)`
+
+### State & Utils
+- `globalState` - Persistent object across executions
+- `JSON.stringify(obj)`, `JSON.parse(str)` - JSON utilities
+
+### Enhanced Handler Function
+```javascript
+function handler(request) {
+  // Enhanced request: {method, url, path, query, headers, body, params, cookies, remoteIP}
+  return response; // object, string, Uint8Array, or ResponseObject
+}
+```
 
 ## Global Objects
 
@@ -83,43 +141,297 @@ registerHandler("GET", "/visitors", () => ({
 
 ## HTTP Handler Registration
 
-### `registerHandler(method, path, handler [, contentType])`
+### `registerHandler(method, path, handler [, options])`
 
 Registers an HTTP endpoint that will be handled by a JavaScript function.
 
 **Parameters:**
 - `method` (string): HTTP method (`GET`, `POST`, `PUT`, `DELETE`, etc.)
-- `path` (string): URL path (e.g., `/api/users`, `/health`)
+- `path` (string): URL path (e.g., `/api/users`, `/health`, `/users/:id`)
 - `handler` (function): JavaScript function to handle requests
-- `contentType` (string, optional): MIME type for the response
+- `options` (object|string, optional): Handler options or content type string for backward compatibility
 
 **Handler Function Signature:**
 ```javascript
 function handler(request) {
-    // request object contains: method, url, path, query, headers
-    return response; // Can be object, string, or bytes
+    // Enhanced request object with rich properties
+    return response; // Can be object, string, bytes, or ResponseObject
 }
+```
+
+## Admin Console
+
+The JavaScript Playground Server includes a powerful admin console for monitoring and debugging your applications.
+
+### `/admin/logs` - Live Request Console
+
+Access the live request console at `http://localhost:8080/admin/logs` to:
+
+- **View all HTTP requests** in real-time with detailed information
+- **See console logs** generated during request processing  
+- **Monitor performance** with request timing and statistics
+- **Debug issues** with full request/response data and error details
+- **Filter and search** through request history
+
+**Features:**
+- Real-time request monitoring with auto-refresh
+- Detailed request information (headers, query parameters, body)
+- Console log capture per request (console.log, console.error, etc.)
+- Response data and status codes
+- Performance metrics and timing
+- Error tracking and debugging
+- Clean, responsive interface
+
+The admin console automatically captures:
+- All JavaScript console output during request processing
+- Request timing and performance metrics  
+- Full request and response data
+- Error details and stack traces
+- Database query logs (if enabled)
+
+**Example Usage:**
+```javascript
+// This JavaScript handler logs will appear in the admin console
+registerHandler("GET", "/debug", (req) => {
+    console.log("Debug endpoint called", { 
+        method: req.method, 
+        path: req.path,
+        userAgent: req.headers["user-agent"]
+    });
+    
+    console.warn("This is a warning message");
+    console.error("This is an error for testing");
+    
+    return Response.json({
+        message: "Check the admin console for logs",
+        timestamp: new Date().toISOString()
+    });
+});
+```
+
+When you call this endpoint, all the console messages will be captured and displayed in the admin interface, associated with that specific request.
+
+---
+
+**Request Object Properties:**
+```javascript
+{
+    method: "GET",           // HTTP method
+    url: "/api/users?page=1", // Full URL with query string
+    path: "/api/users",      // URL path only
+    query: {                 // Parsed query parameters
+        page: "1",           // String values for single params
+        tags: ["a", "b"]     // Array for multiple values
+    },
+    headers: {               // Request headers
+        "content-type": "application/json",
+        "authorization": "Bearer token123"
+    },
+    body: "...",            // Request body as string (for POST/PUT)
+    params: {               // URL path parameters (from patterns like /users/:id)
+        id: "123"
+    },
+    cookies: {              // Request cookies
+        session: "abc123"
+    },
+    remoteIP: "192.168.1.1" // Client IP address
+}
+```
+
+**Response Formats:**
+
+**1. Simple Response (backward compatible):**
+```javascript
+// String response
+return "Hello World";
+
+// JSON response  
+return { message: "success", data: [...] };
+
+// Raw bytes
+return new Uint8Array([...]);
+```
+
+**2. Enhanced Response Object:**
+```javascript
+return {
+    status: 200,                    // HTTP status code (optional, defaults to 200)
+    headers: {                      // Response headers (optional)
+        "x-custom": "value",
+        "cache-control": "no-cache"
+    },
+    body: "Response content",       // Response body (string, object, or bytes)
+    contentType: "text/html",       // Content-Type override (optional)
+    cookies: [{                     // Response cookies (optional)
+        name: "session",
+        value: "abc123",
+        path: "/",
+        domain: "example.com",
+        maxAge: 3600,              // Seconds
+        secure: true,              // HTTPS only
+        httpOnly: true,            // No JavaScript access
+        sameSite: "Strict"         // "Strict", "Lax", or "None"
+    }],
+    redirect: "https://example.com" // Redirect URL (sets 302 status if not specified)
+};
 ```
 
 ### Basic Examples
 
 ```javascript
-// Simple text response
+// Simple text response (backward compatible)
 registerHandler("GET", "/hello", () => "Hello, World!");
 
-// JSON API endpoint
+// JSON API endpoint (backward compatible)
 registerHandler("GET", "/api/status", () => ({
     status: "running",
     timestamp: new Date().toISOString()
 }));
 
-// Handler with request data
-registerHandler("POST", "/api/echo", (req) => ({
-    method: req.method,
-    path: req.path,
-    query: req.query,
-    headers: req.headers
+// Enhanced response with custom status and headers
+registerHandler("GET", "/api/info", () => ({
+    status: 200,
+    headers: {
+        "x-api-version": "1.0",
+        "cache-control": "max-age=3600"
+    },
+    body: {
+        server: "JavaScript Playground",
+        version: "1.0.0",
+        timestamp: new Date().toISOString()
+    }
 }));
+
+// Handler with enhanced request data
+registerHandler("POST", "/api/echo", (req) => ({
+    body: {
+        receivedData: {
+            method: req.method,
+            path: req.path,
+            query: req.query,
+            headers: req.headers,
+            body: req.body,
+            cookies: req.cookies,
+            remoteIP: req.remoteIP
+        }
+    },
+    status: 200,
+    contentType: "application/json"
+}));
+
+// Redirect example
+registerHandler("GET", "/old-page", () => ({
+    redirect: "/new-page",
+    status: 301  // Permanent redirect
+}));
+
+// Cookie example
+registerHandler("POST", "/login", (req) => {
+    const { username, password } = JSON.parse(req.body || "{}");
+    
+    if (username === "admin" && password === "secret") {
+        return {
+            status: 200,
+            body: { success: true, message: "Login successful" },
+            cookies: [{
+                name: "session",
+                value: "abc123",
+                path: "/",
+                maxAge: 3600,
+                httpOnly: true,
+                secure: true
+            }]
+        };
+    }
+    
+    return Response.error("Invalid credentials", 401);
+});
+```
+
+### Important: Code Execution and Variable Scope
+
+JavaScript code executes directly in the **global scope** of a persistent JavaScript runtime. This has important implications:
+
+#### Variable Declaration Guidelines
+
+**❌ Avoid `let` and `const` for reloadable code:**
+```javascript
+// This will fail on re-execution because variables can't be redeclared
+let userCount = 0;
+const API_VERSION = "1.0";
+
+// Error on second execution: "userCount has already been declared"
+```
+
+**✅ Use `var` or direct assignment for global variables:**
+```javascript
+// These can be safely re-executed multiple times
+var userCount = 0;
+API_VERSION = "1.0";  // Creates/updates global property
+
+// Or check before declaring
+if (typeof userCount === 'undefined') {
+    var userCount = 0;
+}
+```
+
+**✅ Use `globalState` for persistent data:**
+```javascript
+// Recommended approach for application state
+if (!globalState.userCount) {
+    globalState.userCount = 0;
+}
+globalState.userCount++;
+```
+
+#### Returning Values from Code Execution
+
+When executing JavaScript code via the `/v1/execute` API endpoint or MCP tools, the **last expression** is automatically returned:
+
+```javascript
+// ✅ Simple expressions return their value
+5 + 3;  // Returns 8
+
+// ✅ Object expressions
+{message: "hello", value: 42};  // Returns the object
+
+// ✅ Function call results
+db.query("SELECT COUNT(*) as count FROM users");  // Returns query result
+
+// ✅ Explicit returns also work
+const users = db.query("SELECT * FROM users");
+console.log("Found", users.length, "users");
+return {count: users.length, users: users};
+```
+
+#### Best Practices for Reloadable Code
+
+```javascript
+// ✅ Safe function definitions (can be redefined)
+function processUser(userData) {
+    return {
+        id: userData.id,
+        name: userData.name.toUpperCase()
+    };
+}
+
+// ✅ Safe handler registration (replaces existing)
+registerHandler("GET", "/api/users", () => {
+    return db.query("SELECT * FROM users");
+});
+
+// ✅ Safe state initialization
+globalState.config = globalState.config || {
+    maxUsers: 100,
+    rateLimit: 1000
+};
+
+// ✅ Safe utility setup
+if (typeof formatDate === 'undefined') {
+    var formatDate = function(date) {
+        return new Date(date).toISOString().split('T')[0];
+    };
+}
 ```
 
 ### MIME Type Examples
@@ -196,6 +508,59 @@ Executes SQL queries against the SQLite database.
 - `parameters` (any[]): Parameters to bind to placeholders
 
 **Returns:** Array of objects representing rows
+
+### `db.exec(sql, ...parameters)`
+
+Executes SQL statements that don't return rows (INSERT, UPDATE, DELETE, CREATE, etc.).
+
+**Parameters:**
+- `sql` (string): SQL statement with `?` placeholders
+- `parameters` (any[]): Parameters to bind to placeholders
+
+**Returns:** Object with:
+- `success` (boolean): Whether the operation succeeded
+- `rowsAffected` (number): Number of rows affected
+- `lastInsertId` (number): Last inserted row ID (for INSERT statements)
+- `error` (string): Error message if operation failed
+
+### Exec Examples
+
+```javascript
+// Create table
+const result = db.exec(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE
+)`);
+console.log("Table created:", result.success);
+
+// Insert data
+const insertResult = db.exec("INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"]);
+console.log("Inserted user ID:", insertResult.lastInsertId);
+
+// Update records
+const updateResult = db.exec("UPDATE users SET name = ? WHERE id = ?", ["Alice Smith", 1]);
+console.log("Updated rows:", updateResult.rowsAffected);
+
+// Delete records
+const deleteResult = db.exec("DELETE FROM users WHERE email LIKE ?", ["%@temp.com"]);
+console.log("Deleted rows:", deleteResult.rowsAffected);
+
+// Multiple statements in one exec
+db.exec(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      company TEXT,
+      phone TEXT
+    );
+    DELETE FROM contacts;
+    INSERT INTO contacts (name, email, company, phone) VALUES
+      ('Alice Smith', 'alice@acme.com', 'Acme Corp', '555-1234'),
+      ('Bob Johnson', 'bob@globex.com', 'Globex Inc', '555-5678');
+`);
+```
 
 ### Query Examples
 
@@ -324,6 +689,299 @@ registerFile("/images/pixel.png", () => {
 
 ---
 
+## HTTP Requests
+
+The JavaScript Playground Server provides a comprehensive HTTP client API that allows your JavaScript code to make outbound HTTP requests to other services, APIs, and endpoints.
+
+### `fetch(url [, options])`
+
+Modern fetch API for making HTTP requests, similar to the browser's fetch API.
+
+**Parameters:**
+- `url` (string): The URL to request
+- `options` (object, optional): Request configuration options
+
+**Options Object:**
+```javascript
+{
+    method: "GET",              // HTTP method (GET, POST, PUT, DELETE, etc.)
+    headers: {                  // Request headers
+        "Authorization": "Bearer token",
+        "Content-Type": "application/json"
+    },
+    body: "request data",       // Request body (string, object, or array)
+    query: {                    // Query parameters to append to URL
+        page: 1,
+        limit: 10,
+        tags: ["javascript", "api"]  // Array values become multiple params
+    },
+    timeout: 30                 // Request timeout in seconds (default: 30)
+}
+```
+
+**Returns:** Response object with:
+```javascript
+{
+    status: 200,                    // HTTP status code
+    statusText: "OK",               // HTTP status text
+    headers: {                      // Response headers
+        "content-type": "application/json"
+    },
+    body: "response text",          // Response body as string
+    json: {...},                    // Parsed JSON (if response is JSON)
+    ok: true,                       // true if status 200-299
+    url: "https://api.example.com", // Final URL (after redirects)
+    error: "error message"          // Error message if request failed
+}
+```
+
+### HTTP Method Shortcuts
+
+Convenient shortcuts for common HTTP methods:
+
+#### `HTTP.get(url [, options])`
+#### `HTTP.post(url [, options])`  
+#### `HTTP.put(url [, options])`
+#### `HTTP.delete(url [, options])`
+#### `HTTP.patch(url [, options])`
+#### `HTTP.head(url [, options])`
+
+These methods automatically set the HTTP method and accept the same options as `fetch()`.
+
+### Basic Examples
+
+```javascript
+// Simple GET request
+const response = fetch("https://jsonplaceholder.typicode.com/posts/1");
+console.log("Post:", response.json);
+
+// GET with query parameters
+const posts = fetch("https://jsonplaceholder.typicode.com/posts", {
+    query: {
+        userId: 1,
+        _limit: 5
+    }
+});
+console.log("User posts:", posts.json);
+
+// POST request with JSON body
+const newPost = fetch("https://jsonplaceholder.typicode.com/posts", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: {
+        title: "My New Post",
+        body: "This is the content",
+        userId: 1
+    }
+});
+console.log("Created post:", newPost.json);
+
+// Using method shortcuts
+const user = HTTP.get("https://jsonplaceholder.typicode.com/users/1");
+const deleteResult = HTTP.delete("https://api.example.com/items/123", {
+    headers: {
+        "Authorization": "Bearer " + apiToken
+    }
+});
+```
+
+### Advanced Examples
+
+```javascript
+// API integration with error handling
+registerHandler("GET", "/api/external-data", () => {
+    const response = fetch("https://api.external-service.com/data", {
+        headers: {
+            "Authorization": "Bearer " + globalState.apiToken,
+            "User-Agent": "MyApp/1.0"
+        },
+        timeout: 10
+    });
+    
+    if (!response.ok) {
+        console.error("External API error:", response.status, response.body);
+        return Response.error("External service unavailable", 503);
+    }
+    
+    return Response.json({
+        data: response.json,
+        cached: false,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Webhook notification
+registerHandler("POST", "/api/notify", (req) => {
+    const { message, channel } = JSON.parse(req.body || "{}");
+    
+    // Send to Slack webhook
+    const slackResponse = fetch("https://hooks.slack.com/services/YOUR/WEBHOOK/URL", {
+        method: "POST",
+        body: {
+            text: message,
+            channel: channel || "#general"
+        }
+    });
+    
+    if (slackResponse.ok) {
+        console.log("Notification sent successfully");
+        return Response.json({ success: true });
+    } else {
+        console.error("Slack notification failed:", slackResponse.body);
+        return Response.error("Notification failed", 500);
+    }
+});
+
+// Proxy endpoint with transformation
+registerHandler("GET", "/api/weather/:city", (req) => {
+    const city = req.params.city;
+    const apiKey = globalState.weatherApiKey;
+    
+    const weather = fetch(`https://api.openweathermap.org/data/2.5/weather`, {
+        query: {
+            q: city,
+            appid: apiKey,
+            units: "metric"
+        }
+    });
+    
+    if (!weather.ok) {
+        return Response.error("Weather data unavailable", 404);
+    }
+    
+    // Transform the response
+    return Response.json({
+        city: weather.json.name,
+        temperature: weather.json.main.temp,
+        description: weather.json.weather[0].description,
+        humidity: weather.json.main.humidity,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Multi-service aggregation
+registerHandler("GET", "/api/dashboard-data", () => {
+    // Fetch data from multiple APIs in parallel
+    const userStats = fetch("https://api.internal.com/user-stats");
+    const systemMetrics = fetch("https://monitoring.example.com/metrics", {
+        headers: { "Authorization": "Bearer " + globalState.monitoringToken }
+    });
+    const externalData = fetch("https://api.third-party.com/summary");
+    
+    return Response.json({
+        users: userStats.ok ? userStats.json : { error: "unavailable" },
+        system: systemMetrics.ok ? systemMetrics.json : { error: "unavailable" },
+        external: externalData.ok ? externalData.json : { error: "unavailable" },
+        generated: new Date().toISOString()
+    });
+});
+```
+
+### Request Configuration Examples
+
+```javascript
+// Custom headers and authentication
+const authResponse = fetch("https://api.secure-service.com/data", {
+    headers: {
+        "Authorization": "Bearer " + globalState.accessToken,
+        "X-API-Version": "2.0",
+        "Accept": "application/json",
+        "User-Agent": "MyServer/1.0"
+    }
+});
+
+// File upload simulation (form data)
+const uploadResponse = fetch("https://upload.example.com/files", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Filename": "data.json"
+    },
+    body: JSON.stringify({ data: "file content" })
+});
+
+// Query parameter variations
+const searchResults = fetch("https://api.search.com/query", {
+    query: {
+        q: "javascript",
+        type: ["code", "docs"],     // Multiple values: ?type=code&type=docs
+        limit: 20,
+        sort: "relevance"
+    }
+});
+
+// Timeout and retry logic
+function fetchWithRetry(url, options, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+        const response = fetch(url, { ...options, timeout: 5 });
+        if (response.ok) {
+            return response;
+        }
+        console.warn(`Request failed, attempt ${i + 1}/${maxRetries}`);
+    }
+    throw new Error("Max retries exceeded");
+}
+```
+
+### Integration with Database
+
+```javascript
+// Cache external API responses in database
+registerHandler("GET", "/api/cached-data/:id", (req) => {
+    const id = req.params.id;
+    
+    // Check cache first
+    const cached = db.query("SELECT * FROM api_cache WHERE id = ? AND expires_at > datetime('now')", [id]);
+    if (cached.length > 0) {
+        console.log("Returning cached data for", id);
+        return Response.json(JSON.parse(cached[0].data));
+    }
+    
+    // Fetch fresh data
+    const response = fetch(`https://api.external.com/items/${id}`);
+    if (!response.ok) {
+        return Response.error("External API error", response.status);
+    }
+    
+    // Cache the response for 1 hour
+    const expiresAt = new Date(Date.now() + 3600000).toISOString();
+    db.exec("INSERT OR REPLACE INTO api_cache (id, data, expires_at) VALUES (?, ?, ?)", 
+            [id, JSON.stringify(response.json), expiresAt]);
+    
+    return Response.json(response.json);
+});
+
+// Sync external data to local database
+registerHandler("POST", "/api/sync-users", () => {
+    const response = fetch("https://api.hr-system.com/employees", {
+        headers: {
+            "Authorization": "Bearer " + globalState.hrApiToken
+        }
+    });
+    
+    if (!response.ok) {
+        return Response.error("Failed to fetch employee data", 500);
+    }
+    
+    let syncCount = 0;
+    response.json.employees.forEach(emp => {
+        const result = db.exec(`
+            INSERT OR REPLACE INTO users (external_id, name, email, department) 
+            VALUES (?, ?, ?, ?)
+        `, [emp.id, emp.full_name, emp.email, emp.department]);
+        
+        if (result.success) syncCount++;
+    });
+    
+    console.log(`Synced ${syncCount} employees`);
+    return Response.json({ synced: syncCount, total: response.json.employees.length });
+});
+```
+
+---
+
 ## Console Logging
 
 The console API integrates with the server's structured logging system.
@@ -364,6 +1022,205 @@ registerHandler("POST", "/api/data", (req) => {
         console.error("Data processing failed", { error: error.message });
         return { error: "Processing failed" };
     }
+});
+```
+
+---
+
+## HTTP Utilities and Response Helpers
+
+The JavaScript Playground Server provides convenient HTTP constants and response helper functions to make building APIs easier and more expressive.
+
+### HTTP Status Code Constants
+
+```javascript
+// Success codes
+HTTP.OK                    // 200
+HTTP.CREATED               // 201
+HTTP.ACCEPTED              // 202
+HTTP.NO_CONTENT            // 204
+
+// Redirect codes  
+HTTP.MOVED_PERMANENTLY     // 301
+HTTP.FOUND                 // 302
+HTTP.NOT_MODIFIED          // 304
+
+// Client error codes
+HTTP.BAD_REQUEST           // 400
+HTTP.UNAUTHORIZED          // 401
+HTTP.FORBIDDEN             // 403
+HTTP.NOT_FOUND             // 404
+HTTP.METHOD_NOT_ALLOWED    // 405
+HTTP.CONFLICT              // 409
+
+// Server error codes
+HTTP.INTERNAL_SERVER_ERROR // 500
+HTTP.NOT_IMPLEMENTED       // 501
+HTTP.BAD_GATEWAY          // 502
+HTTP.SERVICE_UNAVAILABLE   // 503
+```
+
+### Response Helper Functions
+
+#### `Response.json(data [, status])`
+
+Creates a JSON response with proper content type.
+
+```javascript
+// Simple JSON response
+registerHandler("GET", "/api/users", () => {
+    const users = db.query("SELECT * FROM users");
+    return Response.json(users);
+});
+
+// JSON response with custom status
+registerHandler("POST", "/api/users", (req) => {
+    const userData = JSON.parse(req.body);
+    const result = db.exec("INSERT INTO users (name, email) VALUES (?, ?)", 
+                          [userData.name, userData.email]);
+    
+    return Response.json({
+        success: true,
+        id: result.lastInsertId
+    }, HTTP.CREATED);
+});
+```
+
+#### `Response.text(text [, status])`
+
+Creates a plain text response.
+
+```javascript
+registerHandler("GET", "/health", () => {
+    return Response.text("OK");
+});
+
+registerHandler("GET", "/robots.txt", () => {
+    return Response.text(`User-agent: *
+Disallow: /admin/
+Allow: /api/`);
+});
+```
+
+#### `Response.html(html [, status])`
+
+Creates an HTML response with proper content type.
+
+```javascript
+registerHandler("GET", "/dashboard", () => {
+    const userCount = db.query("SELECT COUNT(*) as count FROM users")[0].count;
+    
+    return Response.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Dashboard</title></head>
+        <body>
+            <h1>Dashboard</h1>
+            <p>Total Users: ${userCount}</p>
+        </body>
+        </html>
+    `);
+});
+```
+
+#### `Response.redirect(url [, status])`
+
+Creates a redirect response.
+
+```javascript
+// Temporary redirect (302)
+registerHandler("GET", "/old-url", () => {
+    return Response.redirect("/new-url");
+});
+
+// Permanent redirect (301)
+registerHandler("GET", "/legacy", () => {
+    return Response.redirect("/new-path", HTTP.MOVED_PERMANENTLY);
+});
+
+// External redirect
+registerHandler("GET", "/external", () => {
+    return Response.redirect("https://example.com");
+});
+```
+
+#### `Response.error(message [, status])`
+
+Creates a standardized error response.
+
+```javascript
+registerHandler("GET", "/api/protected", (req) => {
+    if (!req.headers.authorization) {
+        return Response.error("Authorization required", HTTP.UNAUTHORIZED);
+    }
+    
+    // Process request...
+    return Response.json({ data: "secret information" });
+});
+
+registerHandler("POST", "/api/users", (req) => {
+    try {
+        const userData = JSON.parse(req.body);
+        if (!userData.email) {
+            return Response.error("Email is required", HTTP.BAD_REQUEST);
+        }
+        
+        // Create user...
+        return Response.json({ success: true }, HTTP.CREATED);
+    } catch (e) {
+        return Response.error("Invalid JSON", HTTP.BAD_REQUEST);
+    }
+});
+```
+
+### Advanced Response Examples
+
+```javascript
+// Combining helpers with enhanced response objects
+registerHandler("POST", "/api/login", (req) => {
+    const { username, password } = JSON.parse(req.body || "{}");
+    
+    if (username === "admin" && password === "secret") {
+        // Success with session cookie
+        return {
+            ...Response.json({ 
+                success: true, 
+                user: { username, role: "admin" } 
+            }),
+            cookies: [{
+                name: "session",
+                value: generateSessionToken(),
+                path: "/",
+                maxAge: 3600,
+                httpOnly: true,
+                secure: true
+            }]
+        };
+    }
+    
+    return Response.error("Invalid credentials", HTTP.UNAUTHORIZED);
+});
+
+// Content negotiation example
+registerHandler("GET", "/api/data", (req) => {
+    const data = db.query("SELECT * FROM items");
+    const accept = req.headers.accept || "";
+    
+    if (accept.includes("text/csv")) {
+        let csv = "id,name,value\n";
+        data.forEach(item => {
+            csv += `${item.id},"${item.name}",${item.value}\n`;
+        });
+        return {
+            body: csv,
+            contentType: "text/csv",
+            headers: {
+                "content-disposition": "attachment; filename=data.csv"
+            }
+        };
+    }
+    
+    return Response.json(data);
 });
 ```
 
@@ -480,19 +1337,19 @@ registerHandler("POST", "/api/process", (req) => {
 ### Custom Utility Functions
 
 ```javascript
-// Add to globalThis for reusability
-globalThis.formatDate = (date) => {
+// Define reusable utility functions (safe for re-execution)
+function formatDate(date) {
     return new Date(date).toISOString().split('T')[0];
-};
+}
 
-globalThis.generateId = () => {
+function generateId() {
     return Math.random().toString(36).substr(2, 9);
-};
+}
 
-globalThis.validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function validateEmail(email) {
+    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
-};
+}
 
 // Use in handlers
 registerHandler("POST", "/api/users", (req) => {

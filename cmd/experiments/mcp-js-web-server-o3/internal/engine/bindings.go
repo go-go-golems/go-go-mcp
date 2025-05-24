@@ -24,6 +24,9 @@ func (e *Engine) setupBindings() {
 	// HTTP utilities and constants
 	e.setupHTTPUtilities()
 
+	// HTTP request bindings
+	e.setupHTTPBindings()
+
 	// Console logging
 	e.rt.Set("console", map[string]interface{}{
 		"log":   e.consoleLog,
@@ -154,6 +157,12 @@ func (e *Engine) consoleLog(args ...interface{}) {
 		fmt.Fprint(os.Stderr, arg)
 	}
 	fmt.Fprintln(os.Stderr)
+
+	// Also log to request logger if we have a current request
+	if e.currentReqID != "" {
+		message := fmt.Sprintf("%v", args)
+		e.reqLogger.AddLog(e.currentReqID, "log", message, args)
+	}
 }
 
 // consoleError provides console.error functionality
@@ -167,6 +176,12 @@ func (e *Engine) consoleError(args ...interface{}) {
 		fmt.Fprint(os.Stderr, arg)
 	}
 	fmt.Fprintln(os.Stderr)
+
+	// Also log to request logger if we have a current request
+	if e.currentReqID != "" {
+		message := fmt.Sprintf("%v", args)
+		e.reqLogger.AddLog(e.currentReqID, "error", message, args)
+	}
 }
 
 // consoleInfo provides console.info functionality
@@ -180,6 +195,12 @@ func (e *Engine) consoleInfo(args ...interface{}) {
 		fmt.Fprint(os.Stderr, arg)
 	}
 	fmt.Fprintln(os.Stderr)
+
+	// Also log to request logger if we have a current request
+	if e.currentReqID != "" {
+		message := fmt.Sprintf("%v", args)
+		e.reqLogger.AddLog(e.currentReqID, "info", message, args)
+	}
 }
 
 // consoleWarn provides console.warn functionality
@@ -193,6 +214,12 @@ func (e *Engine) consoleWarn(args ...interface{}) {
 		fmt.Fprint(os.Stderr, arg)
 	}
 	fmt.Fprintln(os.Stderr)
+
+	// Also log to request logger if we have a current request
+	if e.currentReqID != "" {
+		message := fmt.Sprintf("%v", args)
+		e.reqLogger.AddLog(e.currentReqID, "warn", message, args)
+	}
 }
 
 // consoleDebug provides console.debug functionality
@@ -206,6 +233,12 @@ func (e *Engine) consoleDebug(args ...interface{}) {
 		fmt.Fprint(os.Stderr, arg)
 	}
 	fmt.Fprintln(os.Stderr)
+
+	// Also log to request logger if we have a current request
+	if e.currentReqID != "" {
+		message := fmt.Sprintf("%v", args)
+		e.reqLogger.AddLog(e.currentReqID, "debug", message, args)
+	}
 }
 
 // jsonStringify provides JSON.stringify functionality

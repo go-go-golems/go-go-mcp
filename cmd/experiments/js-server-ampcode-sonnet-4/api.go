@@ -34,7 +34,7 @@ func loadJavaScriptFiles(server *jsserver.JSWebServer, dir string) error {
 
 		// Extract filename without extension for name
 		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		
+
 		// Execute the JavaScript file via HTTP API
 		req := jsserver.ExecuteRequest{
 			Code:    string(content),
@@ -53,7 +53,7 @@ func loadJavaScriptFiles(server *jsserver.JSWebServer, dir string) error {
 
 		var response jsserver.ExecuteResponse
 		json.NewDecoder(resp.Body).Decode(&response)
-		
+
 		if response.Success {
 			log.Printf("Loaded JavaScript file: %s", path)
 		} else {
@@ -120,7 +120,7 @@ func getState(cmd *cobra.Command, args []string) error {
 
 func setState(cmd *cobra.Command, args []string) error {
 	key, value := args[0], args[1]
-	
+
 	// Try to parse value as JSON, otherwise treat as string
 	var jsonValue interface{}
 	if err := json.Unmarshal([]byte(value), &jsonValue); err != nil {
@@ -149,7 +149,7 @@ func getStatus(cmd *cobra.Command, args []string) error {
 
 func loadDirectory(cmd *cobra.Command, args []string) error {
 	dir := args[0]
-	
+
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -167,7 +167,7 @@ func loadDirectory(cmd *cobra.Command, args []string) error {
 
 		// Extract filename without extension for name
 		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		
+
 		req := jsserver.ExecuteRequest{
 			Code:    string(content),
 			Persist: true,

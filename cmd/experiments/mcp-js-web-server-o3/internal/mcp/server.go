@@ -15,8 +15,8 @@ import (
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/web"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
-	"github.com/gorilla/mux"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -125,7 +125,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 	// Save the code to a file with timestamp
 	timestamp := time.Now().Format("2006-01-02T15-04-05")
 	filename := fmt.Sprintf("scripts/mcp-exec-%s.js", timestamp)
-	
+
 	// Ensure scripts directory exists
 	if err := os.MkdirAll("scripts", 0755); err != nil {
 		log.Warn().Err(err).Msg("Failed to create scripts directory")
@@ -260,11 +260,11 @@ func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*pr
 
 		// Create response with result and console output
 		responseData := map[string]interface{}{
-			"success":     true,
-			"result":      result.Value,
-			"consoleLog":  result.ConsoleLog,
+			"success":      true,
+			"result":       result.Value,
+			"consoleLog":   result.ConsoleLog,
 			"executedFile": filePath,
-			"message":     fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created.", filepath.Base(filePath)),
+			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created.", filepath.Base(filePath)),
 		}
 
 		// Convert to JSON

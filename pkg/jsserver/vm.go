@@ -11,10 +11,10 @@ import (
 
 func (s *JSWebServer) initJavaScript() error {
 	s.vm = goja.New()
-	
+
 	// Set up timeout for JavaScript execution
 	s.vm.SetMaxCallStackSize(1000)
-	
+
 	// Initialize JavaScript context with our APIs
 	if err := s.setupJSBindings(); err != nil {
 		return errors.Wrap(err, "failed to setup JavaScript bindings")
@@ -26,7 +26,7 @@ func (s *JSWebServer) initJavaScript() error {
 func (s *JSWebServer) executeJavaScript(req ExecuteRequest) ExecuteResponse {
 	start := time.Now()
 	executionID := fmt.Sprintf("%s-%d", start.Format("2006-01-02T15:04:05Z"), start.UnixNano())
-	
+
 	response := ExecuteResponse{
 		ExecutionID: executionID,
 	}
@@ -34,7 +34,7 @@ func (s *JSWebServer) executeJavaScript(req ExecuteRequest) ExecuteResponse {
 	// Create a new VM instance for this execution to avoid state pollution
 	vm := goja.New()
 	vm.SetMaxCallStackSize(1000)
-	
+
 	// Setup bindings for this execution
 	if err := s.setupJSBindingsForVM(vm); err != nil {
 		response.Error = fmt.Sprintf("Failed to setup JavaScript bindings: %v", err)

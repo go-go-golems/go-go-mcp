@@ -77,7 +77,7 @@ func (s *JSWebServer) storeExecution(id, code, result string, success bool, arch
 		INSERT INTO executions (id, code, result, success, archived_file)
 		VALUES (?, ?, ?, ?, ?)
 	`
-	
+
 	_, err := s.db.Exec(query, id, code, result, success, archivedFile)
 	if err != nil {
 		return errors.Wrap(err, "failed to store execution")
@@ -123,7 +123,7 @@ func (s *JSWebServer) saveState(key string, value interface{}) error {
 
 func (s *JSWebServer) loadState() error {
 	query := `SELECT key, value, type FROM global_state`
-	
+
 	rows, err := s.db.Query(query)
 	if err != nil {
 		return errors.Wrap(err, "failed to query state")

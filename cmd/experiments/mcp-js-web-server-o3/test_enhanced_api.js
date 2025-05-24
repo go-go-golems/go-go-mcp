@@ -1,4 +1,5 @@
 // Test script for enhanced HTTP API features
+// Note: Uses global scope execution - safe for re-execution
 
 console.log("Setting up enhanced API test endpoints...");
 

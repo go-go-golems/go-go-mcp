@@ -216,7 +216,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 		if loadDir != "" {
 			log.Printf("Will load JavaScript files from: %s", loadDir)
 		}
-		
+
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed to start: %v", err)
 		}

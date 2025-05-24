@@ -15,19 +15,21 @@ import (
 
 // Engine wraps the JavaScript runtime and SQLite connection
 type Engine struct {
-	rt       *goja.Runtime
-	db       *sql.DB
-	jobs     chan EvalJob
-	handlers map[string]map[string]*HandlerInfo // [path][method] -> handler info
-	files    map[string]goja.Callable           // [path] -> file handler
-	mu       sync.RWMutex
+	rt           *goja.Runtime
+	db           *sql.DB
+	jobs         chan EvalJob
+	handlers     map[string]map[string]*HandlerInfo // [path][method] -> handler info
+	files        map[string]goja.Callable           // [path] -> file handler
+	mu           sync.RWMutex
+	reqLogger    *RequestLogger // Request logger for admin interface
+	currentReqID string         // Track current request ID for logging
 }
 
 // HandlerInfo contains handler function and metadata
 type HandlerInfo struct {
-	Fn          goja.Callable              // JavaScript function
-	ContentType string                     // MIME type override
-	Options     map[string]interface{}     // Handler options (middleware, auth, etc.)
+	Fn          goja.Callable          // JavaScript function
+	ContentType string                 // MIME type override
+	Options     map[string]interface{} // Handler options (middleware, auth, etc.)
 }
 
 // EvalJob represents a JavaScript evaluation job
@@ -63,11 +65,12 @@ func NewEngine(dbPath string) *Engine {
 	log.Debug().Str("database", dbPath).Msg("Database connection established")
 
 	e := &Engine{
-		rt:       rt,
-		db:       db,
-		jobs:     make(chan EvalJob, 1024),
-		handlers: make(map[string]map[string]*HandlerInfo),
-		files:    make(map[string]goja.Callable),
+		rt:        rt,
+		db:        db,
+		jobs:      make(chan EvalJob, 1024),
+		handlers:  make(map[string]map[string]*HandlerInfo),
+		files:     make(map[string]goja.Callable),
+		reqLogger: NewRequestLogger(100), // Keep last 100 requests
 	}
 
 	// Setup JavaScript bindings
@@ -91,11 +94,14 @@ func (e *Engine) Init(filename string) error {
 		log.Debug().Str("file", filename).Msg("Bootstrap file doesn't exist, creating default")
 
 		// Create default bootstrap file
-		bootstrap := `let globalCounter = 0;
+		bootstrap := `// Initialize global counter (safe for re-execution)
+if (!globalState.counter) {
+    globalState.counter = 0;
+}
 
 registerHandler("GET", "/", () => "JS playground online");
-registerHandler("GET", "/health", () => ({ok: true, counter: globalCounter}));
-registerHandler("POST", "/counter", () => ({count: ++globalCounter}));
+registerHandler("GET", "/health", () => ({ok: true, counter: globalState.counter}));
+registerHandler("POST", "/counter", () => ({count: ++globalState.counter}));
 
 console.log("Bootstrap complete - server ready");`
 
@@ -144,16 +150,15 @@ func (e *Engine) SubmitJob(job EvalJob) {
 	e.jobs <- job
 }
 
-// executeCode executes JavaScript code directly, wrapped in a function scope
-func (e *Engine) executeCode(code string) error {
-	// Wrap code in an IIFE to prevent variable conflicts on re-execution
-	wrappedCode := `(function() {
-		"use strict";
-		` + code + `
-	})();`
+// GetRequestLogger returns the request logger for admin interface
+func (e *Engine) GetRequestLogger() *RequestLogger {
+	return e.reqLogger
+}
 
-	log.Debug().Str("wrapped_code", wrappedCode).Msg("Executing wrapped JavaScript code")
-	_, err := e.rt.RunString(wrappedCode)
+// executeCode executes JavaScript code directly in the global scope
+func (e *Engine) executeCode(code string) error {
+	log.Debug().Str("code", code).Msg("Executing JavaScript code")
+	_, err := e.rt.RunString(code)
 	return err
 }
 
@@ -167,17 +172,9 @@ func (e *Engine) executeCodeWithResult(code string) (*EvalResult, error) {
 	originalConsole := e.captureConsole(result)
 	defer e.restoreConsole(originalConsole)
 
-	// Wrap code in an IIFE to prevent variable conflicts on re-execution
-	wrappedCode := `(function() {
-		"use strict";
-		return (function() {
-			` + code + `
-		})();
-	})();`
+	log.Debug().Str("code", code).Msg("Executing JavaScript code with result capture")
 
-	log.Debug().Str("wrapped_code", wrappedCode).Msg("Executing wrapped JavaScript code with result capture")
-
-	value, err := e.rt.RunString(wrappedCode)
+	value, err := e.rt.RunString(code)
 	if err != nil {
 		result.Error = err
 		return result, err
@@ -221,12 +218,12 @@ func (e *Engine) initScriptsTables() error {
 	CREATE INDEX IF NOT EXISTS idx_script_executions_timestamp ON script_executions(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_script_executions_source ON script_executions(source);
 	`
-	
+
 	_, err := e.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to create scripts tables: %w", err)
 	}
-	
+
 	log.Debug().Msg("Script storage tables initialized")
 	return nil
 }
@@ -237,12 +234,12 @@ func (e *Engine) StoreScriptExecution(sessionID, code, result, consoleLog, error
 	INSERT INTO script_executions (session_id, code, result, console_log, error, source)
 	VALUES (?, ?, ?, ?, ?, ?)
 	`
-	
+
 	_, err := e.db.Exec(query, sessionID, code, result, consoleLog, errorMsg, source)
 	if err != nil {
 		return fmt.Errorf("failed to store script execution: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -252,25 +249,25 @@ func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int
 	var whereClause string
 	var args []interface{}
 	var conditions []string
-	
+
 	if search != "" {
 		conditions = append(conditions, "(code LIKE ? OR result LIKE ? OR console_log LIKE ?)")
 		searchTerm := "%" + search + "%"
 		args = append(args, searchTerm, searchTerm, searchTerm)
 	}
-	
+
 	if sessionID != "" {
 		conditions = append(conditions, "session_id = ?")
 		args = append(args, sessionID)
 	}
-	
+
 	if len(conditions) > 0 {
 		whereClause = "WHERE " + conditions[0]
 		for i := 1; i < len(conditions); i++ {
 			whereClause += " AND " + conditions[i]
 		}
 	}
-	
+
 	// Get total count
 	countQuery := "SELECT COUNT(*) FROM script_executions " + whereClause
 	var total int
@@ -278,7 +275,7 @@ func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
 	}
-	
+
 	// Get paginated results
 	query := fmt.Sprintf(`
 	SELECT id, session_id, code, result, console_log, error, timestamp, source 
@@ -286,30 +283,30 @@ func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int
 	ORDER BY timestamp DESC 
 	LIMIT ? OFFSET ?
 	`, whereClause)
-	
+
 	args = append(args, limit, offset)
 	rows, err := e.db.Query(query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query script executions: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var executions []ScriptExecution
 	for rows.Next() {
 		var exec ScriptExecution
 		var result, consoleLog, errorStr sql.NullString
-		
+
 		err := rows.Scan(&exec.ID, &exec.SessionID, &exec.Code, &result, &consoleLog, &errorStr, &exec.Timestamp, &exec.Source)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan row: %w", err)
 		}
-		
+
 		exec.Result = result.String
 		exec.ConsoleLog = consoleLog.String
 		exec.Error = errorStr.String
-		
+
 		executions = append(executions, exec)
 	}
-	
+
 	return executions, total, nil
 }

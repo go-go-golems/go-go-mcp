@@ -26,7 +26,7 @@ func (s *JSWebServer) executeJSHandler(handler goja.Value, w http.ResponseWriter
 	if err != nil {
 		// Log the error
 		fmt.Printf("JavaScript handler error: %v\n", err)
-		
+
 		// Return error response if headers haven't been written
 		if !isResponseWritten(w) {
 			http.Error(w, fmt.Sprintf("JavaScript handler error: %v", err), http.StatusInternalServerError)
@@ -54,7 +54,7 @@ func (s *JSWebServer) executeJSFileGenerator(file JSFile, w http.ResponseWriter,
 	if err != nil {
 		// Log the error
 		fmt.Printf("JavaScript file generator error: %v\n", err)
-		
+
 		// Return error response
 		http.Error(w, fmt.Sprintf("File generator error: %v", err), http.StatusInternalServerError)
 		return
@@ -167,15 +167,15 @@ func (s *JSWebServer) handleCleanup(w http.ResponseWriter, r *http.Request) {
 // Add these new endpoints to the server setup
 func (s *JSWebServer) setupExtendedAPIRoutes() {
 	api := s.router.PathPrefix("/api").Subrouter()
-	
+
 	// Archive management
 	api.HandleFunc("/archive", s.handleGetArchivedFiles).Methods("GET")
 	api.HandleFunc("/archive/{filename}", s.handleGetArchivedFile).Methods("GET")
 	api.HandleFunc("/archive/{filename}", s.handleDeleteArchivedFile).Methods("DELETE")
-	
+
 	// Execution history
 	api.HandleFunc("/executions", s.handleGetExecutionHistory).Methods("GET")
-	
+
 	// Cleanup
 	api.HandleFunc("/cleanup", s.handleCleanup).Methods("POST")
 }
