@@ -10,6 +10,21 @@
 - [ ] reload last sessions JS to recreate the full app as it was (all the code in a session?). Or maybe store which code was used for rest handlers and all that.
 - [ ] make sure session ID is scoped to MCP
 - [ ] Add view with all the code from a single session
+- [ ] Give some name to the code so that it can be used for debugging: TypeError: Value is not object coercible at <eval>:82:47(3)
+
+- [ ] req.body is apparently a string, not a parsed object (prompt? funcitonality?)
+- [ ] give better error messages showing the relevant code as well instead of <eval>
+- [ ] function to retrieve logs maybe?
+- [ ] allow for a richer o-TTP API allowing redirects and all that
+- [ ] Output registered endpoints
+- [ ] Allow for defining functions that can be used across executeJS calls (sadly we have the wrapped stuff right now, maybe we could parse for let / const?)
+- [ ] allow querying the logs as well
+- [ ] allow call for querying the endpoints to do debugging
+- [ ] allow to load plugins / interface with external APIs
+- [ ] get errors back from db.exec / db.query
+- [ ] catch panics
+- [ ] allow for a repl to a session on the CLI as well
+- [ ] unit test suite for the JS too
 
 ## Features
 

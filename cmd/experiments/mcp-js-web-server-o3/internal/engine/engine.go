@@ -25,8 +25,9 @@ type Engine struct {
 
 // HandlerInfo contains handler function and metadata
 type HandlerInfo struct {
-	Fn          goja.Callable // JavaScript function
-	ContentType string        // MIME type override
+	Fn          goja.Callable              // JavaScript function
+	ContentType string                     // MIME type override
+	Options     map[string]interface{}     // Handler options (middleware, auth, etc.)
 }
 
 // EvalJob represents a JavaScript evaluation job

@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dop251/goja"
 	"github.com/rs/zerolog/log"
 )
 
@@ -21,6 +20,9 @@ func (e *Engine) setupBindings() {
 	// Handler registration
 	e.rt.Set("registerHandler", e.registerHandler)
 	e.rt.Set("registerFile", e.registerFile)
+
+	// HTTP utilities and constants
+	e.setupHTTPUtilities()
 
 	// Console logging
 	e.rt.Set("console", map[string]interface{}{
@@ -139,54 +141,6 @@ func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{
 		"rowsAffected": rowsAffected,
 		"lastInsertId": lastInsertId,
 	}
-}
-
-// registerHandler registers an HTTP handler function
-// Usage: registerHandler(method, path, handler [, contentType])
-func (e *Engine) registerHandler(method, path string, handler goja.Value, args ...goja.Value) {
-	callable, ok := goja.AssertFunction(handler)
-	if !ok {
-		panic(e.rt.NewTypeError("Handler must be a function"))
-	}
-
-	// Optional content type parameter
-	var contentType string
-	if len(args) > 0 && !goja.IsUndefined(args[0]) && !goja.IsNull(args[0]) {
-		contentType = args[0].String()
-	}
-
-	handlerInfo := &HandlerInfo{
-		Fn:          callable,
-		ContentType: contentType,
-	}
-
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.handlers[path] == nil {
-		e.handlers[path] = make(map[string]*HandlerInfo)
-	}
-	e.handlers[path][method] = handlerInfo
-
-	if contentType != "" {
-		log.Info().Str("method", method).Str("path", path).Str("content-type", contentType).Msg("Registered HTTP handler with content type")
-	} else {
-		log.Info().Str("method", method).Str("path", path).Msg("Registered HTTP handler")
-	}
-}
-
-// registerFile registers a file handler function
-func (e *Engine) registerFile(path string, handler goja.Value) {
-	callable, ok := goja.AssertFunction(handler)
-	if !ok {
-		panic(e.rt.NewTypeError("File handler must be a function"))
-	}
-
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	e.files[path] = callable
-	log.Info().Str("path", path).Msg("Registered file handler")
 }
 
 // consoleLog provides console.log functionality

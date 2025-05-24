@@ -45,7 +45,7 @@ func (e *Engine) processJob(job EvalJob) {
 		log.Debug().Str("code", job.Code).Msg("Executing raw JavaScript code")
 		var result *EvalResult
 		var execErr error
-		
+
 		if job.Result != nil {
 			// Execute with result capture
 			result, execErr = e.executeCodeWithResult(job.Code)
@@ -57,7 +57,7 @@ func (e *Engine) processJob(job EvalJob) {
 			// Execute without result capture (legacy mode)
 			err = e.executeCode(job.Code)
 		}
-		
+
 		// Store execution in database
 		e.storeExecution(job, result, execErr)
 
@@ -82,8 +82,8 @@ func (e *Engine) processJob(job EvalJob) {
 func (e *Engine) executeHandler(job EvalJob) error {
 	log.Debug().Str("method", job.R.Method).Str("path", job.R.URL.Path).Msg("Executing JavaScript handler")
 
-	// Create request object for JavaScript
-	reqObj := e.createRequestObject(job.R)
+	// Create enhanced request object for JavaScript
+	reqObj := e.createEnhancedRequestObject(job.R)
 
 	// Call the JavaScript function
 	result, err := job.Handler.Fn(goja.Undefined(), e.rt.ToValue(reqObj))
@@ -98,92 +98,8 @@ func (e *Engine) executeHandler(job EvalJob) error {
 
 	log.Debug().Str("method", job.R.Method).Str("path", job.R.URL.Path).Msg("Handler executed successfully")
 
-	// Process the result
-	return e.writeResponse(job.W, result, job.Handler.ContentType)
-}
-
-// createRequestObject creates a JavaScript-compatible request object
-func (e *Engine) createRequestObject(r *http.Request) map[string]interface{} {
-	// Parse query parameters
-	query := make(map[string]interface{})
-	for k, v := range r.URL.Query() {
-		if len(v) == 1 {
-			query[k] = v[0]
-		} else {
-			query[k] = v
-		}
-	}
-
-	// Parse headers
-	headers := make(map[string]interface{})
-	for k, v := range r.Header {
-		if len(v) == 1 {
-			headers[k] = v[0]
-		} else {
-			headers[k] = v
-		}
-	}
-
-	return map[string]interface{}{
-		"method":  r.Method,
-		"url":     r.URL.String(),
-		"path":    r.URL.Path,
-		"query":   query,
-		"headers": headers,
-	}
-}
-
-// writeResponse writes the JavaScript result to the HTTP response
-func (e *Engine) writeResponse(w http.ResponseWriter, result goja.Value, contentTypeOverride ...string) error {
-	if result == nil || goja.IsUndefined(result) {
-		w.WriteHeader(http.StatusNoContent)
-		return nil
-	}
-
-	exported := result.Export()
-
-	switch v := exported.(type) {
-	case []byte:
-		// Raw bytes - write directly
-		w.Header().Set("Content-Type", "application/octet-stream")
-		_, err := w.Write(v)
-		return err
-	case string:
-		// String response - use override or detect content type
-		var contentType string
-		if len(contentTypeOverride) > 0 && contentTypeOverride[0] != "" {
-			contentType = contentTypeOverride[0]
-		} else {
-			contentType = "text/plain; charset=utf-8"
-			if isHTML(v) {
-				contentType = "text/html; charset=utf-8"
-			} else if isJSON(v) {
-				contentType = "application/json"
-			}
-		}
-		w.Header().Set("Content-Type", contentType)
-		_, err := w.Write([]byte(v))
-		return err
-	default:
-		// JSON response
-		w.Header().Set("Content-Type", "application/json")
-		return json.NewEncoder(w).Encode(v)
-	}
-}
-
-// isHTML checks if a string appears to be HTML content
-func isHTML(s string) bool {
-	trimmed := strings.TrimSpace(s)
-	return strings.HasPrefix(strings.ToLower(trimmed), "<!doctype html") ||
-		strings.HasPrefix(strings.ToLower(trimmed), "<html") ||
-		strings.HasPrefix(trimmed, "<!")
-}
-
-// isJSON checks if a string appears to be JSON content
-func isJSON(s string) bool {
-	trimmed := strings.TrimSpace(s)
-	return (strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")) ||
-		(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]"))
+	// Process the result with enhanced response handling
+	return e.writeEnhancedResponse(job.W, result, job.Handler.ContentType)
 }
 
 // storeExecution stores the script execution results in the database
@@ -191,19 +107,19 @@ func (e *Engine) storeExecution(job EvalJob, result *EvalResult, execErr error) 
 	if job.Code == "" {
 		return // Don't store handler executions, only code executions
 	}
-	
+
 	sessionID := job.SessionID
 	if sessionID == "" {
 		sessionID = "unknown"
 	}
-	
+
 	source := job.Source
 	if source == "" {
 		source = "api"
 	}
-	
+
 	var resultStr, consoleLogStr, errorStr string
-	
+
 	if result != nil {
 		if result.Value != nil {
 			if resultBytes, err := json.Marshal(result.Value); err == nil {
@@ -212,11 +128,11 @@ func (e *Engine) storeExecution(job EvalJob, result *EvalResult, execErr error) 
 		}
 		consoleLogStr = strings.Join(result.ConsoleLog, "\n")
 	}
-	
+
 	if execErr != nil {
 		errorStr = execErr.Error()
 	}
-	
+
 	if err := e.StoreScriptExecution(sessionID, job.Code, resultStr, consoleLogStr, errorStr, source); err != nil {
 		log.Warn().Err(err).Msg("Failed to store script execution")
 	} else {

@@ -63,8 +63,16 @@ The JavaScript Playground Server provides a rich API for creating dynamic web ap
 - `db.exec(sql, ...args)` - Execute INSERT/UPDATE/DELETE/CREATE, returns {success, rowsAffected, lastInsertId}
 
 ### HTTP Handlers
-- `registerHandler(method, path, handler [, contentType])` - Register HTTP endpoint
+- `registerHandler(method, path, handler [, options])` - Register HTTP endpoint with enhanced features
 - `registerFile(path, handler)` - Register file endpoint
+
+### HTTP Constants & Helpers
+- `HTTP.OK`, `HTTP.CREATED`, `HTTP.NOT_FOUND`, `HTTP.INTERNAL_SERVER_ERROR`, etc. - Status code constants
+- `Response.json(data [, status])` - Create JSON response
+- `Response.text(text [, status])` - Create text response  
+- `Response.html(html [, status])` - Create HTML response
+- `Response.redirect(url [, status])` - Create redirect response
+- `Response.error(message [, status])` - Create error response
 
 ### Console
 - `console.log(...)`, `console.info(...)`, `console.warn(...)`, `console.error(...)`, `console.debug(...)`
@@ -73,11 +81,11 @@ The JavaScript Playground Server provides a rich API for creating dynamic web ap
 - `globalState` - Persistent object across executions
 - `JSON.stringify(obj)`, `JSON.parse(str)` - JSON utilities
 
-### Handler Function
+### Enhanced Handler Function
 ```javascript
 function handler(request) {
-  // request: {method, url, path, query, headers}
-  return response; // object, string, or Uint8Array
+  // Enhanced request: {method, url, path, query, headers, body, params, cookies, remoteIP}
+  return response; // object, string, Uint8Array, or ResponseObject
 }
 ```
 
@@ -108,43 +116,157 @@ registerHandler("GET", "/visitors", () => ({
 
 ## HTTP Handler Registration
 
-### `registerHandler(method, path, handler [, contentType])`
+### `registerHandler(method, path, handler [, options])`
 
 Registers an HTTP endpoint that will be handled by a JavaScript function.
 
 **Parameters:**
 - `method` (string): HTTP method (`GET`, `POST`, `PUT`, `DELETE`, etc.)
-- `path` (string): URL path (e.g., `/api/users`, `/health`)
+- `path` (string): URL path (e.g., `/api/users`, `/health`, `/users/:id`)
 - `handler` (function): JavaScript function to handle requests
-- `contentType` (string, optional): MIME type for the response
+- `options` (object|string, optional): Handler options or content type string for backward compatibility
 
 **Handler Function Signature:**
 ```javascript
 function handler(request) {
-    // request object contains: method, url, path, query, headers
-    return response; // Can be object, string, or bytes
+    // Enhanced request object with rich properties
+    return response; // Can be object, string, bytes, or ResponseObject
 }
+```
+
+**Request Object Properties:**
+```javascript
+{
+    method: "GET",           // HTTP method
+    url: "/api/users?page=1", // Full URL with query string
+    path: "/api/users",      // URL path only
+    query: {                 // Parsed query parameters
+        page: "1",           // String values for single params
+        tags: ["a", "b"]     // Array for multiple values
+    },
+    headers: {               // Request headers
+        "content-type": "application/json",
+        "authorization": "Bearer token123"
+    },
+    body: "...",            // Request body as string (for POST/PUT)
+    params: {               // URL path parameters (from patterns like /users/:id)
+        id: "123"
+    },
+    cookies: {              // Request cookies
+        session: "abc123"
+    },
+    remoteIP: "192.168.1.1" // Client IP address
+}
+```
+
+**Response Formats:**
+
+**1. Simple Response (backward compatible):**
+```javascript
+// String response
+return "Hello World";
+
+// JSON response  
+return { message: "success", data: [...] };
+
+// Raw bytes
+return new Uint8Array([...]);
+```
+
+**2. Enhanced Response Object:**
+```javascript
+return {
+    status: 200,                    // HTTP status code (optional, defaults to 200)
+    headers: {                      // Response headers (optional)
+        "x-custom": "value",
+        "cache-control": "no-cache"
+    },
+    body: "Response content",       // Response body (string, object, or bytes)
+    contentType: "text/html",       // Content-Type override (optional)
+    cookies: [{                     // Response cookies (optional)
+        name: "session",
+        value: "abc123",
+        path: "/",
+        domain: "example.com",
+        maxAge: 3600,              // Seconds
+        secure: true,              // HTTPS only
+        httpOnly: true,            // No JavaScript access
+        sameSite: "Strict"         // "Strict", "Lax", or "None"
+    }],
+    redirect: "https://example.com" // Redirect URL (sets 302 status if not specified)
+};
 ```
 
 ### Basic Examples
 
 ```javascript
-// Simple text response
+// Simple text response (backward compatible)
 registerHandler("GET", "/hello", () => "Hello, World!");
 
-// JSON API endpoint
+// JSON API endpoint (backward compatible)
 registerHandler("GET", "/api/status", () => ({
     status: "running",
     timestamp: new Date().toISOString()
 }));
 
-// Handler with request data
-registerHandler("POST", "/api/echo", (req) => ({
-    method: req.method,
-    path: req.path,
-    query: req.query,
-    headers: req.headers
+// Enhanced response with custom status and headers
+registerHandler("GET", "/api/info", () => ({
+    status: 200,
+    headers: {
+        "x-api-version": "1.0",
+        "cache-control": "max-age=3600"
+    },
+    body: {
+        server: "JavaScript Playground",
+        version: "1.0.0",
+        timestamp: new Date().toISOString()
+    }
 }));
+
+// Handler with enhanced request data
+registerHandler("POST", "/api/echo", (req) => ({
+    body: {
+        receivedData: {
+            method: req.method,
+            path: req.path,
+            query: req.query,
+            headers: req.headers,
+            body: req.body,
+            cookies: req.cookies,
+            remoteIP: req.remoteIP
+        }
+    },
+    status: 200,
+    contentType: "application/json"
+}));
+
+// Redirect example
+registerHandler("GET", "/old-page", () => ({
+    redirect: "/new-page",
+    status: 301  // Permanent redirect
+}));
+
+// Cookie example
+registerHandler("POST", "/login", (req) => {
+    const { username, password } = JSON.parse(req.body || "{}");
+    
+    if (username === "admin" && password === "secret") {
+        return {
+            status: 200,
+            body: { success: true, message: "Login successful" },
+            cookies: [{
+                name: "session",
+                value: "abc123",
+                path: "/",
+                maxAge: 3600,
+                httpOnly: true,
+                secure: true
+            }]
+        };
+    }
+    
+    return Response.error("Invalid credentials", 401);
+});
 ```
 
 ### Important: Returning Values from Code Execution
@@ -468,6 +590,205 @@ registerHandler("POST", "/api/data", (req) => {
         console.error("Data processing failed", { error: error.message });
         return { error: "Processing failed" };
     }
+});
+```
+
+---
+
+## HTTP Utilities and Response Helpers
+
+The JavaScript Playground Server provides convenient HTTP constants and response helper functions to make building APIs easier and more expressive.
+
+### HTTP Status Code Constants
+
+```javascript
+// Success codes
+HTTP.OK                    // 200
+HTTP.CREATED               // 201
+HTTP.ACCEPTED              // 202
+HTTP.NO_CONTENT            // 204
+
+// Redirect codes  
+HTTP.MOVED_PERMANENTLY     // 301
+HTTP.FOUND                 // 302
+HTTP.NOT_MODIFIED          // 304
+
+// Client error codes
+HTTP.BAD_REQUEST           // 400
+HTTP.UNAUTHORIZED          // 401
+HTTP.FORBIDDEN             // 403
+HTTP.NOT_FOUND             // 404
+HTTP.METHOD_NOT_ALLOWED    // 405
+HTTP.CONFLICT              // 409
+
+// Server error codes
+HTTP.INTERNAL_SERVER_ERROR // 500
+HTTP.NOT_IMPLEMENTED       // 501
+HTTP.BAD_GATEWAY          // 502
+HTTP.SERVICE_UNAVAILABLE   // 503
+```
+
+### Response Helper Functions
+
+#### `Response.json(data [, status])`
+
+Creates a JSON response with proper content type.
+
+```javascript
+// Simple JSON response
+registerHandler("GET", "/api/users", () => {
+    const users = db.query("SELECT * FROM users");
+    return Response.json(users);
+});
+
+// JSON response with custom status
+registerHandler("POST", "/api/users", (req) => {
+    const userData = JSON.parse(req.body);
+    const result = db.exec("INSERT INTO users (name, email) VALUES (?, ?)", 
+                          [userData.name, userData.email]);
+    
+    return Response.json({
+        success: true,
+        id: result.lastInsertId
+    }, HTTP.CREATED);
+});
+```
+
+#### `Response.text(text [, status])`
+
+Creates a plain text response.
+
+```javascript
+registerHandler("GET", "/health", () => {
+    return Response.text("OK");
+});
+
+registerHandler("GET", "/robots.txt", () => {
+    return Response.text(`User-agent: *
+Disallow: /admin/
+Allow: /api/`);
+});
+```
+
+#### `Response.html(html [, status])`
+
+Creates an HTML response with proper content type.
+
+```javascript
+registerHandler("GET", "/dashboard", () => {
+    const userCount = db.query("SELECT COUNT(*) as count FROM users")[0].count;
+    
+    return Response.html(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Dashboard</title></head>
+        <body>
+            <h1>Dashboard</h1>
+            <p>Total Users: ${userCount}</p>
+        </body>
+        </html>
+    `);
+});
+```
+
+#### `Response.redirect(url [, status])`
+
+Creates a redirect response.
+
+```javascript
+// Temporary redirect (302)
+registerHandler("GET", "/old-url", () => {
+    return Response.redirect("/new-url");
+});
+
+// Permanent redirect (301)
+registerHandler("GET", "/legacy", () => {
+    return Response.redirect("/new-path", HTTP.MOVED_PERMANENTLY);
+});
+
+// External redirect
+registerHandler("GET", "/external", () => {
+    return Response.redirect("https://example.com");
+});
+```
+
+#### `Response.error(message [, status])`
+
+Creates a standardized error response.
+
+```javascript
+registerHandler("GET", "/api/protected", (req) => {
+    if (!req.headers.authorization) {
+        return Response.error("Authorization required", HTTP.UNAUTHORIZED);
+    }
+    
+    // Process request...
+    return Response.json({ data: "secret information" });
+});
+
+registerHandler("POST", "/api/users", (req) => {
+    try {
+        const userData = JSON.parse(req.body);
+        if (!userData.email) {
+            return Response.error("Email is required", HTTP.BAD_REQUEST);
+        }
+        
+        // Create user...
+        return Response.json({ success: true }, HTTP.CREATED);
+    } catch (e) {
+        return Response.error("Invalid JSON", HTTP.BAD_REQUEST);
+    }
+});
+```
+
+### Advanced Response Examples
+
+```javascript
+// Combining helpers with enhanced response objects
+registerHandler("POST", "/api/login", (req) => {
+    const { username, password } = JSON.parse(req.body || "{}");
+    
+    if (username === "admin" && password === "secret") {
+        // Success with session cookie
+        return {
+            ...Response.json({ 
+                success: true, 
+                user: { username, role: "admin" } 
+            }),
+            cookies: [{
+                name: "session",
+                value: generateSessionToken(),
+                path: "/",
+                maxAge: 3600,
+                httpOnly: true,
+                secure: true
+            }]
+        };
+    }
+    
+    return Response.error("Invalid credentials", HTTP.UNAUTHORIZED);
+});
+
+// Content negotiation example
+registerHandler("GET", "/api/data", (req) => {
+    const data = db.query("SELECT * FROM items");
+    const accept = req.headers.accept || "";
+    
+    if (accept.includes("text/csv")) {
+        let csv = "id,name,value\n";
+        data.forEach(item => {
+            csv += `${item.id},"${item.name}",${item.value}\n`;
+        });
+        return {
+            body: csv,
+            contentType: "text/csv",
+            headers: {
+                "content-disposition": "attachment; filename=data.csv"
+            }
+        };
+    }
+    
+    return Response.json(data);
 });
 ```
 
