@@ -15,10 +15,10 @@ func HandleDynamicRoute(jsEngine *engine.Engine, w http.ResponseWriter, r *http.
 	if handler, exists := jsEngine.GetHandler(method, path); exists {
 		done := make(chan error, 1)
 		job := engine.EvalJob{
-			Fn:   handler,
-			W:    w,
-			R:    r,
-			Done: done,
+			Handler: handler,
+			W:       w,
+			R:       r,
+			Done:    done,
 		}
 
 		jsEngine.SubmitJob(job)
@@ -32,10 +32,10 @@ func HandleDynamicRoute(jsEngine *engine.Engine, w http.ResponseWriter, r *http.
 	if fileHandler, exists := jsEngine.GetFileHandler(path); exists {
 		done := make(chan error, 1)
 		job := engine.EvalJob{
-			Fn:   fileHandler,
-			W:    w,
-			R:    r,
-			Done: done,
+			Handler: &engine.HandlerInfo{Fn: fileHandler},
+			W:       w,
+			R:       r,
+			Done:    done,
 		}
 
 		jsEngine.SubmitJob(job)

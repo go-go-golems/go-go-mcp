@@ -3,9 +3,9 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"github.com/dop251/goja"
+	"github.com/rs/zerolog/log"
 )
 
 // setupBindings configures JavaScript bindings for the runtime
@@ -34,16 +34,18 @@ func (e *Engine) setupBindings() {
 
 // jsQuery executes SQL queries and returns results as JavaScript objects
 func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interface{} {
+	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL query")
+	
 	rows, err := e.db.Query(query, args...)
 	if err != nil {
-		log.Printf("SQL query error: %v", err)
+		log.Error().Err(err).Str("query", query).Msg("SQL query error")
 		return nil
 	}
 	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil {
-		log.Printf("SQL columns error: %v", err)
+		log.Error().Err(err).Msg("SQL columns error")
 		return nil
 	}
 
@@ -56,7 +58,7 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 		}
 
 		if err := rows.Scan(scan...); err != nil {
-			log.Printf("SQL scan error: %v", err)
+			log.Error().Err(err).Msg("SQL scan error")
 			continue
 		}
 
@@ -66,26 +68,43 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 		}
 		result = append(result, rec)
 	}
-
+	
+	log.Debug().Int("rows", len(result)).Msg("SQL query completed")
 	return result
 }
 
 // registerHandler registers an HTTP handler function
-func (e *Engine) registerHandler(method, path string, handler goja.Value) {
+// Usage: registerHandler(method, path, handler [, contentType])
+func (e *Engine) registerHandler(method, path string, handler goja.Value, args ...goja.Value) {
 	callable, ok := goja.AssertFunction(handler)
 	if !ok {
 		panic(e.rt.NewTypeError("Handler must be a function"))
+	}
+
+	// Optional content type parameter
+	var contentType string
+	if len(args) > 0 && !goja.IsUndefined(args[0]) && !goja.IsNull(args[0]) {
+		contentType = args[0].String()
+	}
+
+	handlerInfo := &HandlerInfo{
+		Fn:          callable,
+		ContentType: contentType,
 	}
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if e.handlers[path] == nil {
-		e.handlers[path] = make(map[string]goja.Callable)
+		e.handlers[path] = make(map[string]*HandlerInfo)
 	}
-	e.handlers[path][method] = callable
+	e.handlers[path][method] = handlerInfo
 
-	log.Printf("Registered handler: %s %s", method, path)
+	if contentType != "" {
+		log.Info().Str("method", method).Str("path", path).Str("content-type", contentType).Msg("Registered HTTP handler with content type")
+	} else {
+		log.Info().Str("method", method).Str("path", path).Msg("Registered HTTP handler")
+	}
 }
 
 // registerFile registers a file handler function
@@ -99,7 +118,7 @@ func (e *Engine) registerFile(path string, handler goja.Value) {
 	defer e.mu.Unlock()
 
 	e.files[path] = callable
-	log.Printf("Registered file handler: %s", path)
+	log.Info().Str("path", path).Msg("Registered file handler")
 }
 
 // consoleLog provides console.log functionality

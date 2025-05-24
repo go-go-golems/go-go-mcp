@@ -39,11 +39,11 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 		// Submit evaluation job (non-blocking)
 		done := make(chan error, 1)
 		job := engine.EvalJob{
-			Fn:   nil, // nil means execute raw code
-			Code: code,
-			W:    w,
-			R:    r,
-			Done: done,
+			Handler: nil, // nil means execute raw code
+			Code:    code,
+			W:       w,
+			R:       r,
+			Done:    done,
 		}
 
 		jsEngine.SubmitJob(job)
