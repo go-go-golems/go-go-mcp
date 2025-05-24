@@ -126,8 +126,15 @@ func (e *Engine) SubmitJob(job EvalJob) {
 	e.jobs <- job
 }
 
-// executeCode executes JavaScript code directly
+// executeCode executes JavaScript code directly, wrapped in a function scope
 func (e *Engine) executeCode(code string) error {
-	_, err := e.rt.RunString(code)
+	// Wrap code in an IIFE to prevent variable conflicts on re-execution
+	wrappedCode := `(function() {
+		"use strict";
+		` + code + `
+	})();`
+	
+	log.Debug().Str("wrapped_code", wrappedCode).Msg("Executing wrapped JavaScript code")
+	_, err := e.rt.RunString(wrappedCode)
 	return err
 }

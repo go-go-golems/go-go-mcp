@@ -9,14 +9,18 @@ globalThis.randomId = () => {
     return Math.random().toString(36).substr(2, 9);
 };
 
-// Metrics endpoint
-let requestCount = 0;
-const startTime = new Date();
+// Metrics endpoint - use global state for persistence
+if (!globalState.requestCount) {
+    globalState.requestCount = 0;
+}
+if (!globalState.startTime) {
+    globalState.startTime = new Date();
+}
 
 registerHandler("GET", "/metrics", () => {
     return {
-        uptime: Math.floor((new Date() - startTime) / 1000),
-        requests: ++requestCount,
+        uptime: Math.floor((new Date() - globalState.startTime) / 1000),
+        requests: ++globalState.requestCount,
         memory: process.memoryUsage ? process.memoryUsage() : "Not available",
         timestamp: new Date().toISOString()
     };

@@ -105,14 +105,19 @@ func runServer(cmd *cobra.Command, args []string) {
 		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
 	}
 
-	// Load scripts from directory if specified
-	if scriptsDir != "" {
-		loadScriptsFromDir(jsEngine, scriptsDir)
-	}
-
-	// Start dispatcher goroutine
+	// Start dispatcher goroutine first
 	log.Debug().Msg("Starting JavaScript dispatcher")
 	go jsEngine.StartDispatcher()
+	
+	// Give dispatcher time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Load scripts from directory if specified
+	if scriptsDir != "" {
+		log.Info().Str("directory", scriptsDir).Msg("Loading scripts from directory")
+		loadScriptsFromDir(jsEngine, scriptsDir)
+		log.Info().Msg("Finished loading scripts")
+	}
 
 	// Setup router
 	log.Debug().Msg("Setting up HTTP router")
@@ -250,26 +255,35 @@ func loadScriptsFromDir(jsEngine *engine.Engine, dir string) {
 		}
 
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".js") {
-			log.Debug().Str("file", path).Msg("Loading JavaScript file")
+			log.Info().Str("file", path).Msg("Loading JavaScript file")
 			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Error().Err(err).Str("file", path).Msg("Failed to read file")
 				return nil
 			}
 
-			// Submit to engine
+			log.Debug().Str("file", path).Int("bytes", len(data)).Msg("Read JavaScript file")
+
+			// Submit to engine with timeout
 			done := make(chan error, 1)
 			job := engine.EvalJob{
 				Code: string(data),
 				Done: done,
 			}
+			
+			log.Debug().Str("file", path).Msg("Submitting job to engine")
 			jsEngine.SubmitJob(job)
 
-			// Wait for completion
-			if err := <-done; err != nil {
-				log.Error().Err(err).Str("file", path).Msg("Failed to execute file")
-			} else {
-				log.Info().Str("file", path).Msg("Successfully loaded JavaScript file")
+			// Wait for completion with timeout
+			select {
+			case err := <-done:
+				if err != nil {
+					log.Error().Err(err).Str("file", path).Msg("Failed to execute file")
+				} else {
+					log.Info().Str("file", path).Msg("Successfully loaded JavaScript file")
+				}
+			case <-time.After(10 * time.Second):
+				log.Error().Str("file", path).Msg("Timeout waiting for file execution")
 			}
 		}
 

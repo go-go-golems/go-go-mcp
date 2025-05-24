@@ -1,11 +1,14 @@
 // API endpoints for the playground
 
-let apiCounter = 0;
+// Use global state for persistent counters
+if (!globalState.apiCounter) {
+    globalState.apiCounter = 0;
+}
 
 registerHandler("GET", "/api/status", () => ({
     status: "running",
     version: "1.0.0",
-    requests: ++apiCounter,
+    requests: ++globalState.apiCounter,
     timestamp: new Date().toISOString()
 }));
 

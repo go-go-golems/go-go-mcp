@@ -23,6 +23,9 @@ func (e *Engine) setupBindings() {
 	e.rt.Set("console", map[string]interface{}{
 		"log":   e.consoleLog,
 		"error": e.consoleError,
+		"info":  e.consoleInfo,
+		"warn":  e.consoleWarn,
+		"debug": e.consoleDebug,
 	})
 
 	// Basic utilities
@@ -30,15 +33,37 @@ func (e *Engine) setupBindings() {
 		"stringify": e.jsonStringify,
 		"parse":     e.jsonParse,
 	})
+	
+	// Global state object for persistence across script executions
+	e.rt.RunString(`
+		if (typeof globalState === 'undefined') {
+			globalState = {};
+		}
+	`)
+	log.Debug().Msg("JavaScript bindings configured")
 }
 
 // jsQuery executes SQL queries and returns results as JavaScript objects
 func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interface{} {
 	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL query")
 	
-	rows, err := e.db.Query(query, args...)
+	// Convert JavaScript arrays to individual arguments
+	var flatArgs []interface{}
+	for _, arg := range args {
+		if slice, ok := arg.([]interface{}); ok {
+			// If argument is a slice, spread its elements
+			flatArgs = append(flatArgs, slice...)
+		} else {
+			// Otherwise, add the argument as-is
+			flatArgs = append(flatArgs, arg)
+		}
+	}
+	
+	log.Debug().Str("query", query).Interface("flatArgs", flatArgs).Msg("Flattened SQL arguments")
+	
+	rows, err := e.db.Query(query, flatArgs...)
 	if err != nil {
-		log.Error().Err(err).Str("query", query).Msg("SQL query error")
+		log.Error().Err(err).Str("query", query).Interface("args", flatArgs).Msg("SQL query error")
 		return nil
 	}
 	defer rows.Close()
@@ -123,6 +148,7 @@ func (e *Engine) registerFile(path string, handler goja.Value) {
 
 // consoleLog provides console.log functionality
 func (e *Engine) consoleLog(args ...interface{}) {
+	log.Info().Interface("args", args).Msg("JS console.log")
 	fmt.Print("[JS] ")
 	for i, arg := range args {
 		if i > 0 {
@@ -135,7 +161,47 @@ func (e *Engine) consoleLog(args ...interface{}) {
 
 // consoleError provides console.error functionality
 func (e *Engine) consoleError(args ...interface{}) {
+	log.Error().Interface("args", args).Msg("JS console.error")
 	fmt.Print("[JS ERROR] ")
+	for i, arg := range args {
+		if i > 0 {
+			fmt.Print(" ")
+		}
+		fmt.Print(arg)
+	}
+	fmt.Println()
+}
+
+// consoleInfo provides console.info functionality
+func (e *Engine) consoleInfo(args ...interface{}) {
+	log.Info().Interface("args", args).Msg("JS console.info")
+	fmt.Print("[JS INFO] ")
+	for i, arg := range args {
+		if i > 0 {
+			fmt.Print(" ")
+		}
+		fmt.Print(arg)
+	}
+	fmt.Println()
+}
+
+// consoleWarn provides console.warn functionality
+func (e *Engine) consoleWarn(args ...interface{}) {
+	log.Warn().Interface("args", args).Msg("JS console.warn")
+	fmt.Print("[JS WARN] ")
+	for i, arg := range args {
+		if i > 0 {
+			fmt.Print(" ")
+		}
+		fmt.Print(arg)
+	}
+	fmt.Println()
+}
+
+// consoleDebug provides console.debug functionality
+func (e *Engine) consoleDebug(args ...interface{}) {
+	log.Debug().Interface("args", args).Msg("JS console.debug")
+	fmt.Print("[JS DEBUG] ")
 	for i, arg := range args {
 		if i > 0 {
 			fmt.Print(" ")
