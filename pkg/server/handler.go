@@ -69,10 +69,88 @@ func (h *RequestHandler) HandleNotification(ctx context.Context, notif *protocol
 	case "notifications/initialized":
 		h.server.logger.Info().Msg("Client initialized")
 		return nil
+	case "notifications/cancelled":
+		return h.handleCancellation(ctx, notif)
 	default:
 		h.server.logger.Warn().Str("method", notif.Method).Msg("Unknown notification method")
 		return nil
 	}
+}
+
+// HandleBatchRequest processes a batch of requests and returns batch responses
+func (h *RequestHandler) HandleBatchRequest(ctx context.Context, batch protocol.BatchRequest) (protocol.BatchResponse, error) {
+	h.server.logger.Debug().Int("batch_size", len(batch)).Msg("Handling batch request")
+
+	if err := batch.Validate(); err != nil {
+		return nil, transport.NewInvalidRequestError(fmt.Sprintf("invalid batch request: %s", err.Error()))
+	}
+
+	responses := make(protocol.BatchResponse, 0, len(batch))
+
+	for i, request := range batch {
+		reqLogger := h.server.logger.With().
+			Int("batch_index", i).
+			Str("method", request.Method).
+			Logger()
+
+		// Handle individual request
+		if !transport.IsNotification(&request) {
+			// This is a request that expects a response
+			response, err := h.HandleRequest(ctx, &request)
+			if err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch request")
+				// Convert error to JSON-RPC error response
+				jsonErr := transport.ProcessError(err)
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Error: &protocol.Error{
+						Code:    jsonErr.Code,
+						Message: jsonErr.Message,
+						Data:    jsonErr.Data,
+					},
+				}
+			}
+			if response != nil {
+				responses = append(responses, *response)
+			}
+		} else {
+			// This is a notification - handle it but don't add to responses
+			notif := protocol.Notification{
+				JSONRPC: request.JSONRPC,
+				Method:  request.Method,
+				Params:  request.Params,
+			}
+			if err := h.HandleNotification(ctx, &notif); err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch notification")
+			}
+		}
+	}
+
+	return responses, nil
+}
+
+// handleCancellation processes cancellation notifications
+func (h *RequestHandler) handleCancellation(ctx context.Context, notif *protocol.Notification) error {
+	var params protocol.CancellationParams
+	if err := json.Unmarshal(notif.Params, &params); err != nil {
+		h.server.logger.Error().Err(err).Msg("Failed to unmarshal cancellation parameters")
+		return nil // Don't return error for notifications
+	}
+
+	h.server.logger.Info().
+		Str("request_id", params.RequestID).
+		Str("reason", params.Reason).
+		Msg("Request cancellation received")
+
+	// TODO: Implement actual cancellation logic
+	// This would involve:
+	// 1. Finding the in-progress request by ID
+	// 2. Cancelling its context
+	// 3. Cleaning up resources
+	// For now, we just log the cancellation request
+
+	return nil
 }
 
 // Helper method to create success response

@@ -58,6 +58,52 @@ func (h *SimpleHandler) HandleNotification(ctx context.Context, notif *protocol.
 	return nil
 }
 
+func (h *SimpleHandler) HandleBatchRequest(ctx context.Context, batch protocol.BatchRequest) (protocol.BatchResponse, error) {
+	h.logger.Info().Int("batch_size", len(batch)).Msg("Handling batch request")
+
+	responses := make(protocol.BatchResponse, 0, len(batch))
+
+	for i, request := range batch {
+		reqLogger := h.logger.With().
+			Int("batch_index", i).
+			Str("method", request.Method).
+			Logger()
+
+		// Handle individual request
+		if len(request.ID) > 0 && string(request.ID) != "null" {
+			// This is a request that expects a response
+			response, err := h.HandleRequest(ctx, &request)
+			if err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch request")
+				// Convert error to JSON-RPC error response
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Error: &protocol.Error{
+						Code:    -32603, // Internal error
+						Message: err.Error(),
+					},
+				}
+			}
+			if response != nil {
+				responses = append(responses, *response)
+			}
+		} else {
+			// This is a notification - handle it but don't add to responses
+			notif := protocol.Notification{
+				JSONRPC: request.JSONRPC,
+				Method:  request.Method,
+				Params:  request.Params,
+			}
+			if err := h.HandleNotification(ctx, &notif); err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch notification")
+			}
+		}
+	}
+
+	return responses, nil
+}
+
 func main() {
 	// Configure logging
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)

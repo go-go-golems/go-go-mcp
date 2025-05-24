@@ -1,9 +1,24 @@
 package protocol
 
+import "encoding/json"
+
 // CancellationParams represents parameters for a cancellation notification
 type CancellationParams struct {
 	RequestID string `json:"requestId"`
 	Reason    string `json:"reason,omitempty"`
+}
+
+// NewCancellationNotification creates a new cancellation notification
+func NewCancellationNotification(requestID, reason string) *Notification {
+	params, _ := json.Marshal(CancellationParams{
+		RequestID: requestID,
+		Reason:    reason,
+	})
+	return &Notification{
+		JSONRPC: "2.0",
+		Method:  "notifications/cancelled",
+		Params:  params,
+	}
 }
 
 // ProgressParams represents parameters for a progress notification
