@@ -3,9 +3,11 @@ package mcp
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/mcp-js-web-server-o3/internal/api"
@@ -14,6 +16,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/gorilla/mux"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +48,10 @@ This tool allows you to execute JavaScript code that can:
 		embeddable.WithTool("executeJS", executeJSHandler,
 			embeddable.WithDescription(toolDescription),
 			embeddable.WithStringArg("code", "JavaScript code to execute", true),
+		),
+		embeddable.WithTool("executeJSFile", executeJSFileHandler,
+			embeddable.WithDescription("Execute JavaScript code from a file on the filesystem"),
+			embeddable.WithStringArg("absolutePath", "Absolute path to the JavaScript file to execute", true),
 		),
 		embeddable.WithHooks(&embeddable.Hooks{
 			OnServerStart: initializeJSEngineForMCP,
@@ -80,6 +87,7 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 	go func() {
 		r := mux.NewRouter()
 		r.HandleFunc("/v1/execute", api.ExecuteHandler(GlobalJSEngine)).Methods("POST")
+		r.HandleFunc("/admin/scripts", web.ScriptsHandler(GlobalJSEngine)).Methods("GET", "POST")
 		r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			web.HandleDynamicRoute(GlobalJSEngine, w, r)
 		})
@@ -96,9 +104,13 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 
 // executeJSHandler is the MCP tool handler for executing JavaScript code
 func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
-	// Engine should already be initialized by the startup hook
+	// Initialize engine if not already done (for test-tool command)
 	if GlobalJSEngine == nil {
-		return protocol.NewErrorToolResult(protocol.NewTextContent("JavaScript engine not initialized")), nil
+		log.Info().Msg("JavaScript engine not initialized, initializing now")
+		if err := initializeJSEngineForMCP(ctx); err != nil {
+			return protocol.NewErrorToolResult(protocol.NewTextContent(
+				fmt.Sprintf("Failed to initialize JavaScript engine: %v", err))), nil
+		}
 	}
 
 	// Extract code from arguments
@@ -107,25 +119,163 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 		return protocol.NewErrorToolResult(protocol.NewTextContent("code must be a string")), nil
 	}
 
-	// Execute the code
+	// Generate session ID for tracking
+	sessionID := uuid.New().String()
+
+	// Save the code to a file with timestamp
+	timestamp := time.Now().Format("2006-01-02T15-04-05")
+	filename := fmt.Sprintf("scripts/mcp-exec-%s.js", timestamp)
+	
+	// Ensure scripts directory exists
+	if err := os.MkdirAll("scripts", 0755); err != nil {
+		log.Warn().Err(err).Msg("Failed to create scripts directory")
+	} else {
+		// Save the code to file
+		if err := os.WriteFile(filename, []byte(code), 0644); err != nil {
+			log.Warn().Err(err).Str("filename", filename).Msg("Failed to save code to file")
+		} else {
+			log.Info().Str("filename", filename).Msg("Saved executed code to file")
+		}
+	}
+
+	// Execute the code with result capture
 	done := make(chan error, 1)
+	resultChan := make(chan *engine.EvalResult, 1)
 	job := engine.EvalJob{
-		Code: code,
-		Done: done,
+		Code:      code,
+		Done:      done,
+		Result:    resultChan,
+		SessionID: sessionID,
+		Source:    "mcp",
 	}
 
 	GlobalJSEngine.SubmitJob(job)
 
 	// Wait for completion with timeout
 	select {
-	case err := <-done:
+	case result := <-resultChan:
+		// Also wait for done signal to ensure completion
+		select {
+		case err := <-done:
+			if err != nil {
+				return protocol.NewErrorToolResult(protocol.NewTextContent(
+					fmt.Sprintf("JavaScript execution failed: %v", err))), nil
+			}
+		case <-time.After(5 * time.Second):
+			// Continue even if done signal is delayed
+		}
+
+		// Create response with result and console output
+		responseData := map[string]interface{}{
+			"success":    true,
+			"result":     result.Value,
+			"consoleLog": result.ConsoleLog,
+			"savedAs":    filename,
+			"message":    "JavaScript code executed successfully. Check http://localhost:8080 for any web endpoints created.",
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(responseData)
 		if err != nil {
 			return protocol.NewErrorToolResult(protocol.NewTextContent(
-				fmt.Sprintf("JavaScript execution failed: %v", err))), nil
+				fmt.Sprintf("Failed to marshal result: %v", err))), nil
 		}
 
 		return protocol.NewToolResult(
-			protocol.WithText("JavaScript code executed successfully. Check http://localhost:8080 for any web endpoints created."),
+			protocol.WithText(string(jsonData)),
+		), nil
+
+	case <-time.After(30 * time.Second):
+		return protocol.NewErrorToolResult(protocol.NewTextContent("Timeout waiting for JavaScript execution")), nil
+	}
+}
+
+// executeJSFileHandler is the MCP tool handler for executing JavaScript files
+func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
+	// Initialize engine if not already done (for test-tool command)
+	if GlobalJSEngine == nil {
+		log.Info().Msg("JavaScript engine not initialized, initializing now")
+		if err := initializeJSEngineForMCP(ctx); err != nil {
+			return protocol.NewErrorToolResult(protocol.NewTextContent(
+				fmt.Sprintf("Failed to initialize JavaScript engine: %v", err))), nil
+		}
+	}
+
+	// Extract file path from arguments
+	filePath, ok := args["absolutePath"].(string)
+	if !ok {
+		return protocol.NewErrorToolResult(protocol.NewTextContent("absolutePath must be a string")), nil
+	}
+
+	// Validate that the path is absolute
+	if !filepath.IsAbs(filePath) {
+		return protocol.NewErrorToolResult(protocol.NewTextContent("Path must be absolute")), nil
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return protocol.NewErrorToolResult(protocol.NewTextContent(
+			fmt.Sprintf("File does not exist: %s", filePath))), nil
+	}
+
+	// Read the file
+	codeBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return protocol.NewErrorToolResult(protocol.NewTextContent(
+			fmt.Sprintf("Failed to read file: %v", err))), nil
+	}
+
+	code := string(codeBytes)
+	log.Info().Str("file", filePath).Int("bytes", len(codeBytes)).Msg("Executing JavaScript file")
+
+	// Generate session ID for tracking
+	sessionID := uuid.New().String()
+
+	// Execute the code with result capture
+	done := make(chan error, 1)
+	resultChan := make(chan *engine.EvalResult, 1)
+	job := engine.EvalJob{
+		Code:      code,
+		Done:      done,
+		Result:    resultChan,
+		SessionID: sessionID,
+		Source:    "mcp-file",
+	}
+
+	GlobalJSEngine.SubmitJob(job)
+
+	// Wait for completion with timeout
+	select {
+	case result := <-resultChan:
+		// Also wait for done signal to ensure completion
+		select {
+		case err := <-done:
+			if err != nil {
+				return protocol.NewErrorToolResult(protocol.NewTextContent(
+					fmt.Sprintf("JavaScript execution failed: %v", err))), nil
+			}
+		case <-time.After(5 * time.Second):
+			// Continue even if done signal is delayed
+		}
+
+		// Create response with result and console output
+		responseData := map[string]interface{}{
+			"success":     true,
+			"result":      result.Value,
+			"consoleLog":  result.ConsoleLog,
+			"executedFile": filePath,
+			"message":     fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created.", filepath.Base(filePath)),
+		}
+
+		// Convert to JSON
+		jsonData, err := json.Marshal(responseData)
+		if err != nil {
+			return protocol.NewErrorToolResult(protocol.NewTextContent(
+				fmt.Sprintf("Failed to marshal result: %v", err))), nil
+		}
+
+		return protocol.NewToolResult(
+			protocol.WithText(string(jsonData)),
 		), nil
 
 	case <-time.After(30 * time.Second):

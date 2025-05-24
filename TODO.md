@@ -1,3 +1,9 @@
+## Embeddable MCP
+
+- [ ] Add more arguments to list-tools
+- [ ] Allow passing arguments to test-tool (or maybe even expose one verb per tool)
+- [ ] Call the hooks when calling a test-tool
+
 ## Features
 
 - [x] Add tool/prompt profiles to switch between different collections of prompts and resources and other things

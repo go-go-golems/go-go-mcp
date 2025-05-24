@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dop251/goja"
 	"github.com/rs/zerolog/log"
@@ -34,7 +35,7 @@ func (e *Engine) setupBindings() {
 		"stringify": e.jsonStringify,
 		"parse":     e.jsonParse,
 	})
-	
+
 	// Global state object for persistence across script executions
 	e.rt.RunString(`
 		if (typeof globalState === 'undefined') {
@@ -47,7 +48,7 @@ func (e *Engine) setupBindings() {
 // jsQuery executes SQL queries and returns results as JavaScript objects
 func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interface{} {
 	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL query")
-	
+
 	// Convert JavaScript arrays to individual arguments
 	var flatArgs []interface{}
 	for _, arg := range args {
@@ -59,9 +60,9 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 			flatArgs = append(flatArgs, arg)
 		}
 	}
-	
+
 	log.Debug().Str("query", query).Interface("flatArgs", flatArgs).Msg("Flattened SQL arguments")
-	
+
 	rows, err := e.db.Query(query, flatArgs...)
 	if err != nil {
 		log.Error().Err(err).Str("query", query).Interface("args", flatArgs).Msg("SQL query error")
@@ -94,7 +95,7 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 		}
 		result = append(result, rec)
 	}
-	
+
 	log.Debug().Int("rows", len(result)).Msg("SQL query completed")
 	return result
 }
@@ -228,4 +229,71 @@ func (e *Engine) jsonParse(str string) interface{} {
 		panic(e.rt.NewGoError(err))
 	}
 	return result
+}
+
+// ConsoleCapture holds original console functions and captured output
+type ConsoleCapture struct {
+	Log   func(...interface{})
+	Error func(...interface{})
+	Info  func(...interface{})
+	Warn  func(...interface{})
+	Debug func(...interface{})
+}
+
+// captureConsole replaces console functions to capture output
+func (e *Engine) captureConsole(result *EvalResult) *ConsoleCapture {
+	// Store original console functions
+	original := &ConsoleCapture{
+		Log:   e.consoleLog,
+		Error: e.consoleError,
+		Info:  e.consoleInfo,
+		Warn:  e.consoleWarn,
+		Debug: e.consoleDebug,
+	}
+
+	// Create capturing versions
+	e.rt.Set("console", map[string]interface{}{
+		"log":   func(args ...interface{}) { e.captureConsoleOutput(result, "log", args...) },
+		"error": func(args ...interface{}) { e.captureConsoleOutput(result, "error", args...) },
+		"info":  func(args ...interface{}) { e.captureConsoleOutput(result, "info", args...) },
+		"warn":  func(args ...interface{}) { e.captureConsoleOutput(result, "warn", args...) },
+		"debug": func(args ...interface{}) { e.captureConsoleOutput(result, "debug", args...) },
+	})
+
+	return original
+}
+
+// restoreConsole restores original console functions
+func (e *Engine) restoreConsole(original *ConsoleCapture) {
+	e.rt.Set("console", map[string]interface{}{
+		"log":   original.Log,
+		"error": original.Error,
+		"info":  original.Info,
+		"warn":  original.Warn,
+		"debug": original.Debug,
+	})
+}
+
+// captureConsoleOutput captures console output to the result
+func (e *Engine) captureConsoleOutput(result *EvalResult, level string, args ...interface{}) {
+	var parts []string
+	for _, arg := range args {
+		parts = append(parts, fmt.Sprint(arg))
+	}
+	output := fmt.Sprintf("[%s] %s", level, strings.Join(parts, " "))
+	result.ConsoleLog = append(result.ConsoleLog, output)
+
+	// Also call the original console function for logging
+	switch level {
+	case "log":
+		e.consoleLog(args...)
+	case "error":
+		e.consoleError(args...)
+	case "info":
+		e.consoleInfo(args...)
+	case "warn":
+		e.consoleWarn(args...)
+	case "debug":
+		e.consoleDebug(args...)
+	}
 }

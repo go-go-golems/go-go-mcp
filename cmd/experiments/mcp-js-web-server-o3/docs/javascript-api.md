@@ -122,6 +122,32 @@ registerHandler("POST", "/api/echo", (req) => ({
 }));
 ```
 
+### Important: Returning Values from Code Execution
+
+When executing JavaScript code via the `/v1/execute` API endpoint or MCP tools, **you must use explicit `return` statements** to capture results:
+
+```javascript
+// ❌ This will not capture the result
+const data = {name: "test", value: 42};
+console.log("Created:", data);
+data;  // This won't be returned
+
+// ✅ This will capture the result
+const data = {name: "test", value: 42};
+console.log("Created:", data);
+return data;  // Explicit return needed
+
+// ✅ For simple expressions, wrap in return
+return 5 + 3;  // Returns 8
+
+// ✅ For complex logic
+const users = db.query("SELECT * FROM users");
+console.log("Found", users.length, "users");
+return {count: users.length, users: users};
+```
+
+**Why?** The execution environment wraps your code in a function, so the last expression is not automatically returned. Use `return` to specify what should be captured as the execution result.
+
 ### MIME Type Examples
 
 ```javascript

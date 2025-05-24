@@ -133,6 +133,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	r.HandleFunc("/v1/execute", api.ExecuteHandler(jsEngine)).Methods("POST")
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
 
+	// Admin routes
+	r.HandleFunc("/admin/scripts", web.ScriptsHandler(jsEngine)).Methods("GET", "POST")
+	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/scripts")
+
 	// Dynamic routes (handled by JS)
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.HandleDynamicRoute(jsEngine, w, r)
@@ -273,8 +277,10 @@ func loadScriptsFromDir(jsEngine *engine.Engine, dir string) {
 			// Submit to engine with timeout
 			done := make(chan error, 1)
 			job := engine.EvalJob{
-				Code: string(data),
-				Done: done,
+				Code:      string(data),
+				Done:      done,
+				SessionID: "startup-" + filepath.Base(path),
+				Source:    "file",
 			}
 
 			log.Debug().Str("file", path).Msg("Submitting job to engine")
