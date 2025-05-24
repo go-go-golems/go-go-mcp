@@ -16,8 +16,9 @@ type TransportOptions struct {
 	Logger         zerolog.Logger
 
 	// Transport specific options
-	SSE   *SSEOptions
-	Stdio *StdioOptions
+	SSE            *SSEOptions
+	Stdio          *StdioOptions
+	StreamableHTTP *StreamableHTTPOptions
 }
 
 // SSEOptions contains SSE-specific transport options
@@ -50,6 +51,25 @@ type StdioOptions struct {
 	SignalHandlers map[os.Signal]func()
 }
 
+// StreamableHTTPOptions contains streamable HTTP-specific transport options
+type StreamableHTTPOptions struct {
+	// HTTP server configuration
+	Addr      string
+	TLSConfig *tls.Config
+
+	// Middleware
+	Middleware []func(http.Handler) http.Handler
+
+	// Router configuration
+	Router     *mux.Router // Optional: existing router to use
+	PathPrefix string      // Optional: prefix for all streamable HTTP endpoints
+
+	// WebSocket configuration
+	ReadBufferSize  int
+	WriteBufferSize int
+	CheckOrigin     func(*http.Request) bool
+}
+
 // TransportOption is a function that modifies TransportOptions
 type TransportOption func(*TransportOptions)
 
@@ -77,5 +97,12 @@ func WithSSEOptions(opts SSEOptions) TransportOption {
 func WithStdioOptions(opts StdioOptions) TransportOption {
 	return func(o *TransportOptions) {
 		o.Stdio = &opts
+	}
+}
+
+// StreamableHTTP-specific options
+func WithStreamableHTTPOptions(opts StreamableHTTPOptions) TransportOption {
+	return func(o *TransportOptions) {
+		o.StreamableHTTP = &opts
 	}
 }

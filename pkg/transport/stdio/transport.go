@@ -94,18 +94,15 @@ func (s *StdioTransport) Listen(ctx context.Context, handler transport.RequestHa
 				line := s.scanner.Text()
 				scanLogger.Debug().Msg("Received line")
 
-				// Parse the base message structure
-				var request protocol.Request
-				if err := json.Unmarshal([]byte(line), &request); err != nil {
-					scanLogger.Error().Err(err).Msg("Failed to parse message as JSON-RPC request")
+				// Try to parse the message as either single request or batch
+				message, err := transport.ParseMessage([]byte(line))
+				if err != nil {
+					scanLogger.Error().Err(err).Msg("Failed to parse JSON-RPC message")
 					continue // Skip this message
 				}
 
-				// Handle session creation/update based on method
-				ctx := s.manageSession(scannerCtx, &request)
-
-				if err := s.handleMessage(ctx, &request); err != nil {
-					scanLogger.Error().Err(err).Msg("Error handling message")
+				if err := s.handleParsedMessage(scannerCtx, message); err != nil {
+					scanLogger.Error().Err(err).Msg("Error handling parsed message")
 					// Continue processing messages even if one fails
 				}
 			}
@@ -249,6 +246,78 @@ func (s *StdioTransport) manageSession(baseCtx context.Context, req *protocol.Re
 	return session.WithSession(baseCtx, s.currentSession)
 }
 
+// handleParsedMessage handles either single requests or batch requests
+func (s *StdioTransport) handleParsedMessage(ctx context.Context, message interface{}) error {
+	switch msg := message.(type) {
+	case *protocol.Request:
+		// Handle session creation/update based on method
+		sessionCtx := s.manageSession(ctx, msg)
+		return s.handleMessage(sessionCtx, msg)
+	case protocol.BatchRequest:
+		return s.handleBatchMessage(ctx, msg)
+	default:
+		return fmt.Errorf("unknown message type: %T", message)
+	}
+}
+
+// handleBatchMessage handles batch requests
+func (s *StdioTransport) handleBatchMessage(ctx context.Context, batch protocol.BatchRequest) error {
+	batchLogger := s.logger.With().Int("batch_size", len(batch)).Logger()
+	batchLogger.Debug().Msg("Handling batch request")
+
+	// Process each request in the batch and collect responses
+	responses := make(protocol.BatchResponse, 0, len(batch))
+
+	for i, request := range batch {
+		reqLogger := batchLogger.With().
+			Int("batch_index", i).
+			Str("method", request.Method).
+			Logger()
+
+		// Handle session creation/update for each request
+		sessionCtx := s.manageSession(ctx, &request)
+
+		// Handle the individual request
+		if !transport.IsNotification(&request) {
+			// This is a request that expects a response
+			response, err := s.handler.HandleRequest(sessionCtx, &request)
+			if err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch request")
+				jsonErr := transport.ProcessError(err)
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Error: &protocol.Error{
+						Code:    jsonErr.Code,
+						Message: jsonErr.Message,
+						Data:    jsonErr.Data,
+					},
+				}
+			}
+			if response != nil {
+				responses = append(responses, *response)
+			}
+		} else {
+			// This is a notification - handle it but don't add to responses
+			notif := protocol.Notification{
+				JSONRPC: request.JSONRPC,
+				Method:  request.Method,
+				Params:  request.Params,
+			}
+			if err := s.handler.HandleNotification(sessionCtx, &notif); err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch notification")
+			}
+		}
+	}
+
+	// Send batch response if there are any responses
+	if len(responses) > 0 {
+		return s.sendBatchResponse(ctx, responses)
+	}
+
+	return nil
+}
+
 func (s *StdioTransport) handleMessage(ctx context.Context, request *protocol.Request) error {
 	// Create a scoped logger for this message
 	msgLogger := s.logger.With().Str("method", request.Method).Logger()
@@ -345,4 +414,19 @@ func (s *StdioTransport) sendError(id json.RawMessage, code int, message string,
 	errLogger := s.logger.With().Int("error_code", code).Logger()
 	errLogger.Debug().Interface("response", response).Msg("Sending error response")
 	return s.Send(context.Background(), response)
+}
+
+// sendBatchResponse sends a batch response to the client
+func (s *StdioTransport) sendBatchResponse(ctx context.Context, responses protocol.BatchResponse) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Create a scoped logger for this batch response
+	batchLogger := s.logger.With().Int("response_count", len(responses)).Logger()
+	if session_, ok := session.GetSessionFromContext(ctx); ok {
+		batchLogger = batchLogger.With().Str("session_id", string(session_.ID)).Logger()
+	}
+
+	batchLogger.Debug().Interface("responses", responses).Msg("Sending batch response")
+	return s.writer.Encode(responses)
 }

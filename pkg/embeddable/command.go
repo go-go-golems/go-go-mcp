@@ -12,6 +12,7 @@ import (
 	transportpkg "github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/sse"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/stdio"
+	"github.com/go-go-golems/go-go-mcp/pkg/transport/streamable_http"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -44,8 +45,8 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	}
 
 	// Add flags
-	startCmd.Flags().String("transport", config.defaultTransport, "Transport type (stdio, sse)")
-	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE transport")
+	startCmd.Flags().String("transport", config.defaultTransport, "Transport type (stdio, sse, streamable_http)")
+	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE and streamable HTTP transport")
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
@@ -144,6 +145,19 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create SSE transport: %w", err)
+		}
+	case "streamable_http":
+		addr := ":" + strconv.Itoa(port)
+		transport, err = streamable_http.NewStreamableHTTPTransport(
+			transportpkg.WithLogger(logger),
+			transportpkg.WithStreamableHTTPOptions(transportpkg.StreamableHTTPOptions{
+				Addr:            addr,
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
+			}),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create streamable HTTP transport: %w", err)
 		}
 	default:
 		return fmt.Errorf("unsupported transport type: %s", transportType)

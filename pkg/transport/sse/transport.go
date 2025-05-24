@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -405,13 +406,13 @@ func (s *SSETransport) handleMessages(w http.ResponseWriter, r *http.Request) {
 	// Create a scoped logger for this request
 	reqLogger := s.logger.With().Str("session_id", string(sessionID)).Logger()
 
-	var request protocol.Request
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		reqLogger.Error().Err(err).Msg("Failed to decode request")
-		// Send JSON-RPC error response for parse error
-		errResp := transport.NewParseError(fmt.Sprintf("Failed to decode request: %v", err))
+	// Read the raw body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		reqLogger.Error().Err(err).Msg("Failed to read request body")
+		errResp := transport.NewParseError(fmt.Sprintf("Failed to read request: %v", err))
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest) // Use 400 for parse errors
+		w.WriteHeader(http.StatusBadRequest)
 		err = json.NewEncoder(w).Encode(errResp)
 		if err != nil {
 			reqLogger.Error().Err(err).Msg("Failed to encode error response")
@@ -419,11 +420,45 @@ func (s *SSETransport) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Try to parse as either single request or batch
+	message, err := transport.ParseMessage(body)
+	if err != nil {
+		reqLogger.Error().Err(err).Msg("Failed to parse JSON-RPC message")
+		errResp := transport.NewParseError(fmt.Sprintf("Failed to parse JSON-RPC message: %v", err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		err = json.NewEncoder(w).Encode(errResp)
+		if err != nil {
+			reqLogger.Error().Err(err).Msg("Failed to encode error response")
+		}
+		return
+	}
+
+	// Handle the parsed message
+	if err := s.handleParsedMessage(ctx, w, message, reqLogger); err != nil {
+		reqLogger.Error().Err(err).Msg("Error handling parsed message")
+	}
+}
+
+// handleParsedMessage handles either single requests or batch requests
+func (s *SSETransport) handleParsedMessage(ctx context.Context, w http.ResponseWriter, message interface{}, logger zerolog.Logger) error {
+	switch msg := message.(type) {
+	case *protocol.Request:
+		return s.handleSingleMessage(ctx, w, msg, logger)
+	case protocol.BatchRequest:
+		return s.handleBatchMessage(ctx, w, msg, logger)
+	default:
+		return fmt.Errorf("unknown message type: %T", message)
+	}
+}
+
+// handleSingleMessage handles a single request
+func (s *SSETransport) handleSingleMessage(ctx context.Context, w http.ResponseWriter, request *protocol.Request, reqLogger zerolog.Logger) error {
 	reqLogger = reqLogger.With().Str("method", request.Method).Logger()
 	reqLogger.Info().RawJSON("params", request.Params).Msg("Received message via POST")
 
 	// Handle notifications (no response expected, but acknowledge receipt)
-	if transport.IsNotification(&request) {
+	if transport.IsNotification(request) {
 		notif := &protocol.Notification{
 			JSONRPC: request.JSONRPC,
 			Method:  request.Method,
@@ -435,11 +470,11 @@ func (s *SSETransport) handleMessages(w http.ResponseWriter, r *http.Request) {
 			// Do not send error response for notifications per JSON-RPC spec
 		}
 		w.WriteHeader(http.StatusNoContent) // Acknowledge receipt
-		return
+		return nil
 	}
 
 	// Handle regular requests
-	response, err := s.handler.HandleRequest(ctx, &request)
+	response, err := s.handler.HandleRequest(ctx, request)
 	if err != nil {
 		reqLogger.Error().Err(err).Msg("Error handling request")
 		// Convert handler error to JSON-RPC error
@@ -452,28 +487,101 @@ func (s *SSETransport) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if response != nil {
-		w.Header().Set("Content-Type", "application/json")
-		if response.Error != nil {
-			// Determine appropriate HTTP status code from JSON-RPC error code
-			statusCode := transport.ErrorToHTTPStatus(response.Error.Code)
-			w.WriteHeader(statusCode)
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			reqLogger.Error().Err(err).Msg("Failed to encode response")
-			// Don't try to write again if encoding fails
-			return
-		}
-		reqLogger.Debug().
-			RawJSON("response", response.Result).
-			Interface("error", response.Error).
-			Msg("Sent response via POST")
-	} else {
-		// Should not happen for non-notifications, but handle defensively
-		reqLogger.Warn().Msg("Handler returned nil response for non-notification request")
-		w.WriteHeader(http.StatusNoContent)
+		return s.sendSingleResponse(w, response, reqLogger)
 	}
+
+	// Should not happen for non-notifications, but handle defensively
+	reqLogger.Warn().Msg("Handler returned nil response for non-notification request")
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// handleBatchMessage handles batch requests
+func (s *SSETransport) handleBatchMessage(ctx context.Context, w http.ResponseWriter, batch protocol.BatchRequest, batchLogger zerolog.Logger) error {
+	batchLogger.Debug().Int("batch_size", len(batch)).Msg("Handling batch request")
+
+	responses := make(protocol.BatchResponse, 0, len(batch))
+
+	for i, request := range batch {
+		reqLogger := batchLogger.With().
+			Int("batch_index", i).
+			Str("method", request.Method).
+			Logger()
+
+		// Handle individual request
+		if !transport.IsNotification(&request) {
+			// This is a request that expects a response
+			response, err := s.handler.HandleRequest(ctx, &request)
+			if err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch request")
+				jsonErr := transport.ProcessError(err)
+				response = &protocol.Response{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Error: &protocol.Error{
+						Code:    jsonErr.Code,
+						Message: jsonErr.Message,
+						Data:    jsonErr.Data,
+					},
+				}
+			}
+			if response != nil {
+				responses = append(responses, *response)
+			}
+		} else {
+			// This is a notification - handle it but don't add to responses
+			notif := protocol.Notification{
+				JSONRPC: request.JSONRPC,
+				Method:  request.Method,
+				Params:  request.Params,
+			}
+			if err := s.handler.HandleNotification(ctx, &notif); err != nil {
+				reqLogger.Error().Err(err).Msg("Error handling batch notification")
+			}
+		}
+	}
+
+	// Send batch response if there are any responses
+	if len(responses) > 0 {
+		return s.sendBatchResponse(w, responses, batchLogger)
+	}
+
+	// All were notifications, return no content
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// sendSingleResponse sends a single response
+func (s *SSETransport) sendSingleResponse(w http.ResponseWriter, response *protocol.Response, logger zerolog.Logger) error {
+	w.Header().Set("Content-Type", "application/json")
+	if response.Error != nil {
+		// Determine appropriate HTTP status code from JSON-RPC error code
+		statusCode := transport.ErrorToHTTPStatus(response.Error.Code)
+		w.WriteHeader(statusCode)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.Error().Err(err).Msg("Failed to encode response")
+		return err
+	}
+	logger.Debug().
+		RawJSON("response", response.Result).
+		Interface("error", response.Error).
+		Msg("Sent response via POST")
+	return nil
+}
+
+// sendBatchResponse sends a batch response
+func (s *SSETransport) sendBatchResponse(w http.ResponseWriter, responses protocol.BatchResponse, logger zerolog.Logger) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK) // Always 200 for batch responses
+	if err := json.NewEncoder(w).Encode(responses); err != nil {
+		logger.Error().Err(err).Msg("Failed to encode batch response")
+		return err
+	}
+	logger.Debug().Int("response_count", len(responses)).Msg("Sent batch response via POST")
+	return nil
 }
 
 // getSessionFromRequest retrieves the session ID from the cookie or creates a new session.

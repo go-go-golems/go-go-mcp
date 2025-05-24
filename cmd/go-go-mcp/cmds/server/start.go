@@ -19,6 +19,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/transport"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/sse"
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/stdio"
+	"github.com/go-go-golems/go-go-mcp/pkg/transport/streamable_http"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
@@ -47,18 +48,19 @@ func NewStartCommand() (*StartCommand, error) {
 		
 Available transports:
 - stdio: Standard input/output transport (default)
-- sse: Server-Sent Events transport over HTTP`),
+- sse: Server-Sent Events transport over HTTP
+- streamable_http: Streamable HTTP transport with WebSocket support`),
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"transport",
 					parameters.ParameterTypeString,
-					parameters.WithHelp("Transport type (stdio or sse)"),
+					parameters.WithHelp("Transport type (stdio, sse, or streamable_http)"),
 					parameters.WithDefault("stdio"),
 				),
 				parameters.NewParameterDefinition(
 					"port",
 					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Port to listen on for SSE transport"),
+					parameters.WithHelp("Port to listen on for SSE and streamable HTTP transport"),
 					parameters.WithDefault(3001),
 				),
 			),
@@ -97,6 +99,15 @@ func (c *StartCommand) Run(
 	case "stdio":
 		t, err = stdio.NewStdioTransport(
 			transport.WithLogger(logger),
+		)
+	case "streamable_http":
+		t, err = streamable_http.NewStreamableHTTPTransport(
+			transport.WithLogger(logger),
+			transport.WithStreamableHTTPOptions(transport.StreamableHTTPOptions{
+				Addr:            fmt.Sprintf(":%d", port),
+				ReadBufferSize:  1024,
+				WriteBufferSize: 1024,
+			}),
 		)
 	default:
 		return fmt.Errorf("unsupported transport type: %s", transportType)
