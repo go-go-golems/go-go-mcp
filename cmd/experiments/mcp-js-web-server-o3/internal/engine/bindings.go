@@ -15,6 +15,7 @@ func (e *Engine) setupBindings() {
 	// SQLite database binding
 	e.rt.Set("db", map[string]interface{}{
 		"query": e.jsQuery,
+		"exec":  e.jsExec,
 	})
 
 	// Handler registration
@@ -98,6 +99,46 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 
 	log.Debug().Int("rows", len(result)).Msg("SQL query completed")
 	return result
+}
+
+// jsExec executes SQL statements without returning rows (INSERT, UPDATE, DELETE, CREATE, etc.)
+func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{} {
+	log.Debug().Str("query", query).Interface("args", args).Msg("Executing SQL exec")
+
+	// Convert JavaScript arrays to individual arguments
+	var flatArgs []interface{}
+	for _, arg := range args {
+		if slice, ok := arg.([]interface{}); ok {
+			// If argument is a slice, spread its elements
+			flatArgs = append(flatArgs, slice...)
+		} else {
+			// Otherwise, add the argument as-is
+			flatArgs = append(flatArgs, arg)
+		}
+	}
+
+	log.Debug().Str("query", query).Interface("flatArgs", flatArgs).Msg("Flattened SQL exec arguments")
+
+	result, err := e.db.Exec(query, flatArgs...)
+	if err != nil {
+		log.Error().Err(err).Str("query", query).Interface("args", flatArgs).Msg("SQL exec error")
+		return map[string]interface{}{
+			"error":   err.Error(),
+			"success": false,
+		}
+	}
+
+	// Get affected rows and last insert ID if available
+	rowsAffected, _ := result.RowsAffected()
+	lastInsertId, _ := result.LastInsertId()
+
+	log.Debug().Int64("rowsAffected", rowsAffected).Int64("lastInsertId", lastInsertId).Msg("SQL exec completed")
+
+	return map[string]interface{}{
+		"success":      true,
+		"rowsAffected": rowsAffected,
+		"lastInsertId": lastInsertId,
+	}
 }
 
 // registerHandler registers an HTTP handler function

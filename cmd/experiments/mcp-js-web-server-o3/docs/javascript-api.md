@@ -56,6 +56,31 @@ The JavaScript Playground Server provides a rich API for creating dynamic web ap
 - [Best Practices](#best-practices)
 - [Examples](#examples)
 
+## Quick Reference
+
+### Database Operations
+- `db.query(sql, ...args)` - Execute SELECT queries, returns array of objects
+- `db.exec(sql, ...args)` - Execute INSERT/UPDATE/DELETE/CREATE, returns {success, rowsAffected, lastInsertId}
+
+### HTTP Handlers
+- `registerHandler(method, path, handler [, contentType])` - Register HTTP endpoint
+- `registerFile(path, handler)` - Register file endpoint
+
+### Console
+- `console.log(...)`, `console.info(...)`, `console.warn(...)`, `console.error(...)`, `console.debug(...)`
+
+### State & Utils
+- `globalState` - Persistent object across executions
+- `JSON.stringify(obj)`, `JSON.parse(str)` - JSON utilities
+
+### Handler Function
+```javascript
+function handler(request) {
+  // request: {method, url, path, query, headers}
+  return response; // object, string, or Uint8Array
+}
+```
+
 ## Global Objects
 
 ### `globalState`
@@ -222,6 +247,59 @@ Executes SQL queries against the SQLite database.
 - `parameters` (any[]): Parameters to bind to placeholders
 
 **Returns:** Array of objects representing rows
+
+### `db.exec(sql, ...parameters)`
+
+Executes SQL statements that don't return rows (INSERT, UPDATE, DELETE, CREATE, etc.).
+
+**Parameters:**
+- `sql` (string): SQL statement with `?` placeholders
+- `parameters` (any[]): Parameters to bind to placeholders
+
+**Returns:** Object with:
+- `success` (boolean): Whether the operation succeeded
+- `rowsAffected` (number): Number of rows affected
+- `lastInsertId` (number): Last inserted row ID (for INSERT statements)
+- `error` (string): Error message if operation failed
+
+### Exec Examples
+
+```javascript
+// Create table
+const result = db.exec(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE
+)`);
+console.log("Table created:", result.success);
+
+// Insert data
+const insertResult = db.exec("INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"]);
+console.log("Inserted user ID:", insertResult.lastInsertId);
+
+// Update records
+const updateResult = db.exec("UPDATE users SET name = ? WHERE id = ?", ["Alice Smith", 1]);
+console.log("Updated rows:", updateResult.rowsAffected);
+
+// Delete records
+const deleteResult = db.exec("DELETE FROM users WHERE email LIKE ?", ["%@temp.com"]);
+console.log("Deleted rows:", deleteResult.rowsAffected);
+
+// Multiple statements in one exec
+db.exec(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      company TEXT,
+      phone TEXT
+    );
+    DELETE FROM contacts;
+    INSERT INTO contacts (name, email, company, phone) VALUES
+      ('Alice Smith', 'alice@acme.com', 'Acme Corp', '555-1234'),
+      ('Bob Johnson', 'bob@globex.com', 'Globex Inc', '555-5678');
+`);
+```
 
 ### Query Examples
 

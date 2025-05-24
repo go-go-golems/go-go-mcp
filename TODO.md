@@ -4,6 +4,13 @@
 - [ ] Allow passing arguments to test-tool (or maybe even expose one verb per tool)
 - [ ] Call the hooks when calling a test-tool
 
+## MCP JS server
+
+- [ ] expose the session ID to the JS
+- [ ] reload last sessions JS to recreate the full app as it was (all the code in a session?). Or maybe store which code was used for rest handlers and all that.
+- [ ] make sure session ID is scoped to MCP
+- [ ] Add view with all the code from a single session
+
 ## Features
 
 - [x] Add tool/prompt profiles to switch between different collections of prompts and resources and other things

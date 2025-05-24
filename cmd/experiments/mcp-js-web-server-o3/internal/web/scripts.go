@@ -415,16 +415,9 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
             }
         }
 
-        function unescapeHtml(text) {
-            const div = document.createElement('div');
-            div.innerHTML = text;
-            return div.textContent || div.innerText || '';
-        }
-
-        function copyRawContent(elementId) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                const rawContent = unescapeHtml(element.getAttribute('data-raw-content'));
+        function copyRawContent(contentKey) {
+            if (window.rawContentStore && window.rawContentStore[contentKey]) {
+                const rawContent = window.rawContentStore[contentKey];
                 navigator.clipboard.writeText(rawContent).then(function() {
                     // Show temporary feedback
                     const btn = event.target;
@@ -436,13 +429,14 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
                 }).catch(function(err) {
                     console.error('Failed to copy text: ', err);
                 });
+            } else {
+                console.error('Content not found for key:', contentKey);
             }
         }
 
-        function downloadRawContent(elementId, filename, mimeType) {
-            const element = document.getElementById(elementId);
-            if (element) {
-                const rawContent = unescapeHtml(element.getAttribute('data-raw-content'));
+        function downloadRawContent(contentKey, filename, mimeType) {
+            if (window.rawContentStore && window.rawContentStore[contentKey]) {
+                const rawContent = window.rawContentStore[contentKey];
                 
                 // Create a blob with the content
                 const blob = new Blob([rawContent], { type: mimeType });
@@ -471,6 +465,8 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
                 setTimeout(() => {
                     btn.textContent = originalText;
                 }, 1000);
+            } else {
+                console.error('Content not found for key:', contentKey);
             }
         }
 
