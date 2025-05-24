@@ -264,7 +264,7 @@ func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int
 	}
 	
 	if len(conditions) > 0 {
-		whereClause = "WHERE " + fmt.Sprintf("(%s)", fmt.Sprintf("%s", conditions[0]))
+		whereClause = "WHERE " + conditions[0]
 		for i := 1; i < len(conditions); i++ {
 			whereClause += " AND " + conditions[i]
 		}

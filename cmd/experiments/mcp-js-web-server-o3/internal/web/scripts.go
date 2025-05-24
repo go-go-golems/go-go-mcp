@@ -31,41 +31,131 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Script Executions - JS Playground</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css">
     <style>
         .code-snippet {
             max-height: 150px;
             overflow-y: auto;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
+            background: #2d3748;
+            border: 1px solid #4a5568;
             border-radius: 0.375rem;
-            padding: 0.5rem;
-            font-family: 'Courier New', monospace;
+            padding: 0;
+            font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 0.875rem;
+            position: relative;
+        }
+        .code-snippet.expanded {
+            max-height: none;
+        }
+        .code-snippet pre {
+            margin: 0;
+            padding: 0.75rem;
+            background: transparent !important;
+            border: none;
+            border-radius: 0.375rem;
+        }
+        .code-snippet pre code {
+            background: transparent !important;
+            padding: 0 !important;
+        }
+        .expand-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: #fff;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .expand-btn:hover {
+            background: rgba(0,0,0,0.9);
         }
         .console-log {
             max-height: 100px;
             overflow-y: auto;
-            background: #1e1e1e;
-            color: #f8f8f2;
+            background: #1a202c;
+            color: #f7fafc;
+            border: 1px solid #4a5568;
             border-radius: 0.375rem;
-            padding: 0.5rem;
-            font-family: 'Courier New', monospace;
+            padding: 0.75rem;
+            font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 0.875rem;
+            position: relative;
+        }
+        .console-log.expanded {
+            max-height: none;
+        }
+        .result-snippet {
+            max-height: 120px;
+            overflow-y: auto;
+            background: #1a365d;
+            border: 1px solid #2b6cb0;
+            border-radius: 0.375rem;
+            padding: 0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.875rem;
+            position: relative;
+        }
+        .result-snippet.expanded {
+            max-height: none;
+        }
+        .result-snippet pre {
+            margin: 0;
+            padding: 0.75rem;
+            background: transparent !important;
+            border: none;
+            color: #e2e8f0;
         }
         .error-text {
-            color: #dc3545;
-            font-family: 'Courier New', monospace;
+            color: #fc8181;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            background: #2d1b1b;
+            border: 1px solid #e53e3e;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            position: relative;
+        }
+        .error-text.expanded {
+            max-height: none;
         }
         .timestamp {
             font-size: 0.875rem;
             color: #6c757d;
         }
         .session-id {
-            font-family: 'Courier New', monospace;
+            font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 0.875rem;
             background: #e9ecef;
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
+        }
+        .action-btn {
+            position: absolute;
+            top: 0.5rem;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: #fff;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            margin-left: 0.25rem;
+        }
+        .action-btn:hover {
+            background: rgba(0,0,0,0.9);
+        }
+        .copy-btn {
+            right: 5.5rem;
+        }
+        .download-btn {
+            right: 3.5rem;
         }
     </style>
 </head>
@@ -125,6 +215,10 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
     <script>
         let currentPage = 1;
         let totalPages = 1;
@@ -199,26 +293,59 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
                 html += '</div>';
                 html += '<div class="card-body">';
                 
+                // Store raw content in a global object for easy access
+                const codeKey = 'code-' + exec.id;
+                const resultKey = 'result-' + exec.id;
+                const consoleKey = 'console-' + exec.id;
+                const errorKey = 'error-' + exec.id;
+                
+                // Add to global content store
+                if (!window.rawContentStore) window.rawContentStore = {};
+                window.rawContentStore[codeKey] = exec.code;
+                if (hasResult) window.rawContentStore[resultKey] = exec.result;
+                if (hasConsoleLog) window.rawContentStore[consoleKey] = exec.console_log;
+                if (hasError) window.rawContentStore[errorKey] = exec.error;
+                
                 // Code
                 html += '<h6>Code:</h6>';
-                html += '<div class="code-snippet"><pre>' + escapeHtml(exec.code) + '</pre></div>';
+                html += '<div class="code-snippet" id="code-' + exec.id + '">';
+                html += '<button class="expand-btn" onclick="toggleExpand(\'code-' + exec.id + '\')">⛶</button>';
+                html += '<button class="action-btn copy-btn" onclick="copyRawContent(\'' + codeKey + '\')">📋</button>';
+                html += '<button class="action-btn download-btn" onclick="downloadRawContent(\'' + codeKey + '\', \'script-' + exec.session_id + '.js\', \'text/javascript\')">💾</button>';
+                html += '<pre class="line-numbers"><code class="language-javascript">' + escapeHtml(exec.code) + '</code></pre>';
+                html += '</div>';
                 
                 // Result
                 if (hasResult) {
                     html += '<h6 class="mt-3">Result:</h6>';
-                    html += '<div class="code-snippet"><pre>' + escapeHtml(exec.result) + '</pre></div>';
+                    html += '<div class="result-snippet" id="result-' + exec.id + '">';
+                    html += '<button class="expand-btn" onclick="toggleExpand(\'result-' + exec.id + '\')">⛶</button>';
+                    html += '<button class="action-btn copy-btn" onclick="copyRawContent(\'' + resultKey + '\')">📋</button>';
+                    html += '<button class="action-btn download-btn" onclick="downloadRawContent(\'' + resultKey + '\', \'result-' + exec.session_id + '.json\', \'application/json\')">💾</button>';
+                    html += '<pre class="line-numbers"><code class="language-json">' + formatJson(exec.result) + '</code></pre>';
+                    html += '</div>';
                 }
                 
                 // Console Log
                 if (hasConsoleLog) {
                     html += '<h6 class="mt-3">Console Output:</h6>';
-                    html += '<div class="console-log"><pre>' + escapeHtml(exec.console_log) + '</pre></div>';
+                    html += '<div class="console-log" id="console-' + exec.id + '">';
+                    html += '<button class="expand-btn" onclick="toggleExpand(\'console-' + exec.id + '\')">⛶</button>';
+                    html += '<button class="action-btn copy-btn" onclick="copyRawContent(\'' + consoleKey + '\')">📋</button>';
+                    html += '<button class="action-btn download-btn" onclick="downloadRawContent(\'' + consoleKey + '\', \'console-' + exec.session_id + '.log\', \'text/plain\')">💾</button>';
+                    html += '<pre class="line-numbers"><code class="language-none">' + escapeHtml(exec.console_log) + '</code></pre>';
+                    html += '</div>';
                 }
                 
                 // Error
                 if (hasError) {
                     html += '<h6 class="mt-3">Error:</h6>';
-                    html += '<div class="error-text"><pre>' + escapeHtml(exec.error) + '</pre></div>';
+                    html += '<div class="error-text" id="error-' + exec.id + '">';
+                    html += '<button class="expand-btn" onclick="toggleExpand(\'error-' + exec.id + '\')">⛶</button>';
+                    html += '<button class="action-btn copy-btn" onclick="copyRawContent(\'' + errorKey + '\')">📋</button>';
+                    html += '<button class="action-btn download-btn" onclick="downloadRawContent(\'' + errorKey + '\', \'error-' + exec.session_id + '.txt\', \'text/plain\')">💾</button>';
+                    html += '<pre class="line-numbers"><code class="language-none">' + escapeHtml(exec.error) + '</code></pre>';
+                    html += '</div>';
                 }
                 
                 html += '</div>';
@@ -226,6 +353,9 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
             });
 
             container.innerHTML = html;
+            
+            // Apply syntax highlighting
+            Prism.highlightAll();
         }
 
         function renderPagination(total, limit, currentPage) {
@@ -273,6 +403,85 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function toggleExpand(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.toggle('expanded');
+                const btn = element.querySelector('.expand-btn');
+                if (btn) {
+                    btn.textContent = element.classList.contains('expanded') ? '⛷' : '⛶';
+                }
+            }
+        }
+
+        function unescapeHtml(text) {
+            const div = document.createElement('div');
+            div.innerHTML = text;
+            return div.textContent || div.innerText || '';
+        }
+
+        function copyRawContent(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const rawContent = unescapeHtml(element.getAttribute('data-raw-content'));
+                navigator.clipboard.writeText(rawContent).then(function() {
+                    // Show temporary feedback
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 1000);
+                }).catch(function(err) {
+                    console.error('Failed to copy text: ', err);
+                });
+            }
+        }
+
+        function downloadRawContent(elementId, filename, mimeType) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const rawContent = unescapeHtml(element.getAttribute('data-raw-content'));
+                
+                // Create a blob with the content
+                const blob = new Blob([rawContent], { type: mimeType });
+                
+                // Create a temporary URL for the blob
+                const url = window.URL.createObjectURL(blob);
+                
+                // Create a temporary anchor element and trigger download
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                
+                // Add to DOM, click, and remove
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up the URL
+                window.URL.revokeObjectURL(url);
+                
+                // Show temporary feedback
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 1000);
+            }
+        }
+
+        function formatJson(jsonString) {
+            try {
+                const parsed = JSON.parse(jsonString);
+                return escapeHtml(JSON.stringify(parsed, null, 2));
+            } catch (e) {
+                return escapeHtml(jsonString);
+            }
+        }
     </script>
 </body>
 </html>`
@@ -282,11 +491,14 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
 }
 
 func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.Engine) {
-	// Parse form data
-	if err := r.ParseForm(); err != nil {
-		log.Error().Err(err).Msg("Failed to parse form data")
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
-		return
+	// Parse form data (handles both application/x-www-form-urlencoded and multipart/form-data)
+	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB max
+		// If multipart parsing fails, try regular form parsing
+		if err := r.ParseForm(); err != nil {
+			log.Error().Err(err).Msg("Failed to parse form data")
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Get parameters
@@ -312,11 +524,14 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 
 	offset := (page - 1) * limit
 
-	log.Debug().
+	log.Info().
 		Str("search", search).
 		Str("sessionID", sessionID).
+		Str("limitStr", limitStr).
+		Str("pageStr", pageStr).
 		Int("limit", limit).
 		Int("offset", offset).
+		Interface("form", r.Form).
 		Msg("Scripts API request")
 
 	// Query the database
