@@ -15,7 +15,7 @@
 - [ ] req.body is apparently a string, not a parsed object (prompt? funcitonality?)
 - [ ] give better error messages showing the relevant code as well instead of <eval>
 - [ ] function to retrieve logs maybe?
-- [ ] allow for a richer o-TTP API allowing redirects and all that
+- [x] allow for a richer o-TTP API allowing redirects and all that
 - [ ] Output registered endpoints
 - [ ] Allow for defining functions that can be used across executeJS calls (sadly we have the wrapped stuff right now, maybe we could parse for let / const?)
 - [ ] allow querying the logs as well
@@ -25,6 +25,16 @@
 - [ ] catch panics
 - [ ] allow for a repl to a session on the CLI as well
 - [ ] unit test suite for the JS too
+- [ ] async notification for error 500? get a way to get the logs. maybe a self-fix function
+- [ ] get rid of the function wrapped stuff
+- [ ] add function to restart the VM from scratch
+- [ ] allow loading thirdparty libs
+- [ ] live view of both MCP calls and REST calls / JS evaluation
+- [ ] add JS repl to the web UI
+- [ ] have live console
+- [ ] allow editing of sent JS and reload it for manual fixing
+- [ ] download session zip
+- [ ] MCP session ID is wrong
 
 ## Features
 
