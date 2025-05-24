@@ -15,7 +15,7 @@ This document summarizes the MVP implementation of the embeddable MCP server API
 
 #### Server Configuration Options
 - [x] `WithName()` - Set server name
-- [x] `WithVersion()` - Set server version  
+- [x] `WithVersion()` - Set server version
 - [x] `WithServerDescription()` - Set server description
 - [x] `WithDefaultTransport()` - Configure transport type
 - [x] `WithDefaultPort()` - Configure SSE port
