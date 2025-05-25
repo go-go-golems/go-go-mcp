@@ -23,18 +23,20 @@
 - `doc/`: Documentation
 
 <goGuidelines>
-When implementing go interfaces, use the var _ Interface = &Foo{} to make sure the interface is always implemented correctly.
-When building web applications, use htmx, bootstrap and the templ templating language.
-Always use a context argument when appropriate.
-Use cobra for command-line applications.
-Use the "defaults" package name, instead of "default" package name, as it's reserved in go.
-Use github.com/pkg/errors for wrapping errors.
-When starting goroutines, use errgroup.
+- When implementing go interfaces, use the var _ Interface = &Foo{} to make sure the interface is always implemented correctly.
+- When building web applications, use htmx, bootstrap and the templ templating language.
+- Always use a context argument when appropriate.
+- Use cobra for command-line applications.
+- Use the "defaults" package name, instead of "default" package name, as it's reserved in go.
+- Use github.com/pkg/errors for wrapping errors.
+- When starting goroutines, use errgroup.
+
+- Only use the toplevel go.mod, don't create new ones.
 </goGuidelines>
 
 <webGuidelines>
-Use bun, react and rtk-query. Use typescript.
-Use bootstrap for styling.
+- Use bun, react and rtk-query. Use typescript.
+- Use bootstrap for styling.
 </webGuidelines>
 
 <debuggingGuidelines>
