@@ -377,62 +377,6 @@ func (e *Engine) registerFile(path string, handler goja.Value) {
 	log.Info().Str("path", path).Msg("Registered file handler")
 }
 
-// createHTTPCookie creates an http.Cookie from JavaScript cookie data
-func (e *Engine) createHTTPCookie(cookieData map[string]interface{}) *http.Cookie {
-	name, ok := cookieData["name"].(string)
-	if !ok || name == "" {
-		return nil
-	}
-
-	value, ok := cookieData["value"].(string)
-	if !ok {
-		value = ""
-	}
-
-	cookie := &http.Cookie{
-		Name:  name,
-		Value: value,
-	}
-
-	// Optional fields
-	if path, ok := cookieData["path"].(string); ok && path != "" {
-		cookie.Path = path
-	}
-
-	if domain, ok := cookieData["domain"].(string); ok && domain != "" {
-		cookie.Domain = domain
-	}
-
-	if maxAge, ok := cookieData["maxAge"]; ok {
-		if maxAgeFloat, ok := maxAge.(float64); ok {
-			cookie.MaxAge = int(maxAgeFloat)
-		} else if maxAgeInt, ok := maxAge.(int); ok {
-			cookie.MaxAge = maxAgeInt
-		}
-	}
-
-	if secure, ok := cookieData["secure"].(bool); ok {
-		cookie.Secure = secure
-	}
-
-	if httpOnly, ok := cookieData["httpOnly"].(bool); ok {
-		cookie.HttpOnly = httpOnly
-	}
-
-	if sameSite, ok := cookieData["sameSite"].(string); ok {
-		switch strings.ToLower(sameSite) {
-		case "strict":
-			cookie.SameSite = http.SameSiteStrictMode
-		case "lax":
-			cookie.SameSite = http.SameSiteLaxMode
-		case "none":
-			cookie.SameSite = http.SameSiteNoneMode
-		}
-	}
-
-	return cookie
-}
-
 // Helper functions for content type detection
 func isHTML(s string) bool {
 	trimmed := strings.TrimSpace(s)
@@ -501,21 +445,27 @@ func (e *Engine) appUse(args ...goja.Value) {
 // Utility functions for JavaScript
 func (e *Engine) setupHTTPUtilities() {
 	// Express.js style app object
-	e.rt.Set("app", map[string]interface{}{
+	if err := e.rt.Set("app", map[string]interface{}{
 		"get":    e.appGet,
 		"post":   e.appPost,
 		"put":    e.appPut,
 		"delete": e.appDelete,
 		"patch":  e.appPatch,
 		"use":    e.appUse,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set app binding")
+	}
 
 	// Legacy registerHandler for backward compatibility
-	e.rt.Set("registerHandler", e.registerHandler)
-	e.rt.Set("registerFile", e.registerFile)
+	if err := e.rt.Set("registerHandler", e.registerHandler); err != nil {
+		log.Error().Err(err).Msg("Failed to set registerHandler binding")
+	}
+	if err := e.rt.Set("registerFile", e.registerFile); err != nil {
+		log.Error().Err(err).Msg("Failed to set registerFile binding")
+	}
 
 	// HTTP status codes (Express.js compatible)
-	e.rt.Set("HTTP", map[string]interface{}{
+	if err := e.rt.Set("HTTP", map[string]interface{}{
 		"OK":                    200,
 		"CREATED":               201,
 		"ACCEPTED":              202,
@@ -533,7 +483,9 @@ func (e *Engine) setupHTTPUtilities() {
 		"NOT_IMPLEMENTED":       501,
 		"BAD_GATEWAY":           502,
 		"SERVICE_UNAVAILABLE":   503,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set HTTP constants binding")
+	}
 
 }
 

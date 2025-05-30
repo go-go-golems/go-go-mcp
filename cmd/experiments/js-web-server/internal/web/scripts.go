@@ -13,11 +13,12 @@ import (
 // ScriptsHandler creates a handler for the script viewer page
 func ScriptsHandler(jsEngine *engine.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
+		switch r.Method {
+		case "GET":
 			serveScriptsPage(w, r, jsEngine)
-		} else if r.Method == "POST" {
+		case "POST":
 			serveScriptsAPI(w, r, jsEngine)
-		} else {
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
@@ -483,7 +484,9 @@ func serveScriptsPage(w http.ResponseWriter, r *http.Request, jsEngine *engine.E
 </html>`
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html))
+	if _, err := w.Write([]byte(html)); err != nil {
+		log.Error().Err(err).Msg("Failed to write HTML response")
+	}
 }
 
 func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.Engine) {
@@ -536,10 +539,12 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 		log.Error().Err(err).Msg("Failed to get script executions")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
 			"error":   "Database error",
-		})
+		}); encodeErr != nil {
+			log.Error().Err(encodeErr).Msg("Failed to encode error response")
+		}
 		return
 	}
 
@@ -554,5 +559,7 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error().Err(err).Msg("Failed to encode response")
+	}
 }

@@ -139,7 +139,9 @@ func (e *Engine) executeHandler(job EvalJob) error {
 	// If the response wasn't sent by the handler, send a default response
 	if !resObj.sent {
 		log.Debug().Msg("Response not sent by handler, sending default 200 response")
-		resObj.Status(200).End()
+		if err := resObj.Status(200).End(); err != nil {
+			log.Error().Err(err).Msg("Failed to send default response")
+		}
 	} else {
 		log.Debug().Msg("Response was sent by handler")
 	}

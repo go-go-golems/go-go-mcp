@@ -43,12 +43,14 @@ func (e *Engine) setupHTTPBindings() {
 	}
 
 	// Main fetch function (modern browser-like API)
-	e.rt.Set("fetch", func(urlOrOptions interface{}, options ...interface{}) map[string]interface{} {
+	if err := e.rt.Set("fetch", func(urlOrOptions interface{}, options ...interface{}) map[string]interface{} {
 		return e.jsFetch(client, urlOrOptions, options...)
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set fetch binding")
+	}
 
 	// HTTP utility object with method shortcuts
-	e.rt.Set("HTTP", map[string]interface{}{
+	if err := e.rt.Set("HTTP", map[string]interface{}{
 		"get": func(url string, options ...interface{}) map[string]interface{} {
 			return e.jsHTTPMethod(client, "GET", url, options...)
 		},
@@ -67,7 +69,9 @@ func (e *Engine) setupHTTPBindings() {
 		"head": func(url string, options ...interface{}) map[string]interface{} {
 			return e.jsHTTPMethod(client, "HEAD", url, options...)
 		},
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set HTTP utility binding")
+	}
 
 	log.Debug().Msg("HTTP request bindings configured")
 }
@@ -148,7 +152,7 @@ func (e *Engine) executeHTTPRequest(client *http.Client, req *HTTPRequest) map[s
 
 	// Build URL with query parameters
 	finalURL := req.URL
-	if req.Query != nil && len(req.Query) > 0 {
+	if len(req.Query) > 0 {
 		u, err := url.Parse(req.URL)
 		if err != nil {
 			return map[string]interface{}{

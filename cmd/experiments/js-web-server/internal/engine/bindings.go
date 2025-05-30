@@ -13,14 +13,20 @@ import (
 // setupBindings configures JavaScript bindings for the runtime
 func (e *Engine) setupBindings() {
 	// SQLite database binding
-	e.rt.Set("db", map[string]interface{}{
+	if err := e.rt.Set("db", map[string]interface{}{
 		"query": e.jsQuery,
 		"exec":  e.jsExec,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set db binding")
+	}
 
 	// Handler registration
-	e.rt.Set("registerHandler", e.registerHandler)
-	e.rt.Set("registerFile", e.registerFile)
+	if err := e.rt.Set("registerHandler", e.registerHandler); err != nil {
+		log.Error().Err(err).Msg("Failed to set registerHandler binding")
+	}
+	if err := e.rt.Set("registerFile", e.registerFile); err != nil {
+		log.Error().Err(err).Msg("Failed to set registerFile binding")
+	}
 
 	// HTTP utilities and constants
 	e.setupHTTPUtilities()
@@ -29,26 +35,32 @@ func (e *Engine) setupBindings() {
 	e.setupHTTPBindings()
 
 	// Console logging
-	e.rt.Set("console", map[string]interface{}{
+	if err := e.rt.Set("console", map[string]interface{}{
 		"log":   e.consoleLog,
 		"error": e.consoleError,
 		"info":  e.consoleInfo,
 		"warn":  e.consoleWarn,
 		"debug": e.consoleDebug,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set console binding")
+	}
 
 	// Basic utilities
-	e.rt.Set("JSON", map[string]interface{}{
+	if err := e.rt.Set("JSON", map[string]interface{}{
 		"stringify": e.jsonStringify,
 		"parse":     e.jsonParse,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set JSON binding")
+	}
 
 	// Global state object for persistence across script executions
-	e.rt.RunString(`
+	if _, err := e.rt.RunString(`
 		if (typeof globalState === 'undefined') {
 			globalState = {};
 		}
-	`)
+	`); err != nil {
+		log.Error().Err(err).Msg("Failed to initialize globalState")
+	}
 	log.Debug().Msg("JavaScript bindings configured")
 }
 
@@ -90,7 +102,11 @@ func (e *Engine) jsQuery(query string, args ...interface{}) []map[string]interfa
 
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close database rows")
+		}
+	}()
 
 	cols, err := rows.Columns()
 	if err != nil {
@@ -342,26 +358,30 @@ func (e *Engine) captureConsole(result *EvalResult) *ConsoleCapture {
 	}
 
 	// Create capturing versions
-	e.rt.Set("console", map[string]interface{}{
+	if err := e.rt.Set("console", map[string]interface{}{
 		"log":   func(args ...interface{}) { e.captureConsoleOutput(result, "log", args...) },
 		"error": func(args ...interface{}) { e.captureConsoleOutput(result, "error", args...) },
 		"info":  func(args ...interface{}) { e.captureConsoleOutput(result, "info", args...) },
 		"warn":  func(args ...interface{}) { e.captureConsoleOutput(result, "warn", args...) },
 		"debug": func(args ...interface{}) { e.captureConsoleOutput(result, "debug", args...) },
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to set console capture binding")
+	}
 
 	return original
 }
 
 // restoreConsole restores original console functions
 func (e *Engine) restoreConsole(original *ConsoleCapture) {
-	e.rt.Set("console", map[string]interface{}{
+	if err := e.rt.Set("console", map[string]interface{}{
 		"log":   original.Log,
 		"error": original.Error,
 		"info":  original.Info,
 		"warn":  original.Warn,
 		"debug": original.Debug,
-	})
+	}); err != nil {
+		log.Error().Err(err).Msg("Failed to restore console binding")
+	}
 }
 
 // captureConsoleOutput captures console output to the result

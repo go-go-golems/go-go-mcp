@@ -371,7 +371,11 @@ func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query script executions: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close database rows")
+		}
+	}()
 
 	var executions []ScriptExecution
 	for rows.Next() {

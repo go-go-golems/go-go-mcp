@@ -701,7 +701,9 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, html)
+	if _, err := fmt.Fprint(w, html); err != nil {
+		log.Error().Err(err).Msg("Failed to write HTML response")
+	}
 }
 
 // serveLogsAPI handles API endpoints for log data
@@ -726,7 +728,9 @@ func (ah *AdminHandler) serveLogsAPI(w http.ResponseWriter, r *http.Request) {
 // handleStatsAPI returns logging statistics
 func (ah *AdminHandler) handleStatsAPI(w http.ResponseWriter, r *http.Request) {
 	stats := ah.logger.GetStats()
-	json.NewEncoder(w).Encode(stats)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Error().Err(err).Msg("Failed to encode stats response")
+	}
 }
 
 // handleRequestsAPI returns request logs
@@ -740,13 +744,17 @@ func (ah *AdminHandler) handleRequestsAPI(w http.ResponseWriter, r *http.Request
 	}
 
 	requests := ah.logger.GetRecentRequests(limit)
-	json.NewEncoder(w).Encode(requests)
+	if err := json.NewEncoder(w).Encode(requests); err != nil {
+		log.Error().Err(err).Msg("Failed to encode requests response")
+	}
 }
 
 // handleRequestDetailsAPI returns details for a specific request
 func (ah *AdminHandler) handleRequestDetailsAPI(w http.ResponseWriter, r *http.Request, requestID string) {
 	if request, exists := ah.logger.GetRequestByID(requestID); exists {
-		json.NewEncoder(w).Encode(request)
+		if err := json.NewEncoder(w).Encode(request); err != nil {
+			log.Error().Err(err).Msg("Failed to encode request details response")
+		}
 	} else {
 		http.NotFound(w, r)
 	}
@@ -766,5 +774,7 @@ func (ah *AdminHandler) handleClearLogsAPI(w http.ResponseWriter, r *http.Reques
 		"success": true,
 		"message": "Logs cleared successfully",
 	}
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error().Err(err).Msg("Failed to encode clear logs response")
+	}
 }

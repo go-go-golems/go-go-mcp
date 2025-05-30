@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 // ExecuteHandler returns an HTTP handler for the /v1/execute endpoint
@@ -66,10 +67,12 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 				if err != nil {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					json.NewEncoder(w).Encode(map[string]interface{}{
+					if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 						"success": false,
 						"error":   fmt.Sprintf("JavaScript execution failed: %v", err),
-					})
+					}); encodeErr != nil {
+						log.Error().Err(encodeErr).Msg("Failed to encode error response")
+					}
 					return
 				}
 			case <-time.After(5 * time.Second):
@@ -88,15 +91,19 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 
 			// Return JSON response
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(responseData)
+			if err := json.NewEncoder(w).Encode(responseData); err != nil {
+				log.Error().Err(err).Msg("Failed to encode success response")
+			}
 
 		case <-time.After(30 * time.Second):
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusRequestTimeout)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			if err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"success": false,
 				"error":   "Timeout waiting for JavaScript execution",
-			})
+			}); err != nil {
+				log.Error().Err(err).Msg("Failed to encode timeout response")
+			}
 		}
 	}
 }

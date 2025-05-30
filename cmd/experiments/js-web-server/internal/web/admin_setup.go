@@ -42,7 +42,9 @@ func SetupFullServer(jsEngine *engine.Engine) *mux.Router {
 		log.Debug().Msg("API execute endpoint called via dynamic setup")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(`{"error": "Execute handler not configured in dynamic setup"}`))
+		if _, err := w.Write([]byte(`{"error": "Execute handler not configured in dynamic setup"}`)); err != nil {
+			log.Error().Err(err).Msg("Failed to write error response")
+		}
 	}).Methods("POST")
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
 
