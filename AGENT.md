@@ -43,8 +43,11 @@
 
 <debuggingGuidelines>
 If me or you the LLM agent seem to go down too deep in a debugging/fixing rabbit hole in our conversations, remind me to take a breath and think about the bigger picture instead of hacking away. Say: "I think I'm stuck, let's TOUCH GRASS".  IMPORTANT: Don't try to fix errors by yourself more than twice in a row. Then STOP. Don't do anything else.
+
 </debuggingGuidelines>
 
 <generalGuidelines>
+If it looks like your edits aren't applied, stop immediately and say "STOPPING BECAUSE EDITING ISN'T WORKING".
+
 Run the format_file tool at the end of each response.
 </generalGuidelines>
