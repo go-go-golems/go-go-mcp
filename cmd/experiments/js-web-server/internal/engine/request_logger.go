@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -105,13 +107,13 @@ func (rl *RequestLogger) StartRequest(r *http.Request) *RequestLog {
 		remoteIP = xri
 	}
 
-	// Read body if present
+	// Read body if present (and restore it for further processing)
 	var body string
 	if r.Body != nil && r.ContentLength > 0 && r.ContentLength < 10240 { // Limit to 10KB
-		if bodyBytes := make([]byte, r.ContentLength); r.ContentLength > 0 {
-			if n, err := r.Body.Read(bodyBytes); err == nil && n > 0 {
-				body = string(bodyBytes[:n])
-			}
+		if bodyBytes, err := io.ReadAll(r.Body); err == nil && len(bodyBytes) > 0 {
+			body = string(bodyBytes)
+			// Restore the body for further processing
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 	}
 

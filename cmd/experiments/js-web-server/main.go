@@ -9,12 +9,13 @@ import (
 	"strings"
 	"time"
 
+	clay "github.com/go-go-golems/clay/pkg"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/mcp"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web"
 	"github.com/gorilla/mux"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -32,13 +33,14 @@ func main() {
 		Use:   "js-playground",
 		Short: "JavaScript playground web server",
 		Long:  "A JavaScript playground web server with SQLite integration",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			setupLogging()
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			err := logging.InitLoggerFromViper()
+			if err != nil {
+				return err
+			}
+			return nil	
 		},
 	}
-
-	// Global flags
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "debug", "Log level (trace, debug, info, warn, error, fatal, panic)")
 
 	// Server command
 	serverCmd := &cobra.Command{
@@ -49,6 +51,8 @@ func main() {
 	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port to listen on")
 	serverCmd.Flags().StringVarP(&db, "db", "d", "data.sqlite", "SQLite database path")
 	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
+
+	clay.InitViper("js-web-server", rootCmd)
 
 	// Execute command
 	executeCmd := &cobra.Command{
@@ -77,22 +81,6 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to execute command")
 	}
-}
-
-func setupLogging() {
-	// Configure zerolog - always log to stderr to avoid interfering with MCP protocol
-	zerolog.TimeFieldFormat = time.RFC3339
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
-
-	// Set log level
-	level, err := zerolog.ParseLevel(logLevel)
-	if err != nil {
-		log.Warn().Str("level", logLevel).Msg("Invalid log level, using debug")
-		level = zerolog.DebugLevel
-	}
-	zerolog.SetGlobalLevel(level)
-
-	log.Debug().Str("level", level.String()).Msg("Logging initialized")
 }
 
 func runServer(cmd *cobra.Command, args []string) {

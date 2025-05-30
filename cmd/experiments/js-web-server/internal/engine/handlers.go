@@ -12,39 +12,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// RequestObject represents the enhanced request object passed to JavaScript handlers
-type RequestObject struct {
-	Method   string                 `json:"method"`
-	URL      string                 `json:"url"`
-	Path     string                 `json:"path"`
-	Query    map[string]interface{} `json:"query"`
-	Headers  map[string]interface{} `json:"headers"`
-	Body     string                 `json:"body,omitempty"`
-	Params   map[string]string      `json:"params,omitempty"`   // URL path parameters
-	Cookies  map[string]string      `json:"cookies,omitempty"`  // Request cookies
-	RemoteIP string                 `json:"remoteIP,omitempty"` // Client IP address
-}
-
-// ResponseObject represents the enhanced response object returned from JavaScript handlers
-type ResponseObject struct {
-	Status      int               `json:"status,omitempty"`      // HTTP status code (defaults to 200)
-	Headers     map[string]string `json:"headers,omitempty"`     // Response headers
-	Body        interface{}       `json:"body,omitempty"`        // Response body
-	ContentType string            `json:"contentType,omitempty"` // Content-Type header override
-	Cookies     []ResponseCookie  `json:"cookies,omitempty"`     // Response cookies
-	Redirect    string            `json:"redirect,omitempty"`    // Redirect URL (sets 302 status)
-}
-
-// ResponseCookie represents a cookie to be set in the response
-type ResponseCookie struct {
-	Name     string `json:"name"`
-	Value    string `json:"value"`
-	Path     string `json:"path,omitempty"`
-	Domain   string `json:"domain,omitempty"`
-	MaxAge   int    `json:"maxAge,omitempty"`   // In seconds
-	Secure   bool   `json:"secure,omitempty"`   // HTTPS only
-	HttpOnly bool   `json:"httpOnly,omitempty"` // No JavaScript access
-	SameSite string `json:"sameSite,omitempty"` // "Strict", "Lax", or "None"
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // ExpressRequest represents an Express.js compatible request object
@@ -531,6 +504,13 @@ func parsePathParams(pattern, path string) map[string]string {
 
 // createExpressRequestObject creates an Express.js compatible request object
 func (e *Engine) createExpressRequestObject(r *http.Request) *ExpressRequest {
+	log.Debug().
+		Str("method", r.Method).
+		Str("path", r.URL.Path).
+		Int64("contentLength", r.ContentLength).
+		Str("contentType", r.Header.Get("Content-Type")).
+		Msg("Creating Express request object")
+
 	// Parse query parameters
 	query := make(map[string]interface{})
 	for k, v := range r.URL.Query() {
@@ -569,6 +549,10 @@ func (e *Engine) createExpressRequestObject(r *http.Request) *ExpressRequest {
 
 	// Extract and parse request body
 	body := extractRequestBody(r)
+	log.Debug().
+		Interface("body", body).
+		Str("bodyType", fmt.Sprintf("%T", body)).
+		Msg("Request body extracted")
 
 	// Determine protocol
 	protocol := "http"
@@ -611,7 +595,10 @@ func (e *Engine) createExpressResponseObject(w http.ResponseWriter) *ExpressResp
 
 // Helper function to extract request body
 func extractRequestBody(r *http.Request) interface{} {
+	log.Debug().Bool("bodyIsNil", r.Body == nil).Int64("contentLength", r.ContentLength).Msg("extractRequestBody called")
+
 	if r.Body == nil {
+		log.Debug().Msg("Request body is nil")
 		return nil
 	}
 
@@ -622,18 +609,30 @@ func extractRequestBody(r *http.Request) interface{} {
 		return nil
 	}
 
+	log.Debug().
+		Int("bodyBytesLength", len(bodyBytes)).
+		Str("bodyBytesPreview", string(bodyBytes[:min(len(bodyBytes), 100)])).
+		Msg("Read request body bytes")
+
 	// Restore the body for further processing
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	// Try to parse as JSON if Content-Type indicates JSON
 	contentType := r.Header.Get("Content-Type")
+	log.Debug().Str("contentType", contentType).Bool("isJSON", strings.Contains(contentType, "application/json")).Msg("Checking content type")
+
 	if strings.Contains(contentType, "application/json") && len(bodyBytes) > 0 {
 		var jsonData interface{}
 		if err := json.Unmarshal(bodyBytes, &jsonData); err == nil {
+			log.Debug().Interface("parsedJSON", jsonData).Msg("Successfully parsed JSON")
 			return jsonData
+		} else {
+			log.Debug().Err(err).Msg("Failed to parse JSON")
 		}
 	}
 
 	// Return as string for other content types
-	return string(bodyBytes)
+	result := string(bodyBytes)
+	log.Debug().Str("finalResult", result).Msg("Returning body as string")
+	return result
 }

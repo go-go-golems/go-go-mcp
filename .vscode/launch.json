@@ -67,7 +67,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/experiments/js-web-server",
-            "args": ["serve", "--log-level", "debug"],
+            "args": ["serve", "--log-level", "debug", "--log-file", "/tmp/js-web-server.log", "--log-to-stdout"],
             "cwd": "${workspaceFolder}"
         }
     ]
