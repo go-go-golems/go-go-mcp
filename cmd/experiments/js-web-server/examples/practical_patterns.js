@@ -1,5 +1,39 @@
 // Practical Development Patterns
 
+// Initialize database schema if not exists
+if (!globalState.practicalPatternsInitialized) {
+    // Create users table
+    db.query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT DEFAULT 'password123',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Check if we have any users, if not create some sample data
+    const existingUsers = db.query('SELECT COUNT(*) as count FROM users');
+    if (existingUsers[0].count === 0) {
+        // Insert sample users
+        const sampleUsers = [
+            { name: 'John Doe', email: 'john@example.com' },
+            { name: 'Jane Smith', email: 'jane@example.com' },
+            { name: 'Bob Johnson', email: 'bob@example.com' }
+        ];
+
+        sampleUsers.forEach(user => {
+            db.query('INSERT INTO users (name, email) VALUES (?, ?)', [user.name, user.email]);
+        });
+
+        console.log(`Initialized users table with ${sampleUsers.length} sample users`);
+    }
+
+    globalState.practicalPatternsInitialized = true;
+    console.log('Practical patterns database schema initialized');
+}
+
 // Pattern 1: Input validation middleware
 function validateRequired(fields) {
     return (req, res, next) => {
@@ -46,18 +80,22 @@ function setCache(key, data, ttlMinutes = 5) {
 }
 
 // Pattern 4: Database model pattern
-const UserModel = {
-    findAll: () => db.query('SELECT id, name, email FROM users'),
+globalState.UserModel = {
+    findAll: () => db.query('SELECT id, name, email, created_at FROM users'),
     findById: (id) => {
-        const users = db.query('SELECT id, name, email FROM users WHERE id = ?', [id]);
+        const users = db.query('SELECT id, name, email, created_at FROM users WHERE id = ?', [id]);
         return users[0] || null;
     },
     create: (data) => {
         db.query('INSERT INTO users (name, email) VALUES (?, ?)', [data.name, data.email]);
-        return UserModel.findByEmail(data.email);
+        return globalState.UserModel.findByEmail(data.email);
     },
     findByEmail: (email) => {
-        const users = db.query('SELECT id, name, email FROM users WHERE email = ?', [email]);
+        const users = db.query('SELECT id, name, email, created_at FROM users WHERE email = ?', [email]);
+        return users[0] || null;
+    },
+    findByEmailWithPassword: (email) => {
+        const users = db.query('SELECT id, name, email, password, created_at FROM users WHERE email = ?', [email]);
         return users[0] || null;
     }
 };
@@ -67,13 +105,13 @@ app.get('/api/users', asyncHandler((req, res) => {
     const cached = getCached('users');
     if (cached) return res.json(cached);
     
-    const users = UserModel.findAll();
+    const users = globalState.UserModel.findAll();
     setCache('users', users, 2);
     res.json(users);
 }));
 
 app.post('/api/users', validateRequired(['name', 'email']), asyncHandler((req, res) => {
-    const user = UserModel.create(req.body);
+    const user = globalState.UserModel.create(req.body);
     globalState.cache.delete('users'); // Invalidate cache
     res.status(201).json(user);
 }));
@@ -86,16 +124,18 @@ if (!globalState.sessions) {
 app.post('/auth/login', (req, res) => {
     const { email, password } = req.body;
     // Simplified auth - use proper password hashing in production
-    const user = UserModel.findByEmail(email);
+    const user = globalState.UserModel.findByEmailWithPassword(email);
     
-    if (!user) {
+    if (!user || user.password !== password) {
         return res.status(401).json({ error: 'Invalid credentials' });
     }
     
     const token = Math.random().toString(36).substring(2, 15);
-    globalState.sessions.set(token, { userId: user.id, user });
+    // Remove password from user object before storing in session
+    const userForSession = { id: user.id, name: user.name, email: user.email, created_at: user.created_at };
+    globalState.sessions.set(token, { userId: user.id, user: userForSession });
     
-    res.json({ token, user });
+    res.json({ token, user: userForSession });
 });
 
 function requireAuth(req, res, next) {
