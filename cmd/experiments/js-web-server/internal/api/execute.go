@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
@@ -30,15 +30,6 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 
 		code := string(body)
 
-		// Persist source code with timestamp
-		timestamp := time.Now().UTC().Format("20060102-150405")
-		filename := fmt.Sprintf("scripts/%s.js", timestamp)
-
-		if err := os.WriteFile(filename, body, 0644); err != nil {
-			http.Error(w, "Failed to persist script", http.StatusInternalServerError)
-			return
-		}
-
 		// Generate session ID for tracking
 		sessionID := uuid.New().String()
 
@@ -62,21 +53,50 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 		select {
 		case result := <-resultChan:
 			// Also wait for done signal to ensure completion
+			var executionErr error
 			select {
 			case err := <-done:
-				if err != nil {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusInternalServerError)
-					if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
-						"success": false,
-						"error":   fmt.Sprintf("JavaScript execution failed: %v", err),
-					}); encodeErr != nil {
-						log.Error().Err(encodeErr).Msg("Failed to encode error response")
-					}
-					return
-				}
+				executionErr = err
 			case <-time.After(5 * time.Second):
 				// Continue even if done signal is delayed
+			}
+
+			// Prepare data for database storage
+			var resultStr, consoleLogStr, errorStr string
+			
+			if result.Value != nil {
+				if resultBytes, err := json.Marshal(result.Value); err == nil {
+					resultStr = string(resultBytes)
+				}
+			}
+			
+			if len(result.ConsoleLog) > 0 {
+				consoleLogStr = strings.Join(result.ConsoleLog, "\n")
+			}
+			
+			if executionErr != nil {
+				errorStr = executionErr.Error()
+			}
+
+			// Store script execution in database
+			if err := jsEngine.StoreScriptExecution(sessionID, code, resultStr, consoleLogStr, errorStr, "api"); err != nil {
+				log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store script execution in database")
+			} else {
+				log.Debug().Str("sessionID", sessionID).Msg("Script execution stored in database")
+			}
+
+			// Handle execution error
+			if executionErr != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
+					"success":   false,
+					"error":     fmt.Sprintf("JavaScript execution failed: %v", executionErr),
+					"sessionID": sessionID,
+				}); encodeErr != nil {
+					log.Error().Err(encodeErr).Msg("Failed to encode error response")
+				}
+				return
 			}
 
 			// Create response with result and console output
@@ -84,9 +104,8 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 				"success":    true,
 				"result":     result.Value,
 				"consoleLog": result.ConsoleLog,
-				"savedAs":    filename,
 				"sessionID":  sessionID,
-				"message":    "JavaScript code executed successfully",
+				"message":    "JavaScript code executed and stored in database",
 			}
 
 			// Return JSON response
@@ -96,11 +115,17 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 			}
 
 		case <-time.After(30 * time.Second):
+			// Store timeout error in database
+			if err := jsEngine.StoreScriptExecution(sessionID, code, "", "", "Timeout waiting for JavaScript execution", "api"); err != nil {
+				log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store timeout execution in database")
+			}
+
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusRequestTimeout)
 			if err := json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": false,
-				"error":   "Timeout waiting for JavaScript execution",
+				"success":   false,
+				"error":     "Timeout waiting for JavaScript execution",
+				"sessionID": sessionID,
 			}); err != nil {
 				log.Error().Err(err).Msg("Failed to encode timeout response")
 			}

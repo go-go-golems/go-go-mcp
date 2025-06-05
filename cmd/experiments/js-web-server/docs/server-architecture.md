@@ -110,9 +110,10 @@ Handles dynamic routing for JavaScript-registered endpoints:
 ### 5. API Layer (`internal/api/execute.go`)
 
 Provides the `/v1/execute` endpoint for code execution:
-- **Script Persistence**: Saves executed code with timestamps
+- **Database Storage**: Stores executed code, results, and errors in SQLite
+- **Session Tracking**: Each execution gets a unique session ID for tracking
 - **Async Execution**: Non-blocking code submission
-- **Response Handling**: Returns execution status
+- **Response Handling**: Returns execution status and session ID
 
 ## Concurrency Model
 
@@ -150,12 +151,12 @@ For higher throughput, you can:
 
 ```
 1. Client sends POST /v1/execute with JavaScript code
-2. API handler reads code and saves to scripts/timestamp.js
-3. EvalJob created with code and submitted to job queue
-4. Dispatcher picks up job and wraps code in IIFE
-5. JavaScript runtime executes wrapped code
-6. Any registerHandler calls update the handler registry
-7. Response sent back to client
+2. API handler generates session ID and creates EvalJob
+3. EvalJob submitted to job queue for execution
+4. Dispatcher picks up job and executes JavaScript code
+5. Execution result, console output, and errors captured
+6. All execution data stored in SQLite database with session ID
+7. Response sent back to client with result and session ID
 ```
 
 ### 2. Dynamic Route Flow
@@ -180,6 +181,31 @@ The server maintains a single SQLite connection shared across all JavaScript exe
 const users = db.query("SELECT * FROM users WHERE active = ?", [true]);
 const count = db.query("SELECT COUNT(*) as total FROM users")[0].total;
 ```
+
+### Script Execution Storage
+
+All JavaScript code executions are automatically stored in the `script_executions` table:
+
+```sql
+CREATE TABLE script_executions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    result TEXT,
+    console_log TEXT,
+    error TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    source TEXT DEFAULT 'api'
+);
+```
+
+**Stored Data:**
+- **Session ID**: Unique identifier for each execution
+- **Code**: The executed JavaScript code
+- **Result**: JSON-serialized execution result 
+- **Console Log**: Captured console output
+- **Error**: Any execution errors
+- **Source**: Execution source ('api', 'mcp', 'file')
 
 ### Parameter Handling
 

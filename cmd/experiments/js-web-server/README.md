@@ -60,14 +60,6 @@ if (!globalState.appConfig) {
 }
 ```
 
-## 🎯 Use Cases
-
-- **Rapid Prototyping**: Build APIs and web interfaces quickly
-- **Dynamic Content Management**: Create content that changes based on database queries
-- **Educational Projects**: Learn web development with immediate feedback
-- **Microservices**: Lightweight services with minimal overhead
-- **API Mocking**: Create mock APIs for testing and development
-
 ## 📋 Examples
 
 ### Simple API Endpoint (Express.js style)
