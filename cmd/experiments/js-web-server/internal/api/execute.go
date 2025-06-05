@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
@@ -61,30 +60,6 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 				// Continue even if done signal is delayed
 			}
 
-			// Prepare data for database storage
-			var resultStr, consoleLogStr, errorStr string
-			
-			if result.Value != nil {
-				if resultBytes, err := json.Marshal(result.Value); err == nil {
-					resultStr = string(resultBytes)
-				}
-			}
-			
-			if len(result.ConsoleLog) > 0 {
-				consoleLogStr = strings.Join(result.ConsoleLog, "\n")
-			}
-			
-			if executionErr != nil {
-				errorStr = executionErr.Error()
-			}
-
-			// Store script execution in database
-			if err := jsEngine.StoreScriptExecution(sessionID, code, resultStr, consoleLogStr, errorStr, "api"); err != nil {
-				log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store script execution in database")
-			} else {
-				log.Debug().Str("sessionID", sessionID).Msg("Script execution stored in database")
-			}
-
 			// Handle execution error
 			if executionErr != nil {
 				w.Header().Set("Content-Type", "application/json")
@@ -115,10 +90,7 @@ func ExecuteHandler(jsEngine *engine.Engine) http.HandlerFunc {
 			}
 
 		case <-time.After(30 * time.Second):
-			// Store timeout error in database
-			if err := jsEngine.StoreScriptExecution(sessionID, code, "", "", "Timeout waiting for JavaScript execution", "api"); err != nil {
-				log.Error().Err(err).Str("sessionID", sessionID).Msg("Failed to store timeout execution in database")
-			}
+			// Note: Timeout executions are not stored since they never reach the dispatcher
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusRequestTimeout)

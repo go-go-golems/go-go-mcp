@@ -2,21 +2,21 @@ package engine
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/dop251/goja"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 )
 
-// Engine wraps the JavaScript runtime and SQLite connection
+// Engine wraps the JavaScript runtime and data repositories
 type Engine struct {
 	rt           *goja.Runtime
-	db           *sql.DB
+	db           *sql.DB                             // Legacy database connection for JavaScript bindings
+	repos        repository.RepositoryManager       // Repository manager for data access
 	jobs         chan EvalJob
 	handlers     map[string]map[string]*HandlerInfo // [path][method] -> handler info
 	files        map[string]goja.Callable           // [path] -> file handler
@@ -51,7 +51,7 @@ type EvalResult struct {
 	Error      error       `json:"error,omitempty"` // Execution error if any
 }
 
-// NewEngine creates a new JavaScript engine with SQLite integration
+// NewEngine creates a new JavaScript engine with repository integration
 func NewEngine(dbPath string) *Engine {
 	log.Debug().Str("database", dbPath).Msg("Creating new JavaScript engine")
 
@@ -61,16 +61,24 @@ func NewEngine(dbPath string) *Engine {
 	// Set up field name mapper to convert Go method names to JavaScript-style names
 	rt.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 
-	// Open SQLite connection
+	// Open SQLite connection for JavaScript bindings (legacy support)
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal().Err(err).Str("database", dbPath).Msg("Failed to open database")
 	}
-	log.Debug().Str("database", dbPath).Msg("Database connection established")
+	log.Debug().Str("database", dbPath).Msg("Legacy database connection established")
+
+	// Create repository manager
+	repos, err := repository.NewSQLiteRepositoryManager(dbPath)
+	if err != nil {
+		log.Fatal().Err(err).Str("database", dbPath).Msg("Failed to create repository manager")
+	}
+	log.Debug().Str("database", dbPath).Msg("Repository manager created")
 
 	e := &Engine{
 		rt:        rt,
 		db:        db,
+		repos:     repos,
 		jobs:      make(chan EvalJob, 1024),
 		handlers:  make(map[string]map[string]*HandlerInfo),
 		files:     make(map[string]goja.Callable),
@@ -86,15 +94,7 @@ func NewEngine(dbPath string) *Engine {
 	// Log runtime state after bindings setup
 	e.logJavaScriptRuntimeState("after-bindings-setup")
 
-	// Initialize database tables for script storage
-	log.Debug().Msg("Initializing script storage tables")
-	if err := e.initScriptsTables(); err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize scripts tables")
-	} else {
-		log.Debug().Msg("Script storage tables initialized successfully")
-	}
-
-	log.Debug().Msg("JavaScript engine initialized")
+	log.Debug().Msg("JavaScript engine initialized with repository pattern")
 	return e
 }
 
@@ -212,6 +212,11 @@ func (e *Engine) GetRequestLogger() *RequestLogger {
 	return e.reqLogger
 }
 
+// GetRepositoryManager returns the repository manager
+func (e *Engine) GetRepositoryManager() repository.RepositoryManager {
+	return e.repos
+}
+
 // executeCode executes JavaScript code directly in the global scope
 func (e *Engine) executeCode(code string) error {
 	log.Debug().Str("code", code).Msg("Executing JavaScript code")
@@ -270,132 +275,7 @@ func (e *Engine) executeCodeWithResult(code string) (*EvalResult, error) {
 	return result, nil
 }
 
-// ScriptExecution represents a stored script execution record
-type ScriptExecution struct {
-	ID         int       `json:"id"`
-	SessionID  string    `json:"session_id"`
-	Code       string    `json:"code"`
-	Result     string    `json:"result"`
-	ConsoleLog string    `json:"console_log"`
-	Error      string    `json:"error"`
-	Timestamp  time.Time `json:"timestamp"`
-	Source     string    `json:"source"` // 'api', 'mcp', 'file'
-}
 
-// initScriptsTables initializes the database tables for script storage
-func (e *Engine) initScriptsTables() error {
-	query := `
-	CREATE TABLE IF NOT EXISTS script_executions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		session_id TEXT NOT NULL,
-		code TEXT NOT NULL,
-		result TEXT,
-		console_log TEXT,
-		error TEXT,
-		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-		source TEXT DEFAULT 'api'
-	);
-	
-	CREATE INDEX IF NOT EXISTS idx_script_executions_session_id ON script_executions(session_id);
-	CREATE INDEX IF NOT EXISTS idx_script_executions_timestamp ON script_executions(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_script_executions_source ON script_executions(source);
-	`
-
-	_, err := e.db.Exec(query)
-	if err != nil {
-		return fmt.Errorf("failed to create scripts tables: %w", err)
-	}
-
-	log.Debug().Msg("Script storage tables initialized")
-	return nil
-}
-
-// StoreScriptExecution stores a script execution in the database
-func (e *Engine) StoreScriptExecution(sessionID, code, result, consoleLog, errorMsg, source string) error {
-	query := `
-	INSERT INTO script_executions (session_id, code, result, console_log, error, source)
-	VALUES (?, ?, ?, ?, ?, ?)
-	`
-
-	_, err := e.db.Exec(query, sessionID, code, result, consoleLog, errorMsg, source)
-	if err != nil {
-		return fmt.Errorf("failed to store script execution: %w", err)
-	}
-
-	return nil
-}
-
-// GetScriptExecutions retrieves script executions with pagination and search
-func (e *Engine) GetScriptExecutions(search, sessionID string, limit, offset int) ([]ScriptExecution, int, error) {
-	// Build WHERE clause
-	var whereClause string
-	var args []interface{}
-	var conditions []string
-
-	if search != "" {
-		conditions = append(conditions, "(code LIKE ? OR result LIKE ? OR console_log LIKE ?)")
-		searchTerm := "%" + search + "%"
-		args = append(args, searchTerm, searchTerm, searchTerm)
-	}
-
-	if sessionID != "" {
-		conditions = append(conditions, "session_id = ?")
-		args = append(args, sessionID)
-	}
-
-	if len(conditions) > 0 {
-		whereClause = "WHERE " + conditions[0]
-		for i := 1; i < len(conditions); i++ {
-			whereClause += " AND " + conditions[i]
-		}
-	}
-
-	// Get total count
-	countQuery := "SELECT COUNT(*) FROM script_executions " + whereClause
-	var total int
-	err := e.db.QueryRow(countQuery, args...).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
-	}
-
-	// Get paginated results
-	query := fmt.Sprintf(`
-	SELECT id, session_id, code, result, console_log, error, timestamp, source 
-	FROM script_executions %s
-	ORDER BY timestamp DESC 
-	LIMIT ? OFFSET ?
-	`, whereClause)
-
-	args = append(args, limit, offset)
-	rows, err := e.db.Query(query, args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to query script executions: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			log.Error().Err(err).Msg("Failed to close database rows")
-		}
-	}()
-
-	var executions []ScriptExecution
-	for rows.Next() {
-		var exec ScriptExecution
-		var result, consoleLog, errorStr sql.NullString
-
-		err := rows.Scan(&exec.ID, &exec.SessionID, &exec.Code, &result, &consoleLog, &errorStr, &exec.Timestamp, &exec.Source)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan row: %w", err)
-		}
-
-		exec.Result = result.String
-		exec.ConsoleLog = consoleLog.String
-		exec.Error = errorStr.String
-
-		executions = append(executions, exec)
-	}
-
-	return executions, total, nil
-}
 
 // logJavaScriptRuntimeState logs the current state of the JavaScript runtime for debugging
 func (e *Engine) logJavaScriptRuntimeState(context string) {

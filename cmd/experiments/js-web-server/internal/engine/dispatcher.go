@@ -1,11 +1,14 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/dop251/goja"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
 	"github.com/rs/zerolog/log"
 )
 
@@ -158,28 +161,38 @@ func (e *Engine) executeDirectCode(job EvalJob) error {
 
 	// Store execution result if we have session tracking
 	if job.SessionID != "" {
-		resultJSON := ""
-		consoleLogJSON := ""
-		errorStr := ""
+		var resultStr, consoleLogStr, errorStr *string
 
 		if result.Value != nil {
 			if data, marshalErr := json.Marshal(result.Value); marshalErr == nil {
-				resultJSON = string(data)
+				s := string(data)
+				resultStr = &s
 			}
 		}
 
 		if len(result.ConsoleLog) > 0 {
-			if data, marshalErr := json.Marshal(result.ConsoleLog); marshalErr == nil {
-				consoleLogJSON = string(data)
-			}
+			s := strings.Join(result.ConsoleLog, "\n")
+			consoleLogStr = &s
 		}
 
 		if result.Error != nil {
-			errorStr = result.Error.Error()
+			s := result.Error.Error()
+			errorStr = &s
 		}
 
-		if storeErr := e.StoreScriptExecution(job.SessionID, job.Code, resultJSON, consoleLogJSON, errorStr, job.Source); storeErr != nil {
+		req := repository.CreateExecutionRequest{
+			SessionID:  job.SessionID,
+			Code:       job.Code,
+			Result:     resultStr,
+			ConsoleLog: consoleLogStr,
+			Error:      errorStr,
+			Source:     job.Source,
+		}
+
+		if _, storeErr := e.repos.Executions().CreateExecution(context.Background(), req); storeErr != nil {
 			log.Error().Err(storeErr).Msg("Failed to store script execution")
+		} else {
+			log.Debug().Str("sessionID", job.SessionID).Msg("Script execution stored via repository")
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
 	"github.com/rs/zerolog/log"
 )
 
@@ -533,20 +534,32 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 		Interface("form", r.Form).
 		Msg("Scripts API request")
 
-	// Query the database
-	executions, total, err := jsEngine.GetScriptExecutions(search, sessionID, limit, offset)
+	// Query via repository
+	filter := repository.ExecutionFilter{
+		Search:    search,
+		SessionID: sessionID,
+	}
+	pagination := repository.PaginationOptions{
+		Limit:  limit,
+		Offset: offset,
+	}
+	
+	result, err := jsEngine.GetRepositoryManager().Executions().ListExecutions(r.Context(), filter, pagination)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get script executions")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"error":   "Database error",
+			"error":   "Repository error",
 		}); encodeErr != nil {
 			log.Error().Err(encodeErr).Msg("Failed to encode error response")
 		}
 		return
 	}
+	
+	executions := result.Executions
+	total := result.Total
 
 	// Return JSON response
 	response := map[string]interface{}{
