@@ -1,0 +1,12 @@
+title: 🐛 Fix static file MIME type issues in web server
+description: |
+  Fixed static file handler to serve CSS and JavaScript files with correct MIME types instead of text/plain.
+  
+  Changes:
+  - Added explicit MIME type detection for common file extensions
+  - Set application/javascript for .js files
+  - Set text/css for .css files  
+  - Added security check for directory traversal
+  - Added caching headers for better performance
+  
+  This resolves browser errors where CSS/JS files were blocked due to MIME type mismatch.

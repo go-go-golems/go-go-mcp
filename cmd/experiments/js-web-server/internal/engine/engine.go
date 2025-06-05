@@ -15,8 +15,8 @@ import (
 // Engine wraps the JavaScript runtime and data repositories
 type Engine struct {
 	rt           *goja.Runtime
-	db           *sql.DB                             // Legacy database connection for JavaScript bindings
-	repos        repository.RepositoryManager       // Repository manager for data access
+	db           *sql.DB                      // Legacy database connection for JavaScript bindings
+	repos        repository.RepositoryManager // Repository manager for data access
 	jobs         chan EvalJob
 	handlers     map[string]map[string]*HandlerInfo // [path][method] -> handler info
 	files        map[string]goja.Callable           // [path] -> file handler
@@ -274,8 +274,6 @@ func (e *Engine) executeCodeWithResult(code string) (*EvalResult, error) {
 
 	return result, nil
 }
-
-
 
 // logJavaScriptRuntimeState logs the current state of the JavaScript runtime for debugging
 func (e *Engine) logJavaScriptRuntimeState(context string) {

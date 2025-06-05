@@ -543,7 +543,7 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 		Limit:  limit,
 		Offset: offset,
 	}
-	
+
 	result, err := jsEngine.GetRepositoryManager().Executions().ListExecutions(r.Context(), filter, pagination)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get script executions")
@@ -557,7 +557,7 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 		}
 		return
 	}
-	
+
 	executions := result.Executions
 	total := result.Total
 

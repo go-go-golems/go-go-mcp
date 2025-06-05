@@ -39,6 +39,9 @@
 <webGuidelines>
 - Use bun, react and rtk-query. Use typescript.
 - Use bootstrap for styling.
+- Store css, html and js in different files in a static directory.
+- Use go:embed to serve static files.
+- Use templ for go templates, assume I'm running templ generate -watch in the background.
 </webGuidelines>
 
 <debuggingGuidelines>
@@ -47,7 +50,22 @@ If me or you the LLM agent seem to go down too deep in a debugging/fixing rabbit
 </debuggingGuidelines>
 
 <generalGuidelines>
+Don't add backwards compatibility layers unless explicitly asked.
+
 If it looks like your edits aren't applied, stop immediately and say "STOPPING BECAUSE EDITING ISN'T WORKING".
 
 Run the format_file tool at the end of each response.
 </generalGuidelines>
+
+<gitGuidelines>
+After each successful run, output a git commit message as yaml, using gitmoji for th title.
+If new APIs, endpoints or CLI commands were added, document them in the commit message.
+Make a list of the tests that were run and their results.
+
+Avoid general statements like "created extensible foundation" or "this allows for...".
+
+title: <title>
+description: <description>
+
+and store in directory root as .git-commit-message.yaml
+</gitGuidelines>

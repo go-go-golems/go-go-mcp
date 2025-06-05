@@ -12,8 +12,8 @@ import (
 
 // sqliteRepositoryManager implements RepositoryManager for SQLite
 type sqliteRepositoryManager struct {
-	db               *sql.DB
-	executionRepo    ExecutionRepository
+	db            *sql.DB
+	executionRepo ExecutionRepository
 }
 
 // NewSQLiteRepositoryManager creates a new SQLite repository manager

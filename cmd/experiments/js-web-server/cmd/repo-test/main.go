@@ -37,7 +37,7 @@ func main() {
 	fmt.Printf("\nRecent Executions:\n")
 	filter := repository.ExecutionFilter{}
 	pagination := repository.PaginationOptions{Limit: 5, Offset: 0}
-	
+
 	result, err := repos.Executions().ListExecutions(ctx, filter, pagination)
 	if err != nil {
 		log.Fatalf("Failed to list executions: %v", err)

@@ -15,7 +15,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/mcp"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web"
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +37,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return nil	
+			return nil
 		},
 	}
 
@@ -113,19 +112,10 @@ func runServer(cmd *cobra.Command, args []string) {
 		log.Info().Msg("Finished loading scripts")
 	}
 
-	// Setup router
-	log.Debug().Msg("Setting up HTTP router")
-	r := mux.NewRouter()
-
-	// API routes
-	r.HandleFunc("/v1/execute", api.ExecuteHandler(jsEngine)).Methods("POST")
+	// Setup router with new templ-based interface including API handler
+	log.Debug().Msg("Setting up HTTP router with new interface")
+	r := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
-
-	// Setup admin routes (consolidated)
-	web.SetupAdminRoutes(r, jsEngine)
-
-	// Setup dynamic routes with logging (consolidated)
-	web.SetupDynamicRoutes(r, jsEngine)
 
 	addr := ":" + port
 	log.Info().Str("address", addr).Str("database", db).Msg("Server configuration")

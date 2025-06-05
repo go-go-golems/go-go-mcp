@@ -16,9 +16,9 @@ type ScriptExecution struct {
 
 // ExecutionFilter provides filtering options for script execution queries
 type ExecutionFilter struct {
-	Search    string `json:"search,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
-	Source    string `json:"source,omitempty"`
+	Search    string     `json:"search,omitempty"`
+	SessionID string     `json:"session_id,omitempty"`
+	Source    string     `json:"source,omitempty"`
 	FromDate  *time.Time `json:"from_date,omitempty"`
 	ToDate    *time.Time `json:"to_date,omitempty"`
 }
