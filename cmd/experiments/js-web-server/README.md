@@ -31,8 +31,8 @@ Then visit `http://localhost:8080/hello` to see your endpoint in action!
 
 ## 📖 Documentation
 
-- **[JavaScript Developer Guide](../../pkg/doc/docs/javascript-developer-guide.md)** - Complete guide to building applications in the sandboxed environment
-- **[Server Architecture & Internals](../../pkg/doc/docs/server-architecture.md)** - Deep dive into how the server works internally
+- **[JavaScript Developer Guide](pkg/doc/docs/javascript-developer-guide.md)** - Complete guide to building applications in the sandboxed environment
+- **[Server Architecture & Internals](pkg/doc/docs/server-architecture.md)** - Deep dive into how the server works internally
 - **[Express.js API Reference](#expressjs-api)** - Familiar Express.js compatible API for web development
 
 ### Quick Reference
@@ -183,6 +183,10 @@ cmd/experiments/js-web-server/
 │   │   └── router.go                # Dynamic route handling
 │   └── mcp/
 │       └── server.go                # MCP server integration
+├── pkg/
+│   └── doc/                         # Documentation package
+│       ├── docs/                    # Embedded documentation files
+│       └── doc.go                   # Documentation access functions
 ├── test-scripts/                    # Example JavaScript applications
 └── scripts/                         # Runtime JavaScript storage
 ```

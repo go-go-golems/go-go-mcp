@@ -1,15 +1,11 @@
-title: 🐛 Fix static file MIME type and path handling issues
+title: "🔧 Add dynamic port allocation to js-web-server MCP"
 description: |
-  Fixed static file handler to properly serve embedded CSS and JavaScript files with correct MIME types.
+  - Created WebServerMCP struct to manage server state and port allocation
+  - Implemented findFreePort() function to find available ports starting from 8080
+  - Updated MCP tool registration to include correct server URLs in description
+  - Modified all engine references to use new struct-based approach
+  - Server URLs in tool responses now reflect actual running port
   
-  Changes:
-  - Rewrote static handler to properly handle embedded filesystem paths
-  - Fixed path stripping logic (static/ prefix handling) 
-  - Set application/javascript for .js files (was text/plain)
-  - Set text/css for .css files (was text/plain)
-  - Added proper file existence checking in embedded FS
-  - Added security check for directory traversal
-  - Added caching headers for better performance
-  - Added debug logging for troubleshooting
-  
-  This resolves browser MIME type mismatch errors that prevented the JavaScript playground from loading properly.
+  Tests run:
+  - go build: PASSED
+  - go fmt: PASSED

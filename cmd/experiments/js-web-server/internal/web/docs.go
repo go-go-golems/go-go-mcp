@@ -13,7 +13,7 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web/templates"
-	"github.com/go-go-golems/go-go-mcp/pkg/doc"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/pkg/doc"
 )
 
 var docsFS fs.FS
@@ -296,14 +296,14 @@ func PresetHandler() http.HandlerFunc {
 		for _, preset := range presets {
 			if preset.ID == presetID {
 				w.Header().Set("Content-Type", "application/json")
-				
+
 				// Use proper JSON marshaling
 				data, err := json.Marshal(preset)
 				if err != nil {
 					http.Error(w, "Failed to encode preset", http.StatusInternalServerError)
 					return
 				}
-				
+
 				w.Write(data)
 				return
 			}

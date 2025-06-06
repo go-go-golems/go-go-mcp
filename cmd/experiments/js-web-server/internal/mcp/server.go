@@ -5,9 +5,11 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
@@ -24,12 +26,53 @@ import (
 //go:embed docs/javascript-api.md
 var javascriptAPIDoc string
 
-// GlobalJSEngine is the global JavaScript engine instance
-var GlobalJSEngine *engine.Engine
+// WebServerMCP represents the MCP server instance with dynamic port allocation
+type WebServerMCP struct {
+	JSEngine *engine.Engine
+	Port     int
+	BaseURL  string
+}
+
+// GlobalWebServerMCP is the global MCP server instance
+var GlobalWebServerMCP *WebServerMCP
+
+// findFreePort finds a free port starting from the given port
+func findFreePort(startPort int) (int, error) {
+	for port := startPort; port < startPort+100; port++ {
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err == nil {
+			listener.Close()
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no free port found in range %d-%d", startPort, startPort+99)
+}
+
+// NewWebServerMCP creates a new WebServerMCP instance with a free port
+func NewWebServerMCP() (*WebServerMCP, error) {
+	port, err := findFreePort(8080)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find free port: %w", err)
+	}
+
+	server := &WebServerMCP{
+		Port:    port,
+		BaseURL: fmt.Sprintf("http://localhost:%d", port),
+	}
+
+	return server, nil
+}
 
 // AddMCPCommand adds the MCP command to the root command
 func AddMCPCommand(rootCmd *cobra.Command) error {
-	// Create the tool description with embedded documentation
+	// Initialize the server instance to get the port
+	server, err := NewWebServerMCP()
+	if err != nil {
+		return fmt.Errorf("failed to initialize web server: %w", err)
+	}
+	GlobalWebServerMCP = server
+
+	// Create the tool description with embedded documentation and correct port
 	toolDescription := fmt.Sprintf(`Execute JavaScript code in the web server environment.
 
 This tool allows you to execute JavaScript code that can:
@@ -38,10 +81,13 @@ This tool allows you to execute JavaScript code that can:
 - Maintain persistent state across requests
 - Create web applications on the fly
 
-%s`, javascriptAPIDoc)
+Server running at: %s
+Admin console: %s/admin/logs
+
+%s`, server.BaseURL, server.BaseURL, javascriptAPIDoc)
 
 	// Add MCP command - expose JavaScript execution as MCP tool
-	err := embeddable.AddMCPCommand(rootCmd,
+	err = embeddable.AddMCPCommand(rootCmd,
 		embeddable.WithName("JavaScript Web Server MCP"),
 		embeddable.WithVersion("1.0.0"),
 		embeddable.WithServerDescription("Execute JavaScript code and create dynamic web applications"),
@@ -68,19 +114,23 @@ This tool allows you to execute JavaScript code that can:
 func initializeJSEngineForMCP(ctx context.Context) error {
 	log.Info().Msg("Initializing JavaScript engine for MCP")
 
+	if GlobalWebServerMCP == nil {
+		return fmt.Errorf("GlobalWebServerMCP not initialized")
+	}
+
 	// Ensure scripts directory exists
 	if err := os.MkdirAll("scripts", 0755); err != nil {
 		return fmt.Errorf("failed to create scripts directory: %w", err)
 	}
 
 	// Initialize JS engine with default database
-	GlobalJSEngine = engine.NewEngine("jsserver.db")
-	if err := GlobalJSEngine.Init("bootstrap.js"); err != nil {
+	GlobalWebServerMCP.JSEngine = engine.NewEngine("jsserver.db")
+	if err := GlobalWebServerMCP.JSEngine.Init("bootstrap.js"); err != nil {
 		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
 	}
 
 	// Start dispatcher
-	go GlobalJSEngine.StartDispatcher()
+	go GlobalWebServerMCP.JSEngine.StartDispatcher()
 	time.Sleep(100 * time.Millisecond)
 
 	// Start HTTP server in background
@@ -88,30 +138,31 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 		r := mux.NewRouter()
 
 		// API routes
-		r.HandleFunc("/v1/execute", api.ExecuteHandler(GlobalJSEngine)).Methods("POST")
+		r.HandleFunc("/v1/execute", api.ExecuteHandler(GlobalWebServerMCP.JSEngine)).Methods("POST")
 		log.Debug().Msg("Registered API endpoint: POST /v1/execute (MCP mode)")
 
 		// Setup all admin routes (including logs console)
-		web.SetupAdminRoutes(r, GlobalJSEngine)
+		web.SetupAdminRoutes(r, GlobalWebServerMCP.JSEngine)
 
 		// Setup dynamic routes with request logging
-		web.SetupDynamicRoutes(r, GlobalJSEngine)
+		web.SetupDynamicRoutes(r, GlobalWebServerMCP.JSEngine)
 
-		log.Info().Str("address", ":8080").Msg("Starting background HTTP server for MCP mode with admin console")
-		log.Info().Msg("Admin console available at http://localhost:8080/admin/logs")
-		if err := http.ListenAndServe(":8080", r); err != nil {
+		addr := ":" + strconv.Itoa(GlobalWebServerMCP.Port)
+		log.Info().Str("address", addr).Msg("Starting background HTTP server for MCP mode with admin console")
+		log.Info().Str("admin_console", GlobalWebServerMCP.BaseURL+"/admin/logs").Msg("Admin console available")
+		if err := http.ListenAndServe(addr, r); err != nil {
 			log.Error().Err(err).Msg("Background HTTP server failed")
 		}
 	}()
 
-	log.Info().Msg("JavaScript engine and HTTP server initialized for MCP")
+	log.Info().Str("server_url", GlobalWebServerMCP.BaseURL).Msg("JavaScript engine and HTTP server initialized for MCP")
 	return nil
 }
 
 // executeJSHandler is the MCP tool handler for executing JavaScript code
 func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
 	// Initialize engine if not already done (for test-tool command)
-	if GlobalJSEngine == nil {
+	if GlobalWebServerMCP == nil || GlobalWebServerMCP.JSEngine == nil {
 		log.Info().Msg("JavaScript engine not initialized, initializing now")
 		if err := initializeJSEngineForMCP(ctx); err != nil {
 			return protocol.NewErrorToolResult(protocol.NewTextContent(
@@ -155,7 +206,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 		Source:    "mcp",
 	}
 
-	GlobalJSEngine.SubmitJob(job)
+	GlobalWebServerMCP.JSEngine.SubmitJob(job)
 
 	// Wait for completion with timeout
 	select {
@@ -177,7 +228,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 			"result":     result.Value,
 			"consoleLog": result.ConsoleLog,
 			"savedAs":    filename,
-			"message":    "JavaScript code executed successfully. Check http://localhost:8080 for any web endpoints created. Monitor execution at http://localhost:8080/admin/logs",
+			"message":    fmt.Sprintf("JavaScript code executed successfully. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", GlobalWebServerMCP.BaseURL, GlobalWebServerMCP.BaseURL),
 		}
 
 		// Convert to JSON
@@ -199,7 +250,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 // executeJSFileHandler is the MCP tool handler for executing JavaScript files
 func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
 	// Initialize engine if not already done (for test-tool command)
-	if GlobalJSEngine == nil {
+	if GlobalWebServerMCP == nil || GlobalWebServerMCP.JSEngine == nil {
 		log.Info().Msg("JavaScript engine not initialized, initializing now")
 		if err := initializeJSEngineForMCP(ctx); err != nil {
 			return protocol.NewErrorToolResult(protocol.NewTextContent(
@@ -248,7 +299,7 @@ func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*pr
 		Source:    "mcp-file",
 	}
 
-	GlobalJSEngine.SubmitJob(job)
+	GlobalWebServerMCP.JSEngine.SubmitJob(job)
 
 	// Wait for completion with timeout
 	select {
@@ -270,7 +321,7 @@ func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*pr
 			"result":       result.Value,
 			"consoleLog":   result.ConsoleLog,
 			"executedFile": filePath,
-			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check http://localhost:8080 for any web endpoints created. Monitor execution at http://localhost:8080/admin/logs", filepath.Base(filePath)),
+			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", filepath.Base(filePath), GlobalWebServerMCP.BaseURL, GlobalWebServerMCP.BaseURL),
 		}
 
 		// Convert to JSON
