@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
@@ -17,14 +19,24 @@ import (
 type AdminHandler struct {
 	logger *engine.RequestLogger
 	repos  repository.RepositoryManager
+	
+	// SSE support
+	sseClients map[string]chan string
+	sseMutex   sync.RWMutex
 }
 
 // NewAdminHandler creates a new admin handler
 func NewAdminHandler(logger *engine.RequestLogger, repos repository.RepositoryManager) *AdminHandler {
-	return &AdminHandler{
-		logger: logger,
-		repos:  repos,
+	ah := &AdminHandler{
+		logger:     logger,
+		repos:      repos,
+		sseClients: make(map[string]chan string),
 	}
+	
+	// Start monitoring for new requests
+	go ah.monitorNewRequests()
+	
+	return ah
 }
 
 // HandleAdminLogs serves the admin logs interface
@@ -41,6 +53,11 @@ func (ah *AdminHandler) HandleAdminLogs(w http.ResponseWriter, r *http.Request) 
 
 	if strings.HasPrefix(r.URL.Path, "/admin/logs/api/") {
 		ah.serveLogsAPI(w, r)
+		return
+	}
+
+	if r.URL.Path == "/admin/logs/events" {
+		ah.serveSSE(w, r)
 		return
 	}
 
@@ -513,6 +530,8 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
     <script>
         let autoRefreshInterval = null;
         let selectedRequestId = null;
+        let eventSource = null;
+        let isRealTimeEnabled = false;
         
         async function loadStats() {
             try {
@@ -752,12 +771,100 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
         function toggleAutoRefresh() {
             const checkbox = document.getElementById('autoRefresh');
             if (checkbox.checked) {
-                autoRefreshInterval = setInterval(refreshLogs, 5000);
+                startRealTimeUpdates();
             } else {
-                if (autoRefreshInterval) {
-                    clearInterval(autoRefreshInterval);
-                    autoRefreshInterval = null;
-                }
+                stopRealTimeUpdates();
+            }
+        }
+        
+        function startRealTimeUpdates() {
+            if (isRealTimeEnabled) return;
+            
+            try {
+                // Try Server-Sent Events first
+                eventSource = new EventSource('/admin/logs/events');
+                
+                eventSource.onopen = function() {
+                    console.log('Real-time updates connected');
+                    isRealTimeEnabled = true;
+                    updateConnectionStatus(true);
+                };
+                
+                eventSource.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleRealTimeUpdate(data);
+                    } catch (e) {
+                        console.error('Failed to parse SSE message:', e);
+                    }
+                };
+                
+                eventSource.onerror = function(event) {
+                    console.warn('SSE connection failed, falling back to polling');
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                    fallbackToPolling();
+                };
+                
+            } catch (e) {
+                console.warn('SSE not supported, using polling');
+                fallbackToPolling();
+            }
+        }
+        
+        function stopRealTimeUpdates() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            isRealTimeEnabled = false;
+            updateConnectionStatus(false);
+        }
+        
+        function fallbackToPolling() {
+            if (!autoRefreshInterval) {
+                autoRefreshInterval = setInterval(refreshLogs, 5000);
+                isRealTimeEnabled = true;
+                updateConnectionStatus(true);
+            }
+        }
+        
+        function handleRealTimeUpdate(data) {
+            switch (data.type) {
+                case 'connected':
+                    console.log('SSE connected with client ID:', data.clientId);
+                    break;
+                case 'newRequest':
+                    const activeTab = document.querySelector('.tab-button.active').onclick.toString().match(/switchTab\('([^']+)'\)/)[1];
+                    if (activeTab === 'requests') {
+                        loadStats();
+                        loadRequests();
+                    }
+                    break;
+                case 'newExecution':
+                    const currentTab = document.querySelector('.tab-button.active').onclick.toString().match(/switchTab\('([^']+)'\)/)[1];
+                    if (currentTab === 'executions') {
+                        loadExecutionStats();
+                        loadExecutions();
+                    }
+                    break;
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const label = document.querySelector('label[for="autoRefresh"]');
+            if (connected) {
+                label.textContent = 'Real-time updates';
+                label.style.color = '#28a745';
+            } else {
+                label.textContent = 'Auto-refresh (5s)';
+                label.style.color = '';
             }
         }
         
@@ -902,10 +1009,17 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
             } else if (tabName === 'executions') {
                 Promise.all([loadExecutionStats(), loadExecutions()]);
             }
+            
+            // Note: Real-time updates will automatically update the active tab based on the data type
         }
         
         // Initial load
         refreshLogs();
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            stopRealTimeUpdates();
+        });
     </script>
 </body>
 </html>`
@@ -1051,5 +1165,95 @@ func (ah *AdminHandler) handleExecutionDetailsAPI(w http.ResponseWriter, r *http
 
 	if err := json.NewEncoder(w).Encode(execution); err != nil {
 		log.Error().Err(err).Msg("Failed to encode execution details response")
+	}
+}
+
+// serveSSE handles Server-Sent Events for real-time updates
+func (ah *AdminHandler) serveSSE(w http.ResponseWriter, r *http.Request) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	// Create unique client ID
+	clientID := fmt.Sprintf("client_%d", time.Now().UnixNano())
+	clientChan := make(chan string, 10)
+	
+	// Register client
+	ah.sseMutex.Lock()
+	ah.sseClients[clientID] = clientChan
+	ah.sseMutex.Unlock()
+	
+	// Clean up on disconnect
+	defer func() {
+		ah.sseMutex.Lock()
+		delete(ah.sseClients, clientID)
+		close(clientChan)
+		ah.sseMutex.Unlock()
+		log.Debug().Str("clientID", clientID).Msg("SSE client disconnected")
+	}()
+	
+	log.Debug().Str("clientID", clientID).Msg("SSE client connected")
+	
+	// Send initial ping
+	fmt.Fprintf(w, "data: {\"type\":\"connected\",\"clientId\":\"%s\"}\n\n", clientID)
+	w.(http.Flusher).Flush()
+	
+	// Listen for messages or client disconnect
+	for {
+		select {
+		case message, ok := <-clientChan:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", message)
+			w.(http.Flusher).Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
+// broadcastSSE sends a message to all connected SSE clients
+func (ah *AdminHandler) broadcastSSE(message string) {
+	ah.sseMutex.RLock()
+	defer ah.sseMutex.RUnlock()
+	
+	for clientID, clientChan := range ah.sseClients {
+		select {
+		case clientChan <- message:
+		default:
+			// Channel is full, skip this client
+			log.Warn().Str("clientID", clientID).Msg("SSE client channel full, skipping message")
+		}
+	}
+}
+
+// monitorNewRequests watches for new HTTP requests and broadcasts updates
+func (ah *AdminHandler) monitorNewRequests() {
+	lastRequestCount := 0
+	lastExecutionCount := 0
+	
+	ticker := time.NewTicker(1 * time.Second) // Check every second
+	defer ticker.Stop()
+	
+	for range ticker.C {
+		// Check for new HTTP requests
+		stats := ah.logger.GetStats()
+		if totalRequests, ok := stats["totalRequests"].(int); ok && totalRequests > lastRequestCount {
+			message := fmt.Sprintf("{\"type\":\"newRequest\",\"count\":%d}", totalRequests)
+			ah.broadcastSSE(message)
+			lastRequestCount = totalRequests
+		}
+		
+		// Check for new script executions
+		if result, err := ah.repos.Executions().ListExecutions(context.Background(), repository.ExecutionFilter{}, repository.PaginationOptions{Limit: 1, Offset: 0}); err == nil {
+			if result.Total > lastExecutionCount {
+				message := fmt.Sprintf("{\"type\":\"newExecution\",\"count\":%d}", result.Total)
+				ah.broadcastSSE(message)
+				lastExecutionCount = result.Total
+			}
+		}
 	}
 }
