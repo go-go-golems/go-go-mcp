@@ -96,30 +96,37 @@ func (r *ExpressResponse) Send(data interface{}) error {
 
 	switch v := data.(type) {
 	case string:
-		// Auto-detect content type for strings
-		if isHTML(v) {
-			r.writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-			log.Debug().Msg("Detected HTML content")
-		} else if isJSON(v) {
-			r.writer.Header().Set("Content-Type", "application/json")
-			log.Debug().Msg("Detected JSON content")
-		} else {
-			r.writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			log.Debug().Msg("Detected plain text content")
+		// Only auto-detect content type if not already set
+		if r.writer.Header().Get("Content-Type") == "" {
+			if isHTML(v) {
+				r.writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+				log.Debug().Msg("Detected HTML content")
+			} else if isJSON(v) {
+				r.writer.Header().Set("Content-Type", "application/json")
+				log.Debug().Msg("Detected JSON content")
+			} else {
+				r.writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				log.Debug().Msg("Detected plain text content")
+			}
 		}
 		r.writer.WriteHeader(r.StatusCode)
 		log.Debug().Int("statusCode", r.StatusCode).Str("content", v).Msg("Writing string response")
 		_, err := r.writer.Write([]byte(v))
 		return err
 	case []byte:
-		r.writer.Header().Set("Content-Type", "application/octet-stream")
+		// Only set content type if not already set
+		if r.writer.Header().Get("Content-Type") == "" {
+			r.writer.Header().Set("Content-Type", "application/octet-stream")
+		}
 		r.writer.WriteHeader(r.StatusCode)
 		log.Debug().Int("statusCode", r.StatusCode).Int("bytes", len(v)).Msg("Writing byte response")
 		_, err := r.writer.Write(v)
 		return err
 	default:
-		// JSON response for objects
-		r.writer.Header().Set("Content-Type", "application/json")
+		// Only set JSON content type if not already set
+		if r.writer.Header().Get("Content-Type") == "" {
+			r.writer.Header().Set("Content-Type", "application/json")
+		}
 		r.writer.WriteHeader(r.StatusCode)
 		log.Debug().Int("statusCode", r.StatusCode).Interface("data", v).Msg("Writing JSON object response")
 		return json.NewEncoder(r.writer).Encode(v)

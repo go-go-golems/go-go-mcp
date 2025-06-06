@@ -92,10 +92,12 @@ app.get("/", (req, res) => {
 });
 ```
 
-#### ✅ Recommended: Separate Static File Endpoints
+#### ✅ REQUIRED: Separate Static File Endpoints with Proper MIME Types
+
+**CRITICAL: Every static file endpoint MUST set the correct Content-Type header. Browsers rely on MIME types for proper parsing and security.**
 
 ```javascript
-// CSS endpoint - serves styles with proper content type
+// CSS endpoint - MUST set text/css MIME type
 app.get("/static/app.css", (req, res) => {
   const css = `
     .my-class { 
@@ -107,11 +109,11 @@ app.get("/static/app.css", (req, res) => {
     }
   `;
   
-  res.set('Content-Type', 'text/css');
+  res.set('Content-Type', 'text/css');  // REQUIRED - browsers need this
   res.send(css);
 });
 
-// JavaScript endpoint - serves client-side logic
+// JavaScript endpoint - MUST set application/javascript MIME type
 app.get("/static/app.js", (req, res) => {
   const js = `
     function myFunction() {
@@ -123,11 +125,11 @@ app.get("/static/app.js", (req, res) => {
     });
   `;
   
-  res.set('Content-Type', 'application/javascript');
+  res.set('Content-Type', 'application/javascript');  // REQUIRED - prevents execution issues
   res.send(js);
 });
 
-// Clean HTML that references separate static files
+// HTML endpoint - MUST set text/html MIME type with charset
 app.get("/", (req, res) => {
   const html = `
 <!DOCTYPE html>
@@ -143,26 +145,27 @@ app.get("/", (req, res) => {
 </body>
 </html>
   `;
+  res.set('Content-Type', 'text/html; charset=utf-8');  // REQUIRED - ensures proper encoding
   res.send(html);
 });
 ```
 
 #### Advanced Static File Organization
 
-For larger applications, organize static files by feature or component:
+For larger applications, organize static files by feature or component. **ALWAYS set proper MIME types for every endpoint:**
 
 ```javascript
-// Feature-specific CSS
+// Feature-specific CSS - MUST set text/css MIME type
 app.get("/static/components/navbar.css", (req, res) => {
   const css = `
     .navbar { background: #333; }
     .navbar-brand { color: white; }
   `;
-  res.set('Content-Type', 'text/css');
+  res.set('Content-Type', 'text/css');  // REQUIRED
   res.send(css);
 });
 
-// Feature-specific JavaScript
+// Feature-specific JavaScript - MUST set application/javascript MIME type
 app.get("/static/components/navbar.js", (req, res) => {
   const js = `
     class Navbar {
@@ -177,11 +180,11 @@ app.get("/static/components/navbar.js", (req, res) => {
     
     new Navbar();
   `;
-  res.set('Content-Type', 'application/javascript');
+  res.set('Content-Type', 'application/javascript');  // REQUIRED
   res.send(js);
 });
 
-// Main page that loads component assets
+// Main page - MUST set text/html MIME type
 app.get("/", (req, res) => {
   const html = `
 <!DOCTYPE html>
@@ -199,27 +202,43 @@ app.get("/", (req, res) => {
 </body>
 </html>
   `;
+  res.set('Content-Type', 'text/html; charset=utf-8');  // REQUIRED
   res.send(html);
 });
 ```
 
-#### Content Type Headers
+#### **MANDATORY: Content Type Headers**
 
-Always set appropriate content types for static files:
+**EVERY static file endpoint MUST set the correct Content-Type header. This is not optional.**
 
 ```javascript
-// CSS files
+// CSS files - REQUIRED
 res.set('Content-Type', 'text/css');
 
-// JavaScript files  
+// JavaScript files - REQUIRED
 res.set('Content-Type', 'application/javascript');
 
-// SVG images
+// HTML files - REQUIRED with charset
+res.set('Content-Type', 'text/html; charset=utf-8');
+
+// JSON data - REQUIRED
+res.set('Content-Type', 'application/json');
+
+// SVG images - REQUIRED
 res.set('Content-Type', 'image/svg+xml');
 
-// JSON data
-res.set('Content-Type', 'application/json');
+// Plain text - REQUIRED
+res.set('Content-Type', 'text/plain; charset=utf-8');
+
+// XML files - REQUIRED
+res.set('Content-Type', 'application/xml');
 ```
+
+**Why MIME types are critical:**
+- **Browser parsing** - Browsers need MIME types to interpret content correctly
+- **Security** - Prevents MIME type sniffing attacks
+- **Caching** - Proper caching behavior depends on correct MIME types
+- **Standards compliance** - HTTP specification requires proper Content-Type headers
 
 ### Request Object
 
@@ -1850,7 +1869,12 @@ app.get(apiV1 + "/users", rateLimit, authenticate, (req, res) => {
 
 ### Static File Organization
 
-**Always split static files into separate endpoints** rather than embedding CSS and JavaScript directly in HTML templates. This provides:
+**CRITICAL REQUIREMENTS:**
+1. **NEVER embed CSS/JS in HTML** - Always create separate endpoints
+2. **ALWAYS set proper MIME types** - Every endpoint must have correct Content-Type headers
+3. **Use charset for text content** - Include charset=utf-8 for HTML and text files
+
+This approach provides:
 
 ### Error Handling
 

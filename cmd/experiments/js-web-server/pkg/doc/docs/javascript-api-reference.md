@@ -13,8 +13,10 @@ The JavaScript Playground Server provides a runtime environment where JavaScript
 **Execution Context:**
 - Code runs in **global scope** (no function wrapping)
 - **No `return` statements** - Last expression is automatically returned
-- **Avoid `let`/`const`** - Use `var` or direct assignment for reloadable code
-- **Persistent runtime** - Variables and functions remain between executions
+- **Function definitions** - Use `function name() { }` syntax for reusable functions
+- **Variable scoping** - Wrap `const`/`let` in IIFE to avoid global pollution
+- **Global variables** - Use `globalState` object for persistent data
+- **Persistent runtime** - Functions and global state remain between executions
 
 ## Quick Start
 
@@ -24,16 +26,26 @@ app.get('/hello', (req, res) => {
   res.json({ message: 'Hello World!' });
 });
 
-// Database setup
+// Database setup - runs at global scope
 db.query(`CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL
 )`);
 
+// Define reusable functions
+function validateUser(name, email) {
+  return name && email && email.includes('@');
+}
+
 // CRUD endpoint
 app.post('/users', (req, res) => {
   const { name, email } = req.body;
+  
+  if (!validateUser(name, email)) {
+    return res.status(400).json({ error: 'Invalid user data' });
+  }
+  
   db.query('INSERT INTO users (name, email) VALUES (?, ?)', [name, email]);
   res.status(201).json({ success: true });
 });
@@ -186,20 +198,20 @@ app.post('/login', (req, res) => {
 
 **DO NOT embed CSS or JavaScript directly in HTML responses.** This creates maintenance nightmares and breaks caching. **ALWAYS** create separate endpoints for each file type.
 
-#### ✅ CORRECT: Separate Endpoints
+#### ✅ CORRECT: Separate Endpoints with Proper MIME Types
 ```javascript
-// CSS endpoint - separate endpoint
+// CSS endpoint - MUST set text/css MIME type
 app.get('/static/app.css', (req, res) => {
   const css = `
     body { font-family: Arial, sans-serif; }
     .container { max-width: 800px; margin: 0 auto; }
     .btn { padding: 10px 20px; background: #007bff; color: white; border: none; }
   `;
-  res.set('Content-Type', 'text/css');
+  res.set('Content-Type', 'text/css');  // REQUIRED for CSS
   res.send(css);
 });
 
-// JavaScript endpoint - separate endpoint
+// JavaScript endpoint - MUST set application/javascript MIME type
 app.get('/static/app.js', (req, res) => {
   const js = `
     document.addEventListener('DOMContentLoaded', function() {
@@ -207,13 +219,13 @@ app.get('/static/app.js', (req, res) => {
       // Your client-side logic here
     });
   `;
-  res.set('Content-Type', 'application/javascript');
+  res.set('Content-Type', 'application/javascript');  // REQUIRED for JS
   res.send(js);
 });
 
-// HTML page - references external assets
+// HTML page - MUST set text/html MIME type
 app.get('/', (req, res) => {
-  res.send(`
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -225,7 +237,9 @@ app.get('/', (req, res) => {
       <script src="/static/app.js"></script>
     </body>
     </html>
-  `);
+  `;
+  res.set('Content-Type', 'text/html; charset=utf-8');  // REQUIRED for HTML
+  res.send(html);
 });
 ```
 
@@ -246,11 +260,13 @@ app.get('/bad-example', (req, res) => {
 });
 ```
 
-**Why separate endpoints matter:**
+**Why separate endpoints with proper MIME types matter:**
 - **Browser caching** - Static assets cache independently
 - **Development** - Edit CSS/JS without touching HTML
 - **Performance** - Parallel loading of resources
 - **Maintainability** - Clear separation of concerns
+- **Browser compatibility** - Proper MIME types ensure correct parsing
+- **Security** - Prevents MIME type sniffing vulnerabilities
 
 ## Complete Examples
 
@@ -287,26 +303,46 @@ app.get('/posts/:id', (req, res) => {
 
 ### Authentication System
 ```javascript
-// Initialize sessions
-if (!globalState.sessions) globalState.sessions = new Map();
+// Define authentication helper functions
+function generateSessionId() {
+  return Math.random().toString(36).substr(2, 15);
+}
 
-// Login
+function validateCredentials(email, password) {
+  return db.query('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
+}
+
+function requireAuth(req, res, next) {
+  const sessionId = req.cookies.sessionId;
+  if (!sessionId || !globalState.sessions.has(sessionId)) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  req.session = globalState.sessions.get(sessionId);
+  next();
+}
+
+// Initialize sessions in globalState
+if (!globalState.sessions) {
+  globalState.sessions = new Map();
+}
+
+// Login endpoint
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body;
-  const users = db.query('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
+  const users = validateCredentials(email, password);
   
   if (users.length === 0) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   
-  const sessionId = Math.random().toString(36).substr(2, 15);
+  const sessionId = generateSessionId();
   globalState.sessions.set(sessionId, { userId: users[0].id, user: users[0] });
   
   res.cookie('sessionId', sessionId, { maxAge: 3600000 });
   res.json({ success: true, user: users[0] });
 });
 
-// Protected route
+// Protected route using helper function
 app.get('/profile', (req, res) => {
   const sessionId = req.cookies.sessionId;
   if (!sessionId || !globalState.sessions.has(sessionId)) {
@@ -335,16 +371,99 @@ app.get('/users/:id', (req, res) => {
 });
 ```
 
+## Variable Scoping and Function Definitions
+
+### ✅ CORRECT: Function Definitions and Variable Scoping
+```javascript
+// Define reusable functions at global scope
+function calculateTax(amount, rate) {
+  return amount * rate;
+}
+
+function formatCurrency(amount) {
+  return `$${amount.toFixed(2)}`;
+}
+
+// For complex initialization with const/let, use IIFE to avoid global pollution
+(function() {
+  const CONFIG = {
+    taxRate: 0.08,
+    currency: 'USD',
+    maxItems: 100
+  };
+  
+  const VALIDATION_RULES = {
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    phone: /^\d{10}$/
+  };
+  
+  // Store in globalState for access across executions
+  if (!globalState.appConfig) {
+    globalState.appConfig = CONFIG;
+    globalState.validationRules = VALIDATION_RULES;
+  }
+})();
+
+// Use the functions and global state in endpoints
+app.post('/calculate', (req, res) => {
+  const { amount } = req.body;
+  const tax = calculateTax(amount, globalState.appConfig.taxRate);
+  const total = amount + tax;
+  
+  res.json({
+    subtotal: formatCurrency(amount),
+    tax: formatCurrency(tax),
+    total: formatCurrency(total)
+  });
+});
+```
+
+### ❌ WRONG: Global const/let pollution
+```javascript
+// DON'T DO THIS - Pollutes global namespace
+const CONFIG = { taxRate: 0.08 };  // BAD - global const
+let currentUser = null;            // BAD - global let
+
+// This creates global variables that can't be redefined on reload
+```
+
+### Function Definition Patterns
+```javascript
+// ✅ Named functions - preferred for reusability
+function processOrder(order) {
+  return order.items.reduce((total, item) => total + item.price, 0);
+}
+
+// ✅ Arrow functions in handlers - fine for inline use
+app.get('/orders/:id', (req, res) => {
+  const order = getOrder(req.params.id);
+  res.json(order);
+});
+
+// ✅ Complex logic wrapped in IIFE
+(function() {
+  const helperFunctions = {
+    validateEmail: (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    sanitizeInput: (input) => input.trim().toLowerCase()
+  };
+  
+  // Make available globally through globalState
+  globalState.helpers = helperFunctions;
+})();
+```
+
 ## Best Practices
 
 1. **Database Schema**: **ALWAYS inspect existing tables and schema before any operations** - the database persists between executions
 2. **Static Files**: **NEVER embed CSS/JS in HTML** - always create separate endpoints for each file type
-3. **Variable Declarations**: Use `var` or direct assignment instead of `let`/`const` for reloadable code
-4. **State Initialization**: Always check if global state exists before initializing
-5. **Error Handling**: Wrap database operations in try-catch blocks
-6. **Database Security**: Always use parameterized queries to prevent SQL injection
-7. **Session Management**: Use `globalState` for persistent session storage
-8. **Status Codes**: Use appropriate HTTP status codes (200, 201, 400, 401, 404, 500)
+3. **Function Definitions**: Use `function name() { }` syntax for reusable functions at global scope
+4. **Variable Scoping**: Wrap `const`/`let` declarations in IIFE `(function() { })()` to avoid global pollution
+5. **Global State**: Use `globalState` object for persistent data across executions
+6. **State Initialization**: Always check if global state exists before initializing
+7. **Error Handling**: Wrap database operations in try-catch blocks
+8. **Database Security**: Always use parameterized queries to prevent SQL injection
+9. **Session Management**: Use `globalState` for persistent session storage
+10. **Status Codes**: Use appropriate HTTP status codes (200, 201, 400, 401, 404, 500)
 
 ## Admin Console
 
