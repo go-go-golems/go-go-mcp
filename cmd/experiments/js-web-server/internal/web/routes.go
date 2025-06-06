@@ -20,8 +20,7 @@ func SetupRoutes(jsEngine *engine.Engine) *mux.Router {
 	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
 	r.HandleFunc("/api/docs", DocsAPIHandler()).Methods("GET")
 
-	// Main application pages
-	r.HandleFunc("/", HomeHandler()).Methods("GET")
+	// Main application pages (removed / to allow JS registration)
 	r.HandleFunc("/playground", PlaygroundHandler()).Methods("GET")
 	r.HandleFunc("/repl", REPLHandler()).Methods("GET")
 	r.HandleFunc("/history", HistoryHandler(jsEngine)).Methods("GET")
@@ -53,8 +52,7 @@ func SetupRoutesWithAPI(jsEngine *engine.Engine, executeHandler http.HandlerFunc
 	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
 	r.HandleFunc("/api/docs", DocsAPIHandler()).Methods("GET")
 
-	// Main application pages
-	r.HandleFunc("/", HomeHandler()).Methods("GET")
+	// Main application pages (removed / to allow JS registration)
 	r.HandleFunc("/playground", PlaygroundHandler()).Methods("GET")
 	r.HandleFunc("/repl", REPLHandler()).Methods("GET")
 	r.HandleFunc("/history", HistoryHandler(jsEngine)).Methods("GET")
