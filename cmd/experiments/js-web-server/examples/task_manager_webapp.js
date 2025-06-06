@@ -915,13 +915,13 @@ app.post("/api/tasks", (req, res) => {
             return res.status(400).json({ error: "Invalid priority level" });
         }
         
-        const result = db.query(
+        const result = db.exec(
             `INSERT INTO tasks (title, description, priority, category, due_date) 
              VALUES (?, ?, ?, ?, ?)`,
             [title.trim(), description?.trim() || null, priority, category, due_date || null]
         );
         
-        const newTask = db.query("SELECT * FROM tasks WHERE id = ?", [result.lastInsertRowid])[0];
+        const newTask = db.query("SELECT * FROM tasks WHERE id = ?", [result.lastInsertId])[0];
         
         console.log(`✅ Task created: "${title}" (ID: ${newTask.id})`);
         res.status(201).json(newTask);
@@ -1138,12 +1138,12 @@ app.post("/api/tasks/:id/notes", (req, res) => {
             return res.status(404).json({ error: "Task not found" });
         }
         
-        const result = db.query(
+        const result = db.exec(
             "INSERT INTO task_notes (task_id, note) VALUES (?, ?)",
             [taskId, note.trim()]
         );
         
-        const newNote = db.query("SELECT * FROM task_notes WHERE id = ?", [result.lastInsertRowid])[0];
+        const newNote = db.query("SELECT * FROM task_notes WHERE id = ?", [result.lastInsertId])[0];
         
         res.status(201).json(newNote);
     } catch (error) {
