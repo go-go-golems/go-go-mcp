@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Logs - Admin Console</title>
+    <link rel="stylesheet" href="/admin/logs.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Admin Logs</h1>
+        <div class="controls">
+            <button onclick="refreshLogs()">Refresh</button>
+            <button onclick="clearLogs()" class="danger">Clear Logs</button>
+            <div class="auto-refresh">
+                <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+                <label for="autoRefresh">Auto-refresh (5s)</label>
+            </div>
+            <div style="margin-left: auto;">
+                <a href="/admin/globalstate" style="color: white; text-decoration: none; padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border-radius: 4px;">GlobalState Inspector</a>
+                <a href="/admin/scripts" style="color: white; text-decoration: none; padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border-radius: 4px; margin-left: 0.5rem;">Scripts</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tabs">
+        <button class="tab-button active" onclick="switchTab('requests')">HTTP Requests</button>
+        <button class="tab-button" onclick="switchTab('executions')">Script Executions</button>
+    </div>
+    
+    <div class="main-content">
+        <div class="sidebar">
+            <div class="tab-content active" id="requests-tab">
+                <div class="stats" id="stats">
+                    <h3>HTTP Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Requests:</span>
+                        <span id="totalRequests">0</span>
+                    </div>
+                </div>
+                <div class="request-list" id="requestList">
+                    <p>Loading requests...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="executions-tab">
+                <div class="stats" id="execStats">
+                    <h3>Execution Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Executions:</span>
+                        <span id="totalExecutions">0</span>
+                    </div>
+                </div>
+                <div class="request-list" id="executionList">
+                    <p>Loading executions...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="details-panel">
+            <div class="no-selection" id="noSelection">
+                Select an item to view details
+            </div>
+            <div class="request-details" id="requestDetails" style="display: none;">
+                <!-- Request details will be populated here -->
+            </div>
+            <div class="execution-details" id="executionDetails" style="display: none;">
+                <!-- Execution details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/admin/logs.js"></script>
+</body>
+</html>
