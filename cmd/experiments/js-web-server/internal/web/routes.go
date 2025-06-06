@@ -18,6 +18,7 @@ func SetupRoutes(jsEngine *engine.Engine) *mux.Router {
 	r.HandleFunc("/api/repl/execute", ExecuteREPLHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/reset-vm", ResetVMHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
+	r.HandleFunc("/api/docs", DocsAPIHandler()).Methods("GET")
 
 	// Main application pages
 	r.HandleFunc("/", HomeHandler()).Methods("GET")
@@ -50,6 +51,7 @@ func SetupRoutesWithAPI(jsEngine *engine.Engine, executeHandler http.HandlerFunc
 	r.HandleFunc("/api/repl/execute", ExecuteREPLHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/reset-vm", ResetVMHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
+	r.HandleFunc("/api/docs", DocsAPIHandler()).Methods("GET")
 
 	// Main application pages
 	r.HandleFunc("/", HomeHandler()).Methods("GET")

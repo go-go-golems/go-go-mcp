@@ -392,36 +392,51 @@ console.log("Total executions:", users[0].count);
         if (!presetsMenu) return;
 
         try {
-            // Get presets list - using hardcoded list for now (could be fetched from API)
-            const presets = [
-                { id: 'hello-world', name: 'Hello World', description: 'Basic console output example' },
-                { id: 'express-basic', name: 'Express Route', description: 'Create a simple Express.js route' },
-                { id: 'database-query', name: 'Database Query', description: 'SQLite database query example' },
-                { id: 'api-crud', name: 'CRUD API', description: 'Complete CRUD operations example' },
-                { id: 'websocket-echo', name: 'WebSocket Echo', description: 'WebSocket server example' },
-                { id: 'file-operations', name: 'File Operations', description: 'File read/write operations' },
-                { id: 'middleware', name: 'Middleware', description: 'Custom middleware example' },
-                { id: 'json-validation', name: 'JSON Validation', description: 'Request validation example' }
-            ];
+            // Fetch examples from the docs API
+            const response = await fetch('/api/docs?action=examples');
+            if (!response.ok) {
+                throw new Error('Failed to fetch examples');
+            }
+            
+            const presets = await response.json();
+            
+            // If no examples found, show a fallback
+            if (!presets || presets.length === 0) {
+                console.warn('No code examples found in documentation');
+                return;
+            }
 
             // Clear existing items except header and divider
             const existingItems = presetsMenu.querySelectorAll('li:not(.dropdown-header):not(:has(hr))');
             existingItems.forEach(item => item.remove());
 
-            // Add preset items
-            presets.forEach(preset => {
+            // Add preset items (limit to first 20 to avoid overwhelming the menu)
+            const limitedPresets = presets.slice(0, 20);
+            limitedPresets.forEach(preset => {
                 const li = document.createElement('li');
                 li.innerHTML = `
-                    <a class="dropdown-item" href="#" onclick="window.loadPresetExample('${preset.id}'); return false;">
+                    <a class="dropdown-item" href="#" onclick="window.loadDocsExample('${preset.id}'); return false;">
                         <div>
                             <strong>${this.escapeHtml(preset.name)}</strong>
                             <br>
                             <small class="text-muted">${this.escapeHtml(preset.description)}</small>
+                            <br>
+                            <small class="text-success">${this.escapeHtml(preset.category)} • ${this.escapeHtml(preset.source)}</small>
                         </div>
                     </a>
                 `;
                 presetsMenu.appendChild(li);
             });
+            
+            if (presets.length > 20) {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="dropdown-item-text text-muted small">
+                        <i class="bi bi-info-circle"></i> Showing first 20 of ${presets.length} examples
+                    </div>
+                `;
+                presetsMenu.appendChild(li);
+            }
         } catch (error) {
             console.error('Failed to load presets menu:', error);
         }
@@ -527,7 +542,7 @@ window.copySessionId = function(sessionId) {
     });
 };
 
-// Load preset example into playground
+// Load preset example into playground (legacy support)
 window.loadPresetExample = async function(presetId) {
     try {
         const response = await fetch(`/api/preset?id=${encodeURIComponent(presetId)}`);
@@ -556,5 +571,44 @@ window.loadPresetExample = async function(presetId) {
             window.jsPlayground.showToast('Failed to load preset example', 'danger');
         }
         console.error('Error loading preset:', error);
+    }
+};
+
+// Load docs example into playground
+window.loadDocsExample = async function(exampleId) {
+    try {
+        // First fetch all examples to find the one we want
+        const response = await fetch('/api/docs?action=examples');
+        if (!response.ok) {
+            throw new Error('Failed to fetch examples');
+        }
+        
+        const examples = await response.json();
+        const example = examples.find(ex => ex.id === exampleId);
+        
+        if (!example) {
+            throw new Error('Example not found');
+        }
+        
+        localStorage.setItem('playgroundCode', example.code);
+        
+        if (window.jsPlayground) {
+            window.jsPlayground.showToast(`Loaded example: ${example.name}`, 'success', 2000);
+        }
+        
+        // Redirect to playground if not already there
+        if (!window.location.pathname.includes('/playground')) {
+            window.location.href = '/playground';
+        } else {
+            // If already on playground, reload the editor
+            if (window.jsPlayground && window.jsPlayground.editor) {
+                window.jsPlayground.editor.setValue(example.code);
+            }
+        }
+    } catch (error) {
+        if (window.jsPlayground) {
+            window.jsPlayground.showToast('Failed to load docs example', 'danger');
+        }
+        console.error('Error loading docs example:', error);
     }
 };
