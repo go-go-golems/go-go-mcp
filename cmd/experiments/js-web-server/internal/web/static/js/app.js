@@ -481,3 +481,35 @@ window.copySessionId = function(sessionId) {
         }
     });
 };
+
+// Load preset example into playground
+window.loadPresetExample = async function(presetId) {
+    try {
+        const response = await fetch(`/api/preset?id=${encodeURIComponent(presetId)}`);
+        if (!response.ok) {
+            throw new Error('Failed to load preset');
+        }
+        
+        const preset = await response.json();
+        localStorage.setItem('playgroundCode', preset.code);
+        
+        if (window.jsPlayground) {
+            window.jsPlayground.showToast(`Loaded preset: ${preset.name}`, 'success', 2000);
+        }
+        
+        // Redirect to playground if not already there
+        if (!window.location.pathname.includes('/playground')) {
+            window.location.href = '/playground';
+        } else {
+            // If already on playground, reload the editor
+            if (window.jsPlayground && window.jsPlayground.editor) {
+                window.jsPlayground.editor.setValue(preset.code);
+            }
+        }
+    } catch (error) {
+        if (window.jsPlayground) {
+            window.jsPlayground.showToast('Failed to load preset example', 'danger');
+        }
+        console.error('Error loading preset:', error);
+    }
+};

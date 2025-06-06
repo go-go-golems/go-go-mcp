@@ -17,12 +17,14 @@ func SetupRoutes(jsEngine *engine.Engine) *mux.Router {
 	// API endpoints - these need to be registered early
 	r.HandleFunc("/api/repl/execute", ExecuteREPLHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/reset-vm", ResetVMHandler(jsEngine)).Methods("POST")
+	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
 
 	// Main application pages
 	r.HandleFunc("/", HomeHandler()).Methods("GET")
 	r.HandleFunc("/playground", PlaygroundHandler()).Methods("GET")
 	r.HandleFunc("/repl", REPLHandler()).Methods("GET")
 	r.HandleFunc("/history", HistoryHandler(jsEngine)).Methods("GET")
+	r.HandleFunc("/docs", DocsHandler()).Methods("GET")
 
 	// Admin interface (new templ-based)
 	r.HandleFunc("/admin/logs", AdminLogsHandler(jsEngine.GetRequestLogger())).Methods("GET")
@@ -47,12 +49,14 @@ func SetupRoutesWithAPI(jsEngine *engine.Engine, executeHandler http.HandlerFunc
 	r.HandleFunc("/v1/execute", executeHandler).Methods("POST")
 	r.HandleFunc("/api/repl/execute", ExecuteREPLHandler(jsEngine)).Methods("POST")
 	r.HandleFunc("/api/reset-vm", ResetVMHandler(jsEngine)).Methods("POST")
+	r.HandleFunc("/api/preset", PresetHandler()).Methods("GET")
 
 	// Main application pages
 	r.HandleFunc("/", HomeHandler()).Methods("GET")
 	r.HandleFunc("/playground", PlaygroundHandler()).Methods("GET")
 	r.HandleFunc("/repl", REPLHandler()).Methods("GET")
 	r.HandleFunc("/history", HistoryHandler(jsEngine)).Methods("GET")
+	r.HandleFunc("/docs", DocsHandler()).Methods("GET")
 
 	// Admin interface (new templ-based)
 	r.HandleFunc("/admin/logs", AdminLogsHandler(jsEngine.GetRequestLogger())).Methods("GET")
