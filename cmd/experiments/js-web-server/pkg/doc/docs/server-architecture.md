@@ -6,37 +6,50 @@ The JavaScript Playground Server is a Go-native web server that provides a dynam
 
 ## Architecture
 
-The server follows a single-threaded JavaScript execution model to ensure thread safety while maintaining high performance for moderate request loads.
+The server uses a dual-port architecture with separate HTTP servers:
+- **JavaScript Server (Port 8080)**: Serves user-defined endpoints registered via JavaScript
+- **Admin Server (Port 9090)**: Serves system interfaces, playground, API, and admin tools
+
+Both servers share the same JavaScript engine and follow a single-threaded execution model to ensure thread safety while maintaining high performance for moderate request loads.
 
 ```mermaid
 graph TB
-    A[HTTP Client] --> B[Gorilla Mux Router]
-    B --> C{Route Type}
-    C -->|/v1/execute| D[Execute API Handler]
-    C -->|Dynamic Routes| E[Dynamic Route Handler]
+    A[HTTP Client] --> B{Server Type}
+    B -->|JavaScript Endpoints| C[JS Server :8080]
+    B -->|Admin/System| D[Admin Server :9090]
     
-    D --> F[Job Submission]
-    E --> F
-    F --> G[Job Queue Channel]
-    G --> H[Single Dispatcher Goroutine]
+    C --> E[JS Router]
+    D --> F[Admin Router]
     
-    H --> I{Job Type}
-    I -->|Raw Code| J[Code Execution]
-    I -->|Handler Call| K[Handler Execution]
+    E --> G[Dynamic Route Handler]
+    F --> H{Admin Route Type}
+    H -->|/v1/execute| I[Execute API Handler]
+    H -->|/admin/logs| J[Admin Console]
+    H -->|/playground| K[Playground UI]
     
-    J --> L[JavaScript Runtime]
-    K --> L
-    L --> M[Bindings Layer]
+    G --> L[Job Submission]
+    I --> L
+    L --> M[Job Queue Channel]
+    M --> N[Single Dispatcher Goroutine]
     
-    M --> N[SQLite Database]
-    M --> O[Handler Registry]
-    M --> P[File Registry]
-    M --> Q[Console Logging]
+    N --> O{Job Type}
+    O -->|Raw Code| P[Code Execution]
+    O -->|Handler Call| Q[Handler Execution]
     
-    L --> R[Response Generation]
-    R --> S[MIME Type Detection]
-    S --> T[HTTP Response]
-    T --> A
+    P --> R[JavaScript Runtime]
+    Q --> R
+    R --> S[Bindings Layer]
+    
+    S --> T[Application SQLite DB]
+    S --> U[System SQLite DB]
+    S --> V[Handler Registry]
+    S --> W[File Registry]
+    S --> X[Console Logging]
+    
+    R --> Y[Response Generation]
+    Y --> Z[MIME Type Detection]
+    Z --> AA[HTTP Response]
+    AA --> A
 ```
 
 ## Core Components
@@ -172,9 +185,24 @@ For higher throughput, you can:
 
 ## Database Integration
 
-### SQLite Connection
+### Dual Database Architecture
 
-The server maintains a single SQLite connection shared across all JavaScript executions:
+The server uses separate SQLite databases for different purposes:
+- **Application Database**: Used by JavaScript code via `db.*` bindings for user data
+- **System Database**: Used internally for execution logs, request logs, and engine operations
+
+Both databases can be configured via command line flags:
+```bash
+# Serve command
+js-playground serve --app-db user-data.db --system-db system-logs.db
+
+# MCP command  
+js-playground mcp start --app-db app.db --system-db sys.db
+```
+
+### SQLite Connections
+
+JavaScript code accesses the application database through the `db.*` bindings:
 
 ```javascript
 // JavaScript can query the database directly
@@ -184,7 +212,7 @@ const count = db.query("SELECT COUNT(*) as total FROM users")[0].total;
 
 ### Script Execution Storage
 
-All JavaScript code executions are automatically stored in the `script_executions` table:
+All JavaScript code executions are automatically stored in the `script_executions` table in the **system database**:
 
 ```sql
 CREATE TABLE script_executions (
@@ -307,21 +335,29 @@ console.debug("Debug message"); // → log.Debug()
 ### Commands
 
 ```bash
-# Start server
-js-playground serve -p 8080 -d database.sqlite -s scripts/
+# Start server with default ports (JS: 8080, Admin: 9090)
+js-playground serve --app-db user-data.db --system-db logs.db --scripts scripts/
 
-# Execute code from file or string
-js-playground execute script.js --url http://localhost:8080
-js-playground execute "console.log('Hello')" --url http://localhost:8080
+# Start server with custom ports
+js-playground serve --port 8081 --admin-port 9091 --app-db app.db --system-db sys.db
+
+# Execute code from file or string (uses admin port)
+js-playground execute script.js --url http://localhost:9090
+js-playground execute "console.log('Hello')" --url http://localhost:9090
 
 # Test server endpoints
-js-playground test --url http://localhost:8080
+js-playground test --url http://localhost:9090
+
+# Start MCP server
+js-playground mcp start --js-port 8080 --admin-port 9090
 ```
 
 ### Flags
 
-- `--port, -p`: HTTP port (default: 8080)
-- `--db, -d`: SQLite database path (default: data.sqlite)
+- `--port, -p`: JavaScript server HTTP port (default: 8080)
+- `--admin-port`: Admin interface HTTP port (default: 9090)
+- `--app-db, -d`: Application SQLite database path (default: data.sqlite)
+- `--system-db`: System SQLite database path (default: system.sqlite)
 - `--scripts, -s`: Directory to load JavaScript files from on startup
 - `--log-level`: Logging level (default: debug)
 - `--url, -u`: Server URL for client commands
@@ -456,6 +492,11 @@ js-playground serve --log-level debug
 Use the built-in health endpoints:
 
 ```bash
-curl http://localhost:8080/health     # Basic health check
-curl http://localhost:8080/metrics    # Performance metrics
+# Check JavaScript server endpoints (user-defined)
+curl http://localhost:8080/
+
+# Check admin interface and system endpoints
+curl http://localhost:9090/health        # Basic health check  
+curl http://localhost:9090/admin/logs    # Admin console
+curl http://localhost:9090/playground    # Playground interface
 ```

@@ -18,7 +18,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -27,9 +26,11 @@ import (
 
 // WebServerMCP represents the MCP server instance with dynamic port allocation
 type WebServerMCP struct {
-	JSEngine *engine.Engine
-	Port     int
-	BaseURL  string
+	JSEngine  *engine.Engine
+	JSPort    int
+	AdminPort int
+	JSBaseURL string
+	AdminBaseURL string
 }
 
 // GlobalWebServerMCP is the global MCP server instance
@@ -47,16 +48,23 @@ func findFreePort(startPort int) (int, error) {
 	return 0, fmt.Errorf("no free port found in range %d-%d", startPort, startPort+99)
 }
 
-// NewWebServerMCP creates a new WebServerMCP instance with a free port
+// NewWebServerMCP creates a new WebServerMCP instance with free ports
 func NewWebServerMCP() (*WebServerMCP, error) {
-	port, err := findFreePort(8080)
+	jsPort, err := findFreePort(8080)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find free port: %w", err)
+		return nil, fmt.Errorf("failed to find free JS port: %w", err)
+	}
+
+	adminPort, err := findFreePort(9090)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find free admin port: %w", err)
 	}
 
 	server := &WebServerMCP{
-		Port:    port,
-		BaseURL: fmt.Sprintf("http://localhost:%d", port),
+		JSPort:    jsPort,
+		AdminPort: adminPort,
+		JSBaseURL: fmt.Sprintf("http://localhost:%d", jsPort),
+		AdminBaseURL: fmt.Sprintf("http://localhost:%d", adminPort),
 	}
 
 	return server, nil
@@ -78,7 +86,7 @@ func AddMCPCommand(rootCmd *cobra.Command) error {
 		javascriptAPIDoc = "JavaScript API documentation not available"
 	}
 
-	// Create the tool description with documentation and correct port
+	// Create the tool description with documentation and correct ports
 	toolDescription := fmt.Sprintf(`Execute JavaScript code in the web server environment.
 
 This tool allows you to execute JavaScript code that can:
@@ -87,10 +95,11 @@ This tool allows you to execute JavaScript code that can:
 - Maintain persistent state across requests
 - Create web applications on the fly
 
-Server running at: %s
+JavaScript server: %s (user-facing endpoints registered here)
+Admin interface: %s (playground, logs, system controls)
 Admin console: %s/admin/logs
 
-%s`, server.BaseURL, server.BaseURL, javascriptAPIDoc)
+%s`, server.JSBaseURL, server.AdminBaseURL, server.AdminBaseURL, javascriptAPIDoc)
 
 	// Add MCP command - expose JavaScript execution as MCP tool
 	err = embeddable.AddMCPCommand(rootCmd,
@@ -106,6 +115,8 @@ Admin console: %s/admin/logs
 		// 	embeddable.WithStringArg("absolutePath", "Absolute path to the JavaScript file to execute", true),
 		// ),
 		embeddable.WithCommandCustomizer(func(cmd *cobra.Command) error {
+			cmd.Flags().String("js-port", "8080", "HTTP port for JavaScript web server")
+			cmd.Flags().String("admin-port", "9090", "HTTP port for admin/system interface")
 			cmd.Flags().String("app-db", "jsserver.db", "SQLite database path for application data (accessible via db.* in JavaScript)")
 			cmd.Flags().String("system-db", "jsserver-system.db", "SQLite database path for system operations (execution logs, request logs)")
 			return nil
@@ -134,9 +145,11 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 		return fmt.Errorf("failed to create scripts directory: %w", err)
 	}
 
-	// Get database paths from command flags
+	// Get configuration from command flags
 	appDBPath := "jsserver.db"      // default
 	systemDBPath := "jsserver-system.db" // default
+	jsPort := GlobalWebServerMCP.JSPort    // default from NewWebServerMCP
+	adminPort := GlobalWebServerMCP.AdminPort // default from NewWebServerMCP
 	
 	if flags, ok := embeddable.GetCommandFlags(ctx); ok {
 		if appDB, exists := flags["app-db"]; exists {
@@ -149,7 +162,27 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 				systemDBPath = systemDBStr
 			}
 		}
+		if jsPortFlag, exists := flags["js-port"]; exists {
+			if jsPortStr, isString := jsPortFlag.(string); isString {
+				if parsed, err := strconv.Atoi(jsPortStr); err == nil {
+					jsPort = parsed
+				}
+			}
+		}
+		if adminPortFlag, exists := flags["admin-port"]; exists {
+			if adminPortStr, isString := adminPortFlag.(string); isString {
+				if parsed, err := strconv.Atoi(adminPortStr); err == nil {
+					adminPort = parsed
+				}
+			}
+		}
 	}
+	
+	// Update GlobalWebServerMCP with potentially overridden ports
+	GlobalWebServerMCP.JSPort = jsPort
+	GlobalWebServerMCP.AdminPort = adminPort
+	GlobalWebServerMCP.JSBaseURL = fmt.Sprintf("http://localhost:%d", jsPort)
+	GlobalWebServerMCP.AdminBaseURL = fmt.Sprintf("http://localhost:%d", adminPort)
 	
 	log.Info().Str("appDB", appDBPath).Str("systemDB", systemDBPath).Msg("Initializing JS engine with databases")
 	GlobalWebServerMCP.JSEngine = engine.NewEngine(appDBPath, systemDBPath)
@@ -161,29 +194,35 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 	go GlobalWebServerMCP.JSEngine.StartDispatcher()
 	time.Sleep(100 * time.Millisecond)
 
-	// Start HTTP server in background
+	// Start separate HTTP servers in background
+	
+	// Start JavaScript web server
 	go func() {
-		r := mux.NewRouter()
-
-		// API routes
-		r.HandleFunc("/v1/execute", api.ExecuteHandler(GlobalWebServerMCP.JSEngine)).Methods("POST")
+		jsRouter := web.SetupJSRoutes(GlobalWebServerMCP.JSEngine)
+		jsAddr := ":" + strconv.Itoa(GlobalWebServerMCP.JSPort)
+		log.Info().Str("js_address", jsAddr).Msg("Starting JavaScript web server for MCP mode")
+		if err := http.ListenAndServe(jsAddr, jsRouter); err != nil {
+			log.Error().Err(err).Msg("JavaScript web server failed")
+		}
+	}()
+	
+	// Start admin interface server
+	go func() {
+		adminRouter := web.SetupRoutesWithAPI(GlobalWebServerMCP.JSEngine, api.ExecuteHandler(GlobalWebServerMCP.JSEngine))
 		log.Debug().Msg("Registered API endpoint: POST /v1/execute (MCP mode)")
-
-		// Setup all admin routes (including logs console)
-		web.SetupAdminRoutes(r, GlobalWebServerMCP.JSEngine)
-
-		// Setup dynamic routes with request logging
-		web.SetupDynamicRoutes(r, GlobalWebServerMCP.JSEngine)
-
-		addr := ":" + strconv.Itoa(GlobalWebServerMCP.Port)
-		log.Info().Str("address", addr).Msg("Starting background HTTP server for MCP mode with admin console")
-		log.Info().Str("admin_console", GlobalWebServerMCP.BaseURL+"/admin/logs").Msg("Admin console available")
-		if err := http.ListenAndServe(addr, r); err != nil {
-			log.Error().Err(err).Msg("Background HTTP server failed")
+		
+		adminAddr := ":" + strconv.Itoa(GlobalWebServerMCP.AdminPort)
+		log.Info().Str("admin_address", adminAddr).Msg("Starting admin interface server for MCP mode")
+		log.Info().Str("admin_console", GlobalWebServerMCP.AdminBaseURL+"/admin/logs").Msg("Admin console available")
+		if err := http.ListenAndServe(adminAddr, adminRouter); err != nil {
+			log.Error().Err(err).Msg("Admin interface server failed")
 		}
 	}()
 
-	log.Info().Str("server_url", GlobalWebServerMCP.BaseURL).Msg("JavaScript engine and HTTP server initialized for MCP")
+	log.Info().
+		Str("js_server_url", GlobalWebServerMCP.JSBaseURL).
+		Str("admin_server_url", GlobalWebServerMCP.AdminBaseURL).
+		Msg("JavaScript engine and HTTP servers initialized for MCP")
 	return nil
 }
 
@@ -256,7 +295,7 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 			"result":     result.Value,
 			"consoleLog": result.ConsoleLog,
 			"savedAs":    filename,
-			"message":    fmt.Sprintf("JavaScript code executed successfully. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", GlobalWebServerMCP.BaseURL, GlobalWebServerMCP.BaseURL),
+			"message":    fmt.Sprintf("JavaScript code executed successfully. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", GlobalWebServerMCP.JSBaseURL, GlobalWebServerMCP.AdminBaseURL),
 		}
 
 		// Convert to JSON
@@ -349,7 +388,7 @@ func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*pr
 			"result":       result.Value,
 			"consoleLog":   result.ConsoleLog,
 			"executedFile": filePath,
-			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", filepath.Base(filePath), GlobalWebServerMCP.BaseURL, GlobalWebServerMCP.BaseURL),
+			"message":      fmt.Sprintf("JavaScript file executed successfully: %s. Check %s for any web endpoints created. Monitor execution at %s/admin/logs", filepath.Base(filePath), GlobalWebServerMCP.JSBaseURL, GlobalWebServerMCP.AdminBaseURL),
 		}
 
 		// Convert to JSON

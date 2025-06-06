@@ -1,6 +1,6 @@
 mcp-js-web-server-o3
 scripts/
-data.sqlite
+*.sqlite
 *.db
 js-web-server
 .git-commit-message.yaml

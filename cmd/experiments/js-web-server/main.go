@@ -60,7 +60,8 @@ func main() {
 		Short: "Start the JavaScript playground server",
 		Run:   runServer,
 	}
-	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port to listen on")
+	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port for JavaScript web server")
+	serverCmd.Flags().String("admin-port", "9090", "HTTP port for admin/system interface")
 	serverCmd.Flags().StringVarP(&db, "app-db", "d", "data.sqlite", "SQLite database path for application data (accessible via db.* in JavaScript)")
 	serverCmd.Flags().String("system-db", "system.sqlite", "SQLite database path for system operations (execution logs, request logs)")
 	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
@@ -122,11 +123,20 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 	log.Debug().Msg("Scripts directory ready")
 
-	// Get database paths from flags
+	// Get database and port configurations from flags
 	appDBPath := db
 	systemDBPath, err := cmd.Flags().GetString("system-db")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get system-db flag")
+	}
+	
+	adminPortStr, err := cmd.Flags().GetString("admin-port")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get admin-port flag")
+	}
+	adminPortInt, err := strconv.Atoi(adminPortStr)
+	if err != nil {
+		log.Fatal().Err(err).Str("admin-port", adminPortStr).Msg("Invalid admin port number")
 	}
 	
 	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
@@ -149,23 +159,58 @@ func runServer(cmd *cobra.Command, args []string) {
 		log.Info().Msg("Finished loading scripts")
 	}
 
-	// Setup router with new templ-based interface including API handler
-	log.Debug().Msg("Setting up HTTP router with new interface")
-	r := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
+	// Find free admin port
+	actualAdminPort, err := findFreePort(adminPortInt)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to find free admin port")
+	}
+	if actualAdminPort != adminPortInt {
+		log.Info().Int("requested_admin_port", adminPortInt).Int("actual_admin_port", actualAdminPort).Msg("Requested admin port was unavailable, using alternative port")
+	}
+
+	// Setup separate routers
+	log.Debug().Msg("Setting up HTTP routers")
+	
+	// JS Server router (user-facing, JavaScript endpoints)
+	jsRouter := web.SetupJSRoutes(jsEngine)
+	
+	// Admin router (system interface, playground, API)
+	adminRouter := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
 
-	addr := ":" + strconv.Itoa(actualPort)
-	baseURL := fmt.Sprintf("http://localhost:%d", actualPort)
-	log.Info().Str("address", addr).Str("database", db).Str("url", baseURL).Msg("Server configuration")
+	// Configure server addresses
+	jsAddr := ":" + strconv.Itoa(actualPort)
+	adminAddr := ":" + strconv.Itoa(actualAdminPort)
+	jsBaseURL := fmt.Sprintf("http://localhost:%d", actualPort)
+	adminBaseURL := fmt.Sprintf("http://localhost:%d", actualAdminPort)
+	
+	log.Info().
+		Str("js_address", jsAddr).
+		Str("admin_address", adminAddr).
+		Str("app_database", appDBPath).
+		Str("system_database", systemDBPath).
+		Msg("Server configuration")
+	
 	if scriptsDir != "" {
 		log.Info().Str("scripts", scriptsDir).Msg("Scripts directory configured")
 	}
-	log.Info().Str("execute_endpoint", baseURL+"/v1/execute").Msg("API endpoint ready")
-	log.Info().Str("web_interface", baseURL).Msg("Web interface available")
+	
+	log.Info().Str("execute_endpoint", adminBaseURL+"/v1/execute").Msg("API endpoint ready")
+	log.Info().Str("js_server", jsBaseURL).Msg("JavaScript web server available")
+	log.Info().Str("admin_interface", adminBaseURL).Msg("Admin interface available")
+	log.Info().Str("admin_logs", adminBaseURL+"/admin/logs").Msg("Admin logs available")
 
-	log.Info().Str("address", addr).Msg("Starting HTTP server")
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatal().Err(err).Msg("HTTP server failed")
+	// Start servers concurrently
+	log.Info().Str("js_address", jsAddr).Msg("Starting JavaScript web server")
+	go func() {
+		if err := http.ListenAndServe(jsAddr, jsRouter); err != nil {
+			log.Fatal().Err(err).Msg("JavaScript web server failed")
+		}
+	}()
+
+	log.Info().Str("admin_address", adminAddr).Msg("Starting admin interface server")
+	if err := http.ListenAndServe(adminAddr, adminRouter); err != nil {
+		log.Fatal().Err(err).Msg("Admin interface server failed")
 	}
 }
 
