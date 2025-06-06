@@ -53,11 +53,15 @@ class JSPlaygroundApp {
         document.getElementById('vimModeToggle').addEventListener('change', (e) => this.toggleVimMode(e.target.checked));
         document.getElementById('fontSizeRange').addEventListener('input', (e) => this.changeFontSize(e.target.value));
 
+        // Load presets dropdown
+        this.loadPresetsMenu();
+        
         // Load saved code or set default
         const savedCode = localStorage.getItem('playgroundCode');
         if (savedCode) {
             this.editor.setValue(savedCode);
-            localStorage.removeItem('playgroundCode');
+            // Don't remove immediately - let it persist for better UX
+            setTimeout(() => localStorage.removeItem('playgroundCode'), 1000);
         } else if (editorElement.hasAttribute('data-default-code')) {
             const defaultCode = `// Welcome to the JavaScript Playground!
 // This editor supports Vim keybindings and JavaScript syntax highlighting.
@@ -380,6 +384,47 @@ console.log("Total executions:", users[0].count);
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Load presets into dropdown menu
+    async loadPresetsMenu() {
+        const presetsMenu = document.getElementById('presetsMenu');
+        if (!presetsMenu) return;
+
+        try {
+            // Get presets list - using hardcoded list for now (could be fetched from API)
+            const presets = [
+                { id: 'hello-world', name: 'Hello World', description: 'Basic console output example' },
+                { id: 'express-basic', name: 'Express Route', description: 'Create a simple Express.js route' },
+                { id: 'database-query', name: 'Database Query', description: 'SQLite database query example' },
+                { id: 'api-crud', name: 'CRUD API', description: 'Complete CRUD operations example' },
+                { id: 'websocket-echo', name: 'WebSocket Echo', description: 'WebSocket server example' },
+                { id: 'file-operations', name: 'File Operations', description: 'File read/write operations' },
+                { id: 'middleware', name: 'Middleware', description: 'Custom middleware example' },
+                { id: 'json-validation', name: 'JSON Validation', description: 'Request validation example' }
+            ];
+
+            // Clear existing items except header and divider
+            const existingItems = presetsMenu.querySelectorAll('li:not(.dropdown-header):not(:has(hr))');
+            existingItems.forEach(item => item.remove());
+
+            // Add preset items
+            presets.forEach(preset => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <a class="dropdown-item" href="#" onclick="window.loadPresetExample('${preset.id}'); return false;">
+                        <div>
+                            <strong>${this.escapeHtml(preset.name)}</strong>
+                            <br>
+                            <small class="text-muted">${this.escapeHtml(preset.description)}</small>
+                        </div>
+                    </a>
+                `;
+                presetsMenu.appendChild(li);
+            });
+        } catch (error) {
+            console.error('Failed to load presets menu:', error);
+        }
     }
 
     autoResizeTextarea(textarea) {
