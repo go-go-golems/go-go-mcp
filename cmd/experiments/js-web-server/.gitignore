@@ -3,3 +3,4 @@ scripts/
 data.sqlite
 *.db
 js-web-server
+.git-commit-message.yaml
