@@ -24,7 +24,6 @@ var (
 	db         string
 	scriptsDir string
 	serverURL  string
-	logLevel   string
 )
 
 func main() {
@@ -51,7 +50,9 @@ func main() {
 	serverCmd.Flags().StringVarP(&db, "db", "d", "data.sqlite", "SQLite database path")
 	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
 
-	clay.InitViper("js-web-server", rootCmd)
+	if err := clay.InitViper("js-web-server", rootCmd); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize viper")
+	}
 
 	// Execute command
 	executeCmd := &cobra.Command{

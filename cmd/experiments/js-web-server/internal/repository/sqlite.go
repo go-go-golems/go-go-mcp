@@ -329,7 +329,11 @@ func (r *sqliteExecutionRepository) GetExecutionStats(ctx context.Context) (*Exe
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executions by source: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close database rows")
+		}
+	}()
 
 	for rows.Next() {
 		var source string

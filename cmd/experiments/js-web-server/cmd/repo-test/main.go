@@ -14,7 +14,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create repository manager: %v", err)
 	}
-	defer repos.Close()
+	defer func() {
+		if err := repos.Close(); err != nil {
+			log.Printf("Failed to close repository: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 

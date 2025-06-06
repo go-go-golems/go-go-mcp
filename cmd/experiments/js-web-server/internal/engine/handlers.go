@@ -12,8 +12,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// min returns the minimum of two integers
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -611,7 +611,7 @@ func extractRequestBody(r *http.Request) interface{} {
 
 	log.Debug().
 		Int("bodyBytesLength", len(bodyBytes)).
-		Str("bodyBytesPreview", string(bodyBytes[:min(len(bodyBytes), 100)])).
+		Str("bodyBytesPreview", string(bodyBytes[:minInt(len(bodyBytes), 100)])).
 		Msg("Read request body bytes")
 
 	// Restore the body for further processing

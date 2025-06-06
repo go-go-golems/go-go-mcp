@@ -163,17 +163,17 @@ func StaticHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		
+
 		// Prevent directory traversal
 		if strings.Contains(path, "..") {
 			http.Error(w, "Invalid path", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Full path in embedded FS
 		fullPath := "static/" + path
 		log.Debug().Str("requestPath", r.URL.Path).Str("strippedPath", path).Str("fullPath", fullPath).Msg("Static file request")
-		
+
 		// Check if file exists in embedded FS
 		file, err := staticFiles.Open(fullPath)
 		if err != nil {
@@ -181,8 +181,12 @@ func StaticHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		defer file.Close()
-		
+		defer func() {
+			if err := file.Close(); err != nil {
+				log.Error().Err(err).Str("path", fullPath).Msg("Failed to close static file")
+			}
+		}()
+
 		// Set correct MIME type based on file extension
 		ext := filepath.Ext(path)
 		var contentType string
@@ -211,10 +215,10 @@ func StaticHandler() http.Handler {
 				contentType = "application/octet-stream"
 			}
 		}
-		
+
 		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		
+
 		// Copy file content to response
 		http.ServeContent(w, r, filepath.Base(path), time.Time{}, file.(io.ReadSeeker))
 	})
@@ -258,6 +262,8 @@ func ResetVMHandler(jsEngine *engine.Engine) http.HandlerFunc {
 		// In the future, we could implement actual VM reset
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"success": true, "message": "VM reset (not implemented)"}`))
+		if _, err := w.Write([]byte(`{"success": true, "message": "VM reset (not implemented)"}`)); err != nil {
+			log.Error().Err(err).Msg("Failed to write response")
+		}
 	}
 }
