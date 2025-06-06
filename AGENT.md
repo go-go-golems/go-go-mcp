@@ -1,12 +1,14 @@
 # Agent Guidelines for go-go-mcp
 
 ## Build Commands
+- Run a binary in XXX/YYY/FOOO: `go run ./XXX/YYY/FOOO` . Use this instead of build + ./XXX.
 - Build: `go build ./...`
 - Test: `go test ./...`
 - Run single test: `go test ./pkg/path/to/package -run TestName`
 - Generate: `go generate ./...`
 - Lint: `golangci-lint run -v` or `make lint`
 - Format: `go fmt ./...`
+- Kill a process using port $PORT: `lsof-who -p $PORT -k`. When building a web server, ALWAYS use this command to kill the process.
 
 ## Code Style Guidelines
 - **Imports**: Standard library first, third-party next, local packages last
@@ -42,6 +44,7 @@
 - Store css, html and js in different files in a static directory.
 - Use go:embed to serve static files.
 - Use templ for go templates, assume I'm running templ generate -watch in the background.
+- Always serve static files under /static/ URL paths, never directly under functional paths like /admin/
 </webGuidelines>
 
 <debuggingGuidelines>

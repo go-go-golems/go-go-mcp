@@ -14,14 +14,20 @@ func SetupAdminRoutes(r *mux.Router, jsEngine *engine.Engine) {
 	r.HandleFunc("/admin/scripts", ScriptsHandler(jsEngine)).Methods("GET", "POST")
 	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/scripts")
 
-	// Admin log routes
+	// Admin handler
 	adminHandler := NewAdminHandler(jsEngine.GetRequestLogger(), jsEngine.GetRepositoryManager(), jsEngine)
+
+	// Admin log routes
 	r.PathPrefix("/admin/logs").HandlerFunc(adminHandler.HandleAdminLogs)
 	log.Debug().Msg("Registered admin endpoint: /admin/logs")
 
 	// GlobalState routes
 	r.HandleFunc("/admin/globalstate", adminHandler.HandleGlobalState).Methods("GET", "POST")
 	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/globalstate")
+
+	// Admin static files (CSS, JS) - serve under /static/admin/
+	r.PathPrefix("/static/admin/").HandlerFunc(adminHandler.HandleStaticFiles)
+	log.Debug().Msg("Registered admin static files: /static/admin/")
 }
 
 // SetupDynamicRoutes configures the dynamic JavaScript-handled routes with request logging
