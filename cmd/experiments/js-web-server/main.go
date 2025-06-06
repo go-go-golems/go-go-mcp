@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,18 @@ var (
 	scriptsDir string
 	serverURL  string
 )
+
+// findFreePort finds a free port starting from the given port
+func findFreePort(startPort int) (int, error) {
+	for port := startPort; port < startPort+100; port++ {
+		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err == nil {
+			listener.Close()
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no free port found in range %d-%d", startPort, startPort+99)
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -86,6 +100,21 @@ func main() {
 func runServer(cmd *cobra.Command, args []string) {
 	log.Info().Msg("Starting JavaScript playground server")
 
+	// Find free port starting from the requested port
+	requestedPort, err := strconv.Atoi(port)
+	if err != nil {
+		log.Fatal().Err(err).Str("port", port).Msg("Invalid port number")
+	}
+
+	actualPort, err := findFreePort(requestedPort)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to find free port")
+	}
+
+	if actualPort != requestedPort {
+		log.Info().Int("requested_port", requestedPort).Int("actual_port", actualPort).Msg("Requested port was unavailable, using alternative port")
+	}
+
 	// Ensure scripts directory exists
 	if err := os.MkdirAll("scripts", 0755); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create scripts directory")
@@ -118,12 +147,14 @@ func runServer(cmd *cobra.Command, args []string) {
 	r := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
 
-	addr := ":" + port
-	log.Info().Str("address", addr).Str("database", db).Msg("Server configuration")
+	addr := ":" + strconv.Itoa(actualPort)
+	baseURL := fmt.Sprintf("http://localhost:%d", actualPort)
+	log.Info().Str("address", addr).Str("database", db).Str("url", baseURL).Msg("Server configuration")
 	if scriptsDir != "" {
 		log.Info().Str("scripts", scriptsDir).Msg("Scripts directory configured")
 	}
-	log.Info().Msg("POST /v1/execute to run JavaScript code")
+	log.Info().Str("execute_endpoint", baseURL+"/v1/execute").Msg("API endpoint ready")
+	log.Info().Str("web_interface", baseURL).Msg("Web interface available")
 
 	log.Info().Str("address", addr).Msg("Starting HTTP server")
 	if err := http.ListenAndServe(addr, r); err != nil {

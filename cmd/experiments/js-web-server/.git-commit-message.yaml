@@ -1,10 +1,12 @@
-title: "🔧 Add dynamic port allocation to js-web-server MCP"
+title: "🔧 Add dynamic port allocation to js-web-server"
 description: |
-  - Created WebServerMCP struct to manage server state and port allocation
-  - Implemented findFreePort() function to find available ports starting from 8080
+  - Created WebServerMCP struct to manage server state and port allocation in MCP mode
+  - Implemented findFreePort() function to find available ports starting from requested port
   - Updated MCP tool registration to include correct server URLs in description
+  - Added dynamic port allocation to serve command with enhanced logging
   - Modified all engine references to use new struct-based approach
   - Server URLs in tool responses now reflect actual running port
+  - Enhanced serve command logging to show complete URLs for web interface and API
   
   Tests run:
   - go build: PASSED
