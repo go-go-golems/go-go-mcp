@@ -123,8 +123,12 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 		return fmt.Errorf("failed to create scripts directory: %w", err)
 	}
 
-	// Initialize JS engine with default database
-	GlobalWebServerMCP.JSEngine = engine.NewEngine("jsserver.db")
+	// Initialize JS engine with separate databases
+	// Application database for user data
+	appDBPath := "jsserver.db"
+	// System database for internal operations
+	systemDBPath := "jsserver-system.db"
+	GlobalWebServerMCP.JSEngine = engine.NewEngine(appDBPath, systemDBPath)
 	if err := GlobalWebServerMCP.JSEngine.Init("bootstrap.js"); err != nil {
 		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
 	}

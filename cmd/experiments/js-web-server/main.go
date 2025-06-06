@@ -61,7 +61,7 @@ func main() {
 		Run:   runServer,
 	}
 	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port to listen on")
-	serverCmd.Flags().StringVarP(&db, "db", "d", "data.sqlite", "SQLite database path")
+	serverCmd.Flags().StringVarP(&db, "db", "d", "data.sqlite", "SQLite database path for application data")
 	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
 
 	if err := clay.InitViper("js-web-server", rootCmd); err != nil {
@@ -121,9 +121,14 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 	log.Debug().Msg("Scripts directory ready")
 
-	// Initialize JS engine
-	log.Debug().Str("database", db).Msg("Initializing JavaScript engine")
-	jsEngine := engine.NewEngine(db)
+	// Initialize JS engine with separate databases
+	// Application database (accessible via db.* in JavaScript)
+	appDBPath := db
+	// System database for engine operations (execution logs, request logs, etc.)
+	systemDBPath := "system.sqlite"
+	
+	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
+	jsEngine := engine.NewEngine(appDBPath, systemDBPath)
 	if err := jsEngine.Init("bootstrap.js"); err != nil {
 		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
 	}

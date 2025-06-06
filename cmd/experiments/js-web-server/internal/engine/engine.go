@@ -51,9 +51,9 @@ type EvalResult struct {
 	Error      error       `json:"error,omitempty"` // Execution error if any
 }
 
-// NewEngine creates a new JavaScript engine with repository integration
-func NewEngine(dbPath string) *Engine {
-	log.Debug().Str("database", dbPath).Msg("Creating new JavaScript engine")
+// NewEngine creates a new JavaScript engine with separate application and system databases
+func NewEngine(appDBPath, systemDBPath string) *Engine {
+	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Creating new JavaScript engine")
 
 	rt := goja.New()
 	log.Debug().Msg("Goja runtime created")
@@ -61,23 +61,23 @@ func NewEngine(dbPath string) *Engine {
 	// Set up field name mapper to convert Go method names to JavaScript-style names
 	rt.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 
-	// Open SQLite connection for JavaScript bindings (legacy support)
-	db, err := sql.Open("sqlite3", dbPath)
+	// Open SQLite connection for JavaScript bindings (application database)
+	appDB, err := sql.Open("sqlite3", appDBPath)
 	if err != nil {
-		log.Fatal().Err(err).Str("database", dbPath).Msg("Failed to open database")
+		log.Fatal().Err(err).Str("database", appDBPath).Msg("Failed to open application database")
 	}
-	log.Debug().Str("database", dbPath).Msg("Legacy database connection established")
+	log.Debug().Str("database", appDBPath).Msg("Application database connection established")
 
-	// Create repository manager
-	repos, err := repository.NewSQLiteRepositoryManager(dbPath)
+	// Create repository manager for system operations (system database)
+	repos, err := repository.NewSQLiteRepositoryManager(systemDBPath)
 	if err != nil {
-		log.Fatal().Err(err).Str("database", dbPath).Msg("Failed to create repository manager")
+		log.Fatal().Err(err).Str("database", systemDBPath).Msg("Failed to create repository manager")
 	}
-	log.Debug().Str("database", dbPath).Msg("Repository manager created")
+	log.Debug().Str("database", systemDBPath).Msg("System database repository manager created")
 
 	e := &Engine{
 		rt:        rt,
-		db:        db,
+		db:        appDB,
 		repos:     repos,
 		jobs:      make(chan EvalJob, 1024),
 		handlers:  make(map[string]map[string]*HandlerInfo),
