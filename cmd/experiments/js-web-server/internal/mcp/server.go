@@ -22,14 +22,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 // WebServerMCP represents the MCP server instance with dynamic port allocation
 type WebServerMCP struct {
-	JSEngine  *engine.Engine
-	JSPort    int
-	AdminPort int
-	JSBaseURL string
+	JSEngine     *engine.Engine
+	JSPort       int
+	AdminPort    int
+	JSBaseURL    string
 	AdminBaseURL string
 }
 
@@ -61,9 +59,9 @@ func NewWebServerMCP() (*WebServerMCP, error) {
 	}
 
 	server := &WebServerMCP{
-		JSPort:    jsPort,
-		AdminPort: adminPort,
-		JSBaseURL: fmt.Sprintf("http://localhost:%d", jsPort),
+		JSPort:       jsPort,
+		AdminPort:    adminPort,
+		JSBaseURL:    fmt.Sprintf("http://localhost:%d", jsPort),
 		AdminBaseURL: fmt.Sprintf("http://localhost:%d", adminPort),
 	}
 
@@ -146,11 +144,11 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 	}
 
 	// Get configuration from command flags
-	appDBPath := "jsserver.db"      // default
-	systemDBPath := "jsserver-system.db" // default
-	jsPort := GlobalWebServerMCP.JSPort    // default from NewWebServerMCP
+	appDBPath := "jsserver.db"                // default
+	systemDBPath := "jsserver-system.db"      // default
+	jsPort := GlobalWebServerMCP.JSPort       // default from NewWebServerMCP
 	adminPort := GlobalWebServerMCP.AdminPort // default from NewWebServerMCP
-	
+
 	if flags, ok := embeddable.GetCommandFlags(ctx); ok {
 		if appDB, exists := flags["app-db"]; exists {
 			if appDBStr, isString := appDB.(string); isString {
@@ -177,13 +175,13 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	// Update GlobalWebServerMCP with potentially overridden ports
 	GlobalWebServerMCP.JSPort = jsPort
 	GlobalWebServerMCP.AdminPort = adminPort
 	GlobalWebServerMCP.JSBaseURL = fmt.Sprintf("http://localhost:%d", jsPort)
 	GlobalWebServerMCP.AdminBaseURL = fmt.Sprintf("http://localhost:%d", adminPort)
-	
+
 	log.Info().Str("appDB", appDBPath).Str("systemDB", systemDBPath).Msg("Initializing JS engine with databases")
 	GlobalWebServerMCP.JSEngine = engine.NewEngine(appDBPath, systemDBPath)
 	if err := GlobalWebServerMCP.JSEngine.Init("bootstrap.js"); err != nil {
@@ -195,7 +193,7 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 	time.Sleep(100 * time.Millisecond)
 
 	// Start separate HTTP servers in background
-	
+
 	// Start JavaScript web server
 	go func() {
 		jsRouter := web.SetupJSRoutes(GlobalWebServerMCP.JSEngine)
@@ -205,12 +203,12 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 			log.Error().Err(err).Msg("JavaScript web server failed")
 		}
 	}()
-	
+
 	// Start admin interface server
 	go func() {
 		adminRouter := web.SetupRoutesWithAPI(GlobalWebServerMCP.JSEngine, api.ExecuteHandler(GlobalWebServerMCP.JSEngine))
 		log.Debug().Msg("Registered API endpoint: POST /v1/execute (MCP mode)")
-		
+
 		adminAddr := ":" + strconv.Itoa(GlobalWebServerMCP.AdminPort)
 		log.Info().Str("admin_address", adminAddr).Msg("Starting admin interface server for MCP mode")
 		log.Info().Str("admin_console", GlobalWebServerMCP.AdminBaseURL+"/admin/logs").Msg("Admin console available")

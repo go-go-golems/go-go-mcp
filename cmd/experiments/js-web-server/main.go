@@ -129,7 +129,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get system-db flag")
 	}
-	
+
 	adminPortStr, err := cmd.Flags().GetString("admin-port")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to get admin-port flag")
@@ -138,7 +138,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal().Err(err).Str("admin-port", adminPortStr).Msg("Invalid admin port number")
 	}
-	
+
 	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
 	jsEngine := engine.NewEngine(appDBPath, systemDBPath)
 	if err := jsEngine.Init("bootstrap.js"); err != nil {
@@ -170,10 +170,10 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	// Setup separate routers
 	log.Debug().Msg("Setting up HTTP routers")
-	
+
 	// JS Server router (user-facing, JavaScript endpoints)
 	jsRouter := web.SetupJSRoutes(jsEngine)
-	
+
 	// Admin router (system interface, playground, API)
 	adminRouter := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
 	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
@@ -183,18 +183,18 @@ func runServer(cmd *cobra.Command, args []string) {
 	adminAddr := ":" + strconv.Itoa(actualAdminPort)
 	jsBaseURL := fmt.Sprintf("http://localhost:%d", actualPort)
 	adminBaseURL := fmt.Sprintf("http://localhost:%d", actualAdminPort)
-	
+
 	log.Info().
 		Str("js_address", jsAddr).
 		Str("admin_address", adminAddr).
 		Str("app_database", appDBPath).
 		Str("system_database", systemDBPath).
 		Msg("Server configuration")
-	
+
 	if scriptsDir != "" {
 		log.Info().Str("scripts", scriptsDir).Msg("Scripts directory configured")
 	}
-	
+
 	log.Info().Str("execute_endpoint", adminBaseURL+"/v1/execute").Msg("API endpoint ready")
 	log.Info().Str("js_server", jsBaseURL).Msg("JavaScript web server available")
 	log.Info().Str("admin_interface", adminBaseURL).Msg("Admin interface available")

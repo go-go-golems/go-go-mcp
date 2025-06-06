@@ -17,15 +17,15 @@ type CodeExample struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Code        string `json:"code"`
-	Source      string `json:"source"`      // Which file it came from
-	Category    string `json:"category"`    // Type of example
+	Source      string `json:"source"`   // Which file it came from
+	Category    string `json:"category"` // Type of example
 }
 
 // DocsAPIHandler handles requests for documentation and code examples
 func DocsAPIHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		action := r.URL.Query().Get("action")
-		
+
 		switch action {
 		case "examples":
 			handleExamples(w, r)
@@ -75,7 +75,7 @@ func handleDocsList(w http.ResponseWriter, r *http.Request) {
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".md") {
 			docs = append(docs, map[string]interface{}{
-				"name": file.Name(),
+				"name":  file.Name(),
 				"title": strings.TrimSuffix(strings.ReplaceAll(file.Name(), "-", " "), ".md"),
 			})
 		}
@@ -115,10 +115,10 @@ func handleDocContent(w http.ResponseWriter, r *http.Request) {
 // extractCodeExamples extracts JavaScript code blocks from markdown files
 func extractCodeExamples(docsFS fs.FS) ([]CodeExample, error) {
 	var examples []CodeExample
-	
+
 	// Regular expression to match JavaScript code blocks
 	jsCodeBlockRe := regexp.MustCompile(`(?s)` + "```javascript\n(.*?)\n```")
-	
+
 	files, err := fs.ReadDir(docsFS, ".")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read docs directory: %v", err)
@@ -137,10 +137,10 @@ func extractCodeExamples(docsFS fs.FS) ([]CodeExample, error) {
 
 		fileContent := string(content)
 		category := getCategoryFromFilename(file.Name())
-		
+
 		// Find all JavaScript code blocks
 		matches := jsCodeBlockRe.FindAllStringSubmatch(fileContent, -1)
-		
+
 		for _, match := range matches {
 			if len(match) > 1 {
 				code := strings.TrimSpace(match[1])
@@ -150,7 +150,7 @@ func extractCodeExamples(docsFS fs.FS) ([]CodeExample, error) {
 
 				// Generate a name and description based on the code content
 				name, description := generateExampleMetadata(code, category)
-				
+
 				example := CodeExample{
 					ID:          fmt.Sprintf("doc-example-%d", exampleID),
 					Name:        name,
@@ -159,7 +159,7 @@ func extractCodeExamples(docsFS fs.FS) ([]CodeExample, error) {
 					Source:      file.Name(),
 					Category:    category,
 				}
-				
+
 				examples = append(examples, example)
 				exampleID++
 			}
@@ -188,43 +188,43 @@ func getCategoryFromFilename(filename string) string {
 // generateExampleMetadata creates a name and description for a code example
 func generateExampleMetadata(code string, category string) (string, string) {
 	lines := strings.Split(code, "\n")
-	
+
 	// Look for comments that might indicate what the example does
 	var firstComment string
 	var isRouteExample bool
 	var isDbExample bool
 	var isMiddlewareExample bool
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// Check for route definitions
-		if strings.Contains(trimmed, "app.get") || strings.Contains(trimmed, "app.post") || 
-		   strings.Contains(trimmed, "app.put") || strings.Contains(trimmed, "app.delete") {
+		if strings.Contains(trimmed, "app.get") || strings.Contains(trimmed, "app.post") ||
+			strings.Contains(trimmed, "app.put") || strings.Contains(trimmed, "app.delete") {
 			isRouteExample = true
 		}
-		
+
 		// Check for database operations
-		if strings.Contains(trimmed, "db.query") || strings.Contains(trimmed, "db.execute") || 
-		   strings.Contains(trimmed, "db.get") || strings.Contains(trimmed, "db.all") {
+		if strings.Contains(trimmed, "db.query") || strings.Contains(trimmed, "db.execute") ||
+			strings.Contains(trimmed, "db.get") || strings.Contains(trimmed, "db.all") {
 			isDbExample = true
 		}
-		
+
 		// Check for middleware
 		if strings.Contains(trimmed, "app.use") || strings.Contains(trimmed, "next()") {
 			isMiddlewareExample = true
 		}
-		
+
 		// Capture first comment as potential description
 		if strings.HasPrefix(trimmed, "//") && firstComment == "" {
 			firstComment = strings.TrimSpace(strings.TrimPrefix(trimmed, "//"))
 		}
 	}
-	
+
 	// Generate name based on code content
 	var name string
 	var description string
-	
+
 	if isRouteExample {
 		name = "API Routes"
 		description = "Express.js route handling example"
@@ -238,16 +238,16 @@ func generateExampleMetadata(code string, category string) (string, string) {
 		name = "JavaScript Example"
 		description = "General JavaScript code example"
 	}
-	
+
 	// Use first comment as description if available and more descriptive
 	if firstComment != "" && len(firstComment) > 10 {
 		description = firstComment
 	}
-	
+
 	// Add category context
 	if category != "General" {
 		name = fmt.Sprintf("%s - %s", category, name)
 	}
-	
+
 	return name, description
 }

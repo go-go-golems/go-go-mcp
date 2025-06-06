@@ -17,25 +17,27 @@ import (
 
 // AdminHandler provides admin endpoints for managing the server
 type AdminHandler struct {
-	logger *engine.RequestLogger
-	repos  repository.RepositoryManager
-	
+	logger   *engine.RequestLogger
+	repos    repository.RepositoryManager
+	jsEngine *engine.Engine
+
 	// SSE support
 	sseClients map[string]chan string
 	sseMutex   sync.RWMutex
 }
 
 // NewAdminHandler creates a new admin handler
-func NewAdminHandler(logger *engine.RequestLogger, repos repository.RepositoryManager) *AdminHandler {
+func NewAdminHandler(logger *engine.RequestLogger, repos repository.RepositoryManager, jsEngine *engine.Engine) *AdminHandler {
 	ah := &AdminHandler{
 		logger:     logger,
 		repos:      repos,
+		jsEngine:   jsEngine,
 		sseClients: make(map[string]chan string),
 	}
-	
+
 	// Start monitoring for new requests
 	go ah.monitorNewRequests()
-	
+
 	return ah
 }
 
@@ -62,6 +64,50 @@ func (ah *AdminHandler) HandleAdminLogs(w http.ResponseWriter, r *http.Request) 
 	}
 
 	http.NotFound(w, r)
+}
+
+// HandleGlobalState serves the globalState interface and API
+func (ah *AdminHandler) HandleGlobalState(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		if r.Header.Get("Accept") == "application/json" {
+			// API request - return JSON
+			globalState := ah.jsEngine.GetGlobalState()
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(globalState))
+		} else {
+			// Regular request - serve HTML interface
+			ah.serveGlobalStateInterface(w, r)
+		}
+	case "POST":
+		// Update globalState
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
+
+		jsonData := r.FormValue("globalState")
+		if jsonData == "" {
+			http.Error(w, "Missing globalState data", http.StatusBadRequest)
+			return
+		}
+
+		if err := ah.jsEngine.SetGlobalState(jsonData); err != nil {
+			http.Error(w, "Failed to update globalState: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Return success response
+		if r.Header.Get("Accept") == "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"success": true}`))
+		} else {
+			// Redirect back to the interface
+			http.Redirect(w, r, "/admin/globalstate", http.StatusSeeOther)
+		}
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // serveLogsInterface serves the HTML interface for viewing logs
@@ -476,6 +522,10 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
             <div class="auto-refresh">
                 <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
                 <label for="autoRefresh">Auto-refresh (5s)</label>
+            </div>
+            <div style="margin-left: auto;">
+                <a href="/admin/globalstate" style="color: white; text-decoration: none; padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border-radius: 4px;">GlobalState Inspector</a>
+                <a href="/admin/scripts" style="color: white; text-decoration: none; padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border-radius: 4px; margin-left: 0.5rem;">Scripts</a>
             </div>
         </div>
     </div>
@@ -1175,16 +1225,16 @@ func (ah *AdminHandler) serveSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	
+
 	// Create unique client ID
 	clientID := fmt.Sprintf("client_%d", time.Now().UnixNano())
 	clientChan := make(chan string, 10)
-	
+
 	// Register client
 	ah.sseMutex.Lock()
 	ah.sseClients[clientID] = clientChan
 	ah.sseMutex.Unlock()
-	
+
 	// Clean up on disconnect
 	defer func() {
 		ah.sseMutex.Lock()
@@ -1193,13 +1243,13 @@ func (ah *AdminHandler) serveSSE(w http.ResponseWriter, r *http.Request) {
 		ah.sseMutex.Unlock()
 		log.Debug().Str("clientID", clientID).Msg("SSE client disconnected")
 	}()
-	
+
 	log.Debug().Str("clientID", clientID).Msg("SSE client connected")
-	
+
 	// Send initial ping
 	fmt.Fprintf(w, "data: {\"type\":\"connected\",\"clientId\":\"%s\"}\n\n", clientID)
 	w.(http.Flusher).Flush()
-	
+
 	// Listen for messages or client disconnect
 	for {
 		select {
@@ -1219,7 +1269,7 @@ func (ah *AdminHandler) serveSSE(w http.ResponseWriter, r *http.Request) {
 func (ah *AdminHandler) broadcastSSE(message string) {
 	ah.sseMutex.RLock()
 	defer ah.sseMutex.RUnlock()
-	
+
 	for clientID, clientChan := range ah.sseClients {
 		select {
 		case clientChan <- message:
@@ -1234,10 +1284,10 @@ func (ah *AdminHandler) broadcastSSE(message string) {
 func (ah *AdminHandler) monitorNewRequests() {
 	lastRequestCount := 0
 	lastExecutionCount := 0
-	
+
 	ticker := time.NewTicker(1 * time.Second) // Check every second
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		// Check for new HTTP requests
 		stats := ah.logger.GetStats()
@@ -1246,7 +1296,7 @@ func (ah *AdminHandler) monitorNewRequests() {
 			ah.broadcastSSE(message)
 			lastRequestCount = totalRequests
 		}
-		
+
 		// Check for new script executions
 		if result, err := ah.repos.Executions().ListExecutions(context.Background(), repository.ExecutionFilter{}, repository.PaginationOptions{Limit: 1, Offset: 0}); err == nil {
 			if result.Total > lastExecutionCount {
@@ -1256,4 +1306,415 @@ func (ah *AdminHandler) monitorNewRequests() {
 			}
 		}
 	}
+}
+
+// serveGlobalStateInterface serves the HTML interface for inspecting and editing globalState
+func (ah *AdminHandler) serveGlobalStateInterface(w http.ResponseWriter, r *http.Request) {
+	html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GlobalState Inspector - Admin Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .controls {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .controls button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .controls button:hover {
+            background: #2980b9;
+        }
+        
+        .controls button.success {
+            background: #27ae60;
+        }
+        
+        .controls button.success:hover {
+            background: #229954;
+        }
+        
+        .controls button.danger {
+            background: #e74c3c;
+        }
+        
+        .controls button.danger:hover {
+            background: #c0392b;
+        }
+        
+        .main-content {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .editor-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .editor-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .editor {
+            position: relative;
+        }
+        
+        #globalStateEditor {
+            width: 100%;
+            height: 400px;
+            border: none;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            background: #1e1e1e;
+            color: #f8f8f2;
+        }
+        
+        .status-bar {
+            background: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-top: 1px solid #ddd;
+            font-size: 0.9rem;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .validation-status {
+            font-weight: bold;
+        }
+        
+        .validation-status.valid {
+            color: #27ae60;
+        }
+        
+        .validation-status.invalid {
+            color: #e74c3c;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .help-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 2rem;
+            overflow: hidden;
+        }
+        
+        .help-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .help-content {
+            padding: 1rem;
+        }
+        
+        .help-content ul {
+            margin-left: 1.5rem;
+        }
+        
+        .help-content li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .help-content code {
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .notification.error {
+            background: #e74c3c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>GlobalState Inspector</h1>
+        <div class="nav-links">
+            <a href="/admin/logs">Request Logs</a>
+            <a href="/admin/scripts">Scripts</a>
+            <a href="/">Playground</a>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button onclick="refreshGlobalState()">Refresh</button>
+        <button onclick="saveGlobalState()" class="success">Save Changes</button>
+        <button onclick="resetGlobalState()" class="danger">Reset to {}</button>
+        <div class="auto-refresh">
+            <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()">
+            <label for="autoRefresh">Auto-refresh (5s)</label>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="editor-container">
+            <div class="editor-header">
+                GlobalState JSON Editor
+            </div>
+            <div class="editor">
+                <textarea id="globalStateEditor" placeholder="Loading globalState..."></textarea>
+            </div>
+            <div class="status-bar">
+                <div>
+                    <span class="validation-status" id="validationStatus">Valid JSON</span>
+                    <span id="errorMessage"></span>
+                </div>
+                <div>
+                    Last updated: <span id="lastUpdated">Never</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="help-panel">
+            <div class="help-header">
+                Help & Usage
+            </div>
+            <div class="help-content">
+                <p>The <code>globalState</code> object persists data across JavaScript executions in the playground. Use it to:</p>
+                <ul>
+                    <li>Store configuration values</li>
+                    <li>Maintain counters or statistics</li>
+                    <li>Share data between different endpoints</li>
+                    <li>Cache computed results</li>
+                </ul>
+                <p><strong>Example usage in JavaScript:</strong></p>
+                <code>
+                    globalState.counter = (globalState.counter || 0) + 1;<br>
+                    globalState.users = globalState.users || [];<br>
+                    globalState.config = { theme: 'dark', version: '1.0' };
+                </code>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+
+    <script>
+        let autoRefreshInterval = null;
+        let lastGlobalStateValue = '';
+        
+        async function refreshGlobalState() {
+            try {
+                const response = await fetch('/admin/globalstate', {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.text();
+                
+                document.getElementById('globalStateEditor').value = data;
+                lastGlobalStateValue = data;
+                
+                validateJSON();
+                updateLastUpdated();
+                
+            } catch (error) {
+                console.error('Failed to refresh globalState:', error);
+                showNotification('Failed to refresh globalState', 'error');
+            }
+        }
+        
+        async function saveGlobalState() {
+            const editor = document.getElementById('globalStateEditor');
+            const jsonData = editor.value;
+            
+            if (!validateJSON()) {
+                showNotification('Cannot save invalid JSON', 'error');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('globalState', jsonData);
+                
+                const response = await fetch('/admin/globalstate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    lastGlobalStateValue = jsonData;
+                    showNotification('GlobalState saved successfully', 'success');
+                    updateLastUpdated();
+                } else {
+                    const error = await response.text();
+                    showNotification('Failed to save: ' + error, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to save globalState:', error);
+                showNotification('Failed to save globalState', 'error');
+            }
+        }
+        
+        async function resetGlobalState() {
+            if (confirm('Are you sure you want to reset globalState to an empty object? This cannot be undone.')) {
+                document.getElementById('globalStateEditor').value = '{}';
+                await saveGlobalState();
+            }
+        }
+        
+        function validateJSON() {
+            const editor = document.getElementById('globalStateEditor');
+            const status = document.getElementById('validationStatus');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            try {
+                JSON.parse(editor.value);
+                status.textContent = 'Valid JSON';
+                status.className = 'validation-status valid';
+                errorMessage.textContent = '';
+                return true;
+            } catch (error) {
+                status.textContent = 'Invalid JSON';
+                status.className = 'validation-status invalid';
+                errorMessage.textContent = ' - ' + error.message;
+                return false;
+            }
+        }
+        
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            if (checkbox.checked) {
+                autoRefreshInterval = setInterval(refreshGlobalState, 5000);
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+        }
+        
+        function updateLastUpdated() {
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+        }
+        
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = 'notification ' + type + ' show';
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Validate JSON as user types
+        document.getElementById('globalStateEditor').addEventListener('input', validateJSON);
+        
+        // Check for unsaved changes before leaving
+        window.addEventListener('beforeunload', (e) => {
+            const currentValue = document.getElementById('globalStateEditor').value;
+            if (currentValue !== lastGlobalStateValue) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+        
+        // Load initial data
+        refreshGlobalState();
+    </script>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }

@@ -314,6 +314,36 @@ func (e *Engine) logJavaScriptRuntimeState(context string) {
 	}
 }
 
+// GetGlobalState returns the current globalState object as JSON string
+func (e *Engine) GetGlobalState() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	globalStateValue := e.rt.Get("globalState")
+	if globalStateValue == nil || goja.IsUndefined(globalStateValue) {
+		return "{}"
+	}
+
+	return e.stringifyJSValue(globalStateValue)
+}
+
+// SetGlobalState sets the globalState object from a JSON string
+func (e *Engine) SetGlobalState(jsonData string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Parse JSON and set globalState
+	code := "globalState = " + jsonData
+	_, err := e.rt.RunString(code)
+	if err != nil {
+		log.Error().Err(err).Str("json", jsonData).Msg("Failed to set globalState")
+		return err
+	}
+
+	log.Debug().Str("json", jsonData).Msg("GlobalState updated")
+	return nil
+}
+
 // stringifyJSValue uses JavaScript's JSON.stringify to convert a Goja value to a JSON string
 func (e *Engine) stringifyJSValue(value goja.Value) string {
 	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {

@@ -12,8 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 // ToolHandler is a simplified function signature for tool handlers
 // Session information is available via session.GetSessionFromContext(ctx)
 type ToolHandler func(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error)
