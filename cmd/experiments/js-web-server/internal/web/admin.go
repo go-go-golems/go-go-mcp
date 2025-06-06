@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,18 +9,21 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
 	"github.com/rs/zerolog/log"
 )
 
 // AdminHandler provides admin endpoints for managing the server
 type AdminHandler struct {
 	logger *engine.RequestLogger
+	repos  repository.RepositoryManager
 }
 
 // NewAdminHandler creates a new admin handler
-func NewAdminHandler(logger *engine.RequestLogger) *AdminHandler {
+func NewAdminHandler(logger *engine.RequestLogger, repos repository.RepositoryManager) *AdminHandler {
 	return &AdminHandler{
 		logger: logger,
+		repos:  repos,
 	}
 }
 
@@ -408,11 +412,47 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
         .auto-refresh input {
             margin-right: 0.5rem;
         }
+        
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            font-size: 1rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button:hover {
+            background: #e9ecef;
+        }
+        
+        .tab-button.active {
+            background: white;
+            border-bottom-color: #007bff;
+            font-weight: bold;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Request Logs</h1>
+        <h1>Admin Logs</h1>
         <div class="controls">
             <button onclick="refreshLogs()">Refresh</button>
             <button onclick="clearLogs()" class="danger">Clear Logs</button>
@@ -423,26 +463,49 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
         </div>
     </div>
     
+    <div class="tabs">
+        <button class="tab-button active" onclick="switchTab('requests')">HTTP Requests</button>
+        <button class="tab-button" onclick="switchTab('executions')">Script Executions</button>
+    </div>
+    
     <div class="main-content">
         <div class="sidebar">
-            <div class="stats" id="stats">
-                <h3>Statistics</h3>
-                <div class="stat-item">
-                    <span>Total Requests:</span>
-                    <span id="totalRequests">0</span>
+            <div class="tab-content active" id="requests-tab">
+                <div class="stats" id="stats">
+                    <h3>HTTP Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Requests:</span>
+                        <span id="totalRequests">0</span>
+                    </div>
+                </div>
+                <div class="request-list" id="requestList">
+                    <p>Loading requests...</p>
                 </div>
             </div>
-            <div class="request-list" id="requestList">
-                <p>Loading requests...</p>
+            
+            <div class="tab-content" id="executions-tab">
+                <div class="stats" id="execStats">
+                    <h3>Execution Statistics</h3>
+                    <div class="stat-item">
+                        <span>Total Executions:</span>
+                        <span id="totalExecutions">0</span>
+                    </div>
+                </div>
+                <div class="request-list" id="executionList">
+                    <p>Loading executions...</p>
+                </div>
             </div>
         </div>
         
         <div class="details-panel">
             <div class="no-selection" id="noSelection">
-                Select a request to view details
+                Select an item to view details
             </div>
             <div class="request-details" id="requestDetails" style="display: none;">
                 <!-- Request details will be populated here -->
+            </div>
+            <div class="execution-details" id="executionDetails" style="display: none;">
+                <!-- Execution details will be populated here -->
             </div>
         </div>
     </div>
@@ -663,7 +726,12 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
         }
         
         async function refreshLogs() {
-            await Promise.all([loadStats(), loadRequests()]);
+            const activeTab = document.querySelector('.tab-button.active').onclick.toString().match(/switchTab\('([^']+)'\)/)[1];
+            if (activeTab === 'requests') {
+                await Promise.all([loadStats(), loadRequests()]);
+            } else if (activeTab === 'executions') {
+                await Promise.all([loadExecutionStats(), loadExecutions()]);
+            }
         }
         
         async function clearLogs() {
@@ -693,6 +761,149 @@ func (ah *AdminHandler) serveLogsInterface(w http.ResponseWriter, r *http.Reques
             }
         }
         
+        async function loadExecutionStats() {
+            try {
+                const response = await fetch('/admin/logs/api/executions?limit=0');
+                const result = await response.json();
+                
+                let statsHTML = '<h3>Execution Statistics</h3>';
+                statsHTML += '<div class="stat-item"><span>Total Executions:</span><span>' + (result.total || 0) + '</span></div>';
+                
+                document.getElementById('execStats').innerHTML = statsHTML;
+            } catch (error) {
+                console.error('Failed to load execution stats:', error);
+            }
+        }
+        
+        async function loadExecutions() {
+            try {
+                const response = await fetch('/admin/logs/api/executions?limit=50');
+                const result = await response.json();
+                const executions = result.executions || [];
+                
+                const executionList = document.getElementById('executionList');
+                if (executions.length === 0) {
+                    executionList.innerHTML = '<p>No script executions logged yet</p>';
+                    return;
+                }
+                
+                let html = '';
+                executions.forEach(execution => {
+                    const time = new Date(execution.timestamp).toLocaleTimeString();
+                    const statusClass = execution.error ? 'error' : 'success';
+                    const shortCode = execution.code ? execution.code.substring(0, 50) + (execution.code.length > 50 ? '...' : '') : '';
+                    
+                    html += '<div class="request-item ' + statusClass + '" onclick="loadExecutionDetails(' + execution.id + ')">';
+                    html += '  <div class="request-time">' + time + '</div>';
+                    html += '  <div class="request-method">' + (execution.source || 'EXEC') + '</div>';
+                    html += '  <div class="request-path">' + shortCode + '</div>';
+                    if (execution.error) {
+                        html += '  <div class="request-status error">ERROR</div>';
+                    } else {
+                        html += '  <div class="request-status success">SUCCESS</div>';
+                    }
+                    html += '</div>';
+                });
+                
+                executionList.innerHTML = html;
+            } catch (error) {
+                console.error('Failed to load executions:', error);
+            }
+        }
+        
+        async function loadExecutionDetails(executionId) {
+            try {
+                selectedRequestId = executionId;
+                const response = await fetch('/admin/logs/api/executions/' + executionId);
+                const execution = await response.json();
+                
+                document.getElementById('noSelection').style.display = 'none';
+                document.getElementById('requestDetails').style.display = 'none';
+                document.getElementById('executionDetails').style.display = 'block';
+                
+                const executionDetails = document.getElementById('executionDetails');
+                
+                let html = '<div class="details-header">';
+                html += '  <div class="details-title">';
+                html += '    <h2>Execution #' + execution.id + '</h2>';
+                if (execution.error) {
+                    html += '    <span class="status error">ERROR</span>';
+                } else {
+                    html += '    <span class="status success">SUCCESS</span>';
+                }
+                html += '  </div>';
+                html += '  <div class="details-meta">';
+                html += '    <span>Source: ' + (execution.source || 'unknown') + '</span>';
+                html += '    <span>Time: ' + new Date(execution.timestamp).toLocaleString() + '</span>';
+                if (execution.session_id) {
+                    html += '    <span>Session: ' + execution.session_id + '</span>';
+                }
+                html += '  </div>';
+                html += '</div>';
+                
+                // Code section
+                html += '<div class="section">';
+                html += '  <h3>JavaScript Code</h3>';
+                html += '  <div class="logs-container">';
+                html += '    <pre style="color: #f8f8f2; margin: 0;">' + (execution.code || 'No code') + '</pre>';
+                html += '  </div>';
+                html += '</div>';
+                
+                // Result section
+                if (execution.result) {
+                    html += '<div class="section">';
+                    html += '  <h3>Result</h3>';
+                    html += '  <div class="json-display">' + execution.result + '</div>';
+                    html += '</div>';
+                }
+                
+                // Console logs
+                if (execution.console_log) {
+                    html += '<div class="section">';
+                    html += '  <h3>Console Output</h3>';
+                    html += '  <div class="logs-container">';
+                    html += '    <pre style="color: #f8f8f2; margin: 0;">' + execution.console_log + '</pre>';
+                    html += '  </div>';
+                    html += '</div>';
+                }
+                
+                // Error section
+                if (execution.error) {
+                    html += '<div class="section">';
+                    html += '  <h3>Error</h3>';
+                    html += '  <div class="json-display" style="color: #e74c3c;">' + execution.error + '</div>';
+                    html += '</div>';
+                }
+                
+                executionDetails.innerHTML = html;
+            } catch (error) {
+                console.error('Failed to load execution details:', error);
+            }
+        }
+        
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('[onclick="switchTab(\'' + tabName + '\')"]').classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Hide details panel
+            selectedRequestId = null;
+            document.getElementById('noSelection').style.display = 'flex';
+            document.getElementById('requestDetails').style.display = 'none';
+            document.getElementById('executionDetails').style.display = 'none';
+            
+            // Load appropriate data
+            if (tabName === 'requests') {
+                Promise.all([loadStats(), loadRequests()]);
+            } else if (tabName === 'executions') {
+                Promise.all([loadExecutionStats(), loadExecutions()]);
+            }
+        }
+        
         // Initial load
         refreshLogs();
     </script>
@@ -718,6 +929,11 @@ func (ah *AdminHandler) serveLogsAPI(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(r.URL.Path, "/admin/logs/api/requests/"):
 		requestID := strings.TrimPrefix(r.URL.Path, "/admin/logs/api/requests/")
 		ah.handleRequestDetailsAPI(w, r, requestID)
+	case r.URL.Path == "/admin/logs/api/executions":
+		ah.handleExecutionsAPI(w, r)
+	case strings.HasPrefix(r.URL.Path, "/admin/logs/api/executions/"):
+		executionID := strings.TrimPrefix(r.URL.Path, "/admin/logs/api/executions/")
+		ah.handleExecutionDetailsAPI(w, r, executionID)
 	case r.URL.Path == "/admin/logs/api/clear":
 		ah.handleClearLogsAPI(w, r)
 	default:
@@ -776,5 +992,64 @@ func (ah *AdminHandler) handleClearLogsAPI(w http.ResponseWriter, r *http.Reques
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Error().Err(err).Msg("Failed to encode clear logs response")
+	}
+}
+
+// handleExecutionsAPI returns script execution history
+func (ah *AdminHandler) handleExecutionsAPI(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	limit := 50 // default
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	offsetStr := r.URL.Query().Get("offset")
+	offset := 0 // default
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
+
+	filter := repository.ExecutionFilter{
+		Search: r.URL.Query().Get("search"),
+	}
+
+	pagination := repository.PaginationOptions{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	result, err := ah.repos.Executions().ListExecutions(context.Background(), filter, pagination)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch script executions")
+		http.Error(w, "Failed to fetch executions", http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		log.Error().Err(err).Msg("Failed to encode executions response")
+	}
+}
+
+// handleExecutionDetailsAPI returns details for a specific script execution
+func (ah *AdminHandler) handleExecutionDetailsAPI(w http.ResponseWriter, r *http.Request, executionIDStr string) {
+	executionID, err := strconv.Atoi(executionIDStr)
+	if err != nil {
+		http.Error(w, "Invalid execution ID", http.StatusBadRequest)
+		return
+	}
+
+	execution, err := ah.repos.Executions().GetExecution(context.Background(), executionID)
+	if err != nil {
+		log.Error().Err(err).Int("executionID", executionID).Msg("Failed to fetch script execution")
+		http.NotFound(w, r)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(execution); err != nil {
+		log.Error().Err(err).Msg("Failed to encode execution details response")
 	}
 }

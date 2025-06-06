@@ -9,7 +9,6 @@ The JavaScript Playground Server provides a runtime environment where JavaScript
 - **SQLite database access** - Direct database operations via `db` object
 - **Persistent state** - `globalState` object survives across executions
 - **Real-time endpoint registration** - Add routes dynamically without restarts
-- **Admin console** - Monitor requests and logs at `/admin/logs`
 
 **Execution Context:**
 - Code runs in **global scope** (no function wrapping)
@@ -84,6 +83,58 @@ res.end()                         // Empty response
 
 ## Database Operations
 
+### **CRITICAL: Inspect Schema First**
+
+**ALWAYS inspect your database schema before performing any operations.** The database persists between code executions, so tables may already exist with data. Check what exists before creating or modifying anything.
+
+#### ✅ CORRECT: Schema Inspection Pattern
+```javascript
+// ALWAYS start by inspecting existing schema
+const tables = db.query(`SELECT name FROM sqlite_master WHERE type='table'`);
+console.log('Existing tables:', tables.map(t => t.name));
+
+// Check if specific table exists
+const userTableExists = tables.some(t => t.name === 'users');
+if (!userTableExists) {
+  console.log('Creating users table...');
+  db.query(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+} else {
+  // Inspect existing schema
+  const userSchema = db.query(`PRAGMA table_info(users)`);
+  console.log('Users table schema:', userSchema);
+}
+
+// Check posts table
+const postTableExists = tables.some(t => t.name === 'posts');
+if (!postTableExists) {
+  console.log('Creating posts table...');
+  db.query(`CREATE TABLE posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT,
+    user_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )`);
+}
+
+// Now safe to perform operations
+const users = db.query('SELECT * FROM users LIMIT 5');
+console.log('Sample users:', users);
+```
+
+#### ❌ WRONG: Operations Without Schema Inspection
+```javascript
+// DON'T DO THIS - May fail or overwrite existing data
+const users = db.query('SELECT * FROM users');  // ERROR if table missing
+db.query('CREATE TABLE users...');              // May lose existing data
+```
+
 ### Query Execution
 ```javascript
 // SELECT queries - returns array of objects
@@ -92,23 +143,6 @@ const users = db.query('SELECT * FROM users WHERE active = ?', [true]);
 // INSERT/UPDATE/DELETE - returns result object
 const result = db.query('INSERT INTO users (name, email) VALUES (?, ?)', [name, email]);
 // result: { success: boolean, rowsAffected: number, lastInsertId: number }
-```
-
-### Common Patterns
-```javascript
-// Create table
-db.query(`CREATE TABLE IF NOT EXISTS posts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  content TEXT,
-  user_id INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
-
-// CRUD operations
-const user = db.query('SELECT * FROM users WHERE id = ?', [userId])[0];
-db.query('UPDATE users SET name = ? WHERE id = ?', [newName, userId]);
-db.query('DELETE FROM users WHERE id = ?', [userId]);
 ```
 
 ## State Management
@@ -148,30 +182,36 @@ app.post('/login', (req, res) => {
 
 ## Static File Serving
 
-### Best Practice: Separate Endpoints
+### **CRITICAL: Always Separate HTML, CSS, and JavaScript**
+
+**DO NOT embed CSS or JavaScript directly in HTML responses.** This creates maintenance nightmares and breaks caching. **ALWAYS** create separate endpoints for each file type.
+
+#### ✅ CORRECT: Separate Endpoints
 ```javascript
-// CSS endpoint
+// CSS endpoint - separate endpoint
 app.get('/static/app.css', (req, res) => {
   const css = `
     body { font-family: Arial, sans-serif; }
     .container { max-width: 800px; margin: 0 auto; }
+    .btn { padding: 10px 20px; background: #007bff; color: white; border: none; }
   `;
   res.set('Content-Type', 'text/css');
   res.send(css);
 });
 
-// JavaScript endpoint  
+// JavaScript endpoint - separate endpoint
 app.get('/static/app.js', (req, res) => {
   const js = `
     document.addEventListener('DOMContentLoaded', function() {
       console.log('App loaded');
+      // Your client-side logic here
     });
   `;
   res.set('Content-Type', 'application/javascript');
   res.send(js);
 });
 
-// HTML page referencing separate assets
+// HTML page - references external assets
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -188,6 +228,29 @@ app.get('/', (req, res) => {
   `);
 });
 ```
+
+#### ❌ WRONG: Embedded Styles/Scripts
+```javascript
+// DON'T DO THIS - Embedded CSS/JS is bad practice
+app.get('/bad-example', (req, res) => {
+  res.send(`
+    <html>
+    <head>
+      <style>body { color: red; }</style>  <!-- BAD -->
+    </head>
+    <body>
+      <script>alert('bad');</script>       <!-- BAD -->
+    </body>
+    </html>
+  `);
+});
+```
+
+**Why separate endpoints matter:**
+- **Browser caching** - Static assets cache independently
+- **Development** - Edit CSS/JS without touching HTML
+- **Performance** - Parallel loading of resources
+- **Maintainability** - Clear separation of concerns
 
 ## Complete Examples
 
@@ -274,13 +337,14 @@ app.get('/users/:id', (req, res) => {
 
 ## Best Practices
 
-1. **Variable Declarations**: Use `var` or direct assignment instead of `let`/`const` for reloadable code
-2. **State Initialization**: Always check if global state exists before initializing
-3. **Error Handling**: Wrap database operations in try-catch blocks
-4. **Static Files**: Create separate endpoints for CSS/JS instead of embedding in HTML
-5. **Database Security**: Always use parameterized queries to prevent SQL injection
-6. **Session Management**: Use `globalState` for persistent session storage
-7. **Status Codes**: Use appropriate HTTP status codes (200, 201, 400, 401, 404, 500)
+1. **Database Schema**: **ALWAYS inspect existing tables and schema before any operations** - the database persists between executions
+2. **Static Files**: **NEVER embed CSS/JS in HTML** - always create separate endpoints for each file type
+3. **Variable Declarations**: Use `var` or direct assignment instead of `let`/`const` for reloadable code
+4. **State Initialization**: Always check if global state exists before initializing
+5. **Error Handling**: Wrap database operations in try-catch blocks
+6. **Database Security**: Always use parameterized queries to prevent SQL injection
+7. **Session Management**: Use `globalState` for persistent session storage
+8. **Status Codes**: Use appropriate HTTP status codes (200, 201, 400, 401, 404, 500)
 
 ## Admin Console
 

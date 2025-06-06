@@ -15,7 +15,7 @@ func SetupAdminRoutes(r *mux.Router, jsEngine *engine.Engine) {
 	log.Debug().Msg("Registered admin endpoint: GET/POST /admin/scripts")
 
 	// Admin log routes
-	adminHandler := NewAdminHandler(jsEngine.GetRequestLogger())
+	adminHandler := NewAdminHandler(jsEngine.GetRequestLogger(), jsEngine.GetRepositoryManager())
 	r.PathPrefix("/admin/logs").HandlerFunc(adminHandler.HandleAdminLogs)
 	log.Debug().Msg("Registered admin endpoint: /admin/logs")
 }
