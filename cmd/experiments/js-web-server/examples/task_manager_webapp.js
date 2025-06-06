@@ -88,20 +88,11 @@ if (!globalState.taskManager.initialized) {
     globalState.taskManager.initialized = true;
 }
 
-// Main application page - serves the complete HTML interface
-app.get("/", (req, res) => {
-    const html = `
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Manager - Full-Stack Demo</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
+// Static file endpoints for better maintainability and separation of concerns
+
+// CSS endpoint - serves custom styles for the task manager
+app.get("/static/task-manager.css", (req, res) => {
+    const css = `
         .priority-high { border-left: 4px solid #dc3545; }
         .priority-urgent { border-left: 4px solid #fd7e14; background-color: #fff3cd; color: #856404; }
         .priority-medium { border-left: 4px solid #ffc107; }
@@ -112,251 +103,15 @@ app.get("/", (req, res) => {
         .stats-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .category-badge { font-size: 0.75rem; }
         .notes-section { background-color: rgba(108, 117, 125, 0.1); border-radius: 0.375rem; }
-    </style>
-</head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="#"><i class="bi bi-check2-square"></i> Task Manager</a>
-            <button class="btn btn-outline-light btn-sm" onclick="showStats()">
-                <i class="bi bi-graph-up"></i> Stats
-            </button>
-        </div>
-    </nav>
-
-    <div class="container my-4">
-        <!-- Stats Dashboard -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="card stats-card text-white">
-                    <div class="card-body">
-                        <div class="row" id="statsRow">
-                            <div class="col-md-3 text-center">
-                                <h4 id="totalTasks">0</h4>
-                                <small>Total Tasks</small>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <h4 id="activeTasks">0</h4>
-                                <small>Active Tasks</small>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <h4 id="completedTasks">0</h4>
-                                <small>Completed</small>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <h4 id="completionRate">0%</h4>
-                                <small>Completion Rate</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Task Form -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Add New Task</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="taskForm">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="title" class="form-label">Title *</label>
-                                        <input type="text" class="form-control" id="title" required 
-                                               placeholder="Enter task title" minlength="3">
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="mb-3">
-                                        <label for="priority" class="form-label">Priority</label>
-                                        <select class="form-select" id="priority">
-                                            <option value="low">🟢 Low</option>
-                                            <option value="medium" selected>🟡 Medium</option>
-                                            <option value="high">🔴 High</option>
-                                            <option value="urgent">🚨 Urgent</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="mb-3">
-                                        <label for="category" class="form-label">Category</label>
-                                        <select class="form-select" id="category">
-                                            <option value="general">General</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-9">
-                                    <div class="mb-3">
-                                        <label for="description" class="form-label">Description</label>
-                                        <textarea class="form-control" id="description" rows="2" 
-                                                  placeholder="Optional task description"></textarea>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="mb-3">
-                                        <label for="dueDate" class="form-label">Due Date</label>
-                                        <input type="date" class="form-control" id="dueDate">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-plus"></i> Add Task
-                                </button>
-                                <button type="button" class="btn btn-secondary" onclick="clearForm()">
-                                    <i class="bi bi-x"></i> Clear
-                                </button>
-                                <button type="button" class="btn btn-info" onclick="loadSampleTasks()">
-                                    <i class="bi bi-collection"></i> Load Sample Tasks
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Filter Controls -->
-        <div class="row mb-3">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-body py-2">
-                        <div class="row align-items-center">
-                            <div class="col-md-3">
-                                <select class="form-select form-select-sm" id="statusFilter" onchange="loadTasks()">
-                                    <option value="">All Status</option>
-                                    <option value="todo">📋 To Do</option>
-                                    <option value="in_progress">⚡ In Progress</option>
-                                    <option value="completed">✅ Completed</option>
-                                    <option value="cancelled">❌ Cancelled</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select form-select-sm" id="priorityFilter" onchange="loadTasks()">
-                                    <option value="">All Priorities</option>
-                                    <option value="urgent">🚨 Urgent</option>
-                                    <option value="high">🔴 High</option>
-                                    <option value="medium">🟡 Medium</option>
-                                    <option value="low">🟢 Low</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select form-select-sm" id="categoryFilter" onchange="loadTasks()">
-                                    <option value="">All Categories</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <input type="text" class="form-control form-control-sm" id="searchFilter" 
-                                       placeholder="Search tasks..." onkeyup="debounceSearch()">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tasks List -->
-        <div class="row">
-            <div class="col-md-12">
-                <div id="tasksContainer">
-                    <!-- Tasks will be loaded here -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Task Edit Modal -->
-    <div class="modal fade" id="editTaskModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Task</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="editTaskForm">
-                        <input type="hidden" id="editTaskId">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="editTitle" class="form-label">Title *</label>
-                                    <input type="text" class="form-control" id="editTitle" required>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="editPriority" class="form-label">Priority</label>
-                                    <select class="form-select" id="editPriority">
-                                        <option value="low">🟢 Low</option>
-                                        <option value="medium">🟡 Medium</option>
-                                        <option value="high">🔴 High</option>
-                                        <option value="urgent">🚨 Urgent</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="editStatus" class="form-label">Status</label>
-                                    <select class="form-select" id="editStatus">
-                                        <option value="todo">📋 To Do</option>
-                                        <option value="in_progress">⚡ In Progress</option>
-                                        <option value="completed">✅ Completed</option>
-                                        <option value="cancelled">❌ Cancelled</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-9">
-                                <div class="mb-3">
-                                    <label for="editDescription" class="form-label">Description</label>
-                                    <textarea class="form-control" id="editDescription" rows="3"></textarea>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="mb-3">
-                                    <label for="editDueDate" class="form-label">Due Date</label>
-                                    <input type="date" class="form-control" id="editDueDate">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Notes Section -->
-                        <div class="mb-3">
-                            <label class="form-label">Task Notes</label>
-                            <div class="notes-section p-3">
-                                <div id="taskNotes" class="mb-3">
-                                    <!-- Notes will be loaded here -->
-                                </div>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="newNote" placeholder="Add a note...">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="addNote()">
-                                        <i class="bi bi-plus"></i> Add Note
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="updateTask()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    `;
     
-    <script>
+    res.set('Content-Type', 'text/css');
+    res.send(css);
+});
+
+// JavaScript endpoint - serves client-side application logic
+app.get("/static/task-manager.js", (req, res) => {
+    const js = `
         // Global variables
         let editingTaskId = null;
         let searchTimeout = null;
@@ -820,7 +575,271 @@ By Category:
                 }
             }, 5000);
         }
-    </script>
+    `;
+    
+    res.set('Content-Type', 'application/javascript');
+    res.send(js);
+});
+
+// Main application page - serves clean HTML that references separate static files
+app.get("/", (req, res) => {
+    const html = `
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager - Full-Stack Demo</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/task-manager.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#"><i class="bi bi-check2-square"></i> Task Manager</a>
+            <button class="btn btn-outline-light btn-sm" onclick="showStats()">
+                <i class="bi bi-graph-up"></i> Stats
+            </button>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        <!-- Stats Dashboard -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card stats-card text-white">
+                    <div class="card-body">
+                        <div class="row" id="statsRow">
+                            <div class="col-md-3 text-center">
+                                <h4 id="totalTasks">0</h4>
+                                <small>Total Tasks</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 id="activeTasks">0</h4>
+                                <small>Active Tasks</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 id="completedTasks">0</h4>
+                                <small>Completed</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <h4 id="completionRate">0%</h4>
+                                <small>Completion Rate</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Form -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Add New Task</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="taskForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="title" class="form-label">Title *</label>
+                                        <input type="text" class="form-control" id="title" required 
+                                               placeholder="Enter task title" minlength="3">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="priority" class="form-label">Priority</label>
+                                        <select class="form-select" id="priority">
+                                            <option value="low">🟢 Low</option>
+                                            <option value="medium" selected>🟡 Medium</option>
+                                            <option value="high">🔴 High</option>
+                                            <option value="urgent">🚨 Urgent</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="category" class="form-label">Category</label>
+                                        <select class="form-select" id="category">
+                                            <option value="general">General</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-9">
+                                    <div class="mb-3">
+                                        <label for="description" class="form-label">Description</label>
+                                        <textarea class="form-control" id="description" rows="2" 
+                                                  placeholder="Optional task description"></textarea>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="dueDate" class="form-label">Due Date</label>
+                                        <input type="date" class="form-control" id="dueDate">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-plus"></i> Add Task
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                                    <i class="bi bi-x"></i> Clear
+                                </button>
+                                <button type="button" class="btn btn-info" onclick="loadSampleTasks()">
+                                    <i class="bi bi-collection"></i> Load Sample Tasks
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body py-2">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <select class="form-select form-select-sm" id="statusFilter" onchange="loadTasks()">
+                                    <option value="">All Status</option>
+                                    <option value="todo">📋 To Do</option>
+                                    <option value="in_progress">⚡ In Progress</option>
+                                    <option value="completed">✅ Completed</option>
+                                    <option value="cancelled">❌ Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select form-select-sm" id="priorityFilter" onchange="loadTasks()">
+                                    <option value="">All Priorities</option>
+                                    <option value="urgent">🚨 Urgent</option>
+                                    <option value="high">🔴 High</option>
+                                    <option value="medium">🟡 Medium</option>
+                                    <option value="low">🟢 Low</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select form-select-sm" id="categoryFilter" onchange="loadTasks()">
+                                    <option value="">All Categories</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control form-control-sm" id="searchFilter" 
+                                       placeholder="Search tasks..." onkeyup="debounceSearch()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tasks List -->
+        <div class="row">
+            <div class="col-md-12">
+                <div id="tasksContainer">
+                    <!-- Tasks will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Edit Modal -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil"></i> Edit Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editTaskForm">
+                        <input type="hidden" id="editTaskId">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editTitle" class="form-label">Title *</label>
+                                    <input type="text" class="form-control" id="editTitle" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="editPriority" class="form-label">Priority</label>
+                                    <select class="form-select" id="editPriority">
+                                        <option value="low">🟢 Low</option>
+                                        <option value="medium">🟡 Medium</option>
+                                        <option value="high">🔴 High</option>
+                                        <option value="urgent">🚨 Urgent</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="editStatus" class="form-label">Status</label>
+                                    <select class="form-select" id="editStatus">
+                                        <option value="todo">📋 To Do</option>
+                                        <option value="in_progress">⚡ In Progress</option>
+                                        <option value="completed">✅ Completed</option>
+                                        <option value="cancelled">❌ Cancelled</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-9">
+                                <div class="mb-3">
+                                    <label for="editDescription" class="form-label">Description</label>
+                                    <textarea class="form-control" id="editDescription" rows="3"></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="editDueDate" class="form-label">Due Date</label>
+                                    <input type="date" class="form-control" id="editDueDate">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notes Section -->
+                        <div class="mb-3">
+                            <label class="form-label">Task Notes</label>
+                            <div class="notes-section p-3">
+                                <div id="taskNotes" class="mb-3">
+                                    <!-- Notes will be loaded here -->
+                                </div>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="newNote" placeholder="Add a note...">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="addNote()">
+                                        <i class="bi bi-plus"></i> Add Note
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="updateTask()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JavaScript -->
+    <script src="/static/task-manager.js"></script>
 </body>
 </html>
     `;

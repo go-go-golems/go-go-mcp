@@ -61,7 +61,8 @@ func main() {
 		Run:   runServer,
 	}
 	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port to listen on")
-	serverCmd.Flags().StringVarP(&db, "db", "d", "data.sqlite", "SQLite database path for application data")
+	serverCmd.Flags().StringVarP(&db, "app-db", "d", "data.sqlite", "SQLite database path for application data (accessible via db.* in JavaScript)")
+	serverCmd.Flags().String("system-db", "system.sqlite", "SQLite database path for system operations (execution logs, request logs)")
 	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
 
 	if err := clay.InitViper("js-web-server", rootCmd); err != nil {
@@ -121,11 +122,12 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 	log.Debug().Msg("Scripts directory ready")
 
-	// Initialize JS engine with separate databases
-	// Application database (accessible via db.* in JavaScript)
+	// Get database paths from flags
 	appDBPath := db
-	// System database for engine operations (execution logs, request logs, etc.)
-	systemDBPath := "system.sqlite"
+	systemDBPath, err := cmd.Flags().GetString("system-db")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get system-db flag")
+	}
 	
 	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
 	jsEngine := engine.NewEngine(appDBPath, systemDBPath)

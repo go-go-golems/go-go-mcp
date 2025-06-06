@@ -53,6 +53,174 @@ app.get("/api/:version/users/:id", (req, res) => {
 });
 ```
 
+### Static File Serving - Best Practices
+
+**⚠️ IMPORTANT: Always split static files into separate endpoints for better maintainability, debugging, and performance.**
+
+Instead of embedding CSS and JavaScript directly in HTML templates, create dedicated endpoints for each file type. This approach provides several key benefits:
+
+- **Maintainability**: Easier to edit and debug individual files
+- **Caching**: Browsers can cache static files independently
+- **Development**: Better IDE support with proper syntax highlighting
+- **Performance**: Reduced HTML payload size
+- **Separation of Concerns**: Clean separation between structure, style, and behavior
+
+#### ❌ Avoid: Monolithic HTML with Embedded Assets
+
+```javascript
+// DON'T DO THIS - Hard to maintain and debug
+app.get("/", (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .my-class { color: red; }
+    /* Hundreds of lines of CSS... */
+  </style>
+</head>
+<body>
+  <div class="my-class">Content</div>
+  <script>
+    function myFunction() { /* ... */ }
+    // Hundreds of lines of JavaScript...
+  </script>
+</body>
+</html>
+  `;
+  res.send(html);
+});
+```
+
+#### ✅ Recommended: Separate Static File Endpoints
+
+```javascript
+// CSS endpoint - serves styles with proper content type
+app.get("/static/app.css", (req, res) => {
+  const css = `
+    .my-class { 
+      color: red; 
+      font-size: 16px;
+    }
+    .another-class {
+      background: blue;
+    }
+  `;
+  
+  res.set('Content-Type', 'text/css');
+  res.send(css);
+});
+
+// JavaScript endpoint - serves client-side logic
+app.get("/static/app.js", (req, res) => {
+  const js = `
+    function myFunction() {
+      console.log('Hello from separate JS file!');
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      myFunction();
+    });
+  `;
+  
+  res.set('Content-Type', 'application/javascript');
+  res.send(js);
+});
+
+// Clean HTML that references separate static files
+app.get("/", (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>My App</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="my-class">Content</div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+  `;
+  res.send(html);
+});
+```
+
+#### Advanced Static File Organization
+
+For larger applications, organize static files by feature or component:
+
+```javascript
+// Feature-specific CSS
+app.get("/static/components/navbar.css", (req, res) => {
+  const css = `
+    .navbar { background: #333; }
+    .navbar-brand { color: white; }
+  `;
+  res.set('Content-Type', 'text/css');
+  res.send(css);
+});
+
+// Feature-specific JavaScript
+app.get("/static/components/navbar.js", (req, res) => {
+  const js = `
+    class Navbar {
+      constructor() {
+        this.init();
+      }
+      
+      init() {
+        // Navbar initialization logic
+      }
+    }
+    
+    new Navbar();
+  `;
+  res.set('Content-Type', 'application/javascript');
+  res.send(js);
+});
+
+// Main page that loads component assets
+app.get("/", (req, res) => {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Component-Based App</title>
+  <link rel="stylesheet" href="/static/components/navbar.css">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="navbar-brand">My App</span>
+  </nav>
+  
+  <script src="/static/components/navbar.js"></script>
+</body>
+</html>
+  `;
+  res.send(html);
+});
+```
+
+#### Content Type Headers
+
+Always set appropriate content types for static files:
+
+```javascript
+// CSS files
+res.set('Content-Type', 'text/css');
+
+// JavaScript files  
+res.set('Content-Type', 'application/javascript');
+
+// SVG images
+res.set('Content-Type', 'image/svg+xml');
+
+// JSON data
+res.set('Content-Type', 'application/json');
+```
+
 ### Request Object
 
 ```javascript
@@ -1677,3 +1845,18 @@ app.get(apiV1 + "/users", rateLimit, authenticate, (req, res) => {
   }
 });
 ```
+
+## Best Practices
+
+### Static File Organization
+
+**Always split static files into separate endpoints** rather than embedding CSS and JavaScript directly in HTML templates. This provides:
+
+### Error Handling
+
+- Always wrap database operations in try-catch blocks
+- Provide meaningful error messages to clients
+- Log errors server-side for debugging
+- Use appropriate HTTP status codes
+- Implement graceful degradation for non-critical failures
+

@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,6 +14,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/pkg/doc"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/google/uuid"
@@ -23,8 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//go:embed docs/javascript-api.md
-var javascriptAPIDoc string
+
 
 // WebServerMCP represents the MCP server instance with dynamic port allocation
 type WebServerMCP struct {
@@ -72,7 +71,14 @@ func AddMCPCommand(rootCmd *cobra.Command) error {
 	}
 	GlobalWebServerMCP = server
 
-	// Create the tool description with embedded documentation and correct port
+	// Get the JavaScript API documentation
+	javascriptAPIDoc, err := doc.GetJavaScriptAPIReference()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load JavaScript API documentation")
+		javascriptAPIDoc = "JavaScript API documentation not available"
+	}
+
+	// Create the tool description with documentation and correct port
 	toolDescription := fmt.Sprintf(`Execute JavaScript code in the web server environment.
 
 This tool allows you to execute JavaScript code that can:
@@ -99,6 +105,11 @@ Admin console: %s/admin/logs
 		// 	embeddable.WithDescription("Execute JavaScript code from a file on the filesystem"),
 		// 	embeddable.WithStringArg("absolutePath", "Absolute path to the JavaScript file to execute", true),
 		// ),
+		embeddable.WithCommandCustomizer(func(cmd *cobra.Command) error {
+			cmd.Flags().String("app-db", "jsserver.db", "SQLite database path for application data (accessible via db.* in JavaScript)")
+			cmd.Flags().String("system-db", "jsserver-system.db", "SQLite database path for system operations (execution logs, request logs)")
+			return nil
+		}),
 		embeddable.WithHooks(&embeddable.Hooks{
 			OnServerStart: initializeJSEngineForMCP,
 		}),
@@ -123,11 +134,24 @@ func initializeJSEngineForMCP(ctx context.Context) error {
 		return fmt.Errorf("failed to create scripts directory: %w", err)
 	}
 
-	// Initialize JS engine with separate databases
-	// Application database for user data
-	appDBPath := "jsserver.db"
-	// System database for internal operations
-	systemDBPath := "jsserver-system.db"
+	// Get database paths from command flags
+	appDBPath := "jsserver.db"      // default
+	systemDBPath := "jsserver-system.db" // default
+	
+	if flags, ok := embeddable.GetCommandFlags(ctx); ok {
+		if appDB, exists := flags["app-db"]; exists {
+			if appDBStr, isString := appDB.(string); isString {
+				appDBPath = appDBStr
+			}
+		}
+		if systemDB, exists := flags["system-db"]; exists {
+			if systemDBStr, isString := systemDB.(string); isString {
+				systemDBPath = systemDBStr
+			}
+		}
+	}
+	
+	log.Info().Str("appDB", appDBPath).Str("systemDB", systemDBPath).Msg("Initializing JS engine with databases")
 	GlobalWebServerMCP.JSEngine = engine.NewEngine(appDBPath, systemDBPath)
 	if err := GlobalWebServerMCP.JSEngine.Init("bootstrap.js"); err != nil {
 		log.Warn().Err(err).Msg("Failed to load bootstrap.js")

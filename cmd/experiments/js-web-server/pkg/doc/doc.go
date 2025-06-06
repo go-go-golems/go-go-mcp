@@ -23,3 +23,12 @@ func GetDocsFS() embed.FS {
 func GetJSWebServerDocsFS() (fs.FS, error) {
 	return fs.Sub(docFS, "docs")
 }
+
+// GetJavaScriptAPIReference returns the JavaScript API reference documentation
+func GetJavaScriptAPIReference() (string, error) {
+	data, err := docFS.ReadFile("docs/javascript-api-reference.md")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
