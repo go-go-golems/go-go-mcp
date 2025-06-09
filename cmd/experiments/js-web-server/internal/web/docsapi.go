@@ -54,7 +54,7 @@ func handleExamples(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(examples)
+	_ = json.NewEncoder(w).Encode(examples)
 }
 
 // handleDocsList returns a list of available documentation files
@@ -82,7 +82,7 @@ func handleDocsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(docs)
+	_ = json.NewEncoder(w).Encode(docs)
 }
 
 // handleDocContent returns the content of a specific documentation file
@@ -106,7 +106,7 @@ func handleDocContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"filename": filename,
 		"content":  string(content),
 	})

@@ -304,7 +304,7 @@ func PresetHandler() http.HandlerFunc {
 					return
 				}
 
-				w.Write(data)
+				_, _ = w.Write(data)
 				return
 			}
 		}

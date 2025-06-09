@@ -26,7 +26,7 @@ func (gsh *GlobalStateHandler) HandleGlobalState(w http.ResponseWriter, r *http.
 			// API request - return JSON
 			globalState := gsh.jsEngine.GetGlobalState()
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(globalState))
+			_, _ = w.Write([]byte(globalState))
 		} else {
 			// Regular request - serve HTML interface (this will be handled by static file server)
 			http.Error(w, "Use static file server for HTML", http.StatusNotImplemented)
@@ -52,7 +52,7 @@ func (gsh *GlobalStateHandler) HandleGlobalState(w http.ResponseWriter, r *http.
 		// Return success response
 		if r.Header.Get("Accept") == "application/json" {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"success": true}`))
+			_, _ = w.Write([]byte(`{"success": true}`))
 		} else {
 			// Redirect back to the interface
 			http.Redirect(w, r, "/admin/globalstate", http.StatusSeeOther)

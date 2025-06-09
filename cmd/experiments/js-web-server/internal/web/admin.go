@@ -49,7 +49,7 @@ func (ah *AdminHandler) HandleAdminLogs(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(content)
+		_, _ = w.Write(content)
 		return
 	}
 
@@ -76,7 +76,7 @@ func (ah *AdminHandler) HandleGlobalState(w http.ResponseWriter, r *http.Request
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(content)
+		_, _ = w.Write(content)
 		return
 	}
 

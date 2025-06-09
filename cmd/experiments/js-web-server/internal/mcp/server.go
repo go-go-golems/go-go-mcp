@@ -39,7 +39,7 @@ func findFreePort(startPort int) (int, error) {
 	for port := startPort; port < startPort+100; port++ {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 		if err == nil {
-			listener.Close()
+			_ = listener.Close()
 			return port, nil
 		}
 	}
@@ -313,6 +313,8 @@ func executeJSHandler(ctx context.Context, args map[string]interface{}) (*protoc
 }
 
 // executeJSFileHandler is the MCP tool handler for executing JavaScript files
+// FIXME: This function is currently unused but may be needed for future MCP tool functionality
+// nolint:unused
 func executeJSFileHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
 	// Initialize engine if not already done (for test-tool command)
 	if GlobalWebServerMCP == nil || GlobalWebServerMCP.JSEngine == nil {

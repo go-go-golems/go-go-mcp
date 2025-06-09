@@ -33,7 +33,7 @@ func findFreePort(startPort int) (int, error) {
 	for port := startPort; port < startPort+100; port++ {
 		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 		if err == nil {
-			listener.Close()
+			_ = listener.Close()
 			return port, nil
 		}
 	}
