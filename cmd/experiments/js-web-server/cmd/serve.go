@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/go-go-golems/geppetto/pkg/steps/ai/settings"
+	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/middlewares"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
@@ -21,6 +23,7 @@ import (
 	pinocchio_cmds "github.com/go-go-golems/pinocchio/pkg/cmds"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 )
 
 // ServeCmd represents the serve command
@@ -300,4 +303,89 @@ func loadScriptsFromDir(jsEngine *engine.Engine, dir string) error {
 
 		return nil
 	})
+}
+
+// GetServeMiddlewares returns the middleware chain for the serve command with profile support
+func GetServeMiddlewares(
+	parsedCommandLayers *layers.ParsedLayers,
+	cmd *cobra.Command,
+	args []string,
+) ([]middlewares.Middleware, error) {
+	// Parse command settings from the parsed layers
+	commandSettings := &cli.CommandSettings{}
+	err := parsedCommandLayers.InitializeStruct(cli.CommandSettingsSlug, commandSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	profileSettings := &cli.ProfileSettings{}
+	err = parsedCommandLayers.InitializeStruct(cli.ProfileSettingsSlug, profileSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	middlewares_ := []middlewares.Middleware{
+		// Command line arguments (highest priority)
+		middlewares.ParseFromCobraCommand(cmd,
+			parameters.WithParseStepSource("cobra"),
+		),
+		middlewares.GatherArguments(args,
+			parameters.WithParseStepSource("arguments"),
+		),
+	}
+
+	// Optional config file loading
+	if commandSettings.LoadParametersFromFile != "" {
+		middlewares_ = append(middlewares_,
+			middlewares.LoadParametersFromFile(commandSettings.LoadParametersFromFile,
+				parameters.WithParseStepSource("config-file"),
+			))
+	}
+
+	// Profile support with default configuration
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		log.Warn().Err(err).Msg("Could not get user config directory, using current directory")
+		configDir = "."
+	}
+
+	defaultProfileFile := fmt.Sprintf("%s/js-web-server/profiles.yaml", configDir)
+	profileFile := profileSettings.ProfileFile
+	if profileFile == "" {
+		profileFile = defaultProfileFile
+	}
+
+	profile := profileSettings.Profile
+	if profile == "" {
+		profile = "default"
+	}
+
+	// Add profile middleware
+	profileMiddleware := middlewares.GatherFlagsFromProfiles(
+		defaultProfileFile,
+		profileFile,
+		profile,
+		parameters.WithParseStepSource("profiles"),
+		parameters.WithParseStepMetadata(map[string]interface{}{
+			"profileFile": profileFile,
+			"profile":     profile,
+		}),
+	)
+
+	middlewares_ = append(middlewares_,
+		// Profile configuration
+		profileMiddleware,
+		
+		// Viper configuration
+		middlewares.GatherFlagsFromViper(
+			parameters.WithParseStepSource("viper"),
+		),
+		
+		// Defaults (lowest priority)
+		middlewares.SetFromDefaults(
+			parameters.WithParseStepSource("defaults"),
+		),
+	)
+
+	return middlewares_, nil
 }

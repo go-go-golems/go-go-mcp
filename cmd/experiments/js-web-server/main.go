@@ -5,6 +5,7 @@ import (
 	"os"
 
 	clay "github.com/go-go-golems/clay/pkg"
+	clay_profiles "github.com/go-go-golems/clay/pkg/cmds/profiles"
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
@@ -46,10 +47,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build Cobra command with Geppetto middlewares
+	// Build Cobra command with Geppetto middlewares and profile support
 	serveCobraCmd, err := pinocchio_cmds.BuildCobraCommandWithGeppettoMiddlewares(
 		serveCmd,
 		cli.WithProfileSettingsLayer(),
+		cli.WithCobraMiddlewaresFunc(cmd.GetServeMiddlewares),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building serve command: %v\n", err)
@@ -85,6 +87,14 @@ func main() {
 	// Add commands to root
 	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd)
 
+	// Add profiles command for configuration management
+	profilesCmd, err := clay_profiles.NewProfilesCommand("js-web-server", jsWebServerInitialProfilesContent)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing profiles command: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(profilesCmd)
+
 	// MCP command - expose JavaScript execution as MCP tool
 	if err := mcp.AddMCPCommand(rootCmd); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to add MCP command: %v\n", err)
@@ -96,6 +106,134 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// jsWebServerInitialProfilesContent provides the default YAML content for a new js-web-server profiles file.
+func jsWebServerInitialProfilesContent() string {
+	return `# JavaScript Web Server Profiles Configuration
+#
+# This file contains profile configurations for the JavaScript Web Server with Geppetto AI integration.
+# Each profile can override layer parameters for different components (like AI models, databases, server settings).
+# Profiles allow you to easily switch between different environments, model providers, or configurations.
+#
+# Profiles are selected using the --profile <profile-name> flag.
+#
+# Example profiles:
+
+# Development profile with local settings
+development:
+  # AI Chat settings for development
+  ai-chat:
+    ai-engine: gpt-4o-mini
+    ai-api-type: openai
+    ai-temperature: 0.8
+    ai-stream: true
+  # OpenAI configuration for development
+  openai-chat:
+    openai-api-key: "[REDACTED:api-key]" # Replace with your key or use environment variable
+  # Server settings for development
+  default:
+    port: "8080"
+    admin-port: "9090"
+    app-db: "dev-data.sqlite"
+    system-db: "dev-system.sqlite"
+    scripts: "./scripts"
+
+# Production profile with optimized settings
+production:
+  # AI Chat settings for production
+  ai-chat:
+    ai-engine: gpt-4
+    ai-api-type: openai
+    ai-temperature: 0.7
+    ai-max-response-tokens: 2000
+    ai-cache-type: disk
+    ai-cache-directory: "/var/cache/js-web-server"
+  # OpenAI configuration for production
+  openai-chat:
+    openai-api-key: "[REDACTED:api-key]" # Use environment variable in production
+  # Server settings for production
+  default:
+    port: "8080"
+    admin-port: "9090"
+    app-db: "/var/lib/js-web-server/data.sqlite"
+    system-db: "/var/lib/js-web-server/system.sqlite"
+    scripts: "/etc/js-web-server/scripts"
+
+# Claude-based profile
+claude-dev:
+  # AI Chat settings using Claude
+  ai-chat:
+    ai-engine: claude-3-sonnet-20240229
+    ai-api-type: claude
+    ai-temperature: 0.6
+    ai-stream: true
+  # Claude configuration
+  claude-chat:
+    claude-api-key: "[REDACTED:api-key]" # Replace with your Anthropic API key
+    claude-base-url: "https://api.anthropic.com/"
+  # Server settings
+  default:
+    port: "8081"
+    admin-port: "9091"
+    app-db: "claude-data.sqlite"
+    system-db: "claude-system.sqlite"
+
+# Local LLM profile using Ollama
+local-llm:
+  # AI Chat settings for local models
+  ai-chat:
+    ai-engine: llama3:8b
+    ai-api-type: ollama
+    ai-temperature: 0.5
+    ai-stream: true
+  # Embeddings using local models
+  embeddings:
+    embeddings-type: ollama
+    embeddings-engine: nomic-embed-text
+    embeddings-dimensions: 768
+  # Server settings for local development
+  default:
+    port: "8082"
+    admin-port: "9092"
+    app-db: "local-data.sqlite"
+    system-db: "local-system.sqlite"
+    scripts: "./scripts"
+
+# Testing profile with minimal settings
+testing:
+  # AI Chat settings for testing
+  ai-chat:
+    ai-engine: gpt-3.5-turbo
+    ai-api-type: openai
+    ai-temperature: 0.0
+    ai-max-response-tokens: 100
+  # Server settings for testing
+  default:
+    port: "18080"
+    admin-port: "19090"
+    app-db: ":memory:"
+    system-db: ":memory:"
+
+#
+# You can manage this file using the 'js-web-server profiles' commands:
+# - list: List all profiles
+# - get <profile> [layer] [key]: Get profile settings
+# - set <profile> <layer> <key> <value>: Set a profile setting
+# - delete <profile> [layer] [key]: Delete a profile, layer, or setting
+# - edit: Open this file in your editor
+# - init: Create this file if it doesn't exist
+# - duplicate <source> <new>: Copy an existing profile
+#
+# Examples:
+#   js-web-server --profile development serve
+#   js-web-server --profile production serve --port 80
+#   js-web-server --profile claude-dev serve
+#   js-web-server --profile local-llm serve
+#   js-web-server profiles list
+#   js-web-server profiles get development ai-chat ai-engine
+#   js-web-server profiles set testing ai-chat ai-temperature 0.1
+`
 }
 
 
