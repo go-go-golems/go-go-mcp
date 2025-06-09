@@ -26,8 +26,10 @@ require (
 	github.com/rs/cors v1.11.0
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
+	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	github.com/tailscale/hujson v0.0.0-20250226034555-ec1d1c113d33
+	github.com/yuin/goldmark v1.7.8
 	golang.org/x/sync v0.14.0
 	golang.org/x/text v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -112,7 +114,6 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tj/go-naturaldate v1.3.0 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
@@ -121,7 +122,6 @@ require (
 	github.com/xuri/efp v0.0.0-20240408161823-9ad904a10d6d // indirect
 	github.com/xuri/excelize/v2 v2.9.0 // indirect
 	github.com/xuri/nfp v0.0.0-20240318013403-ab9948c2c4a7 // indirect
-	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
