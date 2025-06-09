@@ -11,7 +11,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/cmd"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/mcp"
-	pinocchio_cmds "github.com/go-go-golems/pinocchio/pkg/cmds"
 	"github.com/spf13/cobra"
 )
 
@@ -47,11 +46,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build Cobra command with Geppetto middlewares and profile support
-	serveCobraCmd, err := pinocchio_cmds.BuildCobraCommandWithGeppettoMiddlewares(
+	// Build Cobra command with custom js-web-server middlewares and profile support
+	serveCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(
 		serveCmd,
 		cli.WithProfileSettingsLayer(),
-		cli.WithCobraMiddlewaresFunc(cmd.GetServeMiddlewares),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building serve command: %v\n", err)
