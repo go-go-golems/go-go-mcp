@@ -9,6 +9,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
+	"github.com/spf13/cobra"
 )
 
 // ToolHandler is a simplified function signature for tool handlers
@@ -36,9 +37,10 @@ type ServerConfig struct {
 	internalServers []string
 
 	// Advanced options
-	sessionStore session.SessionStore
-	middleware   []ToolMiddleware
-	hooks        *Hooks
+	sessionStore       session.SessionStore
+	middleware         []ToolMiddleware
+	hooks              *Hooks
+	commandCustomizers []CommandCustomizer
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -46,9 +48,13 @@ type ToolMiddleware func(next ToolHandler) ToolHandler
 
 // Hooks allows customization of server behavior
 type Hooks struct {
+	OnServerStart  func(ctx context.Context) error
 	BeforeToolCall func(ctx context.Context, toolName string, args map[string]interface{}) error
 	AfterToolCall  func(ctx context.Context, toolName string, result *protocol.ToolResult, err error)
 }
+
+// CommandCustomizer is a function that can customize a cobra.Command
+type CommandCustomizer func(*cobra.Command) error
 
 // ServerOption configures the embeddable MCP server
 type ServerOption func(*ServerConfig) error
@@ -208,6 +214,19 @@ func WithInternalServers(servers ...string) ServerOption {
 		config.internalServers = append(config.internalServers, servers...)
 		return nil
 	}
+}
+
+func WithCommandCustomizer(customizer CommandCustomizer) ServerOption {
+	return func(config *ServerConfig) error {
+		config.commandCustomizers = append(config.commandCustomizers, customizer)
+		return nil
+	}
+}
+
+// GetCommandFlags retrieves command flags from context
+func GetCommandFlags(ctx context.Context) (map[string]interface{}, bool) {
+	flags, ok := ctx.Value(CommandFlagsKey).(map[string]interface{})
+	return flags, ok
 }
 
 // GetToolProvider returns the tool provider for the server config

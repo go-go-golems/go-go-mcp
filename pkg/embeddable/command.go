@@ -15,6 +15,15 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/transport/streamable_http"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
+
+// ContextKey is used for storing values in context
+type ContextKey string
+
+const (
+	// CommandFlagsKey is the context key for storing command flags
+	CommandFlagsKey ContextKey = "command_flags"
 )
 
 // NewMCPCommand creates a new 'mcp' command with the given options
@@ -50,6 +59,13 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
+	}
+
+	// Apply command customizers
+	for _, customizer := range config.commandCustomizers {
+		if err := customizer(startCmd); err != nil {
+			log.Fatal().Err(err).Msg("Failed to apply command customizer")
+		}
 	}
 
 	mcpCmd.AddCommand(startCmd)
@@ -184,6 +200,26 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		logger.Info().Msg("Received shutdown signal")
 		cancel()
 	}()
+
+	// Store command flags in context
+	flagsMap := make(map[string]interface{})
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		if flag.Changed {
+			flagsMap[flag.Name] = flag.Value.String()
+		} else {
+			// Store default values too
+			flagsMap[flag.Name] = flag.DefValue
+		}
+	})
+	ctxWithFlags := context.WithValue(ctx, CommandFlagsKey, flagsMap)
+
+	// Call startup hook if configured
+	if config.hooks != nil && config.hooks.OnServerStart != nil {
+		logger.Debug().Msg("Calling startup hook")
+		if err := config.hooks.OnServerStart(ctxWithFlags); err != nil {
+			return fmt.Errorf("startup hook failed: %w", err)
+		}
+	}
 
 	// Start server
 	logger.Info().

@@ -1,0 +1,243 @@
+package templates
+
+import "github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
+import "fmt"
+
+templ HistoryPage(result *repository.ExecutionQueryResult, filter repository.ExecutionFilter, pagination repository.PaginationOptions) {
+	@BaseLayout("History") {
+		<div class="row">
+			<div class="col-12">
+				<div class="card">
+					<div class="card-header">
+						<div class="row align-items-center">
+							<div class="col">
+								<h5 class="mb-0">
+									<i class="bi bi-clock-history"></i>
+									Execution History
+								</h5>
+							</div>
+							<div class="col-auto">
+								<div class="text-muted">
+									{ fmt.Sprintf("%d total executions", result.Total) }
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Filters -->
+					<div class="card-body border-bottom">
+						<form method="GET" action="/history">
+							<div class="row g-3">
+								<div class="col-md-4">
+									<label for="search" class="form-label">Search Code</label>
+									<input type="text" class="form-control" id="search" name="search" value={ filter.Search } placeholder="Search in code, result, or console..."/>
+								</div>
+								<div class="col-md-3">
+									<label for="sessionId" class="form-label">Session ID</label>
+									<input type="text" class="form-control" id="sessionId" name="sessionId" value={ filter.SessionID } placeholder="Filter by session..."/>
+								</div>
+								<div class="col-md-2">
+									<label for="source" class="form-label">Source</label>
+									<select class="form-select" id="source" name="source">
+										<option value="">All Sources</option>
+										<option value="api" if filter.Source == "api" { selected }>API</option>
+										<option value="repl" if filter.Source == "repl" { selected }>REPL</option>
+										<option value="file" if filter.Source == "file" { selected }>File</option>
+									</select>
+								</div>
+								<div class="col-md-3">
+									<label class="form-label">&nbsp;</label>
+									<div class="d-flex gap-2">
+										<button type="submit" class="btn btn-primary">
+											<i class="bi bi-search"></i>
+											Filter
+										</button>
+										<a href="/history" class="btn btn-outline-secondary">
+											<i class="bi bi-x-circle"></i>
+											Clear
+										</a>
+									</div>
+								</div>
+							</div>
+						</form>
+					</div>
+					
+					<!-- Execution List -->
+					<div class="list-group list-group-flush">
+						if len(result.Executions) == 0 {
+							<div class="list-group-item text-center py-5">
+								<i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+								<div class="text-muted mt-2">No executions found</div>
+							</div>
+						}
+						
+						for _, exec := range result.Executions {
+							@ExecutionItem(exec)
+						}
+					</div>
+					
+					<!-- Pagination -->
+					if result.Total > pagination.Limit {
+						@Pagination(result.Total, pagination.Limit, pagination.Offset, "/history")
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ ExecutionItem(exec repository.ScriptExecution) {
+	<div class="list-group-item">
+		<div class="row">
+			<div class="col-md-8">
+				<div class="d-flex align-items-start">
+					<div class="me-3">
+						if exec.Error != nil && *exec.Error != "" {
+							<i class="bi bi-x-circle-fill text-danger"></i>
+						} else {
+							<i class="bi bi-check-circle-fill text-success"></i>
+						}
+					</div>
+					<div class="flex-fill">
+						<div class="d-flex justify-content-between align-items-start mb-2">
+							<h6 class="mb-1">
+								<code class="text-muted">{ exec.SessionID[:8] }</code>
+								<span class="badge bg-secondary ms-2">{ exec.Source }</span>
+							</h6>
+							<small class="text-muted">{ exec.Timestamp.Format("2006-01-02 15:04:05") }</small>
+						</div>
+						
+						<!-- Code Preview -->
+						<div class="mb-2">
+							<pre class="bg-dark text-light p-2 rounded small mb-0" style="max-height: 100px; overflow-y: auto;"><code>{ exec.Code }</code></pre>
+						</div>
+						
+						<!-- Result/Error -->
+						if exec.Error != nil && *exec.Error != "" {
+							<div class="alert alert-danger py-2 mb-2">
+								<small><strong>Error:</strong> { *exec.Error }</small>
+							</div>
+						} else if exec.Result != nil && *exec.Result != "" {
+							<div class="mb-2">
+								<small class="text-muted">Result:</small>
+								<pre class="bg-light p-2 rounded small mb-0" style="max-height: 80px; overflow-y: auto;"><code>{ *exec.Result }</code></pre>
+							</div>
+						}
+						
+						<!-- Console Output -->
+						if exec.ConsoleLog != nil && *exec.ConsoleLog != "" {
+							<div class="mb-2">
+								<small class="text-muted">Console:</small>
+								<pre class="bg-info bg-opacity-10 p-2 rounded small mb-0" style="max-height: 80px; overflow-y: auto;"><code>{ *exec.ConsoleLog }</code></pre>
+							</div>
+						}
+					</div>
+				</div>
+			</div>
+			<div class="col-md-4">
+				<div class="d-flex justify-content-end gap-2">
+					<button type="button" class="btn btn-sm btn-outline-primary" onclick={ loadToPlayground(exec.Code) }>
+						<i class="bi bi-play"></i>
+						Load in Playground
+					</button>
+					<button type="button" class="btn btn-sm btn-outline-success" onclick={ loadToRepl(exec.Code) }>
+						<i class="bi bi-terminal"></i>
+						Load in REPL
+					</button>
+					<div class="dropdown">
+						<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+							<i class="bi bi-three-dots"></i>
+						</button>
+						<ul class="dropdown-menu">
+							<li><a class="dropdown-item" href="#" onclick={ copyToClipboard(exec.Code) }>
+								<i class="bi bi-clipboard"></i> Copy Code
+							</a></li>
+							<li><a class="dropdown-item" href="#" onclick={ copySessionId(exec.SessionID) }>
+								<i class="bi bi-tag"></i> Copy Session ID
+							</a></li>
+							if exec.Result != nil && *exec.Result != "" {
+								<li><a class="dropdown-item" href="#" onclick={ copyToClipboard(*exec.Result) }>
+									<i class="bi bi-download"></i> Copy Result
+								</a></li>
+							}
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ Pagination(total, limit, offset int, baseURL string) {
+	<div class="card-footer">
+		<nav>
+			<ul class="pagination justify-content-center mb-0">
+				<!-- Previous -->
+				if offset > 0 {
+					<li class="page-item">
+						<a class="page-link" href={ templ.URL(fmt.Sprintf("%s?limit=%d&offset=%d", baseURL, limit, offset-limit)) }>
+							<i class="bi bi-chevron-left"></i>
+							Previous
+						</a>
+					</li>
+				} else {
+					<li class="page-item disabled">
+						<span class="page-link">
+							<i class="bi bi-chevron-left"></i>
+							Previous
+						</span>
+					</li>
+				}
+				
+				<!-- Page Info -->
+				<li class="page-item disabled">
+					<span class="page-link">
+						{ fmt.Sprintf("Showing %d-%d of %d", offset+1, min(offset+limit, total), total) }
+					</span>
+				</li>
+				
+				<!-- Next -->
+				if offset+limit < total {
+					<li class="page-item">
+						<a class="page-link" href={ templ.URL(fmt.Sprintf("%s?limit=%d&offset=%d", baseURL, limit, offset+limit)) }>
+							Next
+							<i class="bi bi-chevron-right"></i>
+						</a>
+					</li>
+				} else {
+					<li class="page-item disabled">
+						<span class="page-link">
+							Next
+							<i class="bi bi-chevron-right"></i>
+						</span>
+					</li>
+				}
+			</ul>
+		</nav>
+	</div>
+}
+
+script loadToPlayground(code string) {
+	localStorage.setItem('playgroundCode', code);
+	window.location.href = '/playground';
+}
+
+script loadToRepl(code string) {
+	localStorage.setItem('replCode', code);
+	window.location.href = '/repl';
+}
+
+script copyToClipboard(text string) {
+	navigator.clipboard.writeText(text);
+}
+
+script copySessionId(sessionId string) {
+	navigator.clipboard.writeText(sessionId);
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

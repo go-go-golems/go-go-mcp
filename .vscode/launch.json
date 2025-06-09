@@ -60,6 +60,15 @@
                 "MODEL_NAME": "cross-encoder/ms-marco-MiniLM-L-6-v2"
             },
             "cwd": "${workspaceFolder}/python/reranker-server"
+        },
+        {
+            "name": "Launch JS Web Server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/experiments/js-web-server",
+            "args": ["serve", "--log-level", "debug", "--log-file", "/tmp/js-web-server.log", "--log-to-stdout", "--with-caller"],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

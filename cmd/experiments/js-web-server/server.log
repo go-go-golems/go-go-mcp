@@ -1,0 +1,118 @@
+[90m10:48PM[0m [32mINF[0m [1mStarting JavaScript playground server[0m
+[90m10:48PM[0m [32mINF[0m [1mRequested port was unavailable, using alternative port[0m [36mactual_port=[0m8081 [36mrequested_port=[0m8080
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/health
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/counter
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Bootstrap complete - server ready"]
+[JS] Bootstrap complete - server ready
+[90m10:48PM[0m [32mINF[0m [1mBootstrap file executed successfully[0m [36mfile=[0mbootstrap.js
+[90m10:48PM[0m [32mINF[0m [1mStarting JavaScript dispatcher[0m
+[90m10:48PM[0m [32mINF[0m [1mLoading scripts from directory[0m [36mdirectory=[0mexamples/
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript files[0m [36mdirectory=[0mexamples/
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/practical_patterns.js
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Practical patterns database schema initialized"]
+[JS] Practical patterns database schema initialized
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/users
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/api/users
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/auth/login
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/auth/profile
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPUT [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mDELETE [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPATCH [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/health
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Practical patterns loaded!"]
+[JS] Practical patterns loaded!
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Available endpoints: /api/users, /auth/login, /auth/profile, /health"]
+[JS] Available endpoints: /api/users, /auth/login, /auth/profile, /health
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/practical_patterns.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/quick_start.js
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/hello
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/echo
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Database initialized"]
+[JS] Database initialized
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/todos
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/todos
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPUT [36mpath=[0m/todos/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mDELETE [36mpath=[0m/todos/:id
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Quick start examples loaded!"]
+[JS] Quick start examples loaded!
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Try: GET /hello, POST /echo, GET /todos"]
+[JS] Try: GET /hello, POST /echo, GET /todos
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/quick_start.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/task_manager_webapp.js
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["🚀 Task Manager Web Application Starting..."]
+[JS] 🚀 Task Manager Web Application Starting...
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["✅ Database schema initialized successfully"]
+[JS] ✅ Database schema initialized successfully
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/categories
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/tasks
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/tasks/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/api/tasks
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPUT [36mpath=[0m/api/tasks/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPATCH [36mpath=[0m/api/tasks/:id/complete
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mDELETE [36mpath=[0m/api/tasks/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/tasks/stats
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/tasks/detailed-stats
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/tasks/:id/notes
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/api/tasks/:id/notes
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mDELETE [36mpath=[0m/api/notes/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/api/tasks/sample
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["🎯 Task Manager Web Application Ready!"]
+[JS] 🎯 Task Manager Web Application Ready!
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["📱 Features: Create, Read, Update, Delete tasks with priorities, categories, and notes"]
+[JS] 📱 Features: Create, Read, Update, Delete tasks with priorities, categories, and notes
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["🌐 Visit http://localhost:8080/ to access the full-featured task manager"]
+[JS] 🌐 Visit http://localhost:8080/ to access the full-featured task manager
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["🔧 API endpoints available: GET/POST/PUT/PATCH/DELETE /api/tasks/*"]
+[JS] 🔧 API endpoints available: GET/POST/PUT/PATCH/DELETE /api/tasks/*
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/task_manager_webapp.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/test-body-debug.js
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/debug/body
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Debug endpoint loaded: POST /debug/body"]
+[JS] Debug endpoint loaded: POST /debug/body
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/test-body-debug.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/test-express.js
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Setting up Express.js test routes"]
+[JS] Setting up Express.js test routes
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/test/json
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/test/status
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/test/send
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/test/request
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Express.js test routes registered"]
+[JS] Express.js test routes registered
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/test-express.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/test-user-creation.js
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mPOST [36mpath=[0m/test/create-user
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Test user creation endpoint loaded: POST /test/create-user"]
+[JS] Test user creation endpoint loaded: POST /test/create-user
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/test-user-creation.js
+[90m10:48PM[0m [32mINF[0m [1mLoading JavaScript file[0m [36mfile=[0mexamples/test_path_params.js
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/users/:id
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/api/:version/users/:userId/posts/:postId
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/trivia/answer/:answerIndex
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/products/:category?
+[90m10:48PM[0m [32mINF[0m [1mRegistered HTTP handler[0m [36mmethod=[0mGET [36mpath=[0m/blog/:slug
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Express.js path parameter handlers registered!"]
+[JS] Express.js path parameter handlers registered!
+[90m10:48PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["Try: GET /users/123, /api/v1/users/456/posts/789, /trivia/answer/2"]
+[JS] Try: GET /users/123, /api/v1/users/456/posts/789, /trivia/answer/2
+[90m10:48PM[0m [32mINF[0m [1mSuccessfully loaded JavaScript file[0m [36mfile=[0mexamples/test_path_params.js
+[90m10:48PM[0m [32mINF[0m [1mFinished loading scripts[0m
+[90m10:48PM[0m [32mINF[0m [1mServer configuration[0m [36maddress=[0m:8081 [36mdatabase=[0mdata.sqlite [36murl=[0mhttp://localhost:8081
+[90m10:48PM[0m [32mINF[0m [1mScripts directory configured[0m [36mscripts=[0mexamples/
+[90m10:48PM[0m [32mINF[0m [1mAPI endpoint ready[0m [36mexecute_endpoint=[0mhttp://localhost:8081/v1/execute
+[90m10:48PM[0m [32mINF[0m [1mWeb interface available[0m [36mweb_interface=[0mhttp://localhost:8081
+[90m10:48PM[0m [32mINF[0m [1mStarting HTTP server[0m [36maddress=[0m:8081
+[90m10:48PM[0m [31mERR[0m [1mJS console.error[0m [36margs=[0m["Task creation error:",{}]
+[JS ERROR] Task creation error: map[]
+[90m10:49PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["📝 Task updated: \"Updated Test Task\" (ID: 1)"]
+[JS] 📝 Task updated: "Updated Test Task" (ID: 1)
+[90m10:49PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["✅ Task completed: Updated Test Task (ID: 1)"]
+[JS] ✅ Task completed: Updated Test Task (ID: 1)
+[90m10:49PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["📋 Created 6 sample tasks"]
+[JS] 📋 Created 6 sample tasks
+[90m10:49PM[0m [32mINF[0m [1mJS console.log[0m [36margs=[0m["🗑️  Task deleted: \"Updated Test Task\" (ID: 1)"]
+[JS] 🗑️  Task deleted: "Updated Test Task" (ID: 1)

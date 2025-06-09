@@ -1,3 +1,45 @@
+## Embeddable MCP
+
+- [ ] Add more arguments to list-tools
+- [ ] Allow passing arguments to test-tool (or maybe even expose one verb per tool)
+- [ ] Call the hooks when calling a test-tool
+
+## MCP JS server
+
+- [ ] expose the session ID to the JS
+- [ ] reload last sessions JS to recreate the full app as it was (all the code in a session?). Or maybe store which code was used for rest handlers and all that.
+- [ ] make sure session ID is scoped to MCP
+- [ ] Add view with all the code from a single session
+- [ ] Give some name to the code so that it can be used for debugging: TypeError: Value is not object coercible at <eval>:82:47(3)
+
+- [ ] req.body is apparently a string, not a parsed object (prompt? funcitonality?)
+- [ ] give better error messages showing the relevant code as well instead of <eval>
+- [ ] function to retrieve logs maybe?
+- [x] allow for a richer o-TTP API allowing redirects and all that
+- [ ] Output registered endpoints
+- [ ] Allow for defining functions that can be used across executeJS calls (sadly we have the wrapped stuff right now, maybe we could parse for let / const?)
+- [ ] allow querying the logs as well
+- [ ] allow call for querying the endpoints to do debugging
+- [ ] allow to load plugins / interface with external APIs
+- [ ] get errors back from db.exec / db.query
+- [ ] catch panics
+- [ ] allow for a repl to a session on the CLI as well
+- [ ] unit test suite for the JS too
+- [ ] async notification for error 500? get a way to get the logs. maybe a self-fix function
+- [ ] get rid of the function wrapped stuff
+- [ ] add function to restart the VM from scratch
+- [ ] allow loading thirdparty libs
+- [ ] live view of both MCP calls and REST calls / JS evaluation
+- [ ] add JS repl to the web UI
+- [ ] have live console
+- [ ] allow editing of sent JS and reload it for manual fixing
+- [ ] download session zip
+- [ ] MCP session ID is wrong
+- [ ] Prompt engineering for separating js / css /html into multiple endpoints
+- [ ] More clever routes (and params capture?)
+- [ ] how to dispatch to multiple sessions on the rest side, since they will all have different routes? multiple ports? subpaths? use cool names for session ids instead of uuids / cool encoding?
+- [ ] make registerHandler sytnax more express.js like to leverage training corpus
+
 ## Features
 
 - [x] Add tool/prompt profiles to switch between different collections of prompts and resources and other things

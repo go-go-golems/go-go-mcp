@@ -1,0 +1,230 @@
+/* Admin GlobalState CSS - Unified with Playground Theme */
+
+:root {
+    --bs-dark: #212529;
+    --bs-dark-rgb: 33, 37, 41;
+    --bs-light: #f8f9fa;
+    --bs-primary: #0d6efd;
+    --bs-success: #198754;
+    --bs-danger: #dc3545;
+    --bs-warning: #ffc107;
+    --bs-info: #0dcaf0;
+    --console-bg: #0d1117;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bs-dark);
+    color: #f8f9fa;
+    line-height: 1.5;
+}
+
+.header {
+    background: rgba(var(--bs-dark-rgb), 0.95);
+    color: #f8f9fa;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.125);
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    margin: 0;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1rem;
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+}
+
+.nav-links a:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.controls {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.125);
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.controls button {
+    background: var(--bs-primary);
+    color: white;
+    border: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s ease-in-out;
+}
+
+.controls button:hover {
+    background: #0b5ed7;
+    transform: translateY(-1px);
+}
+
+.controls button.success {
+    background: var(--bs-success);
+}
+
+.controls button.success:hover {
+    background: #157347;
+}
+
+.controls button.danger {
+    background: var(--bs-danger);
+}
+
+.controls button.danger:hover {
+    background: #bb2d3b;
+}
+
+.main-content {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.editor-container {
+    background: rgba(var(--bs-dark-rgb), 0.6);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.125);
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.editor-header {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.125);
+    font-weight: 600;
+    color: #f8f9fa;
+}
+
+.editor {
+    position: relative;
+}
+
+#globalStateEditor {
+    width: 100%;
+    height: 400px;
+    border: none;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+    font-size: 14px;
+    resize: vertical;
+    background: var(--console-bg);
+    color: #f8f8f2;
+}
+
+.status-bar {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.5rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.125);
+    font-size: 0.875rem;
+    color: #adb5bd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.validation-status {
+    font-weight: bold;
+}
+
+.validation-status.valid {
+    color: var(--bs-success);
+}
+
+.validation-status.invalid {
+    color: var(--bs-danger);
+}
+
+.auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.help-panel {
+    background: rgba(var(--bs-dark-rgb), 0.6);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.125);
+    margin-top: 2rem;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+}
+
+.help-header {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.125);
+    font-weight: 600;
+    color: #f8f9fa;
+}
+
+.help-content {
+    padding: 1rem;
+}
+
+.help-content ul {
+    margin-left: 1.5rem;
+}
+
+.help-content li {
+    margin-bottom: 0.5rem;
+}
+
+.help-content code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+    color: #f8f9fa;
+}
+
+.notification {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 1000;
+    transform: translateX(400px);
+    transition: transform 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.success {
+    background: var(--bs-success);
+    color: white;
+}
+
+.notification.error {
+    background: var(--bs-danger);
+    color: white;
+}

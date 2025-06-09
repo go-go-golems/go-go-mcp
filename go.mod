@@ -6,7 +6,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/PuerkitoBio/goquery v1.10.1
 	github.com/ThreeDotsLabs/watermill v1.4.6
-	github.com/a-h/templ v0.3.857
+	github.com/a-h/templ v0.3.894
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/lipgloss v1.1.0
