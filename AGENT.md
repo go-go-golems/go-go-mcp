@@ -34,7 +34,6 @@
 - When starting goroutines, use errgroup.
 
 - Only use the toplevel go.mod, don't create new ones.
-
 - When writing a new experiment / app, add zerolog logging to help debug and figure out how it works, add --log-level flag to set the log level.
 </goGuidelines>
 
