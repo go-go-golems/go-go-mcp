@@ -2,365 +2,100 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 
 	clay "github.com/go-go-golems/clay/pkg"
+	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
+	"github.com/go-go-golems/glazed/pkg/help"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/cmd"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/mcp"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web"
-	"github.com/rs/zerolog/log"
+	pinocchio_cmds "github.com/go-go-golems/pinocchio/pkg/cmds"
 	"github.com/spf13/cobra"
 )
 
-var (
-	port       string
-	db         string
-	scriptsDir string
-	serverURL  string
-)
-
-// findFreePort finds a free port starting from the given port
-func findFreePort(startPort int) (int, error) {
-	for port := startPort; port < startPort+100; port++ {
-		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-		if err == nil {
-			_ = listener.Close()
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("no free port found in range %d-%d", startPort, startPort+99)
-}
-
 func main() {
+	// Initialize help system
+	helpSystem := help.NewHelpSystem()
+
+	// Create root command
 	rootCmd := &cobra.Command{
 		Use:   "js-playground",
-		Short: "JavaScript playground web server",
-		Long:  "A JavaScript playground web server with SQLite integration",
+		Short: "JavaScript playground web server with Geppetto AI integration",
+		Long:  "A JavaScript playground web server with SQLite integration and Geppetto AI capabilities",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			err := logging.InitLoggerFromViper()
-			if err != nil {
-				return err
-			}
-			return nil
+			return logging.InitLoggerFromViper()
 		},
 	}
 
-	// Server command
-	serverCmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Start the JavaScript playground server",
-		Run:   runServer,
-	}
-	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port for JavaScript web server")
-	serverCmd.Flags().String("admin-port", "9090", "HTTP port for admin/system interface")
-	serverCmd.Flags().StringVarP(&db, "app-db", "d", "data.sqlite", "SQLite database path for application data (accessible via db.* in JavaScript)")
-	serverCmd.Flags().String("system-db", "system.sqlite", "SQLite database path for system operations (execution logs, request logs)")
-	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
+	// Set up help system for the root command
+	helpSystem.SetupCobraRootCommand(rootCmd)
 
+	// Initialize Viper for configuration management
 	if err := clay.InitViper("js-web-server", rootCmd); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize viper")
+		fmt.Fprintf(os.Stderr, "Failed to initialize viper: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create Glazed commands with Geppetto integration
+
+	// Serve command with Geppetto layers
+	serveCmd, err := cmd.NewServeCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating serve command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Build Cobra command with Geppetto middlewares
+	serveCobraCmd, err := pinocchio_cmds.BuildCobraCommandWithGeppettoMiddlewares(
+		serveCmd,
+		cli.WithProfileSettingsLayer(),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building serve command: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Execute command
-	executeCmd := &cobra.Command{
-		Use:   "execute [file or code]",
-		Short: "Execute JavaScript code",
-		Args:  cobra.ExactArgs(1),
-		Run:   runExecute,
+	executeCmd, err := cmd.NewExecuteCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating execute command: %v\n", err)
+		os.Exit(1)
 	}
-	executeCmd.Flags().StringVarP(&serverURL, "url", "u", "http://localhost:8080", "Server URL")
+
+	executeCobraCmd, err := cli.BuildCobraCommandFromCommand(executeCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building execute command: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Test command
-	testCmd := &cobra.Command{
-		Use:   "test",
-		Short: "Test the server endpoints",
-		Run:   runTest,
+	testCmd, err := cmd.NewTestCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating test command: %v\n", err)
+		os.Exit(1)
 	}
-	testCmd.Flags().StringVarP(&serverURL, "url", "u", "http://localhost:8080", "Server URL")
+
+	testCobraCmd, err := cli.BuildCobraCommandFromCommand(testCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building test command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Add commands to root
+	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd)
 
 	// MCP command - expose JavaScript execution as MCP tool
 	if err := mcp.AddMCPCommand(rootCmd); err != nil {
-		log.Fatal().Err(err).Msg("Failed to add MCP command")
+		fmt.Fprintf(os.Stderr, "Failed to add MCP command: %v\n", err)
+		os.Exit(1)
 	}
 
-	rootCmd.AddCommand(serverCmd, executeCmd, testCmd)
-
+	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatal().Err(err).Msg("Failed to execute command")
+		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-func runServer(cmd *cobra.Command, args []string) {
-	log.Info().Msg("Starting JavaScript playground server")
 
-	// Find free port starting from the requested port
-	requestedPort, err := strconv.Atoi(port)
-	if err != nil {
-		log.Fatal().Err(err).Str("port", port).Msg("Invalid port number")
-	}
-
-	actualPort, err := findFreePort(requestedPort)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to find free port")
-	}
-
-	if actualPort != requestedPort {
-		log.Info().Int("requested_port", requestedPort).Int("actual_port", actualPort).Msg("Requested port was unavailable, using alternative port")
-	}
-
-	// Ensure scripts directory exists
-	if err := os.MkdirAll("scripts", 0755); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create scripts directory")
-	}
-	log.Debug().Msg("Scripts directory ready")
-
-	// Get database and port configurations from flags
-	appDBPath := db
-	systemDBPath, err := cmd.Flags().GetString("system-db")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get system-db flag")
-	}
-
-	adminPortStr, err := cmd.Flags().GetString("admin-port")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get admin-port flag")
-	}
-	adminPortInt, err := strconv.Atoi(adminPortStr)
-	if err != nil {
-		log.Fatal().Err(err).Str("admin-port", adminPortStr).Msg("Invalid admin port number")
-	}
-
-	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
-	jsEngine := engine.NewEngine(appDBPath, systemDBPath)
-	if err := jsEngine.Init("bootstrap.js"); err != nil {
-		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
-	}
-
-	// Start dispatcher goroutine first
-	log.Debug().Msg("Starting JavaScript dispatcher")
-	jsEngine.StartDispatcher()
-
-	// Give dispatcher time to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Load scripts from directory if specified
-	if scriptsDir != "" {
-		log.Info().Str("directory", scriptsDir).Msg("Loading scripts from directory")
-		loadScriptsFromDir(jsEngine, scriptsDir)
-		log.Info().Msg("Finished loading scripts")
-	}
-
-	// Find free admin port
-	actualAdminPort, err := findFreePort(adminPortInt)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to find free admin port")
-	}
-	if actualAdminPort != adminPortInt {
-		log.Info().Int("requested_admin_port", adminPortInt).Int("actual_admin_port", actualAdminPort).Msg("Requested admin port was unavailable, using alternative port")
-	}
-
-	// Setup separate routers
-	log.Debug().Msg("Setting up HTTP routers")
-
-	// JS Server router (user-facing, JavaScript endpoints)
-	jsRouter := web.SetupJSRoutes(jsEngine)
-
-	// Admin router (system interface, playground, API)
-	adminRouter := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
-	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
-
-	// Configure server addresses
-	jsAddr := ":" + strconv.Itoa(actualPort)
-	adminAddr := ":" + strconv.Itoa(actualAdminPort)
-	jsBaseURL := fmt.Sprintf("http://localhost:%d", actualPort)
-	adminBaseURL := fmt.Sprintf("http://localhost:%d", actualAdminPort)
-
-	log.Info().
-		Str("js_address", jsAddr).
-		Str("admin_address", adminAddr).
-		Str("app_database", appDBPath).
-		Str("system_database", systemDBPath).
-		Msg("Server configuration")
-
-	if scriptsDir != "" {
-		log.Info().Str("scripts", scriptsDir).Msg("Scripts directory configured")
-	}
-
-	log.Info().Str("execute_endpoint", adminBaseURL+"/v1/execute").Msg("API endpoint ready")
-	log.Info().Str("js_server", jsBaseURL).Msg("JavaScript web server available")
-	log.Info().Str("admin_interface", adminBaseURL).Msg("Admin interface available")
-	log.Info().Str("admin_logs", adminBaseURL+"/admin/logs").Msg("Admin logs available")
-
-	// Start servers concurrently
-	log.Info().Str("js_address", jsAddr).Msg("Starting JavaScript web server")
-	go func() {
-		if err := http.ListenAndServe(jsAddr, jsRouter); err != nil {
-			log.Fatal().Err(err).Msg("JavaScript web server failed")
-		}
-	}()
-
-	log.Info().Str("admin_address", adminAddr).Msg("Starting admin interface server")
-	if err := http.ListenAndServe(adminAddr, adminRouter); err != nil {
-		log.Fatal().Err(err).Msg("Admin interface server failed")
-	}
-}
-
-func runExecute(cmd *cobra.Command, args []string) {
-	input := args[0]
-	var code string
-
-	// Check if input is a file
-	if fileInfo, err := os.Stat(input); err == nil && !fileInfo.IsDir() {
-		data, err := os.ReadFile(input)
-		if err != nil {
-			log.Fatal().Err(err).Str("file", input).Msg("Failed to read file")
-		}
-		code = string(data)
-		log.Info().Str("file", input).Msg("Executing file")
-	} else {
-		code = input
-		log.Info().Str("code", code).Msg("Executing code")
-	}
-
-	// Send to server
-	log.Debug().Str("url", serverURL+"/v1/execute").Msg("Sending request to server")
-	resp, err := http.Post(serverURL+"/v1/execute", "application/javascript", strings.NewReader(code))
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to execute code")
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read response")
-	}
-
-	fmt.Printf("Status: %s\n", resp.Status)
-	if len(body) > 0 {
-		fmt.Printf("Response: %s\n", string(body))
-	}
-}
-
-func runTest(cmd *cobra.Command, args []string) {
-	log.Info().Str("url", serverURL).Msg("Testing server")
-
-	// Test health endpoint
-	log.Info().Msg("Testing health endpoint")
-	resp, err := http.Get(serverURL + "/health")
-	if err != nil {
-		log.Error().Err(err).Msg("Health check failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /health")
-	}
-
-	// Test root endpoint
-	log.Info().Msg("Testing root endpoint")
-	resp, err = http.Get(serverURL + "/")
-	if err != nil {
-		log.Error().Err(err).Msg("Root endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /")
-	}
-
-	// Test counter endpoint
-	log.Info().Msg("Testing counter endpoint")
-	resp, err = http.Post(serverURL+"/counter", "application/json", strings.NewReader("{}"))
-	if err != nil {
-		log.Error().Err(err).Msg("Counter endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("POST /counter")
-	}
-
-	// Test execute endpoint
-	log.Info().Msg("Testing execute endpoint")
-	testCode := `
-		console.log("Hello from executed code!");
-		registerHandler("GET", "/test", () => ({message: "Test endpoint works!", time: new Date().toISOString()}));
-	`
-	resp, err = http.Post(serverURL+"/v1/execute", "application/javascript", strings.NewReader(testCode))
-	if err != nil {
-		log.Error().Err(err).Msg("Execute endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("POST /v1/execute")
-	}
-
-	// Test newly created endpoint
-	log.Info().Msg("Testing dynamically created endpoint")
-	resp, err = http.Get(serverURL + "/test")
-	if err != nil {
-		log.Error().Err(err).Msg("Dynamic endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /test")
-	}
-}
-
-func loadScriptsFromDir(jsEngine *engine.Engine, dir string) {
-	log.Info().Str("directory", dir).Msg("Loading JavaScript files")
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Error().Err(err).Str("path", path).Msg("Error accessing file")
-			return err
-		}
-
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".js") {
-			log.Info().Str("file", path).Msg("Loading JavaScript file")
-			data, err := os.ReadFile(path)
-			if err != nil {
-				log.Error().Err(err).Str("file", path).Msg("Failed to read file")
-				return nil
-			}
-
-			log.Debug().Str("file", path).Int("bytes", len(data)).Msg("Read JavaScript file")
-
-			// Submit to engine with timeout
-			done := make(chan error, 1)
-			job := engine.EvalJob{
-				Code:      string(data),
-				Done:      done,
-				SessionID: "startup-" + filepath.Base(path),
-				Source:    "file",
-			}
-
-			log.Debug().Str("file", path).Msg("Submitting job to engine")
-			jsEngine.SubmitJob(job)
-
-			// Wait for completion with timeout
-			select {
-			case err := <-done:
-				if err != nil {
-					log.Error().Err(err).Str("file", path).Msg("Failed to execute file")
-				} else {
-					log.Info().Str("file", path).Msg("Successfully loaded JavaScript file")
-				}
-			case <-time.After(10 * time.Second):
-				log.Error().Str("file", path).Msg("Timeout waiting for file execution")
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Error().Err(err).Str("directory", dir).Msg("Error walking scripts directory")
-	}
-}
