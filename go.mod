@@ -30,7 +30,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/tailscale/hujson v0.0.0-20250226034555-ec1d1c113d33
 	github.com/yuin/goldmark v1.7.8
-	golang.org/x/sync v0.14.0
+	golang.org/x/sync v0.15.0
 	golang.org/x/text v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 )
