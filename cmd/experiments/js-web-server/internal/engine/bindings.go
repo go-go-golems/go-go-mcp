@@ -444,3 +444,25 @@ func (e *Engine) setupGeppettoAPIs() {
 
 	log.Debug().Msg("Geppetto JavaScript APIs setup complete")
 }
+
+// setupGeppettoBindings sets up only the Geppetto API bindings
+func (e *Engine) setupGeppettoBindings() error {
+	log.Debug().Msg("Setting up Geppetto JavaScript APIs")
+
+	// Register Conversation API
+	if err := js.RegisterConversation(e.rt); err != nil {
+		log.Error().Err(err).Msg("Failed to register Conversation API")
+		return err
+	}
+	log.Debug().Msg("Conversation API registered")
+
+	// Register ChatStepFactory
+	if err := js.RegisterFactory(e.rt, e.loop, e.stepSettings); err != nil {
+		log.Error().Err(err).Msg("Failed to register ChatStepFactory")
+		return err
+	}
+	log.Debug().Msg("ChatStepFactory registered")
+
+	log.Debug().Msg("Geppetto JavaScript APIs setup complete")
+	return nil
+}

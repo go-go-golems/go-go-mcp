@@ -24,9 +24,9 @@ type Engine struct {
 	handlers     map[string]map[string]*HandlerInfo // [path][method] -> handler info
 	files        map[string]goja.Callable           // [path] -> file handler
 	mu           sync.RWMutex
-	reqLogger    *RequestLogger // Request logger for admin interface
-	currentReqID string         // Track current request ID for logging
-	stepSettings *settings.StepSettings      // Settings for AI steps
+	reqLogger    *RequestLogger         // Request logger for admin interface
+	currentReqID string                 // Track current request ID for logging
+	stepSettings *settings.StepSettings // Settings for AI steps
 }
 
 // HandlerInfo contains handler function and metadata
@@ -117,6 +117,23 @@ func NewEngine(appDBPath, systemDBPath string) *Engine {
 
 	log.Debug().Msg("JavaScript engine initialized with repository pattern and Geppetto API")
 	return e
+}
+
+// UpdateStepSettings updates the AI step settings for the engine
+func (e *Engine) UpdateStepSettings(stepSettings *settings.StepSettings) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.stepSettings = stepSettings
+	log.Debug().Msg("Step settings updated")
+
+	// Re-register Geppetto APIs with new settings
+	return e.setupGeppettoBindings()
+}
+
+// ExecuteScript executes JavaScript code and returns the result with console output
+func (e *Engine) ExecuteScript(code string) (*EvalResult, error) {
+	return e.executeCodeWithResult(code)
 }
 
 // Init loads and executes a bootstrap JavaScript file
@@ -439,13 +456,13 @@ func (e *Engine) stringifyJSValue(value goja.Value) string {
 // Close gracefully shuts down the engine
 func (e *Engine) Close() error {
 	log.Debug().Msg("Shutting down JavaScript engine")
-	
+
 	// Stop the event loop
 	if e.loop != nil {
 		e.loop.Stop()
 		log.Debug().Msg("Event loop stopped")
 	}
-	
+
 	// Close database connections
 	if e.db != nil {
 		if err := e.db.Close(); err != nil {
@@ -454,7 +471,7 @@ func (e *Engine) Close() error {
 		}
 		log.Debug().Msg("Application database closed")
 	}
-	
+
 	// Close repository manager
 	if e.repos != nil {
 		if err := e.repos.Close(); err != nil {
@@ -463,7 +480,7 @@ func (e *Engine) Close() error {
 		}
 		log.Debug().Msg("Repository manager closed")
 	}
-	
+
 	log.Debug().Msg("JavaScript engine shutdown complete")
 	return nil
 }

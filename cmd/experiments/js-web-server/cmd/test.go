@@ -86,7 +86,7 @@ func (c *TestCmd) Run(ctx context.Context, parsedLayers *layers.ParsedLayers) er
 	log.Info().Str("url", s.URL).Msg("Testing server")
 
 	var testResults []TestResult
-	
+
 	// Test 1: Health endpoint
 	log.Info().Msg("Testing health endpoint")
 	result := c.testEndpoint("GET", s.URL+"/health", "", "Health endpoint")
@@ -138,7 +138,7 @@ func (c *TestCmd) Run(ctx context.Context, parsedLayers *layers.ParsedLayers) er
 		
 		"Execute test completed"
 	`
-	
+
 	result = c.testExecuteEndpoint(s.AdminURL+"/v1/execute", testCode, "Execute endpoint")
 	testResults = append(testResults, result)
 	c.logTestResult(result)
@@ -151,7 +151,7 @@ func (c *TestCmd) Run(ctx context.Context, parsedLayers *layers.ParsedLayers) er
 
 	// Summary
 	c.printTestSummary(testResults)
-	
+
 	// Check if any tests failed
 	for _, result := range testResults {
 		if !result.Success {
@@ -263,10 +263,10 @@ func (c *TestCmd) logTestResult(result TestResult) {
 // printTestSummary prints a summary of all test results
 func (c *TestCmd) printTestSummary(results []TestResult) {
 	fmt.Println("\n=== Test Summary ===")
-	
+
 	passed := 0
 	failed := 0
-	
+
 	for _, result := range results {
 		if result.Success {
 			fmt.Printf("✅ %s: PASSED (%s)\n", result.Name, result.Status)
@@ -280,9 +280,9 @@ func (c *TestCmd) printTestSummary(results []TestResult) {
 			failed++
 		}
 	}
-	
+
 	fmt.Printf("\nTotal: %d tests, %d passed, %d failed\n", len(results), passed, failed)
-	
+
 	if failed == 0 {
 		fmt.Println("🎉 All tests passed!")
 	} else {

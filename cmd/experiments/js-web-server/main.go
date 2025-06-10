@@ -82,8 +82,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Run Scripts command with Geppetto integration
+	runScriptsCmd, err := cmd.NewRunScriptsCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating run-scripts command: %v\n", err)
+		os.Exit(1)
+	}
+
+	runScriptsCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(
+		runScriptsCmd,
+		cli.WithProfileSettingsLayer(),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building run-scripts command: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Add commands to root
-	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd)
+	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd, runScriptsCobraCmd)
 
 	// Add profiles command for configuration management
 	profilesCmd, err := clay_profiles.NewProfilesCommand("js-web-server", jsWebServerInitialProfilesContent)
@@ -233,5 +249,3 @@ testing:
 #   js-web-server profiles set testing ai-chat ai-temperature 0.1
 `
 }
-
-

@@ -169,7 +169,7 @@ func (c *ServeCmd) Run(ctx context.Context, parsedLayers *layers.ParsedLayers) e
 	// Initialize JavaScript engine with enhanced Geppetto integration
 	log.Debug().Str("appDatabase", s.AppDB).Str("systemDatabase", s.SystemDB).Msg("Initializing JavaScript engine")
 	jsEngine := engine.NewEngine(s.AppDB, s.SystemDB)
-	
+
 	// Enhanced: Pass stepSettings to engine for better AI integration
 	// This would require updating the engine to accept stepSettings
 	// For now, we'll keep the existing bootstrap initialization
@@ -301,4 +301,3 @@ func loadScriptsFromDir(jsEngine *engine.Engine, dir string) error {
 		return nil
 	})
 }
-

@@ -100,9 +100,9 @@ func (c *ExecuteCmd) Run(ctx context.Context, parsedLayers *layers.ParsedLayers)
 
 	// Construct the execute endpoint URL
 	executeURL := strings.TrimSuffix(s.URL, "/") + "/v1/execute"
-	
+
 	log.Debug().Str("url", executeURL).Msg("Sending request to server")
-	
+
 	// Send POST request to the server
 	resp, err := http.Post(executeURL, "application/javascript", strings.NewReader(code))
 	if err != nil {
