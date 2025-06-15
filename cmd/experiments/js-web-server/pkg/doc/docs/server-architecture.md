@@ -325,7 +325,7 @@ The server uses structured logging with configurable levels:
 JavaScript console methods are integrated with the Go logging system:
 
 ```javascript
-console.log("Info message");    // → log.Info()
+console.log("Info message");    // → log.Debug()
 console.error("Error message"); // → log.Error()
 console.debug("Debug message"); // → log.Debug()
 ```

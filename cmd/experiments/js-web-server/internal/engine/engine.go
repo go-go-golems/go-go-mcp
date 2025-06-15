@@ -213,7 +213,7 @@ console.log("Bootstrap complete - server ready with Geppetto APIs");`
 	if err != nil {
 		log.Error().Err(err).Str("file", filename).Msg("Failed to execute bootstrap file")
 	} else {
-		log.Info().Str("file", filename).Msg("Bootstrap file executed successfully")
+		log.Debug().Str("file", filename).Msg("Bootstrap file executed successfully")
 	}
 	return err
 }
@@ -282,6 +282,11 @@ func (e *Engine) GetRequestLogger() *RequestLogger {
 // GetRepositoryManager returns the repository manager
 func (e *Engine) GetRepositoryManager() repository.RepositoryManager {
 	return e.repos
+}
+
+// GetRuntime returns the JavaScript runtime for direct access
+func (e *Engine) GetRuntime() *goja.Runtime {
+	return e.rt
 }
 
 // executeCode executes JavaScript code directly in the global scope

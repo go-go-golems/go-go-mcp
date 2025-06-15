@@ -3,6 +3,7 @@ package repl
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -10,12 +11,21 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dop251/goja"
+	"github.com/go-go-golems/geppetto/pkg/steps/ai/settings"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
+	"github.com/gorilla/mux"
 )
+
+// SharedState contains mutable state that needs to be shared
+type SharedState struct {
+	jsEngine *engine.Engine
+	router   *mux.Router
+}
 
 // Model represents the UI state for the REPL
 type Model struct {
 	styles              Styles
-	jsRuntime           *goja.Runtime
+	shared              *SharedState
 	textInput           textinput.Model
 	history             []historyEntry
 	historyEntries      []string // Store just the input strings for navigation
@@ -35,36 +45,65 @@ type historyEntry struct {
 
 // NewModel creates a new UI model
 func NewModel(startMultiline bool) Model {
+	return NewModelWithSettings(startMultiline, nil)
+}
+
+// NewModelWithSettings creates a new UI model with Geppetto step settings
+func NewModelWithSettings(startMultiline bool, stepSettings *settings.StepSettings) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Enter JavaScript or /command"
 	ti.Focus()
 	ti.Width = 80
 	ti.Prompt = "js> "
 
-	// Create a simple Goja runtime for the REPL
-	rt := goja.New()
+	// Create JavaScript engine using the shared engine for consistency with MCP version
+	jsEngine := engine.NewEngine(":memory:", ":memory:")
 
-	// Set up basic console.log
-	console := rt.NewObject()
-	if err := console.Set("log", func(call goja.FunctionCall) goja.Value {
-		var args []interface{}
-		for _, arg := range call.Arguments {
-			args = append(args, arg.Export())
+	// Update engine with step settings if provided
+	if stepSettings != nil {
+		if err := jsEngine.UpdateStepSettings(stepSettings); err != nil {
+			fmt.Printf("Warning: failed to update step settings: %v\n", err)
 		}
-		fmt.Println(args...)
-		return goja.Undefined()
-	}); err != nil {
-		// Log error but continue - this is during initialization
-		fmt.Printf("Warning: failed to set console.log: %v\n", err)
 	}
-	if err := rt.Set("console", console); err != nil {
-		// Log error but continue - this is during initialization
-		fmt.Printf("Warning: failed to set console object: %v\n", err)
+
+	// Start the dispatcher for job processing
+	jsEngine.StartDispatcher()
+
+	// Create router for web server functionality
+	router := mux.NewRouter()
+
+	// Setup dynamic routes using the engine
+	setupDynamicRoutes(router, jsEngine)
+
+	// Create shared state
+	shared := &SharedState{
+		jsEngine: jsEngine,
+		router:   router,
+	}
+
+	// Add REPL-specific web server functionality
+	rt := jsEngine.GetRuntime()
+	if err := rt.Set("startWebServer", func(call goja.FunctionCall) goja.Value {
+		port := "8080"
+		if len(call.Arguments) > 0 {
+			port = call.Arguments[0].String()
+		}
+
+		go func() {
+			fmt.Printf("Starting web server on port %s...\n", port)
+			if err := http.ListenAndServe(":"+port, shared.router); err != nil {
+				fmt.Printf("Web server error: %v\n", err)
+			}
+		}()
+
+		return rt.ToValue("Web server started on port " + port)
+	}); err != nil {
+		fmt.Printf("Warning: failed to set startWebServer: %v\n", err)
 	}
 
 	return Model{
 		styles:              DefaultStyles(),
-		jsRuntime:           rt,
+		shared:              shared,
 		textInput:           ti,
 		history:             []historyEntry{},
 		historyEntries:      []string{},
@@ -74,6 +113,57 @@ func NewModel(startMultiline bool) Model {
 		width:               80, // Default width
 		quitting:            false,
 	}
+}
+
+// setupDynamicRoutes configures the router to use the JavaScript engine for dynamic routing
+func setupDynamicRoutes(r *mux.Router, jsEngine *engine.Engine) {
+	// Dynamic routes (handled by JS) - this should be last as it's a catch-all
+	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		handleDynamicRoute(jsEngine, w, req)
+	})
+}
+
+// handleDynamicRoute processes requests for JavaScript-registered handlers
+func handleDynamicRoute(jsEngine *engine.Engine, w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	method := r.Method
+
+	// Check for registered HTTP handler (with path parameter support)
+	if handler, exists := jsEngine.GetHandler(method, path); exists {
+		done := make(chan error, 1)
+		job := engine.EvalJob{
+			Handler: handler,
+			W:       w,
+			R:       r,
+			Done:    done,
+		}
+
+		jsEngine.SubmitJob(job)
+
+		// Wait for completion
+		<-done
+		return
+	}
+
+	// Check for registered file handler
+	if fileHandler, exists := jsEngine.GetFileHandler(path); exists {
+		done := make(chan error, 1)
+		job := engine.EvalJob{
+			Handler: &engine.HandlerInfo{Fn: fileHandler},
+			W:       w,
+			R:       r,
+			Done:    done,
+		}
+
+		jsEngine.SubmitJob(job)
+
+		// Wait for completion
+		<-done
+		return
+	}
+
+	// No handler found
+	http.NotFound(w, r)
 }
 
 // Init initializes the UI model
@@ -92,8 +182,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textInput.Width = msg.Width - 10 // Account for prompt and padding
 
 	case tea.KeyMsg:
-		// Check for Ctrl+E to open external editor
-		if msg.Type == tea.KeyCtrlE {
+		// Check for Ctrl+Alt+E to open external editor
+		if msg.Type == tea.KeyCtrlE && msg.Alt {
 			if m.multilineMode && len(m.multilineText) > 0 {
 				// Open multiline content in external editor
 				if editedContent, err := m.openExternalEditor(strings.Join(m.multilineText, "\n")); err == nil {
@@ -149,11 +239,50 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle paste operations for multiline support
+		if msg.Type == tea.KeyRunes {
+			pasteText := string(msg.Runes)
+
+			// Check if this looks like a multiline paste (contains newlines)
+			if strings.Contains(pasteText, "\n") {
+				lines := strings.Split(pasteText, "\n")
+				if !m.multilineMode {
+					// Switch to multiline mode for paste
+					m.multilineMode = true
+					m.multilineText = []string{m.textInput.Value()}
+				}
+
+				// Add all pasted lines except the last one to multiline text
+				for i, line := range lines[:len(lines)-1] {
+					if i == 0 && len(m.multilineText) > 0 {
+						// Append to current line if we have one
+						m.multilineText[len(m.multilineText)-1] += line
+					} else {
+						m.multilineText = append(m.multilineText, line)
+					}
+				}
+
+				// Set the last line as current input
+				lastLine := lines[len(lines)-1]
+				m.textInput.SetValue(lastLine)
+				return m, nil
+			}
+		}
+
 		//nolint:exhaustive
 		switch msg.Type {
 		case tea.KeyCtrlC:
-			m.quitting = true
-			return m, tea.Quit
+			// Don't quit on Ctrl+C, just clear current input or exit multiline mode
+			if m.multilineMode {
+				// Exit multiline mode
+				m.multilineMode = false
+				m.multilineText = []string{}
+				m.textInput.Reset()
+			} else {
+				// Clear current input
+				m.textInput.Reset()
+			}
+			return m, nil
 
 		case tea.KeyUp:
 			// Navigate backwards through history (most recent first)
@@ -246,7 +375,7 @@ func (m Model) View() string {
 
 	// Multiline input display
 	if m.multilineMode {
-		sb.WriteString(m.styles.Info.Render("Multiline Mode (press Enter on empty line to execute, Ctrl+E to edit):\n"))
+		sb.WriteString(m.styles.Info.Render("Multiline Mode (press Enter on empty line to execute, Ctrl+Alt+E to edit, Ctrl+C to cancel):\n"))
 		for _, line := range m.multilineText {
 			sb.WriteString(m.styles.Prompt.Render("... "))
 			sb.WriteString(m.wrapText(line, m.width-5))
@@ -259,11 +388,11 @@ func (m Model) View() string {
 	sb.WriteString("\n\n")
 
 	// Help text
-	helpText := "Type JavaScript code or /help for commands"
+	helpText := "Type JavaScript code or /help for commands • Paste multiline code directly"
 	if m.multilineMode {
-		helpText = "Multiline mode: Enter empty line to execute, Ctrl+J for more lines, Ctrl+E to edit, ↑/↓ for history"
+		helpText = "Multiline mode: Enter empty line to execute, Ctrl+J for more lines, Ctrl+Alt+E to edit, Ctrl+C to cancel, ↑/↓ for history"
 	} else {
-		helpText += " (Ctrl+J for multiline, Ctrl+E to edit, ↑/↓ for history)"
+		helpText += " (Ctrl+J for multiline, Ctrl+Alt+E to edit, Ctrl+C to clear, ↑/↓ for history)"
 	}
 
 	sb.WriteString(m.styles.HelpText.Render(helpText))
@@ -399,8 +528,8 @@ func (m Model) processInput(input string) Model {
 		return m.handleSlashCommand(input)
 	}
 
-	// Handle JavaScript evaluation
-	result, err := m.jsRuntime.RunString(input)
+	// Handle JavaScript evaluation using the engine
+	result, err := m.shared.jsEngine.ExecuteScript(input)
 	if err != nil {
 		m.history = append(m.history, historyEntry{
 			input:  input,
@@ -412,10 +541,15 @@ func (m Model) processInput(input string) Model {
 
 	// Convert result to string
 	var output string
-	if result != nil && !goja.IsUndefined(result) {
-		output = result.String()
+	if result.Value != nil {
+		output = fmt.Sprintf("%v", result.Value)
 	} else {
 		output = "undefined"
+	}
+
+	// Add console output if any
+	if len(result.ConsoleLog) > 0 {
+		output = strings.Join(result.ConsoleLog, "\n") + "\n" + output
 	}
 
 	m.history = append(m.history, historyEntry{
@@ -442,13 +576,18 @@ func (m Model) handleSlashCommand(input string) Model {
 /clear     - Clear the screen
 /quit      - Exit the REPL
 /multiline - Toggle multiline mode
-/edit      - Open current content in external editor (same as Ctrl+E)
+/edit      - Open current content in external editor (same as Ctrl+Alt+E)
 
 Keyboard shortcuts:
 Ctrl+J     - Add line in multiline mode
-Ctrl+E     - Open external editor
-Ctrl+C     - Exit REPL
-Up/Down    - Navigate command history`
+Ctrl+Alt+E - Open external editor
+Ctrl+C     - Clear input or cancel multiline mode
+Up/Down    - Navigate command history
+
+Multiline support:
+- Paste multiline code directly (auto-detects newlines)
+- Use Ctrl+J to manually add lines
+- Press Enter on empty line to execute in multiline mode`
 
 		m.history = append(m.history, historyEntry{
 			input:  input,
@@ -475,7 +614,7 @@ Up/Down    - Navigate command history`
 		})
 
 	case "edit":
-		// Handle /edit command - same as Ctrl+E
+		// Handle /edit command - same as Ctrl+Alt+E
 		var content string
 		if m.multilineMode && len(m.multilineText) > 0 {
 			content = strings.Join(m.multilineText, "\n")

@@ -14,7 +14,7 @@ import (
 
 // StartDispatcher starts the job processing dispatcher
 func (e *Engine) StartDispatcher() {
-	log.Info().Msg("Starting JavaScript dispatcher")
+	log.Debug().Msg("Starting JavaScript dispatcher")
 	go e.dispatcher()
 }
 
