@@ -284,6 +284,11 @@ func (e *Engine) GetRepositoryManager() repository.RepositoryManager {
 	return e.repos
 }
 
+// GetRuntime returns the JavaScript runtime for direct access
+func (e *Engine) GetRuntime() *goja.Runtime {
+	return e.rt
+}
+
 // executeCode executes JavaScript code directly in the global scope
 func (e *Engine) executeCode(code string) error {
 	log.Debug().Str("code", code).Msg("Executing JavaScript code")
