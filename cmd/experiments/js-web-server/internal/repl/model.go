@@ -46,15 +46,21 @@ func NewModel(startMultiline bool) Model {
 
 	// Set up basic console.log
 	console := rt.NewObject()
-	console.Set("log", func(call goja.FunctionCall) goja.Value {
+	if err := console.Set("log", func(call goja.FunctionCall) goja.Value {
 		var args []interface{}
 		for _, arg := range call.Arguments {
 			args = append(args, arg.Export())
 		}
 		fmt.Println(args...)
 		return goja.Undefined()
-	})
-	rt.Set("console", console)
+	}); err != nil {
+		// Log error but continue - this is during initialization
+		fmt.Printf("Warning: failed to set console.log: %v\n", err)
+	}
+	if err := rt.Set("console", console); err != nil {
+		// Log error but continue - this is during initialization
+		fmt.Printf("Warning: failed to set console object: %v\n", err)
+	}
 
 	return Model{
 		styles:              DefaultStyles(),
@@ -143,6 +149,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		//nolint:exhaustive
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			m.quitting = true
@@ -293,14 +300,23 @@ func (m Model) openExternalEditor(content string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name()) // Clean up the temp file
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			// Log error but don't fail the operation
+			fmt.Printf("Warning: failed to remove temporary file %s: %v\n", tmpFile.Name(), err)
+		}
+	}() // Clean up the temp file
 
 	// Write current content to temp file
 	if _, err := tmpFile.WriteString(content); err != nil {
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close temporary file: %v\n", closeErr)
+		}
 		return "", fmt.Errorf("failed to write to temporary file: %w", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to close temporary file: %w", err)
+	}
 
 	// Launch the editor
 	cmd := exec.Command(editor, tmpFile.Name())
@@ -317,7 +333,11 @@ func (m Model) openExternalEditor(content string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read edited file: %w", err)
 	}
-	defer editedFile.Close()
+	defer func() {
+		if err := editedFile.Close(); err != nil {
+			fmt.Printf("Warning: failed to close edited file: %v\n", err)
+		}
+	}()
 
 	editedBytes, err := io.ReadAll(editedFile)
 	if err != nil {
