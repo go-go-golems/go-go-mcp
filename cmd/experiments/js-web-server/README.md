@@ -186,7 +186,9 @@ go run . repl --help
 The REPL provides an interactive JavaScript environment with:
 - **Real-time execution**: Test JavaScript expressions immediately
 - **Multiline support**: Use Ctrl+J for multi-line input or start with `--multiline`
-- **Built-in commands**: `/help`, `/clear`, `/multiline`, `/quit`
+- **History navigation**: Use arrow keys (↑/↓) to navigate through command history
+- **External editor**: Press Ctrl+E or use `/edit` to open code in your preferred editor
+- **Built-in commands**: `/help`, `/clear`, `/multiline`, `/edit`, `/quit`
 - **Error recovery**: Syntax and runtime errors don't crash the session
 - **Console.log support**: Debug output directly in the REPL
 
@@ -197,6 +199,8 @@ Visual demonstrations of REPL features are available in the `demos/` directory:
 - **Multiline Mode**: Function definitions and complex code blocks  
 - **Slash Commands**: Built-in REPL commands and help system
 - **Error Handling**: How the REPL handles various error conditions
+- **History Navigation**: Arrow key navigation through command history
+- **External Editor**: Integration with external editors via Ctrl+E
 
 Generate demo GIFs: `cd demos && ./generate-all.sh` (requires [VHS](https://github.com/charmbracelet/vhs))
 

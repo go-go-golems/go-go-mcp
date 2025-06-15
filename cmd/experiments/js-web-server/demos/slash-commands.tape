@@ -15,7 +15,7 @@ Sleep 2s
 
 Type "/help"
 Enter
-Sleep 3s
+Sleep 4s
 
 Type "let counter = 0"
 Enter

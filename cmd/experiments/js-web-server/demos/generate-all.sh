@@ -31,6 +31,8 @@ demos=(
     "slash-commands.tape:Slash Commands"
     "error-handling.tape:Error Handling"
     "multiline-flag.tape:Multiline Flag"
+    "history-navigation.tape:History Navigation"
+    "external-editor.tape:External Editor"
 )
 
 for demo_info in "${demos[@]}"; do

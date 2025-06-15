@@ -2,9 +2,6 @@ package repl
 
 import (
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -62,7 +59,7 @@ func NewModel(startMultiline bool) Model {
 		textInput:           ti,
 		history:             []historyEntry{},
 		historyEntries:      []string{},
-		currentHistoryIndex: -1, // -1 means not navigating history
+		currentHistoryIndex: -1, // Not navigating initially
 		multilineMode:       startMultiline,
 		multilineText:       []string{},
 		width:               80, // Default width
@@ -86,50 +83,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.textInput.Width = msg.Width - 10 // Account for prompt and padding
 
 	case tea.KeyMsg:
-		// Check for Ctrl+E to open external editor
-		if msg.Type == tea.KeyCtrlE {
-			if m.multilineMode && len(m.multilineText) > 0 {
-				// Open multiline content in external editor
-				if editedContent, err := m.openExternalEditor(strings.Join(m.multilineText, "\n")); err == nil {
-					// Update multiline content with edited text
-					m.multilineText = strings.Split(editedContent, "\n")
-					// Remove empty lines at the end
-					for len(m.multilineText) > 0 && m.multilineText[len(m.multilineText)-1] == "" {
-						m.multilineText = m.multilineText[:len(m.multilineText)-1]
-					}
-				} else {
-					// Add error to history
-					m.history = append(m.history, historyEntry{
-						input:  "/edit",
-						output: fmt.Sprintf("Editor error: %v", err),
-						isErr:  true,
-					})
-				}
-			} else if currentInput := m.textInput.Value(); currentInput != "" {
-				// Open current single-line input in external editor
-				if editedContent, err := m.openExternalEditor(currentInput); err == nil {
-					lines := strings.Split(strings.TrimSpace(editedContent), "\n")
-					if len(lines) > 1 {
-						// Switch to multiline mode if editor returned multiple lines
-						m.multilineMode = true
-						m.multilineText = lines
-						m.textInput.Reset()
-					} else {
-						// Update single line input
-						m.textInput.SetValue(lines[0])
-					}
-				} else {
-					// Add error to history
-					m.history = append(m.history, historyEntry{
-						input:  "/edit",
-						output: fmt.Sprintf("Editor error: %v", err),
-						isErr:  true,
-					})
-				}
-			}
-			return m, nil
-		}
-
 		// Check for Ctrl+J as a substitute for Shift+Enter (which isn't directly supported)
 		if msg.Type == tea.KeyCtrlJ {
 			// Handle Ctrl+J for multiline input
@@ -152,25 +105,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Navigate backwards through history (most recent first)
 			if len(m.historyEntries) > 0 {
 				if m.currentHistoryIndex == -1 {
-					// Start from the end (most recent)
+					// Start from most recent
 					m.currentHistoryIndex = len(m.historyEntries) - 1
 				} else if m.currentHistoryIndex > 0 {
+					// Move to older entry
 					m.currentHistoryIndex--
 				}
+				// Update text input with history entry
 				m.textInput.SetValue(m.historyEntries[m.currentHistoryIndex])
 			}
 			return m, nil
 
 		case tea.KeyDown:
 			// Navigate forwards through history
-			if m.currentHistoryIndex != -1 {
+			if len(m.historyEntries) > 0 && m.currentHistoryIndex != -1 {
 				if m.currentHistoryIndex < len(m.historyEntries)-1 {
+					// Move to newer entry
 					m.currentHistoryIndex++
 					m.textInput.SetValue(m.historyEntries[m.currentHistoryIndex])
 				} else {
-					// At the end, return to empty input
+					// At end of history, clear input and reset index
 					m.currentHistoryIndex = -1
-					m.textInput.Reset()
+					m.textInput.SetValue("")
 				}
 			}
 			return m, nil
@@ -201,7 +157,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			m.textInput.Reset()
-			m.currentHistoryIndex = -1 // Reset history navigation after processing input
+			// Reset history navigation when new input is entered
+			m.currentHistoryIndex = -1
 
 			if m.quitting {
 				return m, tea.Quit
@@ -239,7 +196,7 @@ func (m Model) View() string {
 
 	// Multiline input display
 	if m.multilineMode {
-		sb.WriteString(m.styles.Info.Render("Multiline Mode (press Enter on empty line to execute, Ctrl+E to edit):\n"))
+		sb.WriteString(m.styles.Info.Render("Multiline Mode (press Enter on empty line to execute):\n"))
 		for _, line := range m.multilineText {
 			sb.WriteString(m.styles.Prompt.Render("... "))
 			sb.WriteString(m.wrapText(line, m.width-5))
@@ -254,9 +211,9 @@ func (m Model) View() string {
 	// Help text
 	helpText := "Type JavaScript code or /help for commands"
 	if m.multilineMode {
-		helpText = "Multiline mode: Enter empty line to execute, Ctrl+J for more lines, Ctrl+E to edit, ↑/↓ for history"
+		helpText = "Multiline mode: Enter empty line to execute, Ctrl+J for more lines"
 	} else {
-		helpText += " (Ctrl+J for multiline, Ctrl+E to edit, ↑/↓ for history)"
+		helpText += " (Ctrl+J for multiline)"
 	}
 
 	sb.WriteString(m.styles.HelpText.Render(helpText))
@@ -269,62 +226,6 @@ func (m Model) View() string {
 	}
 
 	return sb.String()
-}
-
-// openExternalEditor opens the given content in an external editor and returns the edited content
-func (m Model) openExternalEditor(content string) (string, error) {
-	// Get editor from environment variable, fallback to nano or vim
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		// Try to find a suitable editor
-		for _, candidate := range []string{"nano", "vim", "vi"} {
-			if _, err := exec.LookPath(candidate); err == nil {
-				editor = candidate
-				break
-			}
-		}
-		if editor == "" {
-			return "", fmt.Errorf("no suitable editor found. Set $EDITOR environment variable")
-		}
-	}
-
-	// Create a temporary file
-	tmpFile, err := os.CreateTemp("", "js-repl-*.js")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name()) // Clean up the temp file
-
-	// Write current content to temp file
-	if _, err := tmpFile.WriteString(content); err != nil {
-		tmpFile.Close()
-		return "", fmt.Errorf("failed to write to temporary file: %w", err)
-	}
-	tmpFile.Close()
-
-	// Launch the editor
-	cmd := exec.Command(editor, tmpFile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("editor exited with error: %w", err)
-	}
-
-	// Read the edited content back
-	editedFile, err := os.Open(tmpFile.Name())
-	if err != nil {
-		return "", fmt.Errorf("failed to read edited file: %w", err)
-	}
-	defer editedFile.Close()
-
-	editedBytes, err := io.ReadAll(editedFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to read edited content: %w", err)
-	}
-
-	return string(editedBytes), nil
 }
 
 // wrapText wraps text to fit within the given width
@@ -369,11 +270,6 @@ func (m Model) wrapText(text string, width int) string {
 
 // processInput handles user input and updates the model
 func (m Model) processInput(input string) Model {
-	// Add non-empty, non-duplicate input to history
-	if input != "" && (len(m.historyEntries) == 0 || m.historyEntries[len(m.historyEntries)-1] != input) {
-		m.historyEntries = append(m.historyEntries, input)
-	}
-
 	if strings.HasPrefix(input, "/") {
 		// Handle slash commands
 		return m.handleSlashCommand(input)
@@ -418,17 +314,10 @@ func (m Model) handleSlashCommand(input string) Model {
 	switch cmd {
 	case "help":
 		helpText := `Available commands:
-/help      - Show this help
-/clear     - Clear the screen
-/quit      - Exit the REPL
-/multiline - Toggle multiline mode
-/edit      - Open current content in external editor (same as Ctrl+E)
-
-Keyboard shortcuts:
-Ctrl+J     - Add line in multiline mode
-Ctrl+E     - Open external editor
-Ctrl+C     - Exit REPL
-Up/Down    - Navigate command history`
+/help     - Show this help
+/clear    - Clear the screen
+/quit     - Exit the REPL
+/multiline - Toggle multiline mode`
 
 		m.history = append(m.history, historyEntry{
 			input:  input,
@@ -453,50 +342,6 @@ Up/Down    - Navigate command history`
 			output: fmt.Sprintf("Multiline mode %s", status),
 			isErr:  false,
 		})
-
-	case "edit":
-		// Handle /edit command - same as Ctrl+E
-		var content string
-		if m.multilineMode && len(m.multilineText) > 0 {
-			content = strings.Join(m.multilineText, "\n")
-		} else {
-			content = m.textInput.Value()
-		}
-
-		if content == "" {
-			m.history = append(m.history, historyEntry{
-				input:  input,
-				output: "No content to edit. Type some code first.",
-				isErr:  true,
-			})
-			return m
-		}
-
-		if editedContent, err := m.openExternalEditor(content); err == nil {
-			lines := strings.Split(strings.TrimSpace(editedContent), "\n")
-			if len(lines) > 1 {
-				// Switch to multiline mode if editor returned multiple lines
-				m.multilineMode = true
-				m.multilineText = lines
-				m.textInput.Reset()
-			} else {
-				// Update single line input
-				m.multilineMode = false
-				m.multilineText = []string{}
-				m.textInput.SetValue(lines[0])
-			}
-			m.history = append(m.history, historyEntry{
-				input:  input,
-				output: "Content updated from external editor",
-				isErr:  false,
-			})
-		} else {
-			m.history = append(m.history, historyEntry{
-				input:  input,
-				output: fmt.Sprintf("Editor error: %v", err),
-				isErr:  true,
-			})
-		}
 
 	default:
 		m.history = append(m.history, historyEntry{
