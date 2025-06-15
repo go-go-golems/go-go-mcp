@@ -98,8 +98,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// REPL command
+	replCmd, err := cmd.NewReplCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating repl command: %v\n", err)
+		os.Exit(1)
+	}
+
+	replCobraCmd, err := cli.BuildCobraCommandFromCommand(replCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building repl command: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Add commands to root
-	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd, runScriptsCobraCmd)
+	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd, runScriptsCobraCmd, replCobraCmd)
 
 	// Add profiles command for configuration management
 	profilesCmd, err := clay_profiles.NewProfilesCommand("js-web-server", jsWebServerInitialProfilesContent)
