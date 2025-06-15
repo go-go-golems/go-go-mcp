@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
+	"github.com/go-go-golems/geppetto/pkg/steps/ai/settings"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/repository"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
@@ -15,14 +17,16 @@ import (
 // Engine wraps the JavaScript runtime and data repositories
 type Engine struct {
 	rt           *goja.Runtime
+	loop         *eventloop.EventLoop         // Event loop for async operations
 	db           *sql.DB                      // Legacy database connection for JavaScript bindings
 	repos        repository.RepositoryManager // Repository manager for data access
 	jobs         chan EvalJob
 	handlers     map[string]map[string]*HandlerInfo // [path][method] -> handler info
 	files        map[string]goja.Callable           // [path] -> file handler
 	mu           sync.RWMutex
-	reqLogger    *RequestLogger // Request logger for admin interface
-	currentReqID string         // Track current request ID for logging
+	reqLogger    *RequestLogger         // Request logger for admin interface
+	currentReqID string                 // Track current request ID for logging
+	stepSettings *settings.StepSettings // Settings for AI steps
 }
 
 // HandlerInfo contains handler function and metadata
@@ -55,6 +59,10 @@ type EvalResult struct {
 func NewEngine(appDBPath, systemDBPath string) *Engine {
 	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Creating new JavaScript engine")
 
+	// Create event loop for async operations
+	loop := eventloop.NewEventLoop()
+	log.Debug().Msg("Event loop created")
+
 	rt := goja.New()
 	log.Debug().Msg("Goja runtime created")
 
@@ -75,16 +83,29 @@ func NewEngine(appDBPath, systemDBPath string) *Engine {
 	}
 	log.Debug().Str("database", systemDBPath).Msg("System database repository manager created")
 
+	// Initialize AI step settings
+	stepSettings, err := settings.NewStepSettings()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create step settings")
+	}
+	log.Debug().Msg("AI step settings initialized")
+
 	e := &Engine{
-		rt:        rt,
-		db:        appDB,
-		repos:     repos,
-		jobs:      make(chan EvalJob, 1024),
-		handlers:  make(map[string]map[string]*HandlerInfo),
-		files:     make(map[string]goja.Callable),
-		reqLogger: NewRequestLogger(100), // Keep last 100 requests
+		rt:           rt,
+		loop:         loop,
+		db:           appDB,
+		repos:        repos,
+		jobs:         make(chan EvalJob, 1024),
+		handlers:     make(map[string]map[string]*HandlerInfo),
+		files:        make(map[string]goja.Callable),
+		reqLogger:    NewRequestLogger(100), // Keep last 100 requests
+		stepSettings: stepSettings,
 	}
 	log.Debug().Msg("Engine struct initialized")
+
+	// Start the event loop
+	loop.Start()
+	log.Debug().Msg("Event loop started")
 
 	// Setup JavaScript bindings
 	log.Debug().Msg("Setting up JavaScript bindings")
@@ -94,8 +115,25 @@ func NewEngine(appDBPath, systemDBPath string) *Engine {
 	// Log runtime state after bindings setup
 	e.logJavaScriptRuntimeState("after-bindings-setup")
 
-	log.Debug().Msg("JavaScript engine initialized with repository pattern")
+	log.Debug().Msg("JavaScript engine initialized with repository pattern and Geppetto API")
 	return e
+}
+
+// UpdateStepSettings updates the AI step settings for the engine
+func (e *Engine) UpdateStepSettings(stepSettings *settings.StepSettings) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.stepSettings = stepSettings
+	log.Debug().Msg("Step settings updated")
+
+	// Re-register Geppetto APIs with new settings
+	return e.setupGeppettoBindings()
+}
+
+// ExecuteScript executes JavaScript code and returns the result with console output
+func (e *Engine) ExecuteScript(code string) (*EvalResult, error) {
+	return e.executeCodeWithResult(code)
 }
 
 // Init loads and executes a bootstrap JavaScript file
@@ -113,7 +151,7 @@ if (!globalState.counter) {
 
 // Basic routes using Express.js API
 app.get("/", (req, res) => {
-    res.send("JS playground online");
+    res.send("JS playground online with Geppetto APIs");
 });
 
 app.get("/health", (req, res) => {
@@ -124,7 +162,36 @@ app.post("/counter", (req, res) => {
     res.json({count: ++globalState.counter});
 });
 
-console.log("Bootstrap complete - server ready");`
+// Example Geppetto API usage route
+app.get("/geppetto-demo", (req, res) => {
+    try {
+        // Create a new conversation
+        const conv = new Conversation();
+        
+        // Add a simple message (note: using lowercase method names due to field name mapper)
+        const msgId = conv.addMessage("user", "Hello, Geppetto!");
+        console.log("Added message with ID:", msgId);
+        
+        // Get conversation as single prompt
+        const prompt = conv.getSinglePrompt();
+        
+        res.json({
+            success: true,
+            messageId: msgId,
+            prompt: prompt,
+            conversationAPI: "Available",
+            chatFactory: typeof ChatStepFactory !== 'undefined' ? "Available" : "Not Available"
+        });
+    } catch (error) {
+        console.error("Geppetto demo error:", error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+console.log("Bootstrap complete - server ready with Geppetto APIs");`
 
 		if err := os.WriteFile(filename, []byte(bootstrap), 0644); err == nil {
 			log.Debug().Str("file", filename).Msg("Created default bootstrap file")
@@ -384,4 +451,36 @@ func (e *Engine) stringifyJSValue(value goja.Value) string {
 	}
 
 	return result.String()
+}
+
+// Close gracefully shuts down the engine
+func (e *Engine) Close() error {
+	log.Debug().Msg("Shutting down JavaScript engine")
+
+	// Stop the event loop
+	if e.loop != nil {
+		e.loop.Stop()
+		log.Debug().Msg("Event loop stopped")
+	}
+
+	// Close database connections
+	if e.db != nil {
+		if err := e.db.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close application database")
+			return err
+		}
+		log.Debug().Msg("Application database closed")
+	}
+
+	// Close repository manager
+	if e.repos != nil {
+		if err := e.repos.Close(); err != nil {
+			log.Error().Err(err).Msg("Failed to close repository manager")
+			return err
+		}
+		log.Debug().Msg("Repository manager closed")
+	}
+
+	log.Debug().Msg("JavaScript engine shutdown complete")
+	return nil
 }

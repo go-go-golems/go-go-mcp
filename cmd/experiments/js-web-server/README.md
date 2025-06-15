@@ -11,6 +11,9 @@ go run . serve -p 8080
 # Execute JavaScript code (Express.js style)
 go run . execute "app.get('/hello', (req, res) => res.send('Hello World!'))"
 
+# Start interactive REPL for experimentation
+go run . repl
+
 # Test the server
 go run . test
 ```
@@ -20,6 +23,7 @@ Then visit `http://localhost:8080/hello` to see your endpoint in action!
 ## ✨ Features
 
 - **Express.js Compatible API**: Use familiar Express.js syntax (`app.get`, `app.post`, `req`, `res`)
+- **Interactive REPL**: JavaScript Read-Eval-Print Loop for quick experimentation and debugging
 - **Dynamic JavaScript Runtime**: Execute JavaScript code that can register HTTP endpoints in real-time
 - **SQLite Integration**: Direct database access from JavaScript with automatic parameter binding
 - **Express.js Response Methods**: `res.send()`, `res.json()`, `res.status()`, `res.redirect()`, etc.
@@ -166,6 +170,40 @@ go run . execute "console.log('Hello from CLI')"
 go run . test --url http://localhost:8080
 ```
 
+### Interactive REPL
+
+```bash
+# Start basic REPL
+go run . repl
+
+# Start in multiline mode
+go run . repl --multiline
+
+# Show REPL help
+go run . repl --help
+```
+
+The REPL provides an interactive JavaScript environment with:
+- **Real-time execution**: Test JavaScript expressions immediately
+- **Multiline support**: Use Ctrl+J for multi-line input or start with `--multiline`
+- **History navigation**: Use arrow keys (↑/↓) to navigate through command history
+- **External editor**: Press Ctrl+E or use `/edit` to open code in your preferred editor
+- **Built-in commands**: `/help`, `/clear`, `/multiline`, `/edit`, `/quit`
+- **Error recovery**: Syntax and runtime errors don't crash the session
+- **Console.log support**: Debug output directly in the REPL
+
+#### REPL Demo Videos
+
+Visual demonstrations of REPL features are available in the `demos/` directory:
+- **Basic Usage**: Simple expressions and console.log
+- **Multiline Mode**: Function definitions and complex code blocks  
+- **Slash Commands**: Built-in REPL commands and help system
+- **Error Handling**: How the REPL handles various error conditions
+- **History Navigation**: Arrow key navigation through command history
+- **External Editor**: Integration with external editors via Ctrl+E
+
+Generate demo GIFs: `cd demos && ./generate-all.sh` (requires [VHS](https://github.com/charmbracelet/vhs))
+
 ## 🏗️ Project Structure
 
 ```
@@ -177,12 +215,19 @@ cmd/experiments/js-web-server/
 │   │   ├── dispatcher.go            # Single-threaded job processor
 │   │   ├── bindings.go              # JavaScript API bindings
 │   │   └── handlers.go              # Express.js compatible routing
+│   ├── repl/                        # Interactive REPL implementation
+│   │   ├── model.go                 # REPL UI model with Bubble Tea
+│   │   └── styles.go                # Visual styling with Lipgloss
 │   ├── api/
 │   │   └── execute.go               # /v1/execute endpoint for code execution
 │   ├── web/
 │   │   └── router.go                # Dynamic route handling
 │   └── mcp/
 │       └── server.go                # MCP server integration
+├── demos/                           # VHS demo tapes for REPL
+│   ├── README.md                    # Demo documentation
+│   ├── generate-all.sh              # Script to generate all demos
+│   └── *.tape                       # VHS tape files
 ├── pkg/
 │   └── doc/                         # Documentation package
 │       ├── docs/                    # Embedded documentation files

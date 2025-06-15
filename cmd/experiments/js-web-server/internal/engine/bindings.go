@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-go-golems/geppetto/pkg/js"
 	"github.com/rs/zerolog/log"
 )
 
@@ -61,6 +62,10 @@ func (e *Engine) setupBindings() {
 	`); err != nil {
 		log.Error().Err(err).Msg("Failed to initialize globalState")
 	}
+
+	// Setup Geppetto JavaScript APIs
+	e.setupGeppettoAPIs()
+
 	log.Debug().Msg("JavaScript bindings configured")
 }
 
@@ -406,4 +411,58 @@ func (e *Engine) captureConsoleOutput(result *EvalResult, level string, args ...
 	case "debug":
 		e.consoleDebug(args...)
 	}
+}
+
+// setupGeppettoAPIs configures Geppetto JavaScript APIs (Conversation, Embeddings, Steps, ChatStepFactory)
+func (e *Engine) setupGeppettoAPIs() {
+	log.Debug().Msg("Setting up Geppetto JavaScript APIs")
+
+	// Register Conversation API
+	if err := js.RegisterConversation(e.rt); err != nil {
+		log.Error().Err(err).Msg("Failed to register Conversation API")
+	} else {
+		log.Debug().Msg("Conversation API registered")
+	}
+
+	// Register ChatStepFactory
+	if err := js.RegisterFactory(e.rt, e.loop, e.stepSettings); err != nil {
+		log.Error().Err(err).Msg("Failed to register ChatStepFactory")
+	} else {
+		log.Debug().Msg("ChatStepFactory registered")
+	}
+
+	// TODO: Register Embeddings API when available
+	// This requires an embeddings provider which we don't have configured yet
+	// if err := js.RegisterEmbeddings(e.rt, "embeddings", embeddingsProvider, e.loop); err != nil {
+	//     log.Error().Err(err).Msg("Failed to register Embeddings API")
+	// } else {
+	//     log.Debug().Msg("Embeddings API registered")
+	// }
+
+	// TODO: Register additional Steps API when needed
+	// Steps are typically registered on a per-use basis
+
+	log.Debug().Msg("Geppetto JavaScript APIs setup complete")
+}
+
+// setupGeppettoBindings sets up only the Geppetto API bindings
+func (e *Engine) setupGeppettoBindings() error {
+	log.Debug().Msg("Setting up Geppetto JavaScript APIs")
+
+	// Register Conversation API
+	if err := js.RegisterConversation(e.rt); err != nil {
+		log.Error().Err(err).Msg("Failed to register Conversation API")
+		return err
+	}
+	log.Debug().Msg("Conversation API registered")
+
+	// Register ChatStepFactory
+	if err := js.RegisterFactory(e.rt, e.loop, e.stepSettings); err != nil {
+		log.Error().Err(err).Msg("Failed to register ChatStepFactory")
+		return err
+	}
+	log.Debug().Msg("ChatStepFactory registered")
+
+	log.Debug().Msg("Geppetto JavaScript APIs setup complete")
+	return nil
 }

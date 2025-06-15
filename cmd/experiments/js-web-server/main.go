@@ -2,365 +2,263 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 
 	clay "github.com/go-go-golems/clay/pkg"
+	clay_profiles "github.com/go-go-golems/clay/pkg/cmds/profiles"
+	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/api"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/engine"
+	"github.com/go-go-golems/glazed/pkg/help"
+	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/cmd"
 	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/mcp"
-	"github.com/go-go-golems/go-go-mcp/cmd/experiments/js-web-server/internal/web"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
-var (
-	port       string
-	db         string
-	scriptsDir string
-	serverURL  string
-)
-
-// findFreePort finds a free port starting from the given port
-func findFreePort(startPort int) (int, error) {
-	for port := startPort; port < startPort+100; port++ {
-		listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-		if err == nil {
-			_ = listener.Close()
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("no free port found in range %d-%d", startPort, startPort+99)
-}
-
 func main() {
+	// Initialize help system
+	helpSystem := help.NewHelpSystem()
+
+	// Create root command
 	rootCmd := &cobra.Command{
 		Use:   "js-playground",
-		Short: "JavaScript playground web server",
-		Long:  "A JavaScript playground web server with SQLite integration",
+		Short: "JavaScript playground web server with Geppetto AI integration",
+		Long:  "A JavaScript playground web server with SQLite integration and Geppetto AI capabilities",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			err := logging.InitLoggerFromViper()
-			if err != nil {
-				return err
-			}
-			return nil
+			return logging.InitLoggerFromViper()
 		},
 	}
 
-	// Server command
-	serverCmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Start the JavaScript playground server",
-		Run:   runServer,
-	}
-	serverCmd.Flags().StringVarP(&port, "port", "p", "8080", "HTTP port for JavaScript web server")
-	serverCmd.Flags().String("admin-port", "9090", "HTTP port for admin/system interface")
-	serverCmd.Flags().StringVarP(&db, "app-db", "d", "data.sqlite", "SQLite database path for application data (accessible via db.* in JavaScript)")
-	serverCmd.Flags().String("system-db", "system.sqlite", "SQLite database path for system operations (execution logs, request logs)")
-	serverCmd.Flags().StringVarP(&scriptsDir, "scripts", "s", "", "Directory containing JavaScript files to load on startup")
+	// Set up help system for the root command
+	helpSystem.SetupCobraRootCommand(rootCmd)
 
+	// Initialize Viper for configuration management
 	if err := clay.InitViper("js-web-server", rootCmd); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize viper")
+		fmt.Fprintf(os.Stderr, "Failed to initialize viper: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create Glazed commands with Geppetto integration
+
+	// Serve command with Geppetto layers
+	serveCmd, err := cmd.NewServeCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating serve command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Build Cobra command with custom js-web-server middlewares and profile support
+	serveCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(
+		serveCmd,
+		cli.WithProfileSettingsLayer(),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building serve command: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Execute command
-	executeCmd := &cobra.Command{
-		Use:   "execute [file or code]",
-		Short: "Execute JavaScript code",
-		Args:  cobra.ExactArgs(1),
-		Run:   runExecute,
+	executeCmd, err := cmd.NewExecuteCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating execute command: %v\n", err)
+		os.Exit(1)
 	}
-	executeCmd.Flags().StringVarP(&serverURL, "url", "u", "http://localhost:8080", "Server URL")
+
+	executeCobraCmd, err := cli.BuildCobraCommandFromCommand(executeCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building execute command: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Test command
-	testCmd := &cobra.Command{
-		Use:   "test",
-		Short: "Test the server endpoints",
-		Run:   runTest,
+	testCmd, err := cmd.NewTestCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating test command: %v\n", err)
+		os.Exit(1)
 	}
-	testCmd.Flags().StringVarP(&serverURL, "url", "u", "http://localhost:8080", "Server URL")
+
+	testCobraCmd, err := cli.BuildCobraCommandFromCommand(testCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building test command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Run Scripts command with Geppetto integration
+	runScriptsCmd, err := cmd.NewRunScriptsCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating run-scripts command: %v\n", err)
+		os.Exit(1)
+	}
+
+	runScriptsCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(
+		runScriptsCmd,
+		cli.WithProfileSettingsLayer(),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building run-scripts command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// REPL command
+	replCmd, err := cmd.NewReplCmd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating repl command: %v\n", err)
+		os.Exit(1)
+	}
+
+	replCobraCmd, err := cli.BuildCobraCommandFromCommand(replCmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error building repl command: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Add commands to root
+	rootCmd.AddCommand(serveCobraCmd, executeCobraCmd, testCobraCmd, runScriptsCobraCmd, replCobraCmd)
+
+	// Add profiles command for configuration management
+	profilesCmd, err := clay_profiles.NewProfilesCommand("js-web-server", jsWebServerInitialProfilesContent)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing profiles command: %v\n", err)
+		os.Exit(1)
+	}
+	rootCmd.AddCommand(profilesCmd)
 
 	// MCP command - expose JavaScript execution as MCP tool
 	if err := mcp.AddMCPCommand(rootCmd); err != nil {
-		log.Fatal().Err(err).Msg("Failed to add MCP command")
+		fmt.Fprintf(os.Stderr, "Failed to add MCP command: %v\n", err)
+		os.Exit(1)
 	}
 
-	rootCmd.AddCommand(serverCmd, executeCmd, testCmd)
-
+	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatal().Err(err).Msg("Failed to execute command")
+		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-func runServer(cmd *cobra.Command, args []string) {
-	log.Info().Msg("Starting JavaScript playground server")
+// jsWebServerInitialProfilesContent provides the default YAML content for a new js-web-server profiles file.
+func jsWebServerInitialProfilesContent() string {
+	return `# JavaScript Web Server Profiles Configuration
+#
+# This file contains profile configurations for the JavaScript Web Server with Geppetto AI integration.
+# Each profile can override layer parameters for different components (like AI models, databases, server settings).
+# Profiles allow you to easily switch between different environments, model providers, or configurations.
+#
+# Profiles are selected using the --profile <profile-name> flag.
+#
+# Example profiles:
 
-	// Find free port starting from the requested port
-	requestedPort, err := strconv.Atoi(port)
-	if err != nil {
-		log.Fatal().Err(err).Str("port", port).Msg("Invalid port number")
-	}
+# Development profile with local settings
+development:
+  # AI Chat settings for development
+  ai-chat:
+    ai-engine: gpt-4o-mini
+    ai-api-type: openai
+    ai-temperature: 0.8
+    ai-stream: true
+  # OpenAI configuration for development
+  openai-chat:
+    openai-api-key: "[REDACTED:api-key]" # Replace with your key or use environment variable
+  # Server settings for development
+  default:
+    port: "8080"
+    admin-port: "9090"
+    app-db: "dev-data.sqlite"
+    system-db: "dev-system.sqlite"
+    scripts: "./scripts"
 
-	actualPort, err := findFreePort(requestedPort)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to find free port")
-	}
+# Production profile with optimized settings
+production:
+  # AI Chat settings for production
+  ai-chat:
+    ai-engine: gpt-4
+    ai-api-type: openai
+    ai-temperature: 0.7
+    ai-max-response-tokens: 2000
+    ai-cache-type: disk
+    ai-cache-directory: "/var/cache/js-web-server"
+  # OpenAI configuration for production
+  openai-chat:
+    openai-api-key: "[REDACTED:api-key]" # Use environment variable in production
+  # Server settings for production
+  default:
+    port: "8080"
+    admin-port: "9090"
+    app-db: "/var/lib/js-web-server/data.sqlite"
+    system-db: "/var/lib/js-web-server/system.sqlite"
+    scripts: "/etc/js-web-server/scripts"
 
-	if actualPort != requestedPort {
-		log.Info().Int("requested_port", requestedPort).Int("actual_port", actualPort).Msg("Requested port was unavailable, using alternative port")
-	}
+# Claude-based profile
+claude-dev:
+  # AI Chat settings using Claude
+  ai-chat:
+    ai-engine: claude-3-sonnet-20240229
+    ai-api-type: claude
+    ai-temperature: 0.6
+    ai-stream: true
+  # Claude configuration
+  claude-chat:
+    claude-api-key: "[REDACTED:api-key]" # Replace with your Anthropic API key
+    claude-base-url: "https://api.anthropic.com/"
+  # Server settings
+  default:
+    port: "8081"
+    admin-port: "9091"
+    app-db: "claude-data.sqlite"
+    system-db: "claude-system.sqlite"
 
-	// Ensure scripts directory exists
-	if err := os.MkdirAll("scripts", 0755); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create scripts directory")
-	}
-	log.Debug().Msg("Scripts directory ready")
+# Local LLM profile using Ollama
+local-llm:
+  # AI Chat settings for local models
+  ai-chat:
+    ai-engine: llama3:8b
+    ai-api-type: ollama
+    ai-temperature: 0.5
+    ai-stream: true
+  # Embeddings using local models
+  embeddings:
+    embeddings-type: ollama
+    embeddings-engine: nomic-embed-text
+    embeddings-dimensions: 768
+  # Server settings for local development
+  default:
+    port: "8082"
+    admin-port: "9092"
+    app-db: "local-data.sqlite"
+    system-db: "local-system.sqlite"
+    scripts: "./scripts"
 
-	// Get database and port configurations from flags
-	appDBPath := db
-	systemDBPath, err := cmd.Flags().GetString("system-db")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get system-db flag")
-	}
+# Testing profile with minimal settings
+testing:
+  # AI Chat settings for testing
+  ai-chat:
+    ai-engine: gpt-3.5-turbo
+    ai-api-type: openai
+    ai-temperature: 0.0
+    ai-max-response-tokens: 100
+  # Server settings for testing
+  default:
+    port: "18080"
+    admin-port: "19090"
+    app-db: ":memory:"
+    system-db: ":memory:"
 
-	adminPortStr, err := cmd.Flags().GetString("admin-port")
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get admin-port flag")
-	}
-	adminPortInt, err := strconv.Atoi(adminPortStr)
-	if err != nil {
-		log.Fatal().Err(err).Str("admin-port", adminPortStr).Msg("Invalid admin port number")
-	}
-
-	log.Debug().Str("appDatabase", appDBPath).Str("systemDatabase", systemDBPath).Msg("Initializing JavaScript engine")
-	jsEngine := engine.NewEngine(appDBPath, systemDBPath)
-	if err := jsEngine.Init("bootstrap.js"); err != nil {
-		log.Warn().Err(err).Msg("Failed to load bootstrap.js")
-	}
-
-	// Start dispatcher goroutine first
-	log.Debug().Msg("Starting JavaScript dispatcher")
-	jsEngine.StartDispatcher()
-
-	// Give dispatcher time to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Load scripts from directory if specified
-	if scriptsDir != "" {
-		log.Info().Str("directory", scriptsDir).Msg("Loading scripts from directory")
-		loadScriptsFromDir(jsEngine, scriptsDir)
-		log.Info().Msg("Finished loading scripts")
-	}
-
-	// Find free admin port
-	actualAdminPort, err := findFreePort(adminPortInt)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to find free admin port")
-	}
-	if actualAdminPort != adminPortInt {
-		log.Info().Int("requested_admin_port", adminPortInt).Int("actual_admin_port", actualAdminPort).Msg("Requested admin port was unavailable, using alternative port")
-	}
-
-	// Setup separate routers
-	log.Debug().Msg("Setting up HTTP routers")
-
-	// JS Server router (user-facing, JavaScript endpoints)
-	jsRouter := web.SetupJSRoutes(jsEngine)
-
-	// Admin router (system interface, playground, API)
-	adminRouter := web.SetupRoutesWithAPI(jsEngine, api.ExecuteHandler(jsEngine))
-	log.Debug().Msg("Registered API endpoint: POST /v1/execute")
-
-	// Configure server addresses
-	jsAddr := ":" + strconv.Itoa(actualPort)
-	adminAddr := ":" + strconv.Itoa(actualAdminPort)
-	jsBaseURL := fmt.Sprintf("http://localhost:%d", actualPort)
-	adminBaseURL := fmt.Sprintf("http://localhost:%d", actualAdminPort)
-
-	log.Info().
-		Str("js_address", jsAddr).
-		Str("admin_address", adminAddr).
-		Str("app_database", appDBPath).
-		Str("system_database", systemDBPath).
-		Msg("Server configuration")
-
-	if scriptsDir != "" {
-		log.Info().Str("scripts", scriptsDir).Msg("Scripts directory configured")
-	}
-
-	log.Info().Str("execute_endpoint", adminBaseURL+"/v1/execute").Msg("API endpoint ready")
-	log.Info().Str("js_server", jsBaseURL).Msg("JavaScript web server available")
-	log.Info().Str("admin_interface", adminBaseURL).Msg("Admin interface available")
-	log.Info().Str("admin_logs", adminBaseURL+"/admin/logs").Msg("Admin logs available")
-
-	// Start servers concurrently
-	log.Info().Str("js_address", jsAddr).Msg("Starting JavaScript web server")
-	go func() {
-		if err := http.ListenAndServe(jsAddr, jsRouter); err != nil {
-			log.Fatal().Err(err).Msg("JavaScript web server failed")
-		}
-	}()
-
-	log.Info().Str("admin_address", adminAddr).Msg("Starting admin interface server")
-	if err := http.ListenAndServe(adminAddr, adminRouter); err != nil {
-		log.Fatal().Err(err).Msg("Admin interface server failed")
-	}
-}
-
-func runExecute(cmd *cobra.Command, args []string) {
-	input := args[0]
-	var code string
-
-	// Check if input is a file
-	if fileInfo, err := os.Stat(input); err == nil && !fileInfo.IsDir() {
-		data, err := os.ReadFile(input)
-		if err != nil {
-			log.Fatal().Err(err).Str("file", input).Msg("Failed to read file")
-		}
-		code = string(data)
-		log.Info().Str("file", input).Msg("Executing file")
-	} else {
-		code = input
-		log.Info().Str("code", code).Msg("Executing code")
-	}
-
-	// Send to server
-	log.Debug().Str("url", serverURL+"/v1/execute").Msg("Sending request to server")
-	resp, err := http.Post(serverURL+"/v1/execute", "application/javascript", strings.NewReader(code))
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to execute code")
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read response")
-	}
-
-	fmt.Printf("Status: %s\n", resp.Status)
-	if len(body) > 0 {
-		fmt.Printf("Response: %s\n", string(body))
-	}
-}
-
-func runTest(cmd *cobra.Command, args []string) {
-	log.Info().Str("url", serverURL).Msg("Testing server")
-
-	// Test health endpoint
-	log.Info().Msg("Testing health endpoint")
-	resp, err := http.Get(serverURL + "/health")
-	if err != nil {
-		log.Error().Err(err).Msg("Health check failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /health")
-	}
-
-	// Test root endpoint
-	log.Info().Msg("Testing root endpoint")
-	resp, err = http.Get(serverURL + "/")
-	if err != nil {
-		log.Error().Err(err).Msg("Root endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /")
-	}
-
-	// Test counter endpoint
-	log.Info().Msg("Testing counter endpoint")
-	resp, err = http.Post(serverURL+"/counter", "application/json", strings.NewReader("{}"))
-	if err != nil {
-		log.Error().Err(err).Msg("Counter endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("POST /counter")
-	}
-
-	// Test execute endpoint
-	log.Info().Msg("Testing execute endpoint")
-	testCode := `
-		console.log("Hello from executed code!");
-		registerHandler("GET", "/test", () => ({message: "Test endpoint works!", time: new Date().toISOString()}));
-	`
-	resp, err = http.Post(serverURL+"/v1/execute", "application/javascript", strings.NewReader(testCode))
-	if err != nil {
-		log.Error().Err(err).Msg("Execute endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("POST /v1/execute")
-	}
-
-	// Test newly created endpoint
-	log.Info().Msg("Testing dynamically created endpoint")
-	resp, err = http.Get(serverURL + "/test")
-	if err != nil {
-		log.Error().Err(err).Msg("Dynamic endpoint failed")
-	} else {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(resp.Body)
-		log.Info().Str("status", resp.Status).Str("body", string(body)).Msg("GET /test")
-	}
-}
-
-func loadScriptsFromDir(jsEngine *engine.Engine, dir string) {
-	log.Info().Str("directory", dir).Msg("Loading JavaScript files")
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Error().Err(err).Str("path", path).Msg("Error accessing file")
-			return err
-		}
-
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".js") {
-			log.Info().Str("file", path).Msg("Loading JavaScript file")
-			data, err := os.ReadFile(path)
-			if err != nil {
-				log.Error().Err(err).Str("file", path).Msg("Failed to read file")
-				return nil
-			}
-
-			log.Debug().Str("file", path).Int("bytes", len(data)).Msg("Read JavaScript file")
-
-			// Submit to engine with timeout
-			done := make(chan error, 1)
-			job := engine.EvalJob{
-				Code:      string(data),
-				Done:      done,
-				SessionID: "startup-" + filepath.Base(path),
-				Source:    "file",
-			}
-
-			log.Debug().Str("file", path).Msg("Submitting job to engine")
-			jsEngine.SubmitJob(job)
-
-			// Wait for completion with timeout
-			select {
-			case err := <-done:
-				if err != nil {
-					log.Error().Err(err).Str("file", path).Msg("Failed to execute file")
-				} else {
-					log.Info().Str("file", path).Msg("Successfully loaded JavaScript file")
-				}
-			case <-time.After(10 * time.Second):
-				log.Error().Str("file", path).Msg("Timeout waiting for file execution")
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Error().Err(err).Str("directory", dir).Msg("Error walking scripts directory")
-	}
+#
+# You can manage this file using the 'js-web-server profiles' commands:
+# - list: List all profiles
+# - get <profile> [layer] [key]: Get profile settings
+# - set <profile> <layer> <key> <value>: Set a profile setting
+# - delete <profile> [layer] [key]: Delete a profile, layer, or setting
+# - edit: Open this file in your editor
+# - init: Create this file if it doesn't exist
+# - duplicate <source> <new>: Copy an existing profile
+#
+# Examples:
+#   js-web-server --profile development serve
+#   js-web-server --profile production serve --port 80
+#   js-web-server --profile claude-dev serve
+#   js-web-server --profile local-llm serve
+#   js-web-server profiles list
+#   js-web-server profiles get development ai-chat ai-engine
+#   js-web-server profiles set testing ai-chat ai-temperature 0.1
+`
 }
