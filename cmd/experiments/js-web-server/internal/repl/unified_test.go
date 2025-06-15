@@ -12,12 +12,12 @@ func TestUnifiedImplementation(t *testing.T) {
 	model := NewModel(false)
 
 	// Test that the engine is properly initialized
-	if model.jsEngine == nil {
+	if model.shared.jsEngine == nil {
 		t.Fatal("JavaScript engine not initialized")
 	}
 
 	// Test basic JavaScript execution
-	result, err := model.jsEngine.ExecuteScript("2 + 2")
+	result, err := model.shared.jsEngine.ExecuteScript("2 + 2")
 	if err != nil {
 		t.Fatalf("Failed to execute basic JavaScript: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test console logging
-	result, err = model.jsEngine.ExecuteScript(`console.log("Hello World"); "done"`)
+	result, err = model.shared.jsEngine.ExecuteScript(`console.log("Hello World"); "done"`)
 	if err != nil {
 		t.Fatalf("Failed to execute console.log: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test app.get registration (Express.js API)
-	_, err = model.jsEngine.ExecuteScript(`
+	_, err = model.shared.jsEngine.ExecuteScript(`
 		app.get("/test", (req, res) => {
 			res.json({message: "Hello from unified engine"});
 		});
@@ -47,7 +47,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test path parameter support
-	_, err = model.jsEngine.ExecuteScript(`
+	_, err = model.shared.jsEngine.ExecuteScript(`
 		app.get("/users/:id", (req, res) => {
 			res.json({userId: req.params.id, path: req.path});
 		});
@@ -57,7 +57,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test database functionality
-	_, err = model.jsEngine.ExecuteScript(`
+	_, err = model.shared.jsEngine.ExecuteScript(`
 		var users = db.query("SELECT 1 as id, 'test' as name");
 		console.log("Query result:", users);
 	`)
@@ -66,7 +66,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test geppetto integration
-	_, err = model.jsEngine.ExecuteScript(`
+	_, err = model.shared.jsEngine.ExecuteScript(`
 		var conv = new Conversation();
 		var msgId = conv.addMessage("user", "Hello Geppetto!");
 		console.log("Message ID:", msgId);
@@ -76,7 +76,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test that handlers are properly registered in the engine
-	handler, exists := model.jsEngine.GetHandler("GET", "/test")
+	handler, exists := model.shared.jsEngine.GetHandler("GET", "/test")
 	if !exists {
 		t.Error("Handler not found in engine registry")
 	}
@@ -85,7 +85,7 @@ func TestUnifiedImplementation(t *testing.T) {
 	}
 
 	// Test path parameter matching
-	handler, exists = model.jsEngine.GetHandler("GET", "/users/123")
+	handler, exists = model.shared.jsEngine.GetHandler("GET", "/users/123")
 	if !exists {
 		t.Error("Path parameter handler not found")
 	}
@@ -99,7 +99,7 @@ func TestHTTPIntegration(t *testing.T) {
 	model := NewModel(false)
 
 	// Register a test handler
-	_, err := model.jsEngine.ExecuteScript(`
+	_, err := model.shared.jsEngine.ExecuteScript(`
 		app.get("/api/test", (req, res) => {
 			res.json({
 				method: req.method,
@@ -124,7 +124,7 @@ func TestHTTPIntegration(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	w := httptest.NewRecorder()
 
-	handleDynamicRoute(model.jsEngine, w, req)
+	handleDynamicRoute(model.shared.jsEngine, w, req)
 
 	resp := w.Result()
 	if resp.StatusCode != 200 {
@@ -140,7 +140,7 @@ func TestHTTPIntegration(t *testing.T) {
 	req = httptest.NewRequest("GET", "/users/456", nil)
 	w = httptest.NewRecorder()
 
-	handleDynamicRoute(model.jsEngine, w, req)
+	handleDynamicRoute(model.shared.jsEngine, w, req)
 
 	resp = w.Result()
 	if resp.StatusCode != 200 {
@@ -156,7 +156,7 @@ func TestHTTPIntegration(t *testing.T) {
 	req = httptest.NewRequest("GET", "/nonexistent", nil)
 	w = httptest.NewRecorder()
 
-	handleDynamicRoute(model.jsEngine, w, req)
+	handleDynamicRoute(model.shared.jsEngine, w, req)
 
 	resp = w.Result()
 	if resp.StatusCode != 404 {

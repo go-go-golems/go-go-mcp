@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,10 +16,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// SharedState contains mutable state that needs to be shared
+type SharedState struct {
+	jsEngine *engine.Engine
+	router   *mux.Router
+}
+
 // Model represents the UI state for the REPL
 type Model struct {
 	styles              Styles
-	jsEngine            *engine.Engine
+	shared              *SharedState
 	textInput           textinput.Model
 	history             []historyEntry
 	historyEntries      []string // Store just the input strings for navigation
@@ -29,8 +34,6 @@ type Model struct {
 	multilineText       []string
 	width               int
 	quitting            bool
-	router              *mux.Router
-	serverMux           sync.Mutex
 }
 
 // historyEntry represents a single entry in the REPL history
@@ -72,6 +75,12 @@ func NewModelWithSettings(startMultiline bool, stepSettings *settings.StepSettin
 	// Setup dynamic routes using the engine
 	setupDynamicRoutes(router, jsEngine)
 
+	// Create shared state
+	shared := &SharedState{
+		jsEngine: jsEngine,
+		router:   router,
+	}
+
 	// Add REPL-specific web server functionality
 	rt := jsEngine.GetRuntime()
 	if err := rt.Set("startWebServer", func(call goja.FunctionCall) goja.Value {
@@ -82,7 +91,7 @@ func NewModelWithSettings(startMultiline bool, stepSettings *settings.StepSettin
 
 		go func() {
 			fmt.Printf("Starting web server on port %s...\n", port)
-			if err := http.ListenAndServe(":"+port, router); err != nil {
+			if err := http.ListenAndServe(":"+port, shared.router); err != nil {
 				fmt.Printf("Web server error: %v\n", err)
 			}
 		}()
@@ -94,7 +103,7 @@ func NewModelWithSettings(startMultiline bool, stepSettings *settings.StepSettin
 
 	return Model{
 		styles:              DefaultStyles(),
-		jsEngine:            jsEngine,
+		shared:              shared,
 		textInput:           ti,
 		history:             []historyEntry{},
 		historyEntries:      []string{},
@@ -103,7 +112,6 @@ func NewModelWithSettings(startMultiline bool, stepSettings *settings.StepSettin
 		multilineText:       []string{},
 		width:               80, // Default width
 		quitting:            false,
-		router:              router,
 	}
 }
 
@@ -521,7 +529,7 @@ func (m Model) processInput(input string) Model {
 	}
 
 	// Handle JavaScript evaluation using the engine
-	result, err := m.jsEngine.ExecuteScript(input)
+	result, err := m.shared.jsEngine.ExecuteScript(input)
 	if err != nil {
 		m.history = append(m.history, historyEntry{
 			input:  input,
