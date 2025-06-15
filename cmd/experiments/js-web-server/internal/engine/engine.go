@@ -213,7 +213,7 @@ console.log("Bootstrap complete - server ready with Geppetto APIs");`
 	if err != nil {
 		log.Error().Err(err).Str("file", filename).Msg("Failed to execute bootstrap file")
 	} else {
-		log.Info().Str("file", filename).Msg("Bootstrap file executed successfully")
+		log.Debug().Str("file", filename).Msg("Bootstrap file executed successfully")
 	}
 	return err
 }

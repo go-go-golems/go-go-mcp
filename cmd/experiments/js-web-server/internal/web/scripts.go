@@ -524,7 +524,7 @@ func serveScriptsAPI(w http.ResponseWriter, r *http.Request, jsEngine *engine.En
 
 	offset := (page - 1) * limit
 
-	log.Info().
+	log.Debug().
 		Str("search", search).
 		Str("sessionID", sessionID).
 		Str("limitStr", limitStr).

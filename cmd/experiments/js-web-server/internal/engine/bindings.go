@@ -231,7 +231,7 @@ func (e *Engine) jsExec(query string, args ...interface{}) map[string]interface{
 
 // consoleLog provides console.log functionality
 func (e *Engine) consoleLog(args ...interface{}) {
-	log.Info().Interface("args", args).Msg("JS console.log")
+	log.Debug().Interface("args", args).Msg("JS console.log")
 	fmt.Fprint(os.Stderr, "[JS] ")
 	for i, arg := range args {
 		if i > 0 {
@@ -269,7 +269,7 @@ func (e *Engine) consoleError(args ...interface{}) {
 
 // consoleInfo provides console.info functionality
 func (e *Engine) consoleInfo(args ...interface{}) {
-	log.Info().Interface("args", args).Msg("JS console.info")
+	log.Debug().Interface("args", args).Msg("JS console.info")
 	fmt.Fprint(os.Stderr, "[JS INFO] ")
 	for i, arg := range args {
 		if i > 0 {

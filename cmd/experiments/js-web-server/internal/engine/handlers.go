@@ -337,9 +337,9 @@ func (e *Engine) registerHandler(method, path string, handler goja.Value, args .
 	e.handlers[path][method] = handlerInfo
 
 	if contentType != "" {
-		log.Info().Str("method", method).Str("path", path).Str("content-type", contentType).Msg("Registered HTTP handler with content type")
+		log.Debug().Str("method", method).Str("path", path).Str("content-type", contentType).Msg("Registered HTTP handler with content type")
 	} else {
-		log.Info().Str("method", method).Str("path", path).Msg("Registered HTTP handler")
+		log.Debug().Str("method", method).Str("path", path).Msg("Registered HTTP handler")
 	}
 }
 
@@ -354,7 +354,7 @@ func (e *Engine) registerFile(path string, handler goja.Value) {
 	defer e.mu.Unlock()
 
 	e.files[path] = callable
-	log.Info().Str("path", path).Msg("Registered file handler")
+	log.Debug().Str("path", path).Msg("Registered file handler")
 }
 
 // Helper functions for content type detection

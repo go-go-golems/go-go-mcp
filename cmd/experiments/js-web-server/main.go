@@ -63,7 +63,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	executeCobraCmd, err := cli.BuildCobraCommandFromCommand(executeCmd)
+	executeCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(executeCmd, cli.WithProfileSettingsLayer())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building execute command: %v\n", err)
 		os.Exit(1)
@@ -76,7 +76,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	testCobraCmd, err := cli.BuildCobraCommandFromCommand(testCmd)
+	testCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(testCmd, cli.WithProfileSettingsLayer())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building test command: %v\n", err)
 		os.Exit(1)
@@ -105,7 +105,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	replCobraCmd, err := cli.BuildCobraCommandFromCommand(replCmd)
+	replCobraCmd, err := cmd.BuildCobraCommandWithServeMiddlewares(replCmd, cli.WithProfileSettingsLayer())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error building repl command: %v\n", err)
 		os.Exit(1)

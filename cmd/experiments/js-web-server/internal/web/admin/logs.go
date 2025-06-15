@@ -93,7 +93,7 @@ func (lh *LogsHandler) handleClearLogsAPI(w http.ResponseWriter, r *http.Request
 	}
 
 	lh.logger.ClearLogs()
-	log.Info().Msg("Request logs cleared via admin interface")
+	log.Debug().Msg("Request logs cleared via admin interface")
 
 	response := map[string]interface{}{
 		"success": true,
