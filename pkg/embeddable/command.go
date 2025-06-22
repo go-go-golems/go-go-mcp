@@ -2,6 +2,7 @@ package embeddable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -247,9 +248,24 @@ func listTools(cmd *cobra.Command, config *ServerConfig) error {
 		return nil
 	}
 
-	fmt.Printf("Available tools (%d):\n", len(tools))
-	for _, tool := range tools {
-		fmt.Printf("  %s - %s\n", tool.Name, tool.Description)
+	fmt.Printf("Available tools (%d):\n\n", len(tools))
+	for i, tool := range tools {
+		if i > 0 {
+			fmt.Println()
+		}
+
+		fmt.Printf("Tool: %s\n", tool.Name)
+		fmt.Printf("Description: %s\n", tool.Description)
+
+		// Parse and display input schema
+		if len(tool.InputSchema) > 0 {
+			fmt.Printf("Input Schema:\n")
+			if err := displayInputSchema(tool.InputSchema); err != nil {
+				fmt.Printf("  Error parsing schema: %v\n", err)
+			}
+		} else {
+			fmt.Printf("Input Schema: None\n")
+		}
 	}
 
 	return nil
@@ -293,5 +309,83 @@ func showConfig(cmd *cobra.Command, config *ServerConfig) error {
 	if len(config.internalServers) > 0 {
 		fmt.Printf("Internal Servers: %v\n", config.internalServers)
 	}
+	return nil
+}
+
+// JSONSchema represents a JSON Schema structure
+type JSONSchema struct {
+	Type        string                    `json:"type"`
+	Properties  map[string]PropertySchema `json:"properties"`
+	Required    []string                  `json:"required"`
+	Description string                    `json:"description"`
+}
+
+// PropertySchema represents a property in JSON Schema
+type PropertySchema struct {
+	Type        string      `json:"type"`
+	Description string      `json:"description"`
+	Enum        []string    `json:"enum"`
+	Default     interface{} `json:"default"`
+}
+
+// displayInputSchema parses and displays the JSON schema in a readable format
+func displayInputSchema(schemaBytes json.RawMessage) error {
+	var schema JSONSchema
+	if err := json.Unmarshal(schemaBytes, &schema); err != nil {
+		// If parsing as structured schema fails, try to display as raw JSON
+		var rawSchema map[string]interface{}
+		if err2 := json.Unmarshal(schemaBytes, &rawSchema); err2 != nil {
+			return fmt.Errorf("failed to parse schema: %w", err)
+		}
+
+		// Pretty print the raw JSON
+		prettyJSON, err := json.MarshalIndent(rawSchema, "  ", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to format schema: %w", err)
+		}
+		fmt.Printf("  %s\n", string(prettyJSON))
+		return nil
+	}
+
+	// Display structured schema information
+	if schema.Type != "" {
+		fmt.Printf("  Type: %s\n", schema.Type)
+	}
+
+	if schema.Description != "" {
+		fmt.Printf("  Description: %s\n", schema.Description)
+	}
+
+	if len(schema.Properties) > 0 {
+		fmt.Printf("  Parameters:\n")
+		for name, prop := range schema.Properties {
+			required := ""
+			for _, req := range schema.Required {
+				if req == name {
+					required = " (required)"
+					break
+				}
+			}
+
+			fmt.Printf("    %s%s:\n", name, required)
+			if prop.Type != "" {
+				fmt.Printf("      Type: %s\n", prop.Type)
+			}
+			if prop.Description != "" {
+				fmt.Printf("      Description: %s\n", prop.Description)
+			}
+			if len(prop.Enum) > 0 {
+				fmt.Printf("      Allowed values: %v\n", prop.Enum)
+			}
+			if prop.Default != nil {
+				fmt.Printf("      Default: %v\n", prop.Default)
+			}
+		}
+	}
+
+	if len(schema.Required) > 0 {
+		fmt.Printf("  Required parameters: %v\n", schema.Required)
+	}
+
 	return nil
 }
