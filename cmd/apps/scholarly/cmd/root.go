@@ -39,9 +39,7 @@ Examples:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	helpSystem := help.NewHelpSystem()
-	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
-	rootCmd.SetHelpFunc(helpFunc)
-	rootCmd.SetUsageFunc(usageFunc)
+	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	err := clay.InitViper("mcp", rootCmd)
 	if err != nil {
