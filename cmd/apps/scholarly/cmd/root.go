@@ -6,6 +6,7 @@ import (
 	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
+	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +39,9 @@ Examples:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	helpSystem := help.NewHelpSystem()
-	helpSystem.SetupCobraRootCommand(rootCmd)
+	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
+	rootCmd.SetHelpFunc(helpFunc)
+	rootCmd.SetUsageFunc(usageFunc)
 
 	err := clay.InitViper("mcp", rootCmd)
 	if err != nil {

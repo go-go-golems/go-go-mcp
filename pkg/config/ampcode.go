@@ -11,14 +11,14 @@ import (
 	"github.com/tailscale/hujson"
 )
 
-// AmpCodeConfig represents the VS Code/Cursor configuration which contains MCP servers settings
+// AmpCodeConfig represents the Amp configuration which contains MCP servers settings
 type AmpCodeConfig struct {
 	AmpMCPServers map[string]AmpCodeMCPServer `json:"amp.mcpServers"`
 	DisabledTools []string                    `json:"amp.tools.disable,omitempty"`
 	// Other fields could be added as needed
 }
 
-// AmpCodeMCPServer represents a server configuration for AmpCode
+// AmpCodeMCPServer represents a server configuration for Amp
 type AmpCodeMCPServer struct {
 	Command  string            `json:"command,omitempty"`
 	Args     []string          `json:"args,omitempty"`
@@ -26,7 +26,7 @@ type AmpCodeMCPServer struct {
 	Disabled bool              `json:"disabled,omitempty"`
 }
 
-// AmpCodeEditor manages the VS Code/Cursor user settings configuration
+// AmpCodeEditor manages the Amp user settings configuration
 type AmpCodeEditor struct {
 	config *AmpCodeConfig
 	path   string
@@ -36,7 +36,7 @@ type AmpCodeEditor struct {
 	originalValue *hujson.Value
 }
 
-// GetAmpCodeConfigPath returns the path for the VS Code/Cursor settings file
+// GetAmpCodeConfigPath returns the path for the Amp settings file in Cursor
 func GetAmpCodeConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -44,6 +44,16 @@ func GetAmpCodeConfigPath() (string, error) {
 	}
 	// Path for Cursor settings
 	return filepath.Join(homeDir, ".config", "Cursor", "User", "settings.json"), nil
+}
+
+// GetAmpConfigPath returns the path for the standalone Amp settings file
+func GetAmpConfigPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get user home directory: %w", err)
+	}
+	// Path for standalone Amp settings using XDG config directory
+	return filepath.Join(homeDir, ".config", "amp", "settings.json"), nil
 }
 
 // NewAmpCodeEditor creates a new editor for the AmpCode configuration

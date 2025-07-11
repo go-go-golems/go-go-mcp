@@ -7,6 +7,7 @@ import (
 	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/help"
+	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	uicmds "github.com/go-go-golems/go-go-mcp/cmd/ui-server/cmds"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +21,9 @@ The server watches for changes in the specified directory and automatically relo
 
 func main() {
 	helpSystem := help.NewHelpSystem()
-	helpSystem.SetupCobraRootCommand(rootCmd)
+	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
+	rootCmd.SetHelpFunc(helpFunc)
+	rootCmd.SetUsageFunc(usageFunc)
 
 	startCmd, err := NewStartCommand()
 	cobra.CheckErr(err)
