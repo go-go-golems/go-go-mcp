@@ -32,7 +32,8 @@ type ConfigType string
 const (
 	ConfigTypeCursor  ConfigType = "cursor"
 	ConfigTypeClaude  ConfigType = "claude"
-	ConfigTypeAmpCode ConfigType = "ampcode" // Configuration for AmpCode (VS Code/Cursor)
+	ConfigTypeAmpCode ConfigType = "ampcode" // Configuration for Amp (Cursor)
+	ConfigTypeAmp     ConfigType = "amp"     // Configuration for standalone Amp
 	ConfigTypeProfile ConfigType = "profile" // New config type for profiles
 	ConfigTypeNone    ConfigType = ""        // Represents no config loaded
 )
@@ -246,7 +247,8 @@ func NewModel() Model {
 	items := []list.Item{
 		listItem{title: "Claude Config", description: "Configure Claude API settings"},
 		listItem{title: "Cursor Config", description: "Configure Cursor API settings"},
-		listItem{title: "AmpCode Config", description: "Configure AmpCode MCP servers in settings.json"},
+		listItem{title: "Amp Config (Cursor)", description: "Configure Amp MCP servers in Cursor settings.json"},
+		listItem{title: "Amp Config", description: "Configure standalone Amp MCP servers in ~/.config/amp/settings.json"},
 		listItem{title: "Profile Config", description: "Configure MCP profiles"}, // New item for profiles
 	}
 
@@ -318,9 +320,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "Cursor Config":
 					m.configType = ConfigTypeCursor
 					return m, m.loadServers(ConfigTypeCursor)
-				case "AmpCode Config":
+				case "Amp Config (Cursor)":
 					m.configType = ConfigTypeAmpCode
 					return m, m.loadServers(ConfigTypeAmpCode)
+				case "Amp Config":
+					m.configType = ConfigTypeAmp
+					return m, m.loadServers(ConfigTypeAmp)
 				case "Profile Config":
 					m.configType = ConfigTypeProfile
 					return m, m.loadProfiles()
@@ -630,7 +635,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ConfigTypeClaude:
 			serverList.Title = "Claude MCP Servers"
 		case ConfigTypeAmpCode:
-			serverList.Title = "AmpCode MCP Servers"
+			serverList.Title = "Amp MCP Servers (Cursor)"
+		case ConfigTypeAmp:
+			serverList.Title = "Amp MCP Servers"
 		case ConfigTypeProfile:
 			serverList.Title = "Profiles"
 		case ConfigTypeNone:
@@ -896,6 +903,11 @@ func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType e
 			}
 		case ConfigTypeAmpCode:
 			configPath, err = config.GetAmpCodeConfigPath()
+			if err == nil {
+				editor, err = config.NewAmpCodeEditor(configPath)
+			}
+		case ConfigTypeAmp:
+			configPath, err = config.GetAmpConfigPath()
 			if err == nil {
 				editor, err = config.NewAmpCodeEditor(configPath)
 			}

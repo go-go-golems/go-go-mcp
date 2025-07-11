@@ -17,6 +17,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
+	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server"
 	"github.com/pkg/errors"
@@ -63,7 +64,9 @@ and either a command list or shell script to execute.`,
 
 func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
-	helpSystem.SetupCobraRootCommand(rootCmd)
+	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
+	rootCmd.SetHelpFunc(helpFunc)
+	rootCmd.SetUsageFunc(usageFunc)
 
 	err := doc.AddDocToHelpSystem(helpSystem)
 	if err != nil {
@@ -152,7 +155,9 @@ func main() {
 		helpSystem, err := initRootCmd()
 		cobra.CheckErr(err)
 
-		helpSystem.SetupCobraRootCommand(cobraCommand)
+		helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
+		cobraCommand.SetHelpFunc(helpFunc)
+		cobraCommand.SetUsageFunc(usageFunc)
 
 		rootCmd.AddCommand(cobraCommand)
 		restArgs := os.Args[3:]
