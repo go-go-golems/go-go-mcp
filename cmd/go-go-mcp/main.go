@@ -64,14 +64,14 @@ and either a command list or shell script to execute.`,
 
 func initRootCmd() (*help.HelpSystem, error) {
 	helpSystem := help.NewHelpSystem()
-	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
-	rootCmd.SetHelpFunc(helpFunc)
-	rootCmd.SetUsageFunc(usageFunc)
 
 	err := doc.AddDocToHelpSystem(helpSystem)
 	if err != nil {
 		return nil, err
 	}
+
+	// Set up help system with UI support
+	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	err = clay.InitViper("mcp", rootCmd)
 	if err != nil {
@@ -155,9 +155,8 @@ func main() {
 		helpSystem, err := initRootCmd()
 		cobra.CheckErr(err)
 
-		helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
-		cobraCommand.SetHelpFunc(helpFunc)
-		cobraCommand.SetUsageFunc(usageFunc)
+		// Set up help system for the dynamically created command
+		helpCmd.SetupCobraRootCommand(helpSystem, cobraCommand)
 
 		rootCmd.AddCommand(cobraCommand)
 		restArgs := os.Args[3:]

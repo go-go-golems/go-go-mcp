@@ -21,9 +21,7 @@ The server watches for changes in the specified directory and automatically relo
 
 func main() {
 	helpSystem := help.NewHelpSystem()
-	helpFunc, usageFunc := helpCmd.GetCobraHelpUsageFuncs(helpSystem)
-	rootCmd.SetHelpFunc(helpFunc)
-	rootCmd.SetUsageFunc(usageFunc)
+	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	startCmd, err := NewStartCommand()
 	cobra.CheckErr(err)
