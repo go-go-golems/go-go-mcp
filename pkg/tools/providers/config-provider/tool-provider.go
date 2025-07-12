@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-go-golems/go-go-mcp/pkg/scholarly/mcp"
+	"github.com/go-go-golems/go-go-labs/cmd/mcps/scholarly/pkg/scholarly/mcp"
 	"os"
 	"path/filepath"
 	"strings"
