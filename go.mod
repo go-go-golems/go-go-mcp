@@ -28,7 +28,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	github.com/tailscale/hujson v0.0.0-20250226034555-ec1d1c113d33
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	golang.org/x/text v0.26.0
 	gopkg.in/yaml.v3 v3.0.1
 )
