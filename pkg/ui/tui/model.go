@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -21,6 +23,7 @@ type mode int
 
 const (
 	modeMenu mode = iota
+	modeSubmenu
 	modeList
 	modeAddEdit
 	modeConfirm
@@ -30,12 +33,15 @@ const (
 type ConfigType string
 
 const (
-	ConfigTypeCursor  ConfigType = "cursor"
-	ConfigTypeClaude  ConfigType = "claude"
-	ConfigTypeAmpCode ConfigType = "ampcode" // Configuration for Amp (Cursor)
-	ConfigTypeAmp     ConfigType = "amp"     // Configuration for standalone Amp
-	ConfigTypeProfile ConfigType = "profile" // New config type for profiles
-	ConfigTypeNone    ConfigType = ""        // Represents no config loaded
+	ConfigTypeCursor      ConfigType = "cursor"
+	ConfigTypeClaude      ConfigType = "claude"
+	ConfigTypeAmpCode     ConfigType = "ampcode"      // Configuration for Amp (Cursor)
+	ConfigTypeAmp         ConfigType = "amp"          // Configuration for standalone Amp
+	ConfigTypeProfile     ConfigType = "profile"      // New config type for profiles
+	ConfigTypeCrushLocal  ConfigType = "crush-local"  // .crush.json
+	ConfigTypeCrushCwd    ConfigType = "crush-cwd"    // crush.json
+	ConfigTypeCrushGlobal ConfigType = "crush-global" // ~/.config/crush/crush.json
+	ConfigTypeNone        ConfigType = ""             // Represents no config loaded
 )
 
 // Define key bindings
@@ -131,15 +137,31 @@ func (i serverItem) Description() string {
 }
 func (i serverItem) FilterValue() string { return i.name }
 
+// Menu hierarchy types
+type MenuType string
+
+const (
+	MenuTypeClaude   MenuType = "claude"
+	MenuTypeCursor   MenuType = "cursor"
+	MenuTypeAmpCode  MenuType = "ampcode"
+	MenuTypeCrush    MenuType = "crush"
+	MenuTypeProfiles MenuType = "profiles"
+)
+
 // Main application model
 type Model struct {
-	keys       keyMap
-	help       help.Model
-	mode       mode
-	menuList   list.Model
-	activeList *list.Model // Pointer to the currently active server list
-	width      int
-	height     int
+	keys        keyMap
+	help        help.Model
+	mode        mode
+	menuList    list.Model
+	submenuList list.Model
+	activeList  *list.Model // Pointer to the currently active server list
+	width       int
+	height      int
+
+	// Current menu hierarchy
+	currentMenuType MenuType
+	breadcrumb      string
 
 	// Configuration editor interface
 	currentEditor types.ServerConfigEditor
@@ -243,13 +265,13 @@ func NewModel() Model {
 	h := help.New()
 	h.ShowAll = false // Start with short help
 
-	// Create menu items
+	// Create main menu items (hierarchical)
 	items := []list.Item{
-		listItem{title: "Claude Config", description: "Configure Claude API settings"},
-		listItem{title: "Cursor Config", description: "Configure Cursor API settings"},
-		listItem{title: "Amp Config (Cursor)", description: "Configure Amp MCP servers in Cursor settings.json"},
-		listItem{title: "Amp Config", description: "Configure standalone Amp MCP servers in ~/.config/amp/settings.json"},
-		listItem{title: "Profile Config", description: "Configure MCP profiles"}, // New item for profiles
+		listItem{title: "Claude Desktop", description: "Configure Claude Desktop MCP servers"},
+		listItem{title: "Cursor", description: "Configure Cursor MCP servers"},
+		listItem{title: "Amp Code", description: "Configure Amp Code MCP servers"},
+		listItem{title: "Crush", description: "Configure Crush MCP servers"},
+		listItem{title: "Profiles", description: "Configure MCP profiles"},
 	}
 
 	// Initialize the menu list
@@ -267,6 +289,59 @@ func NewModel() Model {
 		profileFormState: NewProfileFormModel(), // Initialize profile form
 		confirmDialog:    NewConfirmModel("Confirm Action", "Are you sure?"),
 	}
+}
+
+// createSubmenu creates a submenu list for the given menu type
+func (m *Model) createSubmenu(menuType MenuType) {
+	var items []list.Item
+	var title string
+
+	switch menuType {
+	case MenuTypeClaude:
+		items = []list.Item{
+			listItem{title: "Claude Desktop Config", description: "Configure Claude Desktop MCP servers"},
+		}
+		title = "Claude Desktop"
+		m.breadcrumb = "Claude Desktop"
+
+	case MenuTypeCursor:
+		items = []list.Item{
+			listItem{title: "Global Cursor Config", description: "Configure global Cursor MCP servers"},
+		}
+		title = "Cursor"
+		m.breadcrumb = "Cursor"
+
+	case MenuTypeAmpCode:
+		items = []list.Item{
+			listItem{title: "Cursor settings.json", description: "Configure Amp MCP servers in Cursor settings.json"},
+			listItem{title: "~/.config/amp/settings.json", description: "Configure standalone Amp MCP servers"},
+		}
+		title = "Amp Code"
+		m.breadcrumb = "Amp Code"
+
+	case MenuTypeCrush:
+		items = []list.Item{
+			listItem{title: ".crush.json (local)", description: "Configure Crush MCP servers in .crush.json"},
+			listItem{title: "crush.json (cwd)", description: "Configure Crush MCP servers in crush.json"},
+			listItem{title: "~/.config/crush/crush.json (global)", description: "Configure Crush MCP servers in global config"},
+		}
+		title = "Crush"
+		m.breadcrumb = "Crush"
+
+	case MenuTypeProfiles:
+		// Profiles don't need a submenu, go directly to list
+		m.configType = ConfigTypeProfile
+		m.breadcrumb = "Profiles"
+		return
+	}
+
+	// Create the submenu list
+	submenuDelegate := list.NewDefaultDelegate()
+	m.submenuList = list.New(items, submenuDelegate, m.width, m.height-3)
+	m.submenuList.Title = title
+	m.submenuList.SetShowHelp(false)
+	m.currentMenuType = menuType
+	m.mode = modeSubmenu
 }
 
 // Init initializes the model and returns an initial command
@@ -288,6 +363,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		verticalMarginHeight := headerHeight + footerHeight
 
 		m.menuList.SetSize(msg.Width, msg.Height-verticalMarginHeight)
+
+		// Update submenu dimensions if it exists
+		if m.mode == modeSubmenu {
+			m.submenuList.SetSize(msg.Width, msg.Height-verticalMarginHeight)
+		}
 
 		// If we have an active list, update its dimensions too
 		if m.activeList != nil {
@@ -314,23 +394,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.keys.Enter):
 				selectedItem := m.menuList.SelectedItem().(listItem)
 				switch selectedItem.title {
-				case "Claude Config":
-					m.configType = ConfigTypeClaude
-					return m, m.loadServers(ConfigTypeClaude)
-				case "Cursor Config":
-					m.configType = ConfigTypeCursor
-					return m, m.loadServers(ConfigTypeCursor)
-				case "Amp Config (Cursor)":
-					m.configType = ConfigTypeAmpCode
-					return m, m.loadServers(ConfigTypeAmpCode)
-				case "Amp Config":
-					m.configType = ConfigTypeAmp
-					return m, m.loadServers(ConfigTypeAmp)
-				case "Profile Config":
-					m.configType = ConfigTypeProfile
+				case "Claude Desktop":
+					m.createSubmenu(MenuTypeClaude)
+					return m, nil
+				case "Cursor":
+					m.createSubmenu(MenuTypeCursor)
+					return m, nil
+				case "Amp Code":
+					m.createSubmenu(MenuTypeAmpCode)
+					return m, nil
+				case "Crush":
+					m.createSubmenu(MenuTypeCrush)
+					return m, nil
+				case "Profiles":
+					m.createSubmenu(MenuTypeProfiles)
 					return m, m.loadProfiles()
-				case "Exit":
-					return m, tea.Quit
 				}
 			}
 
@@ -338,13 +416,81 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.menuList, cmd = m.menuList.Update(msg)
 			return m, cmd
 
+		case modeSubmenu:
+			switch {
+			case key.Matches(msg, m.keys.Back):
+				m.mode = modeMenu
+				m.breadcrumb = ""
+				return m, nil
+			case key.Matches(msg, m.keys.Enter):
+				selectedItem := m.submenuList.SelectedItem().(listItem)
+
+				// Determine which config to load based on submenu type and selection
+				switch m.currentMenuType {
+				case MenuTypeProfiles:
+					// Profiles don't have submenu items, should not reach here
+					return m, nil
+				case MenuTypeClaude:
+					switch selectedItem.title {
+					case "Claude Desktop Config":
+						m.configType = ConfigTypeClaude
+						m.breadcrumb = "Claude Desktop > Config"
+						return m, m.loadServers(ConfigTypeClaude)
+					}
+				case MenuTypeCursor:
+					switch selectedItem.title {
+					case "Global Cursor Config":
+						m.configType = ConfigTypeCursor
+						m.breadcrumb = "Cursor > Global Config"
+						return m, m.loadServers(ConfigTypeCursor)
+					}
+				case MenuTypeAmpCode:
+					switch selectedItem.title {
+					case "Cursor settings.json":
+						m.configType = ConfigTypeAmpCode
+						m.breadcrumb = "Amp Code > Cursor settings.json"
+						return m, m.loadServers(ConfigTypeAmpCode)
+					case "~/.config/amp/settings.json":
+						m.configType = ConfigTypeAmp
+						m.breadcrumb = "Amp Code > ~/.config/amp/settings.json"
+						return m, m.loadServers(ConfigTypeAmp)
+					}
+				case MenuTypeCrush:
+					switch selectedItem.title {
+					case ".crush.json (local)":
+						m.configType = ConfigTypeCrushLocal
+						m.breadcrumb = "Crush > .crush.json (local)"
+						return m, m.loadServers(ConfigTypeCrushLocal)
+					case "crush.json (cwd)":
+						m.configType = ConfigTypeCrushCwd
+						m.breadcrumb = "Crush > crush.json (cwd)"
+						return m, m.loadServers(ConfigTypeCrushCwd)
+					case "~/.config/crush/crush.json (global)":
+						m.configType = ConfigTypeCrushGlobal
+						m.breadcrumb = "Crush > ~/.config/crush/crush.json (global)"
+						return m, m.loadServers(ConfigTypeCrushGlobal)
+					}
+				}
+			}
+
+			// Pass the message to the submenu list
+			m.submenuList, cmd = m.submenuList.Update(msg)
+			return m, cmd
+
 		case modeList:
 			// Handle specific actions in list view
 			switch {
 			case key.Matches(msg, m.keys.Back):
-				m.configType = ConfigTypeNone // Clear the config type
-				m.mode = modeMenu             // Go back to menu
-				return m, nil
+				// Go back to submenu if we came from one, otherwise main menu
+				if m.currentMenuType != "" {
+					m.createSubmenu(m.currentMenuType)
+					return m, nil
+				} else {
+					m.configType = ConfigTypeNone // Clear the config type
+					m.mode = modeMenu             // Go back to menu
+					m.breadcrumb = ""
+					return m, nil
+				}
 
 			case key.Matches(msg, m.keys.Add):
 				if m.configType == ConfigTypeProfile {
@@ -640,6 +786,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			serverList.Title = "Amp MCP Servers"
 		case ConfigTypeProfile:
 			serverList.Title = "Profiles"
+		case ConfigTypeCrushLocal:
+			serverList.Title = "Crush MCP Servers (.crush.json)"
+		case ConfigTypeCrushCwd:
+			serverList.Title = "Crush MCP Servers (crush.json)"
+		case ConfigTypeCrushGlobal:
+			serverList.Title = "Crush MCP Servers (global)"
 		case ConfigTypeNone:
 			serverList.Title = "Servers"
 		}
@@ -697,10 +849,18 @@ func (m Model) View() string {
 		sb.WriteString(errorStyle.Render(m.errorMsg) + "\n\n")
 	}
 
+	// Display breadcrumb if present
+	if m.breadcrumb != "" {
+		breadcrumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Italic(true)
+		sb.WriteString(breadcrumbStyle.Render(m.breadcrumb) + "\n")
+	}
+
 	// Display content based on the current mode
 	switch m.mode {
 	case modeMenu:
 		sb.WriteString(m.menuList.View())
+	case modeSubmenu:
+		sb.WriteString(m.submenuList.View())
 	case modeList:
 		if m.activeList != nil {
 			sb.WriteString(m.activeList.View())
@@ -730,6 +890,13 @@ func (m Model) contextualHelp() []key.Binding {
 	case modeMenu:
 		return []key.Binding{
 			m.keys.Enter,
+			m.keys.Quit,
+			m.keys.Help,
+		}
+	case modeSubmenu:
+		return []key.Binding{
+			m.keys.Enter,
+			m.keys.Back,
 			m.keys.Quit,
 			m.keys.Help,
 		}
@@ -802,6 +969,11 @@ func (m Model) FullHelp() [][]key.Binding {
 			{m.keys.Up, m.keys.Down, m.keys.Enter},
 			{m.keys.Help, m.keys.Quit},
 		}
+	case modeSubmenu:
+		return [][]key.Binding{
+			{m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back},
+			{m.keys.Help, m.keys.Quit},
+		}
 	case modeList:
 		if m.configType == ConfigTypeProfile {
 			return [][]key.Binding{
@@ -851,28 +1023,7 @@ func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
 
 	// Create and populate a new form model
 	form := NewFormModel()
-	form.nameInput.SetValue(server.Name)
-	form.commandInput.SetValue(server.Command)
-	form.argsInput.SetValue(strings.Join(server.Args, " "))
-
-	// Format environment variables as KEY=VALUE pairs, one per line
-	envText := ""
-	keys := make([]string, 0, len(server.Env))
-	for k := range server.Env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys) // Sort keys for consistent display
-
-	for _, k := range keys {
-		if envText != "" {
-			envText += "\n"
-		}
-		envText += fmt.Sprintf("%s=%s", k, server.Env[k])
-	}
-
-	form.envInput.SetValue(envText)
-	form.urlInput.SetValue(server.URL)
-	form.isSSE = server.IsSSE
+	form.LoadFromServer(server)
 	form.isAddMode = false // Explicitly set to edit mode
 
 	return form, nil
@@ -910,6 +1061,25 @@ func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType e
 			configPath, err = config.GetAmpConfigPath()
 			if err == nil {
 				editor, err = config.NewAmpCodeEditor(configPath)
+			}
+		case ConfigTypeCrushLocal:
+			configPath = ".crush.json"
+			editor, err = config.NewCrushEditor(configPath)
+		case ConfigTypeCrushCwd:
+			configPath = "crush.json"
+			editor, err = config.NewCrushEditor(configPath)
+		case ConfigTypeCrushGlobal:
+			configPath = viper.GetString("HOME") + "/.config/crush/crush.json"
+			if configPath == "/.config/crush/crush.json" {
+				// Fallback if HOME is not set
+				var homeDir string
+				homeDir, err = os.UserHomeDir()
+				if err == nil {
+					configPath = filepath.Join(homeDir, ".config", "crush", "crush.json")
+				}
+			}
+			if err == nil {
+				editor, err = config.NewCrushEditor(configPath)
 			}
 		case ConfigTypeProfile:
 			// Profile config type doesn't use the server config editor
