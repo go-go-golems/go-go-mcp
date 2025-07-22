@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -30,12 +32,15 @@ const (
 type ConfigType string
 
 const (
-	ConfigTypeCursor  ConfigType = "cursor"
-	ConfigTypeClaude  ConfigType = "claude"
-	ConfigTypeAmpCode ConfigType = "ampcode" // Configuration for Amp (Cursor)
-	ConfigTypeAmp     ConfigType = "amp"     // Configuration for standalone Amp
-	ConfigTypeProfile ConfigType = "profile" // New config type for profiles
-	ConfigTypeNone    ConfigType = ""        // Represents no config loaded
+	ConfigTypeCursor      ConfigType = "cursor"
+	ConfigTypeClaude      ConfigType = "claude"
+	ConfigTypeAmpCode     ConfigType = "ampcode"      // Configuration for Amp (Cursor)
+	ConfigTypeAmp         ConfigType = "amp"          // Configuration for standalone Amp
+	ConfigTypeProfile     ConfigType = "profile"      // New config type for profiles
+	ConfigTypeCrushLocal  ConfigType = "crush-local"  // .crush.json
+	ConfigTypeCrushCwd    ConfigType = "crush-cwd"    // crush.json
+	ConfigTypeCrushGlobal ConfigType = "crush-global" // ~/.config/crush/crush.json
+	ConfigTypeNone        ConfigType = ""             // Represents no config loaded
 )
 
 // Define key bindings
@@ -249,7 +254,10 @@ func NewModel() Model {
 		listItem{title: "Cursor Config", description: "Configure Cursor API settings"},
 		listItem{title: "Amp Config (Cursor)", description: "Configure Amp MCP servers in Cursor settings.json"},
 		listItem{title: "Amp Config", description: "Configure standalone Amp MCP servers in ~/.config/amp/settings.json"},
-		listItem{title: "Profile Config", description: "Configure MCP profiles"}, // New item for profiles
+		listItem{title: "Profile Config", description: "Configure MCP profiles"},
+		listItem{title: "Crush Config (.crush.json)", description: "Configure Crush MCP servers in .crush.json"},
+		listItem{title: "Crush Config (crush.json)", description: "Configure Crush MCP servers in crush.json"},
+		listItem{title: "Crush Config (global)", description: "Configure Crush MCP servers in ~/.config/crush/crush.json"},
 	}
 
 	// Initialize the menu list
@@ -329,6 +337,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "Profile Config":
 					m.configType = ConfigTypeProfile
 					return m, m.loadProfiles()
+				case "Crush Config (.crush.json)":
+					m.configType = ConfigTypeCrushLocal
+					return m, m.loadServers(ConfigTypeCrushLocal)
+				case "Crush Config (crush.json)":
+					m.configType = ConfigTypeCrushCwd
+					return m, m.loadServers(ConfigTypeCrushCwd)
+				case "Crush Config (global)":
+					m.configType = ConfigTypeCrushGlobal
+					return m, m.loadServers(ConfigTypeCrushGlobal)
 				case "Exit":
 					return m, tea.Quit
 				}
@@ -640,6 +657,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			serverList.Title = "Amp MCP Servers"
 		case ConfigTypeProfile:
 			serverList.Title = "Profiles"
+		case ConfigTypeCrushLocal:
+			serverList.Title = "Crush MCP Servers (.crush.json)"
+		case ConfigTypeCrushCwd:
+			serverList.Title = "Crush MCP Servers (crush.json)"
+		case ConfigTypeCrushGlobal:
+			serverList.Title = "Crush MCP Servers (global)"
 		case ConfigTypeNone:
 			serverList.Title = "Servers"
 		}
@@ -910,6 +933,25 @@ func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType e
 			configPath, err = config.GetAmpConfigPath()
 			if err == nil {
 				editor, err = config.NewAmpCodeEditor(configPath)
+			}
+		case ConfigTypeCrushLocal:
+			configPath = ".crush.json"
+			editor, err = config.NewCrushEditor(configPath)
+		case ConfigTypeCrushCwd:
+			configPath = "crush.json"
+			editor, err = config.NewCrushEditor(configPath)
+		case ConfigTypeCrushGlobal:
+			configPath = viper.GetString("HOME") + "/.config/crush/crush.json"
+			if configPath == "/.config/crush/crush.json" {
+				// Fallback if HOME is not set
+				var homeDir string
+				homeDir, err = os.UserHomeDir()
+				if err == nil {
+					configPath = filepath.Join(homeDir, ".config", "crush", "crush.json")
+				}
+			}
+			if err == nil {
+				editor, err = config.NewCrushEditor(configPath)
 			}
 		case ConfigTypeProfile:
 			// Profile config type doesn't use the server config editor
