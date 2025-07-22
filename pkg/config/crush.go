@@ -18,6 +18,9 @@ type CrushMCPConfig struct {
 type CrushMCPEntry struct {
 	Type    string            `json:"type"`
 	URL     string            `json:"url,omitempty"`
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
@@ -90,11 +93,13 @@ func (c *CrushEditor) ListServers() (map[string]types.CommonServer, error) {
 
 	for name, entry := range c.config.MCP {
 		servers[name] = types.CommonServer{
-			Name: name,
-			URL:  entry.URL,
-			// Convert headers to env for consistency with other editors
-			Env:   entry.Headers,
-			IsSSE: entry.Type == "http", // Crush uses "http" type for HTTP servers
+			Name:    name,
+			Command: entry.Command,
+			Args:    entry.Args,
+			URL:     entry.URL,
+			// Use env for stdio servers, headers for HTTP servers
+			Env:   entry.Env,
+			IsSSE: entry.Type == "http", // HTTP/SSE servers have type "http", stdio servers have type "stdio"
 		}
 	}
 
@@ -109,10 +114,12 @@ func (c *CrushEditor) GetServer(name string) (types.CommonServer, bool, error) {
 	}
 
 	server := types.CommonServer{
-		Name:  name,
-		URL:   entry.URL,
-		Env:   entry.Headers,
-		IsSSE: entry.Type == "http",
+		Name:    name,
+		Command: entry.Command,
+		Args:    entry.Args,
+		URL:     entry.URL,
+		Env:     entry.Env,
+		IsSSE:   entry.Type == "http",
 	}
 
 	return server, true, nil
@@ -124,10 +131,24 @@ func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) er
 		return fmt.Errorf("server '%s' already exists", server.Name)
 	}
 
-	entry := CrushMCPEntry{
-		Type:    "http", // Default to HTTP type for Crush
-		URL:     server.URL,
-		Headers: server.Env, // Use env as headers
+	var entry CrushMCPEntry
+
+	// Determine the type based on whether this is a stdio or HTTP/SSE server
+	if server.URL == "" && server.Command != "" {
+		// Stdio server
+		entry = CrushMCPEntry{
+			Type:    "stdio",
+			Command: server.Command,
+			Args:    server.Args,
+			Env:     server.Env,
+		}
+	} else {
+		// HTTP/SSE server
+		entry = CrushMCPEntry{
+			Type:    "http",
+			URL:     server.URL,
+			Headers: server.Env,
+		}
 	}
 
 	c.config.MCP[server.Name] = entry
