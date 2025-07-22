@@ -12,13 +12,21 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
 
+// Transport types
+const (
+	TransportStdio = "stdio"
+	TransportHTTP  = "http"
+	TransportSSE   = "sse"
+)
+
 // Focus indices for the form fields
 const (
 	focusName = iota
-	focusType // The new checkbox
+	focusType // The transport type radio buttons
 	focusCommand
 	focusArgs
 	focusURL
+	focusHeaders
 	focusEnv
 	focusMax // Keep track of the total number of potential focus points
 )
@@ -54,17 +62,19 @@ var defaultFormKeyMap = FormKeyMap{
 
 // FormModel represents the form for adding/editing servers
 type FormModel struct {
-	keyMap       FormKeyMap
-	nameInput    textinput.Model
-	commandInput textinput.Model // Used for stdio
-	urlInput     textinput.Model // Used for SSE
-	argsInput    textinput.Model // Used for stdio
-	envInput     textarea.Model  // Changed from textinput to textarea
-	isSSE        bool            // True if the server uses SSE, false for stdio
-	isAddMode    bool            // True if adding a new server, false if editing
-	activeInput  int             // Index of the currently focused element (using constants)
-	submitted    bool            // Flag indicating form submission was triggered
-	cancelled    bool            // Flag indicating form cancellation was triggered
+	keyMap        FormKeyMap
+	nameInput     textinput.Model
+	commandInput  textinput.Model // Used for stdio
+	urlInput      textinput.Model // Used for http/sse
+	argsInput     textinput.Model // Used for stdio
+	headersInput  textarea.Model  // Used for http/sse (KEY=VALUE format)
+	envInput      textarea.Model  // Used for stdio (KEY=VALUE format)
+	transportType string          // Transport type: stdio, http, or sse
+	radioOption   int             // Currently selected radio option (0=stdio, 1=http, 2=sse)
+	isAddMode     bool            // True if adding a new server, false if editing
+	activeInput   int             // Index of the currently focused element (using constants)
+	submitted     bool            // Flag indicating form submission was triggered
+	cancelled     bool            // Flag indicating form cancellation was triggered
 }
 
 // NewFormModel creates a new form model with initialized inputs
@@ -76,37 +86,46 @@ func NewFormModel() FormModel {
 	nameInput.Width = 80
 
 	commandInput := textinput.New()
-	commandInput.Placeholder = "Command path (stdio)"
+	commandInput.Placeholder = "Command path"
 	commandInput.CharLimit = 200
 	commandInput.Width = 80
 
 	urlInput := textinput.New()
-	urlInput.Placeholder = "SSE URL"
+	urlInput.Placeholder = "URL (http:// or https://)"
 	urlInput.CharLimit = 200
 	urlInput.Width = 80
 
 	argsInput := textinput.New()
-	argsInput.Placeholder = "Arguments (stdio, space separated)"
+	argsInput.Placeholder = "Arguments (space separated)"
 	argsInput.CharLimit = 500
 	argsInput.Width = 80
 
-	// Create textarea for envInput instead of textinput
+	// Create textarea for headers (http/sse)
+	headersInput := textarea.New()
+	headersInput.Placeholder = "Headers (KEY=VALUE, one per line)"
+	headersInput.CharLimit = 1000
+	headersInput.SetWidth(80)
+	headersInput.SetHeight(5)
+
+	// Create textarea for environment variables (stdio)
 	envInput := textarea.New()
 	envInput.Placeholder = "Environment variables (KEY=VALUE, one per line)"
 	envInput.CharLimit = 1000
 	envInput.SetWidth(80)
-	envInput.SetHeight(5) // Show 5 lines by default
+	envInput.SetHeight(5)
 
 	return FormModel{
-		keyMap:       defaultFormKeyMap,
-		nameInput:    nameInput,
-		commandInput: commandInput,
-		urlInput:     urlInput,
-		argsInput:    argsInput,
-		envInput:     envInput,
-		activeInput:  focusName, // Start focus on name
-		isSSE:        false,     // Default to stdio
-		isAddMode:    true,      // Default
+		keyMap:        defaultFormKeyMap,
+		nameInput:     nameInput,
+		commandInput:  commandInput,
+		urlInput:      urlInput,
+		argsInput:     argsInput,
+		headersInput:  headersInput,
+		envInput:      envInput,
+		activeInput:   focusName,      // Start focus on name
+		transportType: TransportStdio, // Default to stdio
+		radioOption:   0,              // 0=stdio, 1=http, 2=sse
+		isAddMode:     true,           // Default
 	}
 }
 
@@ -117,12 +136,16 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Special handling for textarea - pass arrow keys through when focused
-		if m.activeInput == focusEnv {
+		if m.activeInput == focusEnv || m.activeInput == focusHeaders {
 			// Let special navigation keys like arrows pass through to textarea
 			if msg.Type == tea.KeyUp || msg.Type == tea.KeyDown ||
 				msg.Type == tea.KeyLeft || msg.Type == tea.KeyRight {
 				var cmd tea.Cmd
-				m.envInput, cmd = m.envInput.Update(msg)
+				if m.activeInput == focusEnv {
+					m.envInput, cmd = m.envInput.Update(msg)
+				} else {
+					m.headersInput, cmd = m.headersInput.Update(msg)
+				}
 				return m, cmd
 			}
 		}
@@ -137,6 +160,7 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			m.commandInput.Blur()
 			m.urlInput.Blur()
 			m.argsInput.Blur()
+			m.headersInput.Blur()
 			m.envInput.Blur()
 			return m, nil
 
@@ -145,9 +169,28 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			m.submitted = true
 			return m, nil
 
-		case msg.Type == tea.KeySpace && m.activeInput == focusType:
-			// Handle checkbox toggle with space
-			m.isSSE = !m.isSSE
+		case (msg.Type == tea.KeySpace || msg.Type == tea.KeyLeft || msg.Type == tea.KeyRight) && m.activeInput == focusType:
+			// Handle radio button navigation with space/left/right arrows
+			//nolint:exhaustive // We only handle the keys in the case condition
+			switch msg.Type {
+			case tea.KeySpace, tea.KeyRight:
+				// Move to next option
+				m.radioOption = (m.radioOption + 1) % 3
+			case tea.KeyLeft:
+				// Move to previous option
+				m.radioOption = (m.radioOption - 1 + 3) % 3
+			}
+
+			// Update transport type based on radio option
+			switch m.radioOption {
+			case 0:
+				m.transportType = TransportStdio
+			case 1:
+				m.transportType = TransportHTTP
+			case 2:
+				m.transportType = TransportSSE
+			}
+
 			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
 
@@ -161,13 +204,17 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			for {
 				m.activeInput = (m.activeInput + direction + focusMax) % focusMax
 
-				// Skip Command/Args if SSE is enabled
-				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
-					continue
-				}
-				// Skip URL if SSE is disabled (stdio)
-				if !m.isSSE && m.activeInput == focusURL {
-					continue
+				// Skip fields based on transport type
+				if m.transportType == TransportStdio {
+					// Skip URL and Headers for stdio
+					if m.activeInput == focusURL || m.activeInput == focusHeaders {
+						continue
+					}
+				} else {
+					// Skip Command, Args, and Env for http/sse (use Headers instead)
+					if m.activeInput == focusCommand || m.activeInput == focusArgs || m.activeInput == focusEnv {
+						continue
+					}
 				}
 				// Found a valid, visible element to focus
 				break
@@ -176,19 +223,23 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
 
-		case msg.Type == tea.KeyDown && m.activeInput != focusEnv:
+		case msg.Type == tea.KeyDown && m.activeInput != focusEnv && m.activeInput != focusHeaders:
 			// Down key for navigation between fields when not in textarea
 			// Cycle through focusable elements, skipping hidden ones
 			for {
 				m.activeInput = (m.activeInput + 1) % focusMax
 
-				// Skip Command/Args if SSE is enabled
-				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
-					continue
-				}
-				// Skip URL if SSE is disabled (stdio)
-				if !m.isSSE && m.activeInput == focusURL {
-					continue
+				// Skip fields based on transport type
+				if m.transportType == TransportStdio {
+					// Skip URL and Headers for stdio
+					if m.activeInput == focusURL || m.activeInput == focusHeaders {
+						continue
+					}
+				} else {
+					// Skip Command, Args, and Env for http/sse (use Headers instead)
+					if m.activeInput == focusCommand || m.activeInput == focusArgs || m.activeInput == focusEnv {
+						continue
+					}
 				}
 				// Found a valid, visible element to focus
 				break
@@ -197,19 +248,23 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			cmds = append(cmds, m.updateFocus())
 			return m, tea.Batch(cmds...)
 
-		case msg.Type == tea.KeyUp && m.activeInput != focusEnv:
+		case msg.Type == tea.KeyUp && m.activeInput != focusEnv && m.activeInput != focusHeaders:
 			// Up key for navigation between fields when not in textarea
 			// Cycle through focusable elements, skipping hidden ones
 			for {
 				m.activeInput = (m.activeInput - 1 + focusMax) % focusMax
 
-				// Skip Command/Args if SSE is enabled
-				if m.isSSE && (m.activeInput == focusCommand || m.activeInput == focusArgs) {
-					continue
-				}
-				// Skip URL if SSE is disabled (stdio)
-				if !m.isSSE && m.activeInput == focusURL {
-					continue
+				// Skip fields based on transport type
+				if m.transportType == TransportStdio {
+					// Skip URL and Headers for stdio
+					if m.activeInput == focusURL || m.activeInput == focusHeaders {
+						continue
+					}
+				} else {
+					// Skip Command, Args, and Env for http/sse (use Headers instead)
+					if m.activeInput == focusCommand || m.activeInput == focusArgs || m.activeInput == focusEnv {
+						continue
+					}
 				}
 				// Found a valid, visible element to focus
 				break
@@ -228,33 +283,47 @@ func (m FormModel) Update(msg tea.Msg) (FormModel, tea.Cmd) {
 			cmds = append(cmds, cmd)
 			return m, tea.Batch(cmds...)
 		case focusCommand:
-			if !m.isSSE {
+			if m.transportType == TransportStdio {
 				m.commandInput, cmd = m.commandInput.Update(msg)
 				cmds = append(cmds, cmd)
 				return m, tea.Batch(cmds...)
 			}
 		case focusArgs:
-			if !m.isSSE {
+			if m.transportType == TransportStdio {
 				m.argsInput, cmd = m.argsInput.Update(msg)
 				cmds = append(cmds, cmd)
 				return m, tea.Batch(cmds...)
 			}
 		case focusURL:
-			if m.isSSE {
+			if m.transportType == TransportHTTP || m.transportType == TransportSSE {
 				m.urlInput, cmd = m.urlInput.Update(msg)
 				cmds = append(cmds, cmd)
 				return m, tea.Batch(cmds...)
 			}
+		case focusHeaders:
+			if m.transportType == TransportHTTP || m.transportType == TransportSSE {
+				m.headersInput, cmd = m.headersInput.Update(msg)
+				cmds = append(cmds, cmd)
+				return m, tea.Batch(cmds...)
+			}
 		case focusEnv:
-			// Update for textarea
-			var cmd tea.Cmd
-			m.envInput, cmd = m.envInput.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+			if m.transportType == TransportStdio {
+				m.envInput, cmd = m.envInput.Update(msg)
+				cmds = append(cmds, cmd)
+				return m, tea.Batch(cmds...)
+			}
 		case focusType:
-			// Special case for the type checkbox focus - handle Enter as toggle
+			// Special case for the type radio buttons focus - handle Enter as cycle
 			if msg.Type == tea.KeyEnter {
-				m.isSSE = !m.isSSE
+				m.radioOption = (m.radioOption + 1) % 3
+				switch m.radioOption {
+				case 0:
+					m.transportType = TransportStdio
+				case 1:
+					m.transportType = TransportHTTP
+				case 2:
+					m.transportType = TransportSSE
+				}
 				return m, nil
 			}
 		}
@@ -270,29 +339,36 @@ func (m *FormModel) updateFocus() tea.Cmd {
 	m.commandInput.Blur()
 	m.argsInput.Blur()
 	m.urlInput.Blur()
+	m.headersInput.Blur()
 	m.envInput.Blur()
 
 	// Initialize command slice
 	var cmds []tea.Cmd
 
-	// Focus the correct input based on activeInput and isSSE
+	// Focus the correct input based on activeInput and transport type
 	switch m.activeInput {
 	case focusName:
 		cmds = append(cmds, m.nameInput.Focus())
 	case focusCommand:
-		if !m.isSSE {
+		if m.transportType == TransportStdio {
 			cmds = append(cmds, m.commandInput.Focus())
 		}
 	case focusArgs:
-		if !m.isSSE {
+		if m.transportType == TransportStdio {
 			cmds = append(cmds, m.argsInput.Focus())
 		}
 	case focusURL:
-		if m.isSSE {
+		if m.transportType == TransportHTTP || m.transportType == TransportSSE {
 			cmds = append(cmds, m.urlInput.Focus())
 		}
+	case focusHeaders:
+		if m.transportType == TransportHTTP || m.transportType == TransportSSE {
+			cmds = append(cmds, m.headersInput.Focus())
+		}
 	case focusEnv:
-		cmds = append(cmds, m.envInput.Focus())
+		if m.transportType == TransportStdio {
+			cmds = append(cmds, m.envInput.Focus())
+		}
 		// case focusType: no text input to focus
 	}
 
@@ -310,37 +386,49 @@ func (m FormModel) View() string {
 	sb.WriteString(title + "\n\n")
 
 	// Name Input (Always visible)
-	sb.WriteString(m.nameInput.View() + "\n")
+	sb.WriteString(m.nameInput.View() + "\n\n")
 
-	// Type Checkbox
-	checkbox := "[ ]"
-	if m.isSSE {
-		checkbox = "[x]"
-	}
-	label := " SSE (vs stdio)"
-	checkboxView := lipgloss.JoinHorizontal(lipgloss.Left, checkbox, label)
+	// Transport Type Radio Buttons
+	sb.WriteString("Transport Type:\n")
+	radioView := m.renderRadioButtons()
 	if m.activeInput == focusType {
-		checkboxView = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(checkboxView)
+		radioView = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render(radioView)
 	}
-	sb.WriteString(checkboxView + "\n\n")
+	sb.WriteString(radioView + "\n\n")
 
-	// Conditional Fields
-	if m.isSSE {
-		// SSE Type: URL
-		sb.WriteString(m.urlInput.View() + "\n")
-	} else {
-		// Stdio Type: Command, Args
+	// Conditional Fields based on transport type
+	switch m.transportType {
+	case TransportStdio:
 		sb.WriteString(m.commandInput.View() + "\n")
 		sb.WriteString(m.argsInput.View() + "\n")
+		sb.WriteString(m.envInput.View())
+	case TransportHTTP, TransportSSE:
+		sb.WriteString(m.urlInput.View() + "\n")
+		sb.WriteString(m.headersInput.View())
 	}
-
-	// Env Input (Always visible) - now a textarea
-	sb.WriteString(m.envInput.View())
 
 	sb.WriteString("\n\n")
 	sb.WriteString(m.helpView())
 
 	return sb.String()
+}
+
+// renderRadioButtons renders the 3-way radio button selector for transport type
+func (m FormModel) renderRadioButtons() string {
+	options := []string{"stdio", "http", "sse"}
+	var parts []string
+
+	for i, option := range options {
+		var radioButton string
+		if i == m.radioOption {
+			radioButton = "(•)"
+		} else {
+			radioButton = "( )"
+		}
+		parts = append(parts, fmt.Sprintf("%s %s", radioButton, option))
+	}
+
+	return strings.Join(parts, "  ")
 }
 
 // helpView renders the help text for the form
@@ -355,10 +443,10 @@ func (m FormModel) helpView() string {
 	switch m.activeInput {
 	case focusType:
 		keys = append(keys,
-			key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle checkbox")),
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "toggle checkbox (when focused)")),
+			key.NewBinding(key.WithKeys("space/←/→"), key.WithHelp("space/←/→", "select transport type")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "cycle transport type")),
 		)
-	case focusEnv:
+	case focusEnv, focusHeaders:
 		keys = append(keys,
 			key.NewBinding(key.WithKeys("↑/↓"), key.WithHelp("↑/↓", "navigate in textarea")),
 		)
@@ -382,9 +470,11 @@ func (m *FormModel) Reset() tea.Cmd {
 	m.commandInput.Reset()
 	m.urlInput.Reset()
 	m.argsInput.Reset()
-	m.envInput.Reset()        // Textarea also has Reset() method
-	m.activeInput = focusName // Reset focus to name
-	m.isSSE = false           // Reset to stdio
+	m.headersInput.Reset()
+	m.envInput.Reset()
+	m.activeInput = focusName        // Reset focus to name
+	m.transportType = TransportStdio // Reset to stdio
+	m.radioOption = 0                // Reset to stdio option
 	m.isAddMode = true
 	m.submitted = false
 	m.cancelled = false
@@ -402,24 +492,73 @@ func (m *FormModel) ToServer() (types.CommonServer, error) {
 	}
 	server.Name = name
 
-	server.IsSSE = m.isSSE
-	if m.isSSE {
+	switch m.transportType {
+	case TransportStdio:
+		cmd := m.commandInput.Value()
+		if cmd == "" {
+			return server, fmt.Errorf("command is required for stdio server type")
+		}
+		server.Command = cmd
+		server.Args = parseArgsString(m.argsInput.Value())
+		server.Env = parseEnvString(m.envInput.Value())
+		server.IsSSE = false
+
+	case TransportHTTP:
+		url := m.urlInput.Value()
+		if url == "" {
+			return server, fmt.Errorf("URL is required for HTTP server type")
+		}
+		server.URL = url
+		server.Env = parseEnvString(m.headersInput.Value()) // Headers stored in Env field
+		server.IsSSE = false
+
+	case TransportSSE:
 		url := m.urlInput.Value()
 		if url == "" {
 			return server, fmt.Errorf("URL is required for SSE server type")
 		}
 		server.URL = url
-		// Command/Args are ignored for SSE type in the backend, but we parse env
-		server.Env = parseEnvString(m.envInput.Value())
-	} else {
-		cmd := m.commandInput.Value()
-		if cmd == "" {
-			return server, fmt.Errorf("command is required for non-SSE server type")
-		}
-		server.Command = cmd
-		server.Args = parseArgsString(m.argsInput.Value())
-		server.Env = parseEnvString(m.envInput.Value())
+		server.Env = parseEnvString(m.headersInput.Value()) // Headers stored in Env field
+		server.IsSSE = true
 	}
 
 	return server, nil
+}
+
+// LoadFromServer populates the form with data from an existing server
+func (m *FormModel) LoadFromServer(server types.CommonServer) {
+	m.nameInput.SetValue(server.Name)
+
+	// Determine transport type and set radio option
+	if server.Command != "" && server.URL == "" {
+		// stdio type
+		m.transportType = TransportStdio
+		m.radioOption = 0
+		m.commandInput.SetValue(server.Command)
+		m.argsInput.SetValue(strings.Join(server.Args, " "))
+		m.envInput.SetValue(formatEnvMap(server.Env))
+	} else if server.URL != "" {
+		// http or sse type
+		if server.IsSSE {
+			m.transportType = TransportSSE
+			m.radioOption = 2
+		} else {
+			m.transportType = TransportHTTP
+			m.radioOption = 1
+		}
+		m.urlInput.SetValue(server.URL)
+		m.headersInput.SetValue(formatEnvMap(server.Env))
+	}
+}
+
+// formatEnvMap converts a map to KEY=VALUE string format
+func formatEnvMap(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	var lines []string
+	for key, value := range env {
+		lines = append(lines, fmt.Sprintf("%s=%s", key, value))
+	}
+	return strings.Join(lines, "\n")
 }

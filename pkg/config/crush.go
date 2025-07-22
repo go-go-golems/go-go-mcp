@@ -92,15 +92,31 @@ func (c *CrushEditor) ListServers() (map[string]types.CommonServer, error) {
 	servers := make(map[string]types.CommonServer)
 
 	for name, entry := range c.config.MCP {
-		servers[name] = types.CommonServer{
+		server := types.CommonServer{
 			Name:    name,
 			Command: entry.Command,
 			Args:    entry.Args,
 			URL:     entry.URL,
-			// Use env for stdio servers, headers for HTTP servers
-			Env:   entry.Env,
-			IsSSE: entry.Type == "http", // HTTP/SSE servers have type "http", stdio servers have type "stdio"
 		}
+
+		// Map fields based on transport type
+		switch entry.Type {
+		case "stdio":
+			server.Env = entry.Env
+			server.IsSSE = false
+		case "http":
+			server.Env = entry.Headers // Headers map to Env for http
+			server.IsSSE = false
+		case "sse":
+			server.Env = entry.Headers // Headers map to Env for sse
+			server.IsSSE = true
+		default:
+			// Legacy fallback - assume http if no type specified
+			server.Env = entry.Headers
+			server.IsSSE = false
+		}
+
+		servers[name] = server
 	}
 
 	return servers, nil
@@ -118,8 +134,23 @@ func (c *CrushEditor) GetServer(name string) (types.CommonServer, bool, error) {
 		Command: entry.Command,
 		Args:    entry.Args,
 		URL:     entry.URL,
-		Env:     entry.Env,
-		IsSSE:   entry.Type == "http",
+	}
+
+	// Map fields based on transport type
+	switch entry.Type {
+	case "stdio":
+		server.Env = entry.Env
+		server.IsSSE = false
+	case "http":
+		server.Env = entry.Headers
+		server.IsSSE = false
+	case "sse":
+		server.Env = entry.Headers
+		server.IsSSE = true
+	default:
+		// Legacy fallback
+		server.Env = entry.Headers
+		server.IsSSE = false
 	}
 
 	return server, true, nil
@@ -133,8 +164,8 @@ func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) er
 
 	var entry CrushMCPEntry
 
-	// Determine the type based on whether this is a stdio or HTTP/SSE server
-	if server.URL == "" && server.Command != "" {
+	// Determine the type based on CommonServer fields
+	if server.Command != "" && server.URL == "" {
 		// Stdio server
 		entry = CrushMCPEntry{
 			Type:    "stdio",
@@ -142,13 +173,22 @@ func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) er
 			Args:    server.Args,
 			Env:     server.Env,
 		}
-	} else {
-		// HTTP/SSE server
+	} else if server.URL != "" && server.IsSSE {
+		// SSE server
+		entry = CrushMCPEntry{
+			Type:    "sse",
+			URL:     server.URL,
+			Headers: server.Env,
+		}
+	} else if server.URL != "" && !server.IsSSE {
+		// HTTP server
 		entry = CrushMCPEntry{
 			Type:    "http",
 			URL:     server.URL,
 			Headers: server.Env,
 		}
+	} else {
+		return fmt.Errorf("invalid server configuration: must have either command (stdio) or URL (http/sse)")
 	}
 
 	c.config.MCP[server.Name] = entry
