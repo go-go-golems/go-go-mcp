@@ -55,6 +55,8 @@ type keyMap struct {
 	Edit      key.Binding
 	Delete    key.Binding
 	Duplicate key.Binding
+	Yank      key.Binding
+	Paste     key.Binding
 	Enable    key.Binding
 	Help      key.Binding
 }
@@ -96,6 +98,14 @@ var defaultKeyMap = keyMap{
 	Duplicate: key.NewBinding(
 		key.WithKeys("d"),
 		key.WithHelp("d", "duplicate selected server"),
+	),
+	Yank: key.NewBinding(
+		key.WithKeys("y"),
+		key.WithHelp("y", "yank (copy) selected server"),
+	),
+	Paste: key.NewBinding(
+		key.WithKeys("p"),
+		key.WithHelp("p", "paste yanked server"),
 	),
 	Enable: key.NewBinding(
 		key.WithKeys("space", " "),
@@ -185,6 +195,9 @@ type Model struct {
 	confirmDialog    ConfirmModel
 	confirmAction    string
 	actionServerName string
+
+	// Yank/paste clipboard
+	yankedServer *types.CommonServer
 }
 
 // Simple list item for menu
@@ -555,6 +568,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
+			case key.Matches(msg, m.keys.Yank):
+				if m.activeList != nil && m.activeList.SelectedItem() != nil && m.configType != ConfigTypeProfile {
+					// Only works for servers, not profiles
+					selectedItem := m.activeList.SelectedItem().(serverItem)
+					if m.currentEditor != nil {
+						servers, err := m.currentEditor.ListServers()
+						if err != nil {
+							m.errorMsg = fmt.Sprintf("Error loading servers: %s", err)
+							return m, nil
+						}
+						if server, exists := servers[selectedItem.name]; exists {
+							// Copy the server data
+							yankedServer := server
+							m.yankedServer = &yankedServer
+							m.errorMsg = fmt.Sprintf("Yanked server '%s'", selectedItem.name)
+						}
+					}
+				}
+
+			case key.Matches(msg, m.keys.Paste):
+				if m.yankedServer != nil && m.configType != ConfigTypeProfile {
+					// Only works for servers, not profiles
+					var err error
+					m.formState, err = m.loadCommonServerToForm(*m.yankedServer)
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error loading yanked server: %s", err)
+						return m, nil
+					}
+					// Set a new name for the pasted server with "-paste" suffix
+					m.formState.nameInput.SetValue(m.yankedServer.Name + "-paste")
+					m.formState.isAddMode = true
+					m.mode = modeAddEdit
+					return m, m.formState.updateFocus()
+				}
+
 			case key.Matches(msg, m.keys.Delete):
 				if m.activeList != nil && m.activeList.SelectedItem() != nil {
 					if m.configType == ConfigTypeProfile {
@@ -923,6 +971,8 @@ func (m Model) contextualHelp() []key.Binding {
 				m.keys.Delete,
 				m.keys.Enable,
 				m.keys.Duplicate,
+				m.keys.Yank,
+				m.keys.Paste,
 				m.keys.Help,
 				m.keys.Quit,
 			}
@@ -985,7 +1035,7 @@ func (m Model) FullHelp() [][]key.Binding {
 		return [][]key.Binding{
 			{m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back},
 			{m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Duplicate},
-			{m.keys.Enable, m.keys.Help, m.keys.Quit},
+			{m.keys.Yank, m.keys.Paste, m.keys.Enable, m.keys.Help, m.keys.Quit},
 		}
 	case modeAddEdit:
 		if m.configType == ConfigTypeProfile {
@@ -1024,6 +1074,37 @@ func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
 	// Create and populate a new form model
 	form := NewFormModel()
 	form.LoadFromServer(server)
+	form.isAddMode = false // Explicitly set to edit mode
+
+	return form, nil
+}
+
+// loadCommonServerToForm loads data from a CommonServer directly into the form model.
+func (m *Model) loadCommonServerToForm(server types.CommonServer) (FormModel, error) {
+	// Create and populate a new form model
+	form := NewFormModel()
+	form.nameInput.SetValue(server.Name)
+	form.commandInput.SetValue(server.Command)
+	form.argsInput.SetValue(strings.Join(server.Args, " "))
+
+	// Format environment variables as KEY=VALUE pairs, one per line
+	envText := ""
+	keys := make([]string, 0, len(server.Env))
+	for k := range server.Env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // Sort keys for consistent display
+
+	for _, k := range keys {
+		if envText != "" {
+			envText += "\n"
+		}
+		envText += fmt.Sprintf("%s=%s", k, server.Env[k])
+	}
+
+	form.envInput.SetValue(envText)
+	form.urlInput.SetValue(server.URL)
+	form.isSSE = server.IsSSE
 	form.isAddMode = false // Explicitly set to edit mode
 
 	return form, nil
