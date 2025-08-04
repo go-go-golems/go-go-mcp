@@ -53,7 +53,7 @@ func (c *EditCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayers
 		}
 
 		configPath := store.GetConfigPath()
-		
+
 		c := exec.Command(editorCmd, configPath)
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
@@ -62,10 +62,10 @@ func (c *EditCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayers
 	} else {
 		// Multiple editors - edit sequentially with confirmation
 		fmt.Printf("Editing config files for %d editors...\n", len(editors))
-		
+
 		for i, editor := range editors {
 			fmt.Printf("\n[%d/%d] Editing %s configuration:\n", i+1, len(editors), editor)
-			
+
 			store, err := NewStoreWithTarget(editor, settings.Target)
 			if err != nil {
 				fmt.Printf("❌ Error opening %s config: %v\n", editor, err)
@@ -74,20 +74,20 @@ func (c *EditCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayers
 
 			configPath := store.GetConfigPath()
 			fmt.Printf("Opening: %s\n", configPath)
-			
+
 			c := exec.Command(editorCmd, configPath)
 			c.Stdin = os.Stdin
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
-			
+
 			if err := c.Run(); err != nil {
 				fmt.Printf("❌ Error editing %s config: %v\n", editor, err)
 				continue
 			}
-			
+
 			fmt.Printf("✅ %s config edited successfully\n", editor)
 		}
-		
+
 		return nil
 	}
 }
@@ -98,16 +98,8 @@ func NewEditCommand() (cmds.BareCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"edit",
 			cmds.WithShort("Edit config file"),
-			cmds.WithLong(`Edit the configuration file for one or more editors in your default editor.
+			cmds.WithLong("Edit the configuration file for one or more editors in your default editor.\n\nThe command respects the $EDITOR environment variable, defaulting to 'vi'.\n\nFor multiple editors, files are edited sequentially with confirmation prompts.\n\nExamples:\n```\n# Edit configuration for a single editor\nmcp editor config claude edit\n\n# Edit configurations for multiple editors\nmcp editor config claude,cursor edit\n\n# Edit with specific target configuration\nmcp editor config claude edit --target global\n```"),
 
-EDITORS can be a single editor or comma-separated list: claude,cursor,amp
-
-The command respects the $EDITOR environment variable, defaulting to 'vi'.
-
-Examples:
-  mcp editor config claude edit
-  mcp editor config claude,cursor edit --target global`),
-			
 			cmds.WithArguments(
 				parameters.NewParameterDefinition(
 					"editors",
@@ -116,7 +108,7 @@ Examples:
 					parameters.WithRequired(true),
 				),
 			),
-			
+
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"target",

@@ -167,33 +167,7 @@ func NewGlazedListCommand() (*ListCommand, error) {
 	cmdDesc := cmds.NewCommandDescription(
 		"list",
 		cmds.WithShort("List MCP servers from one or more editors"),
-		cmds.WithLong(fmt.Sprintf(`List all configured MCP servers for one or more editors.
-
-Supported editors: %s
-
-The command provides structured output showing all server configurations including:
-- Server name and enabled/disabled status  
-- Transport type (stdio, http, sse)
-- Command and arguments for stdio servers
-- URL for HTTP/SSE servers
-- Environment variables and configuration
-- Target location information
-
-Examples:
-  # List servers from a single editor
-  mcp editor config list --editors claude
-  
-  # List servers from multiple editors  
-  mcp editor config list --editors claude,cursor,amp
-  
-  # Use specific target configuration
-  mcp editor config list --editors claude --target global
-  
-  # Output as JSON
-  mcp editor config list --editors claude,cursor --output json
-  
-  # Output as CSV with specific fields
-  mcp editor config list --editors claude --output csv --fields name,transport,enabled`, editorList)),
+		cmds.WithLong(fmt.Sprintf("List all configured MCP servers for one or more editors.\n\nSupported editors: %s\n\nThe command provides structured output showing all server configurations including:\n- Server name and enabled/disabled status\n- Transport type (stdio, http, sse)\n- Command and arguments for stdio servers\n- URL for HTTP/SSE servers\n- Environment variables and configuration\n- Target location information\n\nExamples:\n```\n# List servers from a single editor\nmcp editor config claude list\n\n# List servers from multiple editors\nmcp editor config claude,cursor,amp list\n\n# Use specific target configuration\nmcp editor config claude list --target global\n\n# Output as JSON\nmcp editor config claude,cursor list --output json\n\n# Output as CSV with specific fields\nmcp editor config claude list --output csv --fields name,transport,enabled\n```", editorList)),
 
 		// Define command arguments
 		cmds.WithFlags(
@@ -389,28 +363,7 @@ func NewSingleEditorListCommand(editor string) (*SingleEditorListCommand, error)
 	cmdDesc := cmds.NewCommandDescription(
 		"list",
 		cmds.WithShort(fmt.Sprintf("List MCP servers for %s", editor)),
-		cmds.WithLong(fmt.Sprintf(`List all configured MCP servers for %s.
-
-The command provides structured output showing all server configurations including:
-- Server name and enabled/disabled status  
-- Transport type (stdio, http, sse)
-- Command and arguments for stdio servers
-- URL for HTTP/SSE servers
-- Environment variables and configuration
-- Target location information
-
-Examples:
-  # List servers with default output
-  mcp editor config %s list
-  
-  # Use specific target configuration
-  mcp editor config %s list --target global
-  
-  # Output as JSON
-  mcp editor config %s list --output json
-  
-  # Output as CSV with specific fields
-  mcp editor config %s list --output csv --fields name,transport,enabled`, editor, editor, editor, editor, editor)),
+		cmds.WithLong(fmt.Sprintf("List all configured MCP servers for %s.\n\nThe command provides structured output showing all server configurations including:\n- Server name and enabled/disabled status\n- Transport type (stdio, http, sse)\n- Command and arguments for stdio servers\n- URL for HTTP/SSE servers\n- Environment variables and configuration\n- Target location information\n\nExamples:\n```\n# List servers with default output\nmcp editor config %s list\n\n# Use specific target configuration\nmcp editor config %s list --target global\n\n# Output as JSON\nmcp editor config %s list --output json\n\n# Output as CSV with specific fields\nmcp editor config %s list --output csv --fields name,transport,enabled\n```", editor, editor, editor, editor, editor)),
 
 		// Define command flags
 		cmds.WithFlags(

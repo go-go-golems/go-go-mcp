@@ -322,13 +322,19 @@ URLs containing 'events' or 'sse' in the path are detected as SSE transport.
 
 Examples:
   # Human-readable output (default)
+  `+"```"+`
   mcp editor config claude,cursor add myserver /path/to/cmd --env KEY=value
+  `+"```"+`
   
   # Structured output
+  `+"```"+`
   mcp editor config claude add myserver /path/to/cmd --with-structured-output --output json
+  `+"```"+`
   
   # Multi-editor with structured output
-  mcp editor config claude,cursor,amp add shared-server /path/to/cmd --with-structured-output --output table`),
+  `+"```"+`
+  mcp editor config claude,cursor,amp add shared-server /path/to/cmd --with-structured-output --output table
+  `+"```"+``),
 
 		// Define command arguments and flags
 		cmds.WithArguments(

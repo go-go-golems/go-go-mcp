@@ -196,10 +196,10 @@ func init() {
 	executeCmd, err := NewExecutePromptCommand()
 	cobra.CheckErr(err)
 
-	listCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	listCobraCmd, err := cli.BuildCobraCommand(listCmd)
 	cobra.CheckErr(err)
 
-	executeCobraCmd, err := cli.BuildCobraCommandFromWriterCommand(executeCmd)
+	executeCobraCmd, err := cli.BuildCobraCommand(executeCmd)
 	cobra.CheckErr(err)
 
 	PromptsCmd.AddCommand(listCobraCmd)

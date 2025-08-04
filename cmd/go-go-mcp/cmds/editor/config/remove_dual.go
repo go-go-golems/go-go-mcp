@@ -67,7 +67,7 @@ func (c *RemoveCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLaye
 
 		// Show server details before removal (for confirmation in logs)
 		if len(editors) > 1 {
-			fmt.Printf("📋 %s: removing server '%s' (command: %s)\n", 
+			fmt.Printf("📋 %s: removing server '%s' (command: %s)\n",
 				editorStore.Editor, settings.ServerName, server.Command)
 		}
 
@@ -167,7 +167,7 @@ func (c *RemoveCommand) RunIntoGlazeProcessor(
 		} else {
 			// Capture server details before removal
 			wasDisabled, _ := editorStore.Store.IsServerDisabled(settings.ServerName)
-			
+
 			// Determine transport type
 			transport := "stdio"
 			if server.URL != "" {
@@ -177,7 +177,7 @@ func (c *RemoveCommand) RunIntoGlazeProcessor(
 					transport = "http"
 				}
 			}
-			
+
 			serverDetails = map[string]interface{}{
 				"command":     server.Command,
 				"args":        server.Args,
@@ -256,12 +256,16 @@ The remove operation will:
 
 Examples:
   # Human-readable output (default)
+  `+"```"+`
   mcp editor config claude remove myserver
   mcp editor config claude,cursor remove myserver --target global
+  `+"```"+`
   
   # Structured output
+  `+"```"+`
   mcp editor config claude remove myserver --with-structured-output --output json
-  mcp editor config claude,cursor,amp remove myserver --with-structured-output --output table`),
+  mcp editor config claude,cursor,amp remove myserver --with-structured-output --output table
+  `+"```"+``),
 
 		// Define command arguments
 		cmds.WithArguments(

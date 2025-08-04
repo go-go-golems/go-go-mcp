@@ -452,14 +452,20 @@ unless --overwrite is specified.
 
 Examples:
   # Human-readable output (default)
+  `+"```"+`
   mcp editor config claude copy server1 server2
   mcp editor config claude copy server1 server2 --target-editor cursor
+  `+"```"+`
   
   # Structured output
+  `+"```"+`
   mcp editor config claude copy server1 server2 --with-structured-output --output json
+  `+"```"+`
   
   # Cross-editor with structured output
-  mcp editor config claude copy server1 server2 --target-editor cursor --with-structured-output --output table`),
+  `+"```"+`
+  mcp editor config claude copy server1 server2 --target-editor cursor --with-structured-output --output table
+  `+"```"+``),
 
 		// Define command arguments
 		cmds.WithArguments(

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/go-go-mcp/pkg/core/configstore"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 	"github.com/spf13/cobra"
@@ -177,14 +178,18 @@ Available verbs:
 
 Examples:
   # Single editor (existing functionality)
-  mcp editor config claude add myserver /path/to/command
-  mcp editor config cursor list --target global
-  mcp editor config amp remove myserver
+` + "```" + `
+mcp editor config claude add myserver /path/to/command
+mcp editor config cursor list --target global
+mcp editor config amp remove myserver
+` + "```" + `
 
   # Multiple editors (new functionality)
-  mcp editor config claude,cursor,amp add myserver /path/to/command
-  mcp editor config claude,cursor list --target global
-  mcp editor config cursor,amp remove myserver`,
+` + "```" + `
+mcp editor config claude,cursor,amp add myserver /path/to/command
+mcp editor config claude,cursor list --target global
+mcp editor config cursor,amp remove myserver
+` + "```" + ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("editor argument required. Supported editors: %v", getSupportedEditorNames())
@@ -213,13 +218,13 @@ Examples:
 	}
 
 	// Add multi-editor verb commands using Glazed dual commands
-	
+
 	// Multi-editor add command (dual mode)
 	multiAddCmd, err := NewAddCommandDual()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create multi-editor add command: %v", err))
 	}
-	cobraMultiAddCmd, err := cli.BuildCobraCommand(multiAddCmd)
+	cobraMultiAddCmd, err := cli.BuildCobraCommand(multiAddCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build multi-editor add command: %v", err))
 	}
@@ -229,52 +234,52 @@ Examples:
 
 	// Multi-editor list command (single mode Glazed)
 	cmd.AddCommand(NewMultiListCommandGlazed())
-	
+
 	// Multi-editor remove command (dual mode)
 	multiRemoveCmd, err := NewRemoveCommandDual()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create multi-editor remove command: %v", err))
 	}
-	cobraMultiRemoveCmd, err := cli.BuildCobraCommand(multiRemoveCmd)
+	cobraMultiRemoveCmd, err := cli.BuildCobraCommand(multiRemoveCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build multi-editor remove command: %v", err))
 	}
 	// Override Use to match multi-editor format
 	cobraMultiRemoveCmd.Use = "remove EDITORS NAME"
 	cmd.AddCommand(cobraMultiRemoveCmd)
-	
+
 	// Multi-editor enable command (dual mode)
 	multiEnableCmd, err := NewEnableCommandDual()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create multi-editor enable command: %v", err))
 	}
-	cobraMultiEnableCmd, err := cli.BuildCobraCommand(multiEnableCmd)
+	cobraMultiEnableCmd, err := cli.BuildCobraCommand(multiEnableCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build multi-editor enable command: %v", err))
 	}
 	// Override Use to match multi-editor format
 	cobraMultiEnableCmd.Use = "enable EDITORS NAME"
 	cmd.AddCommand(cobraMultiEnableCmd)
-	
+
 	// Multi-editor disable command (dual mode)
 	multiDisableCmd, err := NewDisableCommandDual()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create multi-editor disable command: %v", err))
 	}
-	cobraMultiDisableCmd, err := cli.BuildCobraCommand(multiDisableCmd)
+	cobraMultiDisableCmd, err := cli.BuildCobraCommand(multiDisableCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build multi-editor disable command: %v", err))
 	}
 	// Override Use to match multi-editor format
 	cobraMultiDisableCmd.Use = "disable EDITORS NAME"
 	cmd.AddCommand(cobraMultiDisableCmd)
-	
+
 	// Multi-editor copy command (dual mode)
 	multiCopyCmd, err := NewCopyCommandDual()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create multi-editor copy command: %v", err))
 	}
-	cobraMultiCopyCmd, err := cli.BuildCobraCommand(multiCopyCmd)
+	cobraMultiCopyCmd, err := cli.BuildCobraCommand(multiCopyCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build multi-editor copy command: %v", err))
 	}
@@ -300,13 +305,13 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 	}
 
 	// Add verb subcommands using new Glazed dual commands
-	
+
 	// Add command (dual mode)
 	addCmd, err := NewAddCommandDual()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create add command: %w", err)
 	}
-	cobraAddCmd, err := cli.BuildCobraCommand(addCmd)
+	cobraAddCmd, err := cli.BuildCobraCommand(addCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build add command: %w", err)
 	}
@@ -324,13 +329,13 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 		}
 	}
 	cmd.AddCommand(cobraAddCmd)
-	
+
 	// Remove command (dual mode)
 	removeCmd, err := NewRemoveCommandDual()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remove command: %w", err)
 	}
-	cobraRemoveCmd, err := cli.BuildCobraCommand(removeCmd)
+	cobraRemoveCmd, err := cli.BuildCobraCommand(removeCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build remove command: %w", err)
 	}
@@ -348,16 +353,16 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 		}
 	}
 	cmd.AddCommand(cobraRemoveCmd)
-	
+
 	// List command (single mode Glazed)
 	cmd.AddCommand(NewListCommandGlazed(editorInfo.Name))
-	
+
 	// Enable command (dual mode)
 	enableCmd, err := NewEnableCommandDual()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create enable command: %w", err)
 	}
-	cobraEnableCmd, err := cli.BuildCobraCommand(enableCmd)
+	cobraEnableCmd, err := cli.BuildCobraCommand(enableCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build enable command: %w", err)
 	}
@@ -375,13 +380,13 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 		}
 	}
 	cmd.AddCommand(cobraEnableCmd)
-	
+
 	// Disable command (dual mode)
 	disableCmd, err := NewDisableCommandDual()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create disable command: %w", err)
 	}
-	cobraDisableCmd, err := cli.BuildCobraCommand(disableCmd)
+	cobraDisableCmd, err := cli.BuildCobraCommand(disableCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build disable command: %w", err)
 	}
@@ -399,13 +404,13 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 		}
 	}
 	cmd.AddCommand(cobraDisableCmd)
-	
+
 	// Copy command (dual mode)
 	copyCmd, err := NewCopyCommandDual()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create copy command: %w", err)
 	}
-	cobraCopyCmd, err := cli.BuildCobraCommand(copyCmd)
+	cobraCopyCmd, err := cli.BuildCobraCommand(copyCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build copy command: %w", err)
 	}
@@ -418,7 +423,7 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create edit command: %w", err)
 	}
-	cobraEditCmd, err := cli.BuildCobraCommandFromBareCommand(editCmd)
+	cobraEditCmd, err := cli.BuildCobraCommand(editCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build edit command: %w", err)
 	}
@@ -429,7 +434,7 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create init command: %w", err)
 	}
-	cobraInitCmd, err := cli.BuildCobraCommandFromBareCommand(initCmd)
+	cobraInitCmd, err := cli.BuildCobraCommand(initCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build init command: %w", err)
 	}
@@ -443,7 +448,7 @@ func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tail command: %w", err)
 		}
-		cobraTailCmd, err := cli.BuildCobraCommandFromBareCommand(tailCmd)
+		cobraTailCmd, err := cli.BuildCobraCommand(tailCmd, cli.WithCobraShortHelpLayers(layers.DefaultSlug))
 		if err != nil {
 			return nil, fmt.Errorf("failed to build tail command: %w", err)
 		}

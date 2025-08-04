@@ -55,10 +55,10 @@ func (c *InitCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayers
 	} else {
 		// Multiple editors - initialize each and show results
 		fmt.Printf("Initializing config files for %d editors...\n\n", len(editors))
-		
+
 		var successCount, failCount int
 		var results []string
-		
+
 		for _, editor := range editors {
 			store, err := NewStoreWithTarget(editor, settings.Target)
 			if err != nil {
@@ -87,19 +87,19 @@ func (c *InitCommand) Run(ctx context.Context, parsedLayers *layers.ParsedLayers
 			}
 			successCount++
 		}
-		
+
 		// Print results
 		for _, result := range results {
 			fmt.Println(result)
 		}
-		
+
 		fmt.Printf("\nSummary: %d successful, %d failed\n", successCount, failCount)
-		
+
 		// Return error if all failed
 		if successCount == 0 {
 			return fmt.Errorf("failed to initialize configuration for any editor")
 		}
-		
+
 		return nil
 	}
 }
@@ -110,16 +110,8 @@ func NewInitCommand() (cmds.BareCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"init",
 			cmds.WithShort("Initialize config"),
-			cmds.WithLong(`Initialize configuration files for one or more editors.
+			cmds.WithLong("Initialize configuration files for one or more editors.\n\nIf a configuration file already exists, it will not be overwritten.\n\nFor multiple editors, each configuration is initialized independently with status reporting.\n\nExamples:\n```\n# Initialize configuration for a single editor\nmcp editor config claude init\n\n# Initialize configurations for multiple editors\nmcp editor config claude,cursor init\n\n# Initialize with specific target configuration\nmcp editor config claude init --target global\n```"),
 
-EDITORS can be a single editor or comma-separated list: claude,cursor,amp
-
-If a configuration file already exists, it will not be overwritten.
-
-Examples:
-  mcp editor config claude init
-  mcp editor config claude,cursor init --target global`),
-			
 			cmds.WithArguments(
 				parameters.NewParameterDefinition(
 					"editors",
@@ -128,7 +120,7 @@ Examples:
 					parameters.WithRequired(true),
 				),
 			),
-			
+
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"target",

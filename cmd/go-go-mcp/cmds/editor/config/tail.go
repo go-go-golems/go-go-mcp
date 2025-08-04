@@ -172,20 +172,8 @@ func NewTailCommand() (cmds.BareCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"tail",
 			cmds.WithShort("Tail logs"),
-			cmds.WithLong(`Tail log files for Claude in real-time.
+			cmds.WithLong("Tail log files for Claude in real-time.\n\nThe tail command is only supported for Claude editors.\n\nWithout server names, tails the main mcp.log file.\nWith server names, tails the corresponding mcp-server-XXX.log files.\nUse --all to tail all log files.\nUse --lines/-n to output the last N lines of each file before tailing.\n\nExamples:\n```\n# Tail the main log file\nmcp editor config claude tail\n\n# Tail specific server logs with line history\nmcp editor config claude tail server1 server2 --lines 20\n\n# Tail all log files\nmcp editor config claude tail --all\n\n# Tail with more line history\nmcp editor config claude tail --lines 50\n```"),
 
-EDITORS must be "claude" (tail command is only supported for Claude).
-
-Without server names, tails the main mcp.log file.
-With server names, tails the corresponding mcp-server-XXX.log files.
-Use --all to tail all log files.
-Use --lines/-n to output the last N lines of each file before tailing.
-
-Examples:
-  mcp editor config claude tail
-  mcp editor config claude tail server1 server2 --lines 20
-  mcp editor config claude tail --all`),
-			
 			cmds.WithArguments(
 				parameters.NewParameterDefinition(
 					"editors",
@@ -200,7 +188,7 @@ Examples:
 					parameters.WithRequired(false),
 				),
 			),
-			
+
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"all",

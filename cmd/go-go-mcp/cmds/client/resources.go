@@ -179,13 +179,13 @@ func init() {
 	listCmd, err := NewListResourcesCommand()
 	cobra.CheckErr(err)
 
-	cobraListCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	cobraListCmd, err := cli.BuildCobraCommand(listCmd)
 	cobra.CheckErr(err)
 
 	readCmd, err := NewReadResourceCommand()
 	cobra.CheckErr(err)
 
-	cobraReadCmd, err := cli.BuildCobraCommandFromWriterCommand(readCmd)
+	cobraReadCmd, err := cli.BuildCobraCommand(readCmd)
 	cobra.CheckErr(err)
 
 	ResourcesCmd.AddCommand(cobraListCmd)

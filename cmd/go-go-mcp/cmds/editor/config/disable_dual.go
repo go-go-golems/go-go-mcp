@@ -250,12 +250,16 @@ The disable operation will:
 
 Examples:
   # Human-readable output (default)
+  `+"```"+`
   mcp editor config claude disable myserver
   mcp editor config claude,cursor disable myserver --target global
+  `+"```"+`
   
   # Structured output
+  `+"```"+`
   mcp editor config claude disable myserver --with-structured-output --output json
-  mcp editor config claude,cursor,amp disable myserver --with-structured-output --output table`),
+  mcp editor config claude,cursor,amp disable myserver --with-structured-output --output table
+  `+"```"+``),
 
 		// Define command arguments
 		cmds.WithArguments(
