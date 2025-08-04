@@ -10,8 +10,10 @@ import (
 )
 
 // CrushMCPConfig represents the structure of Crush's MCP configuration
+// using separate maps for enabled and disabled servers
 type CrushMCPConfig struct {
-	MCP map[string]CrushMCPEntry `json:"mcp"`
+	MCP             map[string]CrushMCPEntry `json:"mcp"`
+	DisabledServers map[string]CrushMCPEntry `json:"disabledServers,omitempty"`
 }
 
 // CrushMCPEntry represents an individual MCP entry in Crush configuration
@@ -38,7 +40,8 @@ func NewCrushEditor(filePath string) (*CrushEditor, error) {
 	editor := &CrushEditor{
 		filePath: filePath,
 		config: &CrushMCPConfig{
-			MCP: make(map[string]CrushMCPEntry),
+			MCP:             make(map[string]CrushMCPEntry),
+			DisabledServers: make(map[string]CrushMCPEntry),
 		},
 	}
 
@@ -61,6 +64,14 @@ func (c *CrushEditor) load() error {
 
 	if err := json.Unmarshal(data, c.config); err != nil {
 		return fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	// Initialize maps if they're nil
+	if c.config.MCP == nil {
+		c.config.MCP = make(map[string]CrushMCPEntry)
+	}
+	if c.config.DisabledServers == nil {
+		c.config.DisabledServers = make(map[string]CrushMCPEntry)
 	}
 
 	return nil
@@ -87,10 +98,11 @@ func (c *CrushEditor) Save() error {
 	return nil
 }
 
-// ListServers returns all MCP entries as CommonServer objects
+// ListServers returns all MCP entries (both enabled and disabled) as CommonServer objects
 func (c *CrushEditor) ListServers() (map[string]types.CommonServer, error) {
 	servers := make(map[string]types.CommonServer)
 
+	// Add enabled servers
 	for name, entry := range c.config.MCP {
 		server := types.CommonServer{
 			Name:    name,
@@ -119,14 +131,50 @@ func (c *CrushEditor) ListServers() (map[string]types.CommonServer, error) {
 		servers[name] = server
 	}
 
+	// Add disabled servers
+	for name, entry := range c.config.DisabledServers {
+		if _, exists := servers[name]; !exists {
+			server := types.CommonServer{
+				Name:    name,
+				Command: entry.Command,
+				Args:    entry.Args,
+				URL:     entry.URL,
+			}
+
+			// Map fields based on transport type
+			switch entry.Type {
+			case "stdio":
+				server.Env = entry.Env
+				server.IsSSE = false
+			case "http":
+				server.Env = entry.Headers // Headers map to Env for http
+				server.IsSSE = false
+			case "sse":
+				server.Env = entry.Headers // Headers map to Env for sse
+				server.IsSSE = true
+			default:
+				// Legacy fallback - assume http if no type specified
+				server.Env = entry.Headers
+				server.IsSSE = false
+			}
+
+			servers[name] = server
+		}
+	}
+
 	return servers, nil
 }
 
-// GetServer retrieves a specific server by name
+// GetServer retrieves a specific server by name from either enabled or disabled servers
 func (c *CrushEditor) GetServer(name string) (types.CommonServer, bool, error) {
+	// Check enabled servers first
 	entry, exists := c.config.MCP[name]
 	if !exists {
-		return types.CommonServer{}, false, nil
+		// Check disabled servers
+		entry, exists = c.config.DisabledServers[name]
+		if !exists {
+			return types.CommonServer{}, false, nil
+		}
 	}
 
 	server := types.CommonServer{
@@ -156,9 +204,12 @@ func (c *CrushEditor) GetServer(name string) (types.CommonServer, bool, error) {
 	return server, true, nil
 }
 
-// AddMCPServer adds a new MCP server to the configuration
+// AddMCPServer adds a new MCP server to the configuration (enabled by default)
 func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) error {
-	if _, exists := c.config.MCP[server.Name]; exists && !overwrite {
+	_, existsInEnabled := c.config.MCP[server.Name]
+	_, existsInDisabled := c.config.DisabledServers[server.Name]
+	
+	if (existsInEnabled || existsInDisabled) && !overwrite {
 		return fmt.Errorf("server '%s' already exists", server.Name)
 	}
 
@@ -191,52 +242,81 @@ func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) er
 		return fmt.Errorf("invalid server configuration: must have either command (stdio) or URL (http/sse)")
 	}
 
+	// Remove from disabled servers if it exists there
+	delete(c.config.DisabledServers, server.Name)
+	// Add to enabled servers
 	c.config.MCP[server.Name] = entry
 	return nil
 }
 
-// RemoveMCPServer removes an MCP server from the configuration
+// RemoveMCPServer removes an MCP server from the configuration (both enabled and disabled lists)
 func (c *CrushEditor) RemoveMCPServer(name string) error {
-	if _, exists := c.config.MCP[name]; !exists {
+	_, existsInEnabled := c.config.MCP[name]
+	_, existsInDisabled := c.config.DisabledServers[name]
+	
+	if !existsInEnabled && !existsInDisabled {
 		return fmt.Errorf("server '%s' does not exist", name)
 	}
 
+	// Remove from both maps (in case it exists in either)
 	delete(c.config.MCP, name)
+	delete(c.config.DisabledServers, name)
 	return nil
 }
 
-// IsServerDisabled checks if a server is disabled (Crush doesn't have disabled concept, always false)
+// IsServerDisabled checks if a server is disabled by looking in the disabled servers map
 func (c *CrushEditor) IsServerDisabled(name string) (bool, error) {
-	_, exists := c.config.MCP[name]
-	if !exists {
+	_, existsInEnabled := c.config.MCP[name]
+	_, existsInDisabled := c.config.DisabledServers[name]
+	
+	if !existsInEnabled && !existsInDisabled {
 		return false, fmt.Errorf("server '%s' does not exist", name)
 	}
-	// Crush doesn't have a concept of disabled servers, so always return false
-	return false, nil
+	
+	return existsInDisabled, nil
 }
 
-// EnableMCPServer enables a server (no-op for Crush since there's no disabled concept)
+// EnableMCPServer enables a previously disabled server by moving it from disabled to enabled servers
 func (c *CrushEditor) EnableMCPServer(name string) error {
-	if _, exists := c.config.MCP[name]; !exists {
-		return fmt.Errorf("server '%s' does not exist", name)
+	server, exists := c.config.DisabledServers[name]
+	if !exists {
+		// Check if it's already enabled
+		if _, enabledExists := c.config.MCP[name]; enabledExists {
+			return fmt.Errorf("server '%s' is already enabled", name)
+		}
+		return fmt.Errorf("server '%s' not found in disabled servers", name)
 	}
-	// No-op since Crush doesn't have enabled/disabled concept
+
+	// Move from disabled to enabled
+	delete(c.config.DisabledServers, name)
+	c.config.MCP[name] = server
 	return nil
 }
 
-// DisableMCPServer disables a server (no-op for Crush since there's no disabled concept)
+// DisableMCPServer disables a server by moving it from enabled to disabled servers
 func (c *CrushEditor) DisableMCPServer(name string) error {
-	if _, exists := c.config.MCP[name]; !exists {
-		return fmt.Errorf("server '%s' does not exist", name)
+	server, exists := c.config.MCP[name]
+	if !exists {
+		// Check if it's already disabled
+		if _, disabledExists := c.config.DisabledServers[name]; disabledExists {
+			return fmt.Errorf("server '%s' is already disabled", name)
+		}
+		return fmt.Errorf("enabled server '%s' not found", name)
 	}
-	// No-op since Crush doesn't have enabled/disabled concept
+
+	// Move from enabled to disabled
+	delete(c.config.MCP, name)
+	c.config.DisabledServers[name] = server
 	return nil
 }
 
-// ListDisabledServers returns the names of disabled servers (always empty for Crush)
+// ListDisabledServers returns the names of disabled servers
 func (c *CrushEditor) ListDisabledServers() ([]string, error) {
-	// Crush doesn't have a concept of disabled servers, so always return empty slice
-	return []string{}, nil
+	disabledServers := make([]string, 0, len(c.config.DisabledServers))
+	for name := range c.config.DisabledServers {
+		disabledServers = append(disabledServers, name)
+	}
+	return disabledServers, nil
 }
 
 // GetConfigPath returns the path of the configuration file being managed
