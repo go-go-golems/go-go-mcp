@@ -1083,28 +1083,7 @@ func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
 func (m *Model) loadCommonServerToForm(server types.CommonServer) (FormModel, error) {
 	// Create and populate a new form model
 	form := NewFormModel()
-	form.nameInput.SetValue(server.Name)
-	form.commandInput.SetValue(server.Command)
-	form.argsInput.SetValue(strings.Join(server.Args, " "))
-
-	// Format environment variables as KEY=VALUE pairs, one per line
-	envText := ""
-	keys := make([]string, 0, len(server.Env))
-	for k := range server.Env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys) // Sort keys for consistent display
-
-	for _, k := range keys {
-		if envText != "" {
-			envText += "\n"
-		}
-		envText += fmt.Sprintf("%s=%s", k, server.Env[k])
-	}
-
-	form.envInput.SetValue(envText)
-	form.urlInput.SetValue(server.URL)
-	form.isSSE = server.IsSSE
+	form.LoadFromServer(server)
 	form.isAddMode = false // Explicitly set to edit mode
 
 	return form, nil
