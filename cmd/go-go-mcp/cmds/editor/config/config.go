@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/go-go-mcp/pkg/core/configstore"
+	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 	"github.com/spf13/cobra"
 )
 
@@ -459,4 +460,114 @@ func getSupportedEditorNames() []string {
 		names = append(names, info.Name)
 	}
 	return names
+}
+
+// printServerDetails prints the details of a server configuration
+func printServerDetails(server types.CommonServer, indent string) {
+	if server.URL != "" {
+		transportType := "HTTP"
+		if server.IsSSE {
+			transportType = "SSE"
+		}
+		fmt.Printf("%sTransport: %s\n", indent, transportType)
+		fmt.Printf("%sURL: %s\n", indent, server.URL)
+	} else {
+		fmt.Printf("%sTransport: stdio\n", indent)
+		fmt.Printf("%sCommand: %s\n", indent, server.Command)
+		if len(server.Args) > 0 {
+			fmt.Printf("%sArgs: %v\n", indent, server.Args)
+		}
+	}
+
+	if len(server.Env) > 0 {
+		fmt.Printf("%sEnvironment:\n", indent)
+		for k, v := range server.Env {
+			fmt.Printf("%s  %s: %s\n", indent, k, v)
+		}
+	}
+}
+
+// validateTransportCompatibility checks if the source server's transport is compatible with the target editor
+func validateTransportCompatibility(sourceEditor, targetEditor string, server types.CommonServer) error {
+	// Claude only supports stdio transport
+	if targetEditor == "claude" && server.URL != "" {
+		return fmt.Errorf("claude only supports stdio transport, but source server uses URL-based transport (%s)", server.URL)
+	}
+
+	// Add more compatibility checks as needed for other editors
+	return nil
+}
+
+// NewAddGoGoCommand creates the add-go-go command for a specific editor
+func NewAddGoGoCommand(editor string) *cobra.Command {
+	var target string
+	var env []string
+	var overwrite bool
+	var additionalArgs []string
+
+	cmd := &cobra.Command{
+		Use:   "add-go-go NAME PROFILE [ARGS...]",
+		Short: "Add go-go-mcp server",
+		Long:  fmt.Sprintf("Add a new MCP server configuration that uses go-go-mcp server for %s.", editor),
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := NewStoreWithTarget(editor, target)
+			if err != nil {
+				return err
+			}
+
+			name := args[0]
+			profile := args[1]
+			cmdArgs := append([]string{"server", "start", "--profile", profile}, args[2:]...)
+			cmdArgs = append(cmdArgs, additionalArgs...)
+
+			// Parse environment variables
+			envMap := make(map[string]string)
+			for _, e := range env {
+				parts := strings.SplitN(e, "=", 2)
+				if len(parts) != 2 {
+					return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", e)
+				}
+				envMap[parts[0]] = parts[1]
+			}
+
+			server := types.CommonServer{
+				Name:    name,
+				Command: "go-go-mcp",
+				Args:    cmdArgs,
+				Env:     envMap,
+			}
+
+			if err := store.AddServer(server, overwrite); err != nil {
+				return fmt.Errorf("failed to add server: %w", err)
+			}
+
+			if err := store.Save(); err != nil {
+				return fmt.Errorf("failed to save configuration: %w", err)
+			}
+
+			action := "Added"
+			if overwrite {
+				action = "Added (overwritten)"
+			}
+
+			fmt.Printf("Successfully %s go-go-mcp server '%s' with profile '%s' to %s:\n", action, name, profile, editor)
+			fmt.Printf("  Command: %s %s\n", server.Command, strings.Join(server.Args, " "))
+			if len(server.Env) > 0 {
+				fmt.Printf("  Environment:\n")
+				for k, v := range server.Env {
+					fmt.Printf("    %s: %s\n", k, v)
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&target, "target", "t", "", "Target configuration (e.g., global, cwd)")
+	cmd.Flags().StringArrayVarP(&env, "env", "e", []string{}, "Environment variables in KEY=VALUE format")
+	cmd.Flags().BoolVarP(&overwrite, "overwrite", "w", false, "Overwrite existing server if it exists")
+	cmd.Flags().StringArrayVar(&additionalArgs, "args", []string{}, "Additional arguments to pass to the server command")
+
+	return cmd
 }
