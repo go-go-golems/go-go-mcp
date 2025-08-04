@@ -563,13 +563,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Convert servers to list items
 		items := make([]list.Item, 0, len(msg.servers))
 		for name, server := range msg.servers {
+			// Check if server is disabled
+			isDisabled, err := store.IsServerDisabled(name)
+			if err != nil {
+				// If we can't determine status, assume enabled
+				isDisabled = false
+			}
+
 			items = append(items, serverItem{
 				name:    name,
 				command: server.Command,
 				args:    server.Args,
 				env:     server.Env,
 				url:     server.URL,
-				enabled: true, // TODO: Determine actual enabled status
+				enabled: !isDisabled, // Set actual enabled status
 				isSSE:   server.IsSSE,
 			})
 		}
