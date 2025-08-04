@@ -24,3 +24,7 @@ __debug*
 .specstory/
 .history/
 thirdparty/
+
+.crush
+crush.json
+

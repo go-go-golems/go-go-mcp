@@ -19,7 +19,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
-	config_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/config"
+	editor_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/editor"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -101,15 +101,13 @@ func initRootCmd() (*help.HelpSystem, error) {
 	bridgeCmd := mcp_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
 
-	// Add unified editor config command group
-	unifiedConfigCmd := config_cmds.NewConfigCommand()
-	rootCmd.AddCommand(unifiedConfigCmd)
+	// Add config command group (go-go-mcp profiles)
+	configCmd := mcp_cmds.NewConfigGroupCommand()
+	rootCmd.AddCommand(configCmd)
 
-	// Add config command group (go-go-mcp profiles) - renamed to avoid collision
-	profilesCmd := mcp_cmds.NewConfigGroupCommand()
-	profilesCmd.Use = "profiles"
-	profilesCmd.Short = "Manage go-go-mcp profiles"
-	rootCmd.AddCommand(profilesCmd)
+	// Add editor command group with config subcommand
+	editorCmd := editor_cmds.NewEditorCommand()
+	rootCmd.AddCommand(editorCmd)
 
 	// Add UI command
 	rootCmd.AddCommand(mcp_cmds.NewUICommand())
