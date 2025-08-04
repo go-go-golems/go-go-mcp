@@ -19,8 +19,8 @@ func NewAddGoGoCommand(editor string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add-go-go NAME PROFILE [ARGS...]",
 		Short: "Add go-go-mcp server",
-		Long: fmt.Sprintf("Add a new MCP server configuration that uses go-go-mcp server for %s.", editor),
-		Args: cobra.MinimumNArgs(2),
+		Long:  fmt.Sprintf("Add a new MCP server configuration that uses go-go-mcp server for %s.", editor),
+		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := NewStoreWithTarget(editor, target)
 			if err != nil {

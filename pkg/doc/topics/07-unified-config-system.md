@@ -32,8 +32,9 @@ The unified configuration system in go-go-mcp provides a consistent interface fo
 6. [Transport Types](#transport-types)
 7. [Environment Variables](#environment-variables)
 8. [Common Use Cases](#common-use-cases)
-9. [TUI Interface](#tui-interface)
-10. [Troubleshooting](#troubleshooting)
+9. [Advanced Workflows](#advanced-workflows)
+10. [TUI Interface](#tui-interface)
+11. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -89,6 +90,21 @@ All configuration commands follow this pattern:
 go-go-mcp editor config <editor> <verb> [server-name] [command-path] [options]
 ```
 
+### Multi-Editor Support
+
+Commands can target multiple editors simultaneously using comma-separated syntax:
+
+```bash
+# Add server to multiple editors
+go-go-mcp editor config claude,cursor,amp add shared-server /path/to/cmd
+
+# List configurations from multiple editors
+go-go-mcp editor config claude,cursor list
+
+# Remove server from multiple editors
+go-go-mcp editor config claude,cursor,amp remove old-server
+```
+
 ### Universal Flags
 
 These flags work across all editors and verbs:
@@ -98,6 +114,7 @@ These flags work across all editors and verbs:
 - `--env <key=value>`: Add environment variables
 - `--args <arguments>`: Specify command arguments
 - `--enabled/--disabled`: Set server enabled state
+- `--target-editor <editor>`: Target editor for copy operations
 
 ### Editor-Specific Flags
 
@@ -114,7 +131,7 @@ Some editors support additional flags:
 
 ## Configuration Verbs
 
-The system provides eight primary verbs that work consistently across all editors:
+The system provides nine primary verbs that work consistently across all editors:
 
 ### add - Add MCP Server
 
@@ -135,6 +152,34 @@ go-go-mcp editor config amp add dbserver /usr/bin/db-server \
   --env "DB_PORT=5432" \
   --target local
 ```
+
+### copy - Copy MCP Server
+
+Copy server configurations within the same editor or between different editors:
+
+```bash
+# Copy within same editor
+go-go-mcp editor config claude copy server1 backup-server1
+
+# Copy between editors
+go-go-mcp editor config claude copy server1 server1 --target-editor cursor
+
+# Copy with different target
+go-go-mcp editor config cursor copy dev-server prod-server \
+  --target global \
+  --target-editor amp
+
+# Copy with overwrite
+go-go-mcp editor config claude copy old-server new-server --overwrite
+```
+
+**Copy Use Cases:**
+- **Migration**: Move servers between editors when switching workflows
+- **Backup**: Create backup copies of important configurations
+- **Standardization**: Ensure consistent server setups across editors
+- **Template Creation**: Copy and modify servers for different environments
+
+**Transport Compatibility**: The copy operation automatically handles transport compatibility between editors. If the target editor doesn't support the source transport type, it will fall back to `stdio`.
 
 ### remove - Remove MCP Server
 
@@ -381,14 +426,26 @@ go-go-mcp editor config cursor add tools-server go-go-mcp \
 
 ### Multi-Editor Setup
 
+Using the new multi-editor syntax for streamlined configuration:
+
 ```bash
-# Configure the same server across multiple editors
+# Configure the same server across multiple editors (new syntax)
+go-go-mcp editor config cursor,ampcode,amp add shared-tools go-go-mcp \
+  --args "server start --profile shared" \
+  --env "TOOLS_DIR=/shared/tools" \
+  --target global
+
+# Traditional loop approach (still supported)
 for editor in cursor ampcode amp; do
   go-go-mcp editor config $editor add shared-tools go-go-mcp \
     --args "server start --profile shared" \
     --env "TOOLS_DIR=/shared/tools" \
     --target global
 done
+
+# Bulk operations across editors
+go-go-mcp editor config claude,cursor,amp list
+go-go-mcp editor config cursor,ampcode remove old-server
 ```
 
 ### Project-Specific Configuration
@@ -422,6 +479,92 @@ go-go-mcp editor config claude enable debug-server
 
 # Remove unused servers
 go-go-mcp editor config amp remove old-server --target global
+```
+
+## Advanced Workflows
+
+### Bulk Operations
+
+Multi-editor support enables powerful bulk operations:
+
+```bash
+# Set up team development environment across all editors
+go-go-mcp editor config claude,cursor,ampcode,amp add team-tools go-go-mcp \
+  --args "server start --profile team" \
+  --env "TEAM_CONFIG=/shared/team-config.yaml" \
+  --target global
+
+# Update configurations across multiple editors
+go-go-mcp editor config cursor,ampcode,amp remove outdated-server
+go-go-mcp editor config claude,cursor,amp enable production-tools
+
+# Check configurations across all editors
+go-go-mcp editor config claude,cursor,ampcode,amp,crush list
+```
+
+### Server Migration
+
+Use copy operations to migrate servers between editors or create backups:
+
+```bash
+# Migrate from Claude to Cursor when switching editors
+go-go-mcp editor config claude copy my-tools my-tools --target-editor cursor
+go-go-mcp editor config claude copy api-server api-server --target-editor cursor
+
+# Create backup before major changes
+go-go-mcp editor config cursor copy production-server backup-prod-server
+
+# Standardize configuration across editors
+go-go-mcp editor config claude copy reference-server reference-server --target-editor cursor
+go-go-mcp editor config claude copy reference-server reference-server --target-editor amp
+
+# Copy with target modification for different environments
+go-go-mcp editor config cursor copy dev-server staging-server \
+  --target global \
+  --target-editor ampcode
+```
+
+### Template-Based Configuration
+
+Create reusable server templates:
+
+```bash
+# Create template server
+go-go-mcp editor config claude add template-server go-go-mcp \
+  --args "server start --profile template" \
+  --env "ENV=template" \
+  --disabled
+
+# Use template to create environment-specific servers
+go-go-mcp editor config claude copy template-server dev-server
+go-go-mcp editor config claude copy template-server staging-server \
+  --target-editor cursor
+
+# Copy template across editors for consistency
+go-go-mcp editor config claude copy template-server template-server \
+  --target-editor cursor,ampcode,amp
+```
+
+### Cross-Editor Standardization
+
+Ensure consistent configurations across development environments:
+
+```bash
+# Set up standard development tools across all editors
+go-go-mcp editor config claude,cursor,ampcode,amp add standard-dev go-go-mcp \
+  --args "server start --profile development" \
+  --env "LOG_LEVEL=debug" \
+  --target global
+
+# Copy project-specific configuration to all editors
+go-go-mcp editor config cursor copy project-server project-server \
+  --target-editor claude,ampcode,amp \
+  --target local
+
+# Synchronize configuration changes
+go-go-mcp editor config claude copy updated-server updated-server \
+  --target-editor cursor,ampcode,amp \
+  --overwrite
 ```
 
 ## TUI Interface

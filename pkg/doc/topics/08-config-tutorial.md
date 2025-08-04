@@ -30,10 +30,12 @@ This tutorial will guide you through setting up and managing MCP server configur
 4. [Managing Multiple Editors](#managing-multiple-editors)
 5. [Working with Different Targets](#working-with-different-targets)
 6. [Environment Variables and Arguments](#environment-variables-and-arguments)
-7. [Using the TUI](#using-the-tui)
-8. [Advanced Scenarios](#advanced-scenarios)
-9. [Best Practices](#best-practices)
-10. [Troubleshooting Guide](#troubleshooting-guide)
+7. [Copying and Migration](#copying-and-migration)
+8. [Multi-Editor Workflows](#multi-editor-workflows)
+9. [Using the TUI](#using-the-tui)
+10. [Advanced Scenarios](#advanced-scenarios)
+11. [Best Practices](#best-practices)
+12. [Troubleshooting Guide](#troubleshooting-guide)
 
 ## Prerequisites
 
@@ -261,6 +263,181 @@ go-go-mcp editor config cursor add secure-server ./server.sh \
   --target global
 ```
 
+## Copying and Migration
+
+The copy functionality allows you to duplicate server configurations within the same editor or migrate them between different editors.
+
+### Basic Copying
+
+```bash
+# Copy within the same editor (Claude)
+go-go-mcp editor config claude copy my-first-server backup-server
+
+# Verify the copy was created
+go-go-mcp editor config claude list
+```
+
+Expected output:
+```
+Target: global
+├── my-first-server (stdio) - enabled
+│   Command: go-go-mcp
+│   Args: server start --profile default
+└── backup-server (stdio) - enabled
+    Command: go-go-mcp
+    Args: server start --profile default
+```
+
+### Cross-Editor Migration
+
+Let's migrate a server from Claude to Cursor:
+
+```bash
+# Copy server from Claude to Cursor
+go-go-mcp editor config claude copy my-first-server my-first-server --target-editor cursor
+
+# Verify it was copied to Cursor
+go-go-mcp editor config cursor list
+```
+
+### Migration Workflow Exercise
+
+Follow this step-by-step migration workflow:
+
+```bash
+# 1. Set up a development server in Claude
+go-go-mcp editor config claude add dev-tools go-go-mcp \
+  --args "server start --profile development" \
+  --env "LOG_LEVEL=debug"
+
+# 2. Test that it works in Claude, then migrate to Cursor
+go-go-mcp editor config claude copy dev-tools dev-tools --target-editor cursor
+
+# 3. Customize the Cursor version with local configuration
+go-go-mcp editor config cursor copy dev-tools local-dev-tools --target local
+
+# 4. Verify all configurations
+echo "=== Claude ==="
+go-go-mcp editor config claude list
+echo "=== Cursor Global ==="
+go-go-mcp editor config cursor list --target global
+echo "=== Cursor Local ==="
+go-go-mcp editor config cursor list --target local
+```
+
+### Copy Use Cases
+
+**Backup Before Changes**:
+```bash
+# Create backup before modifying important server
+go-go-mcp editor config cursor copy production-server backup-prod-$(date +%Y%m%d)
+
+# Now safely modify the original
+go-go-mcp editor config cursor remove production-server
+go-go-mcp editor config cursor add production-server /new/path/to/server
+```
+
+**Template Creation**:
+```bash
+# Create a template with common settings
+go-go-mcp editor config claude add template-server go-go-mcp \
+  --args "server start --profile template" \
+  --env "TEMPLATE=true" \
+  --disabled
+
+# Use template to create environment-specific servers
+go-go-mcp editor config claude copy template-server dev-server
+go-go-mcp editor config claude copy template-server staging-server
+```
+
+**Editor Migration**:
+```bash
+# When switching from Claude to Cursor, migrate all servers
+go-go-mcp editor config claude list --format json > claude-servers.json
+
+# Copy each server (manual approach for complex configurations)
+go-go-mcp editor config claude copy server1 server1 --target-editor cursor
+go-go-mcp editor config claude copy server2 server2 --target-editor cursor
+```
+
+## Multi-Editor Workflows
+
+The multi-editor syntax allows you to manage configurations across multiple editors simultaneously, making it easy to standardize setups.
+
+### Basic Multi-Editor Commands
+
+```bash
+# Add the same server to multiple editors
+go-go-mcp editor config claude,cursor,amp add shared-tools go-go-mcp \
+  --args "server start --profile shared" \
+  --env "SHARED_CONFIG=true"
+
+# List configurations from multiple editors
+go-go-mcp editor config claude,cursor,amp list
+
+# Remove server from multiple editors
+go-go-mcp editor config cursor,amp remove old-server
+```
+
+### Team Development Setup
+
+Set up a consistent development environment across all editors:
+
+```bash
+# 1. Initialize all editors that support multi-target
+for editor in cursor ampcode amp crush; do
+  go-go-mcp editor config $editor init 2>/dev/null || true
+done
+
+# 2. Set up team tools across all editors
+go-go-mcp editor config claude,cursor,ampcode,amp add team-tools go-go-mcp \
+  --args "server start --profile team" \
+  --env "TEAM_CONFIG=/shared/config/team.yaml" \
+  --target global
+
+# 3. Add development-specific tools to development editors
+go-go-mcp editor config cursor,ampcode,amp add dev-tools go-go-mcp \
+  --args "server start --profile development" \
+  --env "DEV_MODE=true" \
+  --target local
+
+# 4. Verify setup across all editors
+echo "=== Team Setup Verification ==="
+go-go-mcp editor config claude,cursor,ampcode,amp list | grep -E "(===|team-tools)"
+```
+
+### Multi-Editor Maintenance
+
+```bash
+# Update configuration across multiple editors
+go-go-mcp editor config cursor,ampcode,amp remove outdated-server
+go-go-mcp editor config claude,cursor,amp enable new-production-tools
+
+# Check for inconsistencies
+echo "Checking configurations across editors..."
+for editor in claude cursor ampcode amp; do
+  echo "=== $editor ==="
+  go-go-mcp editor config $editor list --format brief 2>/dev/null || echo "Not configured"
+done
+```
+
+### Selective Multi-Editor Operations
+
+```bash
+# Development editors only (editors that support local targets)
+go-go-mcp editor config cursor,ampcode,amp add project-tools ./tools/server.sh \
+  --target local
+
+# All editors including Claude
+go-go-mcp editor config claude,cursor,ampcode,amp add global-utilities go-go-mcp \
+  --args "server start --profile utilities" \
+  --target global
+
+# Subset operations based on use case
+go-go-mcp editor config cursor,amp add experimental-server ./experimental/server \
+  --disabled
+```
+
 ## Using the TUI
 
 The Terminal User Interface (TUI) provides an interactive way to manage configurations.
@@ -401,7 +578,43 @@ go-go-mcp editor config claude add server1 go-go-mcp
 go-go-mcp editor config claude add test ./server
 ```
 
-### 2. Environment Organization
+### 2. Copy and Migration Strategy
+
+Plan your copying and migration workflows:
+
+```bash
+# Always backup before major changes
+go-go-mcp editor config cursor copy important-server backup-important-$(date +%Y%m%d)
+
+# Use descriptive names for copies
+go-go-mcp editor config claude copy base-server dev-modified-server
+go-go-mcp editor config claude copy base-server staging-server --target-editor cursor
+
+# Create templates for repeated configurations
+go-go-mcp editor config claude add template-base go-go-mcp \
+  --args "server start --profile template" \
+  --disabled
+```
+
+### 3. Multi-Editor Management
+
+Leverage multi-editor syntax for consistency:
+
+```bash
+# Use multi-editor syntax for common operations
+go-go-mcp editor config claude,cursor,amp add shared-utilities go-go-mcp \
+  --args "server start --profile utilities" \
+  --target global
+
+# But use specific editors for specialized configurations
+go-go-mcp editor config cursor add cursor-specific-tools ./cursor-tools \
+  --target local
+
+# Document which editors are used in your team
+echo "# Team uses: Claude (main), Cursor (development), Amp (experiments)" > MCP_EDITORS.md
+```
+
+### 4. Environment Organization
 
 Organize servers by environment and scope:
 
@@ -422,7 +635,7 @@ go-go-mcp editor config cursor add dev-experiments go-go-mcp \
   --target local
 ```
 
-### 3. Configuration Documentation
+### 5. Configuration Documentation
 
 Document your setups:
 
@@ -452,7 +665,7 @@ EOF
 chmod +x setup-mcp.sh
 ```
 
-### 4. Version Control Integration
+### 6. Version Control Integration
 
 Include relevant configurations in version control:
 
@@ -563,6 +776,62 @@ ls -la ./.cursor.json           # cwd
 ls -la ./cursor.json            # local
 ```
 
+#### 6. Copy Operation Failures
+
+**Problem**: Copy command fails or creates unexpected results.
+
+**Solutions**:
+```bash
+# Check source server exists
+go-go-mcp editor config claude list | grep source-server
+
+# Verify target editor supports the operation
+go-go-mcp editor config cursor init
+
+# Check for naming conflicts
+go-go-mcp editor config cursor list | grep target-name
+
+# Use overwrite flag if intentional
+go-go-mcp editor config claude copy source target --target-editor cursor --overwrite
+```
+
+#### 7. Multi-Editor Command Issues
+
+**Problem**: Multi-editor commands fail for some editors.
+
+**Solutions**:
+```bash
+# Test each editor individually
+for editor in claude cursor amp; do
+  echo "Testing $editor..."
+  go-go-mcp editor config $editor list 2>/dev/null || echo "$editor not configured"
+done
+
+# Initialize missing editors
+go-go-mcp editor config cursor init
+go-go-mcp editor config amp init
+
+# Use subset that works
+go-go-mcp editor config claude,cursor add working-server go-go-mcp
+```
+
+#### 8. Transport Compatibility Issues
+
+**Problem**: Copied servers don't work due to transport incompatibility.
+
+**Solutions**:
+```bash
+# Check transport support for target editor
+# Claude: stdio only
+# Others: stdio, http, sse
+
+# Copy will automatically fall back to stdio
+go-go-mcp editor config cursor copy http-server http-server --target-editor claude
+
+# Manually specify transport if needed
+go-go-mcp editor config amp add server cmd --transport stdio
+```
+
 ### Debugging Commands
 
 ```bash
@@ -572,6 +841,14 @@ for editor in claude cursor ampcode amp crush; do
   echo "--- $editor ---"
   go-go-mcp editor config $editor list 2>/dev/null || echo "Not configured"
 done
+
+# Multi-editor diagnostics
+echo "=== Multi-Editor Test ==="
+go-go-mcp editor config claude,cursor,amp list 2>/dev/null || echo "Multi-editor operation failed"
+
+# Copy operation test  
+echo "=== Copy Operation Test ==="
+go-go-mcp editor config claude copy test-server test-copy 2>/dev/null && echo "Copy works" || echo "Copy failed"
 
 # Check file system
 echo "=== Configuration Files ==="
