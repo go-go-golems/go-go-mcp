@@ -2,10 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -14,148 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
-	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
-)
-
-// Define the different UI modes
-type mode int
-
-const (
-	modeMenu mode = iota
-	modeSubmenu
-	modeList
-	modeAddEdit
-	modeConfirm
-)
-
-// Define configuration types
-type ConfigType string
-
-const (
-	ConfigTypeCursor      ConfigType = "cursor"
-	ConfigTypeClaude      ConfigType = "claude"
-	ConfigTypeAmpCode     ConfigType = "ampcode"      // Configuration for Amp (Cursor)
-	ConfigTypeAmp         ConfigType = "amp"          // Configuration for standalone Amp
-	ConfigTypeProfile     ConfigType = "profile"      // New config type for profiles
-	ConfigTypeCrushLocal  ConfigType = "crush-local"  // .crush.json
-	ConfigTypeCrushCwd    ConfigType = "crush-cwd"    // crush.json
-	ConfigTypeCrushGlobal ConfigType = "crush-global" // ~/.config/crush/crush.json
-	ConfigTypeNone        ConfigType = ""             // Represents no config loaded
-)
-
-// Define key bindings
-type keyMap struct {
-	Up        key.Binding
-	Down      key.Binding
-	Enter     key.Binding
-	Back      key.Binding
-	Quit      key.Binding
-	Add       key.Binding
-	Edit      key.Binding
-	Delete    key.Binding
-	Duplicate key.Binding
-	Yank      key.Binding
-	Paste     key.Binding
-	Enable    key.Binding
-	Help      key.Binding
-}
-
-// Set up default key bindings
-var defaultKeyMap = keyMap{
-	Up: key.NewBinding(
-		key.WithKeys("up", "k"),
-		key.WithHelp("↑/k", "move up"),
-	),
-	Down: key.NewBinding(
-		key.WithKeys("down", "j"),
-		key.WithHelp("↓/j", "move down"),
-	),
-	Enter: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "select/confirm"),
-	),
-	Back: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "back/cancel"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("q", "ctrl+c"),
-		key.WithHelp("q", "quit application"),
-	),
-	Add: key.NewBinding(
-		key.WithKeys("a"),
-		key.WithHelp("a", "add new server"),
-	),
-	Edit: key.NewBinding(
-		key.WithKeys("e"),
-		key.WithHelp("e", "edit selected server"),
-	),
-	Delete: key.NewBinding(
-		key.WithKeys("x"),
-		key.WithHelp("x", "delete selected server"),
-	),
-	Duplicate: key.NewBinding(
-		key.WithKeys("d"),
-		key.WithHelp("d", "duplicate selected server"),
-	),
-	Yank: key.NewBinding(
-		key.WithKeys("y"),
-		key.WithHelp("y", "yank (copy) selected server"),
-	),
-	Paste: key.NewBinding(
-		key.WithKeys("p"),
-		key.WithHelp("p", "paste yanked server"),
-	),
-	Enable: key.NewBinding(
-		key.WithKeys("space", " "),
-		key.WithHelp("space", "toggle server enabled/disabled"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
-	),
-}
-
-// Server item model for the list view
-type serverItem struct {
-	name    string
-	command string
-	args    []string
-	env     map[string]string
-	url     string // for Cursor SSE servers
-	enabled bool
-	isSSE   bool // Added to distinguish server type
-}
-
-func (i serverItem) Title() string { return i.name }
-func (i serverItem) Description() string {
-	status := "enabled"
-	if !i.enabled {
-		status = "disabled"
-	}
-
-	serverType := "CMD"
-	if i.isSSE {
-		serverType = "SSE"
-	}
-
-	if i.url != "" {
-		return fmt.Sprintf("%s: %s (%s)", serverType, i.url, status)
-	}
-	return fmt.Sprintf("%s: %s (%s)", serverType, i.command, status)
-}
-func (i serverItem) FilterValue() string { return i.name }
-
-// Menu hierarchy types
-type MenuType string
-
-const (
-	MenuTypeClaude   MenuType = "claude"
-	MenuTypeCursor   MenuType = "cursor"
-	MenuTypeAmpCode  MenuType = "ampcode"
-	MenuTypeCrush    MenuType = "crush"
-	MenuTypeProfiles MenuType = "profiles"
 )
 
 // Main application model
@@ -198,78 +53,6 @@ type Model struct {
 
 	// Yank/paste clipboard
 	yankedServer *types.CommonServer
-}
-
-// Simple list item for menu
-type listItem struct {
-	title       string
-	description string
-}
-
-func (i listItem) Title() string       { return i.title }
-func (i listItem) Description() string { return i.description }
-func (i listItem) FilterValue() string { return i.title }
-
-// --- Messages ---
-
-// Message indicating servers have been loaded
-type loadedServersMsg struct {
-	editor     types.ServerConfigEditor
-	servers    map[string]types.CommonServer
-	configType ConfigType // Use the enum type
-	err        error
-}
-
-// Message indicating a server was deleted
-type serverDeletedMsg struct {
-	serverName string
-	err        error
-}
-
-// Message indicating a server's enabled state was toggled
-type serverToggleEnabledMsg struct {
-	serverName string
-	enabled    bool
-	success    bool // Indicate if the operation itself succeeded
-	err        error
-}
-
-// Message indicating a server save operation completed
-type serverSavedMsg struct {
-	serverName string
-	err        error
-}
-
-// Message for generic errors
-type errorMsg struct{ err error }
-
-// Helper for creating error messages
-func (e errorMsg) Error() string { return e.err.Error() }
-
-// Message indicating profiles have been loaded
-type loadedProfilesMsg struct {
-	editor         *config.ConfigEditor
-	profiles       map[string]string
-	defaultProfile string
-	err            error
-}
-
-// Message indicating a profile was saved
-type profileSavedMsg struct {
-	profileName string
-	err         error
-}
-
-// Message indicating a profile was deleted
-type profileDeletedMsg struct {
-	profileName string
-	err         error
-}
-
-// Message indicating the default profile was set
-type defaultProfileSetMsg struct {
-	profileName string
-	err         error
 }
 
 // NewModel initializes and returns a new Model
@@ -499,174 +282,180 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.createSubmenu(m.currentMenuType)
 					return m, nil
 				} else {
-					m.configType = ConfigTypeNone // Clear the config type
-					m.mode = modeMenu             // Go back to menu
+					m.mode = modeMenu
 					m.breadcrumb = ""
 					return m, nil
 				}
 
 			case key.Matches(msg, m.keys.Add):
+				// Switch to add mode
+				m.mode = modeAddEdit
 				if m.configType == ConfigTypeProfile {
-					// Switch to add profile form
+					// Reset profile form for adding
 					m.profileFormState = NewProfileFormModel()
-					m.mode = modeAddEdit
-					return m, nil
+					m.profileFormState.isAddMode = true
 				} else {
-					// For server configs
-					m.formState = NewFormModel()
-					m.mode = modeAddEdit
-					return m, m.formState.updateFocus()
+					// Reset form for adding
+					cmd = m.formState.Reset()
+					m.formState.isAddMode = true
 				}
+				return m, cmd
 
 			case key.Matches(msg, m.keys.Edit):
+				// Switch to edit mode for the selected item
 				if m.activeList != nil && m.activeList.SelectedItem() != nil {
 					if m.configType == ConfigTypeProfile {
 						// Edit profile
 						selectedItem := m.activeList.SelectedItem().(listItem)
+						profileName := selectedItem.title
+						profileDescription := selectedItem.description
+
 						m.profileFormState = NewProfileFormModel()
-						m.profileFormState.SetProfileData(selectedItem.title, selectedItem.description)
+						m.profileFormState.SetProfileData(profileName, profileDescription)
 						m.mode = modeAddEdit
-						return m, nil
 					} else {
 						// Edit server
 						selectedItem := m.activeList.SelectedItem().(serverItem)
-						var err error
-						m.formState, err = m.loadServerToForm(selectedItem.name)
+						serverName := selectedItem.name
+
+						form, err := m.loadServerToForm(serverName)
 						if err != nil {
-							m.errorMsg = fmt.Sprintf("Error loading server: %s", err)
+							m.errorMsg = fmt.Sprintf("Error loading server for editing: %v", err)
 							return m, nil
 						}
-						m.mode = modeAddEdit
-						return m, m.formState.updateFocus()
-					}
-				}
 
-			case key.Matches(msg, m.keys.Duplicate):
-				if m.activeList != nil && m.activeList.SelectedItem() != nil {
-					if m.configType == ConfigTypeProfile {
-						// Duplicate profile
-						selectedItem := m.activeList.SelectedItem().(listItem)
-						m.profileFormState = NewProfileFormModel()
-						m.profileFormState.SetProfileData(selectedItem.title+"-copy", selectedItem.description)
-						m.profileFormState.isAddMode = true
+						m.formState = form
 						m.mode = modeAddEdit
-						return m, nil
-					} else {
-						// Duplicate server
-						selectedItem := m.activeList.SelectedItem().(serverItem)
-						var err error
-						m.formState, err = m.loadServerToForm(selectedItem.name)
-						if err != nil {
-							m.errorMsg = fmt.Sprintf("Error loading server: %s", err)
-							return m, nil
-						}
-						// Set a new name for the duplicate with "-copy" suffix
-						m.formState.nameInput.SetValue(selectedItem.name + "-copy")
-						m.formState.isAddMode = true
-						m.mode = modeAddEdit
-						return m, m.formState.updateFocus()
 					}
 				}
-
-			case key.Matches(msg, m.keys.Yank):
-				if m.activeList != nil && m.activeList.SelectedItem() != nil && m.configType != ConfigTypeProfile {
-					// Only works for servers, not profiles
-					selectedItem := m.activeList.SelectedItem().(serverItem)
-					if m.currentEditor != nil {
-						servers, err := m.currentEditor.ListServers()
-						if err != nil {
-							m.errorMsg = fmt.Sprintf("Error loading servers: %s", err)
-							return m, nil
-						}
-						if server, exists := servers[selectedItem.name]; exists {
-							// Copy the server data
-							yankedServer := server
-							m.yankedServer = &yankedServer
-							m.errorMsg = fmt.Sprintf("Yanked server '%s'", selectedItem.name)
-						}
-					}
-				}
-
-			case key.Matches(msg, m.keys.Paste):
-				if m.yankedServer != nil && m.configType != ConfigTypeProfile {
-					// Only works for servers, not profiles
-					var err error
-					m.formState, err = m.loadCommonServerToForm(*m.yankedServer)
-					if err != nil {
-						m.errorMsg = fmt.Sprintf("Error loading yanked server: %s", err)
-						return m, nil
-					}
-					// Set a new name for the pasted server with "-paste" suffix
-					m.formState.nameInput.SetValue(m.yankedServer.Name + "-paste")
-					m.formState.isAddMode = true
-					m.mode = modeAddEdit
-					return m, m.formState.updateFocus()
-				}
+				return m, nil
 
 			case key.Matches(msg, m.keys.Delete):
+				// Trigger confirmation dialog for deletion
 				if m.activeList != nil && m.activeList.SelectedItem() != nil {
 					if m.configType == ConfigTypeProfile {
-						// Delete profile confirmation
 						selectedItem := m.activeList.SelectedItem().(listItem)
-						m.confirmDialog = NewConfirmModel(fmt.Sprintf("Delete profile '%s'?", selectedItem.title), "Are you sure you want to delete this profile? This cannot be undone.")
-						m.confirmAction = "delete-profile"
-						m.actionServerName = selectedItem.title
-						m.mode = modeConfirm
-						return m, nil
+						profileName := selectedItem.title
+						m.confirmDialog = NewConfirmModel("Delete Profile", fmt.Sprintf("Are you sure you want to delete profile '%s'?", profileName))
+						m.confirmAction = "delete_profile"
+						m.actionServerName = profileName
 					} else {
-						// Delete server confirmation
 						selectedItem := m.activeList.SelectedItem().(serverItem)
-						m.confirmDialog = NewConfirmModel(fmt.Sprintf("Delete server '%s'?", selectedItem.name), "Are you sure you want to delete this server? This cannot be undone.")
-						m.confirmAction = "delete-server"
-						m.actionServerName = selectedItem.name
-						m.mode = modeConfirm
+						serverName := selectedItem.name
+						m.confirmDialog = NewConfirmModel("Delete Server", fmt.Sprintf("Are you sure you want to delete server '%s'?", serverName))
+						m.confirmAction = "delete"
+						m.actionServerName = serverName
+					}
+					m.mode = modeConfirm
+				}
+				return m, nil
+
+			case key.Matches(msg, m.keys.Duplicate):
+				// Duplicate the selected server (only for servers, not profiles)
+				if m.configType != ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
+					selectedItem := m.activeList.SelectedItem().(serverItem)
+					serverName := selectedItem.name
+
+					// Load the server into the form and change to add mode
+					form, err := m.loadServerToForm(serverName)
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error loading server for duplication: %v", err)
 						return m, nil
 					}
+
+					// Clear the name to indicate this is a duplicate
+					form.nameInput.SetValue(serverName + "_copy")
+					form.isAddMode = true
+
+					m.formState = form
+					m.mode = modeAddEdit
 				}
+				return m, nil
+
+			case key.Matches(msg, m.keys.Yank):
+				// Yank (copy) the selected server for later pasting
+				if m.configType != ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
+					selectedItem := m.activeList.SelectedItem().(serverItem)
+					serverName := selectedItem.name
+
+					if m.currentEditor != nil {
+						server, found, err := m.currentEditor.GetServer(serverName)
+						if err != nil {
+							m.errorMsg = fmt.Sprintf("Error yanking server: %v", err)
+						} else if !found {
+							m.errorMsg = fmt.Sprintf("Server '%s' not found", serverName)
+						} else {
+							m.yankedServer = &server
+							// You could display a brief success message here
+						}
+					}
+				}
+				return m, nil
+
+			case key.Matches(msg, m.keys.Paste):
+				// Paste the yanked server (only for servers, not profiles)
+				if m.configType != ConfigTypeProfile && m.yankedServer != nil {
+					// Load the yanked server into the form
+					form, err := m.loadCommonServerToForm(*m.yankedServer)
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error loading yanked server: %v", err)
+						return m, nil
+					}
+
+					// Clear the name to indicate this is a paste operation
+					form.nameInput.SetValue(m.yankedServer.Name + "_pasted")
+					form.isAddMode = true
+
+					m.formState = form
+					m.mode = modeAddEdit
+				}
+				return m, nil
 
 			case key.Matches(msg, m.keys.Enable):
-				if m.activeList != nil && m.activeList.SelectedItem() != nil && m.configType != ConfigTypeProfile {
-					// Only applies to servers, not profiles
+				// Toggle enabled/disabled for the selected server (only for servers, not profiles)
+				if m.configType != ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
 					selectedItem := m.activeList.SelectedItem().(serverItem)
-					return m, m.toggleServerEnabled(selectedItem.name)
-				} else if m.activeList != nil && m.activeList.SelectedItem() != nil && m.configType == ConfigTypeProfile {
-					// For profiles, this sets the default profile
+					serverName := selectedItem.name
+					return m, m.toggleServerEnabled(serverName)
+				} else if m.configType == ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
+					// For profiles, set as default
 					selectedItem := m.activeList.SelectedItem().(listItem)
-					return m, m.setDefaultProfile(selectedItem.title)
+					profileName := selectedItem.title
+					return m, m.setDefaultProfile(profileName)
 				}
+				return m, nil
 			}
 
-			// Pass the message to the list
+			// Pass the message to the active list if available
 			if m.activeList != nil {
 				*m.activeList, cmd = m.activeList.Update(msg)
-				return m, cmd
 			}
+			return m, cmd
 
 		case modeAddEdit:
-			// In add/edit mode, determine if we're editing a profile or server
+			// Handle form input
 			if m.configType == ConfigTypeProfile {
 				// Handle profile form
 				m.profileFormState, cmd = m.profileFormState.Update(msg)
 
 				if m.profileFormState.submitted {
-					// Process form submission
+					// Extract form data
 					name, description, err := m.profileFormState.GetProfileData()
 					if err != nil {
-						m.errorMsg = fmt.Sprintf("Error: %s", err)
-						m.profileFormState.submitted = false
+						m.errorMsg = fmt.Sprintf("Form validation error: %v", err)
+						m.profileFormState.submitted = false // Reset the flag
 						return m, nil
 					}
 
-					// Get tool and prompt paths
+					// Get tools and prompts data
 					toolDirs, toolFiles, promptDirs, promptFiles := m.profileFormState.GetToolsAndPrompts()
 
-					isNewProfile := m.profileFormState.isAddMode
-					m.mode = modeList // Return to list view
-					return m, m.saveProfile(name, description, toolDirs, toolFiles, promptDirs, promptFiles, isNewProfile)
-				}
+					// Save the profile
+					return m, m.saveProfile(name, description, toolDirs, toolFiles, promptDirs, promptFiles, m.profileFormState.isAddMode)
 
-				if m.profileFormState.cancelled {
-					m.mode = modeList // Return to list view
+				} else if m.profileFormState.cancelled {
+					// Go back to list view
+					m.mode = modeList
 					return m, nil
 				}
 			} else {
@@ -674,24 +463,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.formState, cmd = m.formState.Update(msg)
 
 				if m.formState.submitted {
-					// Form submitted, process data
+					// Extract form data and save
 					server, err := m.formState.ToServer()
 					if err != nil {
-						m.errorMsg = fmt.Sprintf("Error: %s", err)
-						m.formState.submitted = false
+						m.errorMsg = fmt.Sprintf("Form validation error: %v", err)
+						m.formState.submitted = false // Reset the flag
 						return m, nil
 					}
 
-					m.mode = modeList // Return to list view
-					return m, m.saveServer(server, !m.formState.isAddMode)
-				}
+					// Save the server (overwrite if editing)
+					overwrite := !m.formState.isAddMode
+					return m, m.saveServer(server, overwrite)
 
-				if m.formState.cancelled {
-					m.mode = modeList // Return to list view
+				} else if m.formState.cancelled {
+					// Go back to list view
+					m.mode = modeList
 					return m, nil
 				}
 			}
-
 			return m, cmd
 
 		case modeConfirm:
@@ -699,53 +488,94 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.confirmDialog, cmd = m.confirmDialog.Update(msg)
 
 			if m.confirmDialog.Confirmed() {
+				// Execute the confirmed action
 				switch m.confirmAction {
-				case "delete-server":
-					m.mode = modeList // Return to list view
+				case "delete":
+					m.mode = modeList
 					return m, m.deleteServer(m.actionServerName)
-				case "delete-profile":
-					m.mode = modeList // Return to list view
+				case "delete_profile":
+					m.mode = modeList
 					return m, m.deleteProfile(m.actionServerName)
 				}
+				m.mode = modeList
+			} else if m.confirmDialog.Cancelled() {
+				// Cancel the action and go back to list
+				m.mode = modeList
 			}
-
-			if m.confirmDialog.Cancelled() {
-				m.mode = modeList // Return to list view
-				return m, nil
-			}
-
 			return m, cmd
 		}
 
-	// Handle profile-related messages
-	case loadedProfilesMsg:
+	case loadedServersMsg:
 		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error loading profiles: %s", msg.err)
-			m.mode = modeMenu
+			m.errorMsg = fmt.Sprintf("Error loading servers: %v", msg.err)
 			return m, nil
 		}
 
+		// Store the editor and servers
+		m.currentEditor = msg.editor
+
+		// Convert servers to list items
+		items := make([]list.Item, 0, len(msg.servers))
+		for name, server := range msg.servers {
+			items = append(items, serverItem{
+				name:    name,
+				command: server.Command,
+				args:    server.Args,
+				env:     server.Env,
+				url:     server.URL,
+				enabled: true, // TODO: Determine actual enabled status
+				isSSE:   server.IsSSE,
+			})
+		}
+
+		// Sort items by name for consistent display
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].(serverItem).name < items[j].(serverItem).name
+		})
+
+		// Create the list with servers
+		delegate := list.NewDefaultDelegate()
+		serverList := list.New(items, delegate, m.width, m.height-3)
+		serverList.Title = fmt.Sprintf("%s Servers", msg.configType)
+		serverList.SetShowHelp(false)
+
+		m.activeList = &serverList
+		m.mode = modeList
+
+		// Clear any previous error
+		m.errorMsg = ""
+
+		return m, nil
+
+	case loadedProfilesMsg:
+		if msg.err != nil {
+			m.errorMsg = fmt.Sprintf("Error loading profiles: %v", msg.err)
+			return m, nil
+		}
+
+		// Store the profile editor
 		m.profileEditor = msg.editor
 
 		// Convert profiles to list items
 		items := make([]list.Item, 0, len(msg.profiles))
-		for name, desc := range msg.profiles {
-			title := name
+		for name, description := range msg.profiles {
+			// Mark default profile in description
+			displayDesc := description
 			if name == msg.defaultProfile {
-				title = "✓ " + name + " (Default)"
+				displayDesc = fmt.Sprintf("%s (default)", description)
 			}
 			items = append(items, listItem{
-				title:       title,
-				description: desc,
+				title:       name,
+				description: displayDesc,
 			})
 		}
 
-		// Sort items by name
+		// Sort items by name for consistent display
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].(listItem).title < items[j].(listItem).title
 		})
 
-		// Create and configure the profile list
+		// Create the list with profiles
 		delegate := list.NewDefaultDelegate()
 		profileList := list.New(items, delegate, m.width, m.height-3)
 		profileList.Title = "Profiles"
@@ -754,130 +584,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeList = &profileList
 		m.mode = modeList
 
-		return m, nil
-
-	case profileSavedMsg:
-		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error saving profile: %s", msg.err)
-		} else {
-			m.errorMsg = fmt.Sprintf("Profile '%s' saved", msg.profileName)
-		}
-		return m, m.loadProfiles()
-
-	case profileDeletedMsg:
-		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error deleting profile: %s", msg.err)
-		} else {
-			m.errorMsg = fmt.Sprintf("Profile '%s' deleted", msg.profileName)
-		}
-		return m, m.loadProfiles()
-
-	case defaultProfileSetMsg:
-		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error setting default profile: %s", msg.err)
-		} else {
-			m.errorMsg = fmt.Sprintf("Default profile set to '%s'", msg.profileName)
-		}
-		return m, m.loadProfiles()
-
-	// Handle server-related messages
-	case loadedServersMsg:
-		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error loading servers: %s", msg.err)
-			m.mode = modeMenu
-			return m, nil
-		}
-
-		m.configType = msg.configType
-		m.currentEditor = msg.editor
-
-		// Convert servers to list items
-		items := make([]list.Item, 0, len(msg.servers))
-		for name, server := range msg.servers {
-			// Determine if server is enabled based on disabled status (inverse)
-			isEnabled := true
-
-			// Check if server is disabled via editor
-			disabled, err := m.currentEditor.IsServerDisabled(name)
-			if err == nil && disabled {
-				isEnabled = false
-			}
-
-			items = append(items, serverItem{
-				name:    name,
-				command: server.Command,
-				args:    server.Args,
-				env:     server.Env,
-				url:     server.URL,
-				enabled: isEnabled,
-				isSSE:   server.IsSSE,
-			})
-		}
-
-		// Sort items alphabetically by name
-		sort.Slice(items, func(i, j int) bool {
-			return items[i].(serverItem).name < items[j].(serverItem).name
-		})
-
-		// Create and configure the list
-		delegate := list.NewDefaultDelegate()
-		serverList := list.New(items, delegate, m.width, m.height-3)
-
-		switch m.configType {
-		case ConfigTypeCursor:
-			serverList.Title = "Cursor MCP Servers"
-		case ConfigTypeClaude:
-			serverList.Title = "Claude MCP Servers"
-		case ConfigTypeAmpCode:
-			serverList.Title = "Amp MCP Servers (Cursor)"
-		case ConfigTypeAmp:
-			serverList.Title = "Amp MCP Servers"
-		case ConfigTypeProfile:
-			serverList.Title = "Profiles"
-		case ConfigTypeCrushLocal:
-			serverList.Title = "Crush MCP Servers (.crush.json)"
-		case ConfigTypeCrushCwd:
-			serverList.Title = "Crush MCP Servers (crush.json)"
-		case ConfigTypeCrushGlobal:
-			serverList.Title = "Crush MCP Servers (global)"
-		case ConfigTypeNone:
-			serverList.Title = "Servers"
-		}
-
-		serverList.SetShowHelp(false)
-
-		m.activeList = &serverList
-		m.mode = modeList
+		// Clear any previous error
+		m.errorMsg = ""
 
 		return m, nil
 
 	case serverDeletedMsg:
 		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error deleting server: %s", msg.err)
+			m.errorMsg = fmt.Sprintf("Error deleting server: %v", msg.err)
 		} else {
-			m.errorMsg = fmt.Sprintf("Server '%s' deleted", msg.serverName)
+			// Successfully deleted, reload the server list
+			return m, m.loadServers(m.configType)
 		}
-		return m, m.loadServers(m.configType)
+		return m, nil
+
+	case profileDeletedMsg:
+		if msg.err != nil {
+			m.errorMsg = fmt.Sprintf("Error deleting profile: %v", msg.err)
+		} else {
+			// Successfully deleted, reload the profile list
+			return m, m.loadProfiles()
+		}
+		return m, nil
 
 	case serverToggleEnabledMsg:
 		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error toggling server: %s", msg.err)
+			m.errorMsg = fmt.Sprintf("Error toggling server: %v", msg.err)
 		} else {
-			status := "enabled"
-			if !msg.enabled {
-				status = "disabled"
-			}
-			m.errorMsg = fmt.Sprintf("Server '%s' %s", msg.serverName, status)
+			// Successfully toggled, reload the server list
+			return m, m.loadServers(m.configType)
 		}
-		return m, m.loadServers(m.configType)
+		return m, nil
 
 	case serverSavedMsg:
 		if msg.err != nil {
-			m.errorMsg = fmt.Sprintf("Error saving server: %s", msg.err)
+			m.errorMsg = fmt.Sprintf("Error saving server: %v", msg.err)
+			return m, nil
 		} else {
-			m.errorMsg = fmt.Sprintf("Server '%s' saved", msg.serverName)
+			// Successfully saved, go back to list and reload
+			m.mode = modeList
+			return m, m.loadServers(m.configType)
 		}
-		return m, m.loadServers(m.configType)
+
+	case profileSavedMsg:
+		if msg.err != nil {
+			m.errorMsg = fmt.Sprintf("Error saving profile: %v", msg.err)
+			return m, nil
+		} else {
+			// Successfully saved, go back to list and reload
+			m.mode = modeList
+			return m, m.loadProfiles()
+		}
+
+	case defaultProfileSetMsg:
+		if msg.err != nil {
+			m.errorMsg = fmt.Sprintf("Error setting default profile: %v", msg.err)
+		} else {
+			// Successfully set default, reload the profile list
+			return m, m.loadProfiles()
+		}
+		return m, nil
 
 	case errorMsg:
 		m.errorMsg = msg.Error()
@@ -889,92 +655,75 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the current state of the model
 func (m Model) View() string {
-	var sb strings.Builder
+	var content string
 
-	// Display error message if present
-	if m.errorMsg != "" {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-		sb.WriteString(errorStyle.Render(m.errorMsg) + "\n\n")
-	}
-
-	// Display breadcrumb if present
-	if m.breadcrumb != "" {
-		breadcrumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Italic(true)
-		sb.WriteString(breadcrumbStyle.Render(m.breadcrumb) + "\n")
-	}
-
-	// Display content based on the current mode
 	switch m.mode {
 	case modeMenu:
-		sb.WriteString(m.menuList.View())
+		content = m.menuList.View()
 	case modeSubmenu:
-		sb.WriteString(m.submenuList.View())
+		content = m.submenuList.View()
 	case modeList:
 		if m.activeList != nil {
-			sb.WriteString(m.activeList.View())
+			content = m.activeList.View()
+		} else {
+			content = "Loading..."
 		}
 	case modeAddEdit:
 		if m.configType == ConfigTypeProfile {
-			// Display profile form
-			sb.WriteString(m.profileFormState.View())
+			content = m.profileFormState.View()
 		} else {
-			// Display server form
-			sb.WriteString(m.formState.View())
+			content = m.formState.View()
 		}
 	case modeConfirm:
-		sb.WriteString(m.confirmDialog.View())
+		content = m.confirmDialog.View()
+	default:
+		content = "Unknown mode"
 	}
 
-	// Display help
-	helpView := m.help.View(m)
-	sb.WriteString("\n" + helpView)
+	// Add breadcrumb if available
+	var header string
+	if m.breadcrumb != "" {
+		breadcrumbStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+		header = breadcrumbStyle.Render(m.breadcrumb) + "\n"
+	}
 
-	return sb.String()
+	// Add error message if there is one
+	var errorDisplay string
+	if m.errorMsg != "" {
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+		errorDisplay = errorStyle.Render(fmt.Sprintf("Error: %s", m.errorMsg)) + "\n"
+	}
+
+	// Help view
+	helpView := m.help.View(m)
+
+	return header + errorDisplay + content + "\n" + helpView
 }
 
-// contextualHelp returns the appropriate help bindings for the current mode
+// contextualHelp returns help keys based on the current mode
 func (m Model) contextualHelp() []key.Binding {
 	switch m.mode {
 	case modeMenu:
 		return []key.Binding{
-			m.keys.Enter,
-			m.keys.Quit,
-			m.keys.Help,
+			m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Help, m.keys.Quit,
 		}
 	case modeSubmenu:
 		return []key.Binding{
-			m.keys.Enter,
-			m.keys.Back,
-			m.keys.Quit,
-			m.keys.Help,
+			m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back, m.keys.Help, m.keys.Quit,
 		}
 	case modeList:
-		// Help for list mode depends on the config type
 		if m.configType == ConfigTypeProfile {
 			return []key.Binding{
-				m.keys.Back,
-				m.keys.Enter,
-				m.keys.Add,
-				m.keys.Edit,
-				m.keys.Delete,
-				m.keys.Duplicate, // Allow duplicating profiles
-				m.keys.Enable,    // This is used for setting default profile
-				m.keys.Help,
-				m.keys.Quit,
+				m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back,
+				m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Duplicate,
+				m.keys.Enable, m.keys.Help, m.keys.Quit,
 			}
 		} else {
 			return []key.Binding{
-				m.keys.Back,
-				m.keys.Enter,
-				m.keys.Add,
-				m.keys.Edit,
-				m.keys.Delete,
-				m.keys.Enable,
-				m.keys.Duplicate,
-				m.keys.Yank,
-				m.keys.Paste,
-				m.keys.Help,
-				m.keys.Quit,
+				m.keys.Up, m.keys.Down, m.keys.Enter, m.keys.Back,
+				m.keys.Add, m.keys.Edit, m.keys.Delete, m.keys.Duplicate,
+				m.keys.Yank, m.keys.Paste, m.keys.Enable,
+				m.keys.Help, m.keys.Quit,
 			}
 		}
 	case modeAddEdit:
@@ -1055,423 +804,4 @@ func (m Model) FullHelp() [][]key.Binding {
 	default:
 		return [][]key.Binding{{m.keys.Quit}}
 	}
-}
-
-// loadServerToForm loads the data for the selected server into the form model.
-func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
-	if m.currentEditor == nil {
-		return FormModel{}, fmt.Errorf("no configuration editor loaded")
-	}
-
-	server, found, err := m.currentEditor.GetServer(serverName)
-	if err != nil {
-		return FormModel{}, fmt.Errorf("error getting server '%s': %w", serverName, err)
-	}
-	if !found {
-		return FormModel{}, fmt.Errorf("server '%s' not found", serverName)
-	}
-
-	// Create and populate a new form model
-	form := NewFormModel()
-	form.LoadFromServer(server)
-	form.isAddMode = false // Explicitly set to edit mode
-
-	return form, nil
-}
-
-// loadCommonServerToForm loads data from a CommonServer directly into the form model.
-func (m *Model) loadCommonServerToForm(server types.CommonServer) (FormModel, error) {
-	// Create and populate a new form model
-	form := NewFormModel()
-	form.LoadFromServer(server)
-	form.isAddMode = false // Explicitly set to edit mode
-
-	return form, nil
-}
-
-// --- Commands ---
-
-// loadServers returns a command that loads the appropriate config and lists servers.
-func (m *Model) loadServers(configType ConfigType) tea.Cmd { // Use ConfigType enum
-	return func() tea.Msg {
-		var editor types.ServerConfigEditor
-		var err error
-		var configPath string
-
-		// Use switch statement for clarity
-		switch configType {
-		case ConfigTypeNone:
-			err = fmt.Errorf("unknown or unsupported config type: %s", configType)
-		case ConfigTypeCursor:
-			configPath, err = config.GetGlobalCursorMCPConfigPath()
-			if err == nil {
-				editor, err = config.NewCursorMCPEditor(configPath)
-			}
-		case ConfigTypeClaude:
-			configPath, err = config.GetDefaultClaudeDesktopConfigPath()
-			if err == nil {
-				editor, err = config.NewClaudeDesktopEditor(configPath)
-			}
-		case ConfigTypeAmpCode:
-			configPath, err = config.GetAmpCodeConfigPath()
-			if err == nil {
-				editor, err = config.NewAmpCodeEditor(configPath)
-			}
-		case ConfigTypeAmp:
-			configPath, err = config.GetAmpConfigPath()
-			if err == nil {
-				editor, err = config.NewAmpCodeEditor(configPath)
-			}
-		case ConfigTypeCrushLocal:
-			configPath = ".crush.json"
-			editor, err = config.NewCrushEditor(configPath)
-		case ConfigTypeCrushCwd:
-			configPath = "crush.json"
-			editor, err = config.NewCrushEditor(configPath)
-		case ConfigTypeCrushGlobal:
-			configPath = viper.GetString("HOME") + "/.config/crush/crush.json"
-			if configPath == "/.config/crush/crush.json" {
-				// Fallback if HOME is not set
-				var homeDir string
-				homeDir, err = os.UserHomeDir()
-				if err == nil {
-					configPath = filepath.Join(homeDir, ".config", "crush", "crush.json")
-				}
-			}
-			if err == nil {
-				editor, err = config.NewCrushEditor(configPath)
-			}
-		case ConfigTypeProfile:
-			// Profile config type doesn't use the server config editor
-			// so we return an appropriate error
-			err = fmt.Errorf("profile config type doesn't use server config editor")
-		default: // Handles any other unexpected values
-			err = fmt.Errorf("unknown or unsupported config type: %s", configType)
-		}
-
-		if err != nil {
-			return loadedServersMsg{err: fmt.Errorf("failed to initialize editor: %w", err)}
-		}
-
-		servers, err := editor.ListServers()
-		if err != nil {
-			return loadedServersMsg{err: fmt.Errorf("failed to list servers: %w", err)}
-		}
-
-		return loadedServersMsg{
-			editor:     editor,
-			servers:    servers,
-			configType: configType, // Pass the enum value
-			err:        nil,
-		}
-	}
-}
-
-// deleteServer returns a command to delete the named server.
-func (m *Model) deleteServer(name string) tea.Cmd {
-	return func() tea.Msg {
-		if m.currentEditor == nil {
-			return serverDeletedMsg{serverName: name, err: fmt.Errorf("no editor loaded")}
-		}
-		err := m.currentEditor.RemoveMCPServer(name)
-		if err != nil {
-			return serverDeletedMsg{serverName: name, err: err}
-		}
-		err = m.currentEditor.Save()
-		if err != nil {
-			// Log the save error, but report deletion success to the user
-			log.Error().Err(err).Msg("Failed to save config after deleting server")
-			return serverDeletedMsg{serverName: name, err: fmt.Errorf("failed to save config after deletion: %w", err)}
-		}
-		return serverDeletedMsg{serverName: name, err: nil}
-	}
-}
-
-// toggleServerEnabled returns a command to toggle the enabled state.
-func (m *Model) toggleServerEnabled(name string) tea.Cmd {
-	return func() tea.Msg {
-		if m.currentEditor == nil {
-			return serverToggleEnabledMsg{serverName: name, err: fmt.Errorf("no editor loaded")}
-		}
-
-		isDisabled, err := m.currentEditor.IsServerDisabled(name)
-		if err != nil {
-			return serverToggleEnabledMsg{serverName: name, err: fmt.Errorf("failed to check server status: %w", err)}
-		}
-
-		var toggleErr error
-		newStateEnabled := false
-		if isDisabled {
-			toggleErr = m.currentEditor.EnableMCPServer(name)
-			newStateEnabled = true
-		} else {
-			toggleErr = m.currentEditor.DisableMCPServer(name)
-			newStateEnabled = false
-		}
-
-		if toggleErr != nil {
-			return serverToggleEnabledMsg{serverName: name, err: fmt.Errorf("failed to toggle server: %w", toggleErr)}
-		}
-
-		saveErr := m.currentEditor.Save()
-		if saveErr != nil {
-			// Log save error, but report toggle success based on toggleErr
-			log.Error().Err(saveErr).Msg("Failed to save config after toggling server")
-			// Return toggle success but include save error info
-			return serverToggleEnabledMsg{serverName: name, enabled: newStateEnabled, success: true, err: fmt.Errorf("failed to save config: %w", saveErr)}
-		}
-
-		return serverToggleEnabledMsg{serverName: name, enabled: newStateEnabled, success: true, err: nil}
-	}
-}
-
-// saveServer returns a command to add/update a server and save the config.
-func (m *Model) saveServer(server types.CommonServer, overwrite bool) tea.Cmd {
-	return func() tea.Msg {
-		log.Debug().Str("serverName", server.Name).Bool("overwrite", overwrite).Msg("Saving server")
-		if m.currentEditor == nil {
-			log.Debug().Msg("No editor loaded, returning error")
-			return serverSavedMsg{serverName: server.Name, err: fmt.Errorf("no editor loaded")}
-		}
-
-		log.Debug().Str("serverName", server.Name).Bool("overwrite", overwrite).Msg("Adding server")
-		err := m.currentEditor.AddMCPServer(server, overwrite)
-		if err != nil {
-			log.Debug().Msg("Error adding server, returning error")
-			// If error is about existing server and not overwriting, maybe trigger confirmation dialog?
-			// For now, just return the error.
-			return serverSavedMsg{serverName: server.Name, err: err}
-		}
-
-		err = m.currentEditor.Save()
-		if err != nil {
-			log.Debug().Msg("Error saving config, returning error")
-			return serverSavedMsg{serverName: server.Name, err: fmt.Errorf("failed to save config after adding/updating server: %w", err)}
-		}
-
-		return serverSavedMsg{serverName: server.Name, err: nil}
-	}
-}
-
-// loadProfiles attempts to load profiles from the config file
-func (m *Model) loadProfiles() tea.Cmd {
-	return func() tea.Msg {
-		configFile, err := config.GetProfilesPath(viper.ConfigFileUsed())
-		if err != nil {
-			return loadedProfilesMsg{err: fmt.Errorf("could not get profiles path: %w", err)}
-		}
-
-		editor, err := config.NewConfigEditor(configFile)
-		if err != nil {
-			return loadedProfilesMsg{err: fmt.Errorf("could not create config editor: %w", err)}
-		}
-
-		profiles, err := editor.GetProfiles()
-		if err != nil {
-			return loadedProfilesMsg{err: fmt.Errorf("could not get profiles: %w", err)}
-		}
-
-		defaultProfile, err := editor.GetDefaultProfile()
-		// If we can't get the default profile, we'll still return the profiles but with an empty default
-		if err != nil {
-			defaultProfile = ""
-		}
-
-		return loadedProfilesMsg{
-			editor:         editor,
-			profiles:       profiles,
-			defaultProfile: defaultProfile,
-			err:            nil,
-		}
-	}
-}
-
-// saveProfile adds or updates a profile in the config
-func (m *Model) saveProfile(name, description string, toolDirs, toolFiles, promptDirs, promptFiles []string, isNewProfile bool) tea.Cmd {
-	return func() tea.Msg {
-		if m.profileEditor == nil {
-			return profileSavedMsg{err: fmt.Errorf("no profile editor initialized")}
-		}
-
-		var err error
-		if isNewProfile {
-			// Add new profile
-			err = m.profileEditor.AddProfile(name, description)
-			if err != nil {
-				return profileSavedMsg{err: fmt.Errorf("could not add profile: %w", err)}
-			}
-		} else {
-			// For editing, we need to create a new profile and delete the old one
-			// Since there's no direct "edit description" function in the editor
-			oldProfiles, err := m.profileEditor.GetProfiles()
-			if err != nil {
-				return profileSavedMsg{err: fmt.Errorf("could not get profiles: %w", err)}
-			}
-
-			// If the profile exists, delete and recreate it
-			if _, exists := oldProfiles[name]; exists {
-				// Delete the existing profile first
-				err = m.profileEditor.DeleteProfile(name)
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not delete existing profile: %w", err)}
-				}
-
-				// Now create the profile with the proper name and new description
-				err = m.profileEditor.AddProfile(name, description)
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not recreate profile: %w", err)}
-				}
-			} else {
-				// If it doesn't exist, just create it
-				err = m.profileEditor.AddProfile(name, description)
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not create profile: %w", err)}
-				}
-			}
-		}
-
-		// Add tool directories if provided
-		for _, dir := range toolDirs {
-			if dir != "" {
-				err = m.profileEditor.AddToolDirectory(name, dir, map[string]interface{}{})
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not add tool directory %s: %w", dir, err)}
-				}
-			}
-		}
-
-		// Add tool files if provided
-		for _, file := range toolFiles {
-			if file != "" {
-				err = m.profileEditor.AddToolFile(name, file)
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not add tool file %s: %w", file, err)}
-				}
-			}
-		}
-
-		// Add prompt directories if provided
-		for _, dir := range promptDirs {
-			if dir != "" {
-				err = m.profileEditor.AddPromptDirectory(name, dir, map[string]interface{}{})
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not add prompt directory %s: %w", dir, err)}
-				}
-			}
-		}
-
-		// Add prompt files if provided
-		for _, file := range promptFiles {
-			if file != "" {
-				err = m.profileEditor.AddPromptFile(name, file)
-				if err != nil {
-					return profileSavedMsg{err: fmt.Errorf("could not add prompt file %s: %w", file, err)}
-				}
-			}
-		}
-
-		// Save changes to the config file
-		err = m.profileEditor.Save()
-		if err != nil {
-			return profileSavedMsg{err: fmt.Errorf("could not save config: %w", err)}
-		}
-
-		return profileSavedMsg{
-			profileName: name,
-			err:         nil,
-		}
-	}
-}
-
-// deleteProfile removes a profile from the config
-func (m *Model) deleteProfile(name string) tea.Cmd {
-	return func() tea.Msg {
-		if m.profileEditor == nil {
-			return profileDeletedMsg{err: fmt.Errorf("no profile editor initialized")}
-		}
-
-		// Delete the profile
-		if err := m.profileEditor.DeleteProfile(name); err != nil {
-			return profileDeletedMsg{profileName: name, err: err}
-		}
-
-		// Save the changes
-		if err := m.profileEditor.Save(); err != nil {
-			return profileDeletedMsg{profileName: name, err: fmt.Errorf("could not save after deleting: %w", err)}
-		}
-
-		return profileDeletedMsg{profileName: name, err: nil}
-	}
-}
-
-// setDefaultProfile sets the default profile in the config
-func (m *Model) setDefaultProfile(name string) tea.Cmd {
-	return func() tea.Msg {
-		if m.profileEditor == nil {
-			return defaultProfileSetMsg{err: fmt.Errorf("no profile editor initialized")}
-		}
-
-		err := m.profileEditor.SetDefaultProfile(name)
-		if err != nil {
-			return defaultProfileSetMsg{err: fmt.Errorf("could not set default profile: %w", err)}
-		}
-
-		// Save changes to the config file
-		err = m.profileEditor.Save()
-		if err != nil {
-			return defaultProfileSetMsg{err: fmt.Errorf("could not save config: %w", err)}
-		}
-
-		return defaultProfileSetMsg{
-			profileName: name,
-			err:         nil,
-		}
-	}
-}
-
-// --- String Parsing/Formatting Helpers ---
-
-// parseArgsString converts a space-separated string into a slice of args
-func parseArgsString(argsStr string) []string {
-	argsStr = strings.TrimSpace(argsStr)
-	if argsStr == "" {
-		return []string{}
-	}
-	// TODO: Handle quoted arguments properly if needed
-	return strings.Fields(argsStr)
-}
-
-// parseEnvString converts newline-separated KEY=VALUE pairs into a map
-func parseEnvString(envStr string) map[string]string {
-	envMap := make(map[string]string)
-	envStr = strings.TrimSpace(envStr)
-	if envStr == "" {
-		return envMap
-	}
-
-	// Handle both newline and carriage return + newline
-	envStr = strings.ReplaceAll(envStr, "\r\n", "\n")
-
-	lines := strings.Split(envStr, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") { // Allow comments
-			continue
-		}
-
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			// Consider logging a warning for invalid lines
-			log.Warn().Str("line", line).Msg("Invalid environment variable format, expected KEY=VALUE")
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		if key != "" {
-			envMap[key] = value
-		}
-	}
-
-	return envMap
 }
