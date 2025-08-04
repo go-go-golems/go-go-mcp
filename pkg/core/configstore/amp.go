@@ -1,6 +1,9 @@
 package configstore
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
@@ -81,6 +84,28 @@ func (s *AmpStore) DisableServer(name string) error {
 	return s.editor.DisableMCPServer(name)
 }
 
+// ResolveTarget resolves and validates the target for Amp
+func (s *AmpStore) ResolveTarget(target string) error {
+	supportedTargets := s.GetSupportedTargets()
+
+	if target == "" || target == "default" {
+		return nil
+	}
+
+	return fmt.Errorf("unsupported target '%s' for Amp. Supported targets: %s",
+		target, strings.Join(supportedTargets, ", "))
+}
+
+// GetSupportedTargets returns the supported targets for Amp
+func (s *AmpStore) GetSupportedTargets() []string {
+	return []string{"default", ""}
+}
+
+// GetConfigPath returns the path to the configuration file
+func (s *AmpStore) GetConfigPath() string {
+	return s.editor.GetConfigPath()
+}
+
 // AmpCodeStore implements the Store interface for AmpCode configuration
 type AmpCodeStore struct {
 	editor types.ServerConfigEditor
@@ -155,4 +180,26 @@ func (s *AmpCodeStore) EnableServer(name string) error {
 // DisableServer disables a server
 func (s *AmpCodeStore) DisableServer(name string) error {
 	return s.editor.DisableMCPServer(name)
+}
+
+// ResolveTarget resolves and validates the target for AmpCode
+func (s *AmpCodeStore) ResolveTarget(target string) error {
+	supportedTargets := s.GetSupportedTargets()
+
+	if target == "" || target == "default" {
+		return nil
+	}
+
+	return fmt.Errorf("unsupported target '%s' for AmpCode. Supported targets: %s",
+		target, strings.Join(supportedTargets, ", "))
+}
+
+// GetSupportedTargets returns the supported targets for AmpCode
+func (s *AmpCodeStore) GetSupportedTargets() []string {
+	return []string{"default", ""}
+}
+
+// GetConfigPath returns the path to the configuration file
+func (s *AmpCodeStore) GetConfigPath() string {
+	return s.editor.GetConfigPath()
 }

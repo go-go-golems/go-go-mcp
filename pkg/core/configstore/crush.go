@@ -1,8 +1,10 @@
 package configstore
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
@@ -11,8 +13,9 @@ import (
 
 // CrushStore implements the Store interface for Crush configuration
 type CrushStore struct {
-	editor types.ServerConfigEditor
-	path   string
+	editor    types.ServerConfigEditor
+	path      string
+	storeType string
 }
 
 // NewCrushLocalStore creates a new Crush configuration store for .crush.json
@@ -24,8 +27,9 @@ func NewCrushLocalStore() (*CrushStore, error) {
 	}
 
 	return &CrushStore{
-		editor: editor,
-		path:   configPath,
+		editor:    editor,
+		path:      configPath,
+		storeType: "local",
 	}, nil
 }
 
@@ -38,8 +42,9 @@ func NewCrushCwdStore() (*CrushStore, error) {
 	}
 
 	return &CrushStore{
-		editor: editor,
-		path:   configPath,
+		editor:    editor,
+		path:      configPath,
+		storeType: "cwd",
 	}, nil
 }
 
@@ -61,8 +66,9 @@ func NewCrushGlobalStore() (*CrushStore, error) {
 	}
 
 	return &CrushStore{
-		editor: editor,
-		path:   configPath,
+		editor:    editor,
+		path:      configPath,
+		storeType: "global",
 	}, nil
 }
 
@@ -116,4 +122,32 @@ func (s *CrushStore) EnableServer(name string) error {
 // DisableServer disables a server
 func (s *CrushStore) DisableServer(name string) error {
 	return s.editor.DisableMCPServer(name)
+}
+
+// ResolveTarget resolves and validates the target for Crush
+func (s *CrushStore) ResolveTarget(target string) error {
+	supportedTargets := s.GetSupportedTargets()
+
+	// Normalize target
+	if target == "" || target == "default" {
+		target = s.storeType
+	}
+
+	// Check if this store supports the target
+	if target != s.storeType {
+		return fmt.Errorf("target '%s' not supported by %s Crush store. Supported targets: %s",
+			target, s.storeType, strings.Join(supportedTargets, ", "))
+	}
+
+	return nil
+}
+
+// GetSupportedTargets returns the supported targets for this Crush store
+func (s *CrushStore) GetSupportedTargets() []string {
+	return []string{s.storeType}
+}
+
+// GetConfigPath returns the path to the configuration file
+func (s *CrushStore) GetConfigPath() string {
+	return s.editor.GetConfigPath()
 }

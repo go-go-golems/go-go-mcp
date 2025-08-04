@@ -34,6 +34,15 @@ type Store interface {
 
 	// DisableServer disables a server
 	DisableServer(name string) error
+
+	// ResolveTarget resolves and validates the target for this store
+	ResolveTarget(target string) error
+
+	// GetSupportedTargets returns the list of supported targets for this store
+	GetSupportedTargets() []string
+
+	// GetConfigPath returns the path to the configuration file
+	GetConfigPath() string
 }
 
 // ProfileStore provides interface for managing profile configurations

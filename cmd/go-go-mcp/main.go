@@ -19,6 +19,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds"
+	config_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/config"
 	server_cmds "github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -100,17 +101,15 @@ func initRootCmd() (*help.HelpSystem, error) {
 	bridgeCmd := mcp_cmds.NewBridgeCommand(log.Logger)
 	rootCmd.AddCommand(bridgeCmd)
 
-	// Add config command group
-	configCmd := mcp_cmds.NewConfigGroupCommand()
-	rootCmd.AddCommand(configCmd)
+	// Add unified editor config command group
+	unifiedConfigCmd := config_cmds.NewConfigCommand()
+	rootCmd.AddCommand(unifiedConfigCmd)
 
-	// Add Claude config command group
-	claudeConfigCmd := mcp_cmds.NewClaudeConfigCommand()
-	rootCmd.AddCommand(claudeConfigCmd)
-
-	// Add Cursor config command group
-	cursorConfigCmd := mcp_cmds.NewCursorConfigCommand()
-	rootCmd.AddCommand(cursorConfigCmd)
+	// Add config command group (go-go-mcp profiles) - renamed to avoid collision
+	profilesCmd := mcp_cmds.NewConfigGroupCommand()
+	profilesCmd.Use = "profiles"
+	profilesCmd.Short = "Manage go-go-mcp profiles"
+	rootCmd.AddCommand(profilesCmd)
 
 	// Add UI command
 	rootCmd.AddCommand(mcp_cmds.NewUICommand())

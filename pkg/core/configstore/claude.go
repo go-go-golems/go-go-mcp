@@ -1,6 +1,9 @@
 package configstore
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
@@ -79,4 +82,26 @@ func (s *ClaudeStore) EnableServer(name string) error {
 // DisableServer disables a server
 func (s *ClaudeStore) DisableServer(name string) error {
 	return s.editor.DisableMCPServer(name)
+}
+
+// ResolveTarget resolves and validates the target for Claude
+func (s *ClaudeStore) ResolveTarget(target string) error {
+	supportedTargets := s.GetSupportedTargets()
+
+	if target == "" || target == "default" {
+		return nil
+	}
+
+	return fmt.Errorf("unsupported target '%s' for Claude. Supported targets: %s",
+		target, strings.Join(supportedTargets, ", "))
+}
+
+// GetSupportedTargets returns the supported targets for Claude
+func (s *ClaudeStore) GetSupportedTargets() []string {
+	return []string{"default", ""}
+}
+
+// GetConfigPath returns the path to the configuration file
+func (s *ClaudeStore) GetConfigPath() string {
+	return s.editor.GetConfigPath()
 }

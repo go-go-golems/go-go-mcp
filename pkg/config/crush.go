@@ -208,7 +208,7 @@ func (c *CrushEditor) GetServer(name string) (types.CommonServer, bool, error) {
 func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) error {
 	_, existsInEnabled := c.config.MCP[server.Name]
 	_, existsInDisabled := c.config.DisabledServers[server.Name]
-	
+
 	if (existsInEnabled || existsInDisabled) && !overwrite {
 		return fmt.Errorf("server '%s' already exists", server.Name)
 	}
@@ -253,7 +253,7 @@ func (c *CrushEditor) AddMCPServer(server types.CommonServer, overwrite bool) er
 func (c *CrushEditor) RemoveMCPServer(name string) error {
 	_, existsInEnabled := c.config.MCP[name]
 	_, existsInDisabled := c.config.DisabledServers[name]
-	
+
 	if !existsInEnabled && !existsInDisabled {
 		return fmt.Errorf("server '%s' does not exist", name)
 	}
@@ -268,11 +268,11 @@ func (c *CrushEditor) RemoveMCPServer(name string) error {
 func (c *CrushEditor) IsServerDisabled(name string) (bool, error) {
 	_, existsInEnabled := c.config.MCP[name]
 	_, existsInDisabled := c.config.DisabledServers[name]
-	
+
 	if !existsInEnabled && !existsInDisabled {
 		return false, fmt.Errorf("server '%s' does not exist", name)
 	}
-	
+
 	return existsInDisabled, nil
 }
 
