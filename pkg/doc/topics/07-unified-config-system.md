@@ -27,14 +27,18 @@ The unified configuration system in go-go-mcp provides a consistent interface fo
 1. [Overview](#overview)
 2. [Supported Editors](#supported-editors)
 3. [Command Structure](#command-structure)
-4. [Configuration Verbs](#configuration-verbs)
-5. [Target Resolution](#target-resolution)
-6. [Transport Types](#transport-types)
-7. [Environment Variables](#environment-variables)
-8. [Common Use Cases](#common-use-cases)
-9. [Advanced Workflows](#advanced-workflows)
-10. [TUI Interface](#tui-interface)
-11. [Troubleshooting](#troubleshooting)
+4. [Structured Output Capabilities](#structured-output-capabilities)
+5. [Configuration Verbs](#configuration-verbs)
+6. [Target Resolution](#target-resolution)
+7. [Transport Types](#transport-types)
+8. [Environment Variables](#environment-variables)
+9. [Automation and Scripting](#automation-and-scripting)
+10. [Data Analysis and Reporting](#data-analysis-and-reporting)
+11. [Output Format Reference](#output-format-reference)
+12. [Common Use Cases](#common-use-cases)
+13. [Advanced Workflows](#advanced-workflows)
+14. [TUI Interface](#tui-interface)
+15. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
@@ -49,6 +53,7 @@ This approach abstracts the differences between editor configuration formats whi
 ### Key Benefits
 
 - **Consistent Interface**: Same commands work across all editors
+- **Structured Output**: JSON, YAML, CSV, and table formats for automation
 - **Transport Auto-Detection**: Automatically selects appropriate transport type
 - **Target Resolution**: Smart handling of global vs local configurations
 - **Environment Management**: Unified environment variable handling
@@ -129,6 +134,61 @@ Some editors support additional flags:
 --project <name>      # Target specific project
 ```
 
+## Structured Output Capabilities
+
+All configuration commands now support structured output formats for automation, scripting, and data analysis. Commands provide both human-readable text output (default) and machine-parseable structured data.
+
+### Available Output Formats
+
+- **table** (default): Human-readable tabular format
+- **json**: Machine-parseable JSON format
+- **yaml**: YAML format for configuration files
+- **csv**: Comma-separated values for spreadsheets
+
+### Output Control Flags
+
+```bash
+--output <format>         # Set output format (table, json, yaml, csv)
+--fields <field-list>     # Select specific fields to display
+--sort-columns <columns>  # Sort output by specified columns
+--structured-output       # Enable structured output for dual commands
+```
+
+### Command Output Types
+
+#### Pure Structured Commands
+
+The `list` command provides pure structured output:
+
+```bash
+# Default table format
+go-go-mcp editor config claude list
+
+# JSON output for automation
+go-go-mcp editor config claude list --output json
+
+# CSV for spreadsheet import
+go-go-mcp editor config claude,cursor list --output csv
+
+# Field selection
+go-go-mcp editor config claude list --fields name,command,enabled
+```
+
+#### Dual Output Commands
+
+Commands like `add`, `remove`, `copy`, `enable`, and `disable` support both human-readable and structured output:
+
+```bash
+# Human-readable output (default)
+go-go-mcp editor config claude add server1 /path/to/cmd
+
+# Structured output
+go-go-mcp editor config claude add server1 /path/to/cmd --structured-output --output json
+
+# CSV format for bulk operations
+go-go-mcp editor config claude,cursor add shared-server /path/to/cmd --structured-output --output csv
+```
+
 ## Configuration Verbs
 
 The system provides nine primary verbs that work consistently across all editors:
@@ -195,23 +255,57 @@ go-go-mcp editor config cursor remove oldserver --target global
 
 ### list - List Servers
 
-Display configured servers:
+Display configured servers with full structured output support:
 
 ```bash
-# List all servers
+# Default table format (human-readable)
 go-go-mcp editor config claude list
 
-# List servers for specific target
-go-go-mcp editor config cursor list --target local
+# JSON output for automation and scripting
+go-go-mcp editor config claude list --output json
 
-# Example output:
-# Target: global
-# ├── myserver (stdio) - enabled
-# │   Command: /path/to/command
-# │   Args: --config production
-# └── apiserver (http) - disabled
-#     Command: /path/to/api-server
-#     Environment: API_KEY=***
+# CSV output for spreadsheets and reporting
+go-go-mcp editor config claude,cursor list --output csv
+
+# YAML output for configuration management
+go-go-mcp editor config claude list --output yaml
+
+# Select specific fields
+go-go-mcp editor config claude list --fields name,command,enabled
+
+# Sort by column
+go-go-mcp editor config claude list --sort-columns enabled,name
+
+# Multi-editor structured output
+go-go-mcp editor config claude,cursor,amp list --output json
+```
+
+**Example Table Output:**
+```
+Target: global
+├── myserver (stdio) - enabled
+│   Command: /path/to/command
+│   Args: --config production
+└── apiserver (http) - disabled
+    Command: /path/to/api-server
+    Environment: API_KEY=***
+```
+
+**Example JSON Output:**
+```json
+[
+  {
+    "editor": "claude",
+    "name": "myserver",
+    "command": "/path/to/command",
+    "args": ["--config", "production"],
+    "env": {},
+    "url": "",
+    "transport": "stdio",
+    "enabled": true,
+    "target": "global"
+  }
+]
 ```
 
 ### enable/disable - Toggle Server State
@@ -399,6 +493,232 @@ go-go-mcp editor config amp add server /path/to/server \
 go-go-mcp editor config claude add secure-server /path/to/server \
   --env "SECRET_KEY=$(cat /path/to/secret)" \
   --env "CONFIG_FILE=/secure/path/config.json"
+```
+
+## Automation and Scripting
+
+The structured output capabilities enable powerful automation and scripting workflows. Commands provide machine-parseable data without sacrificing human readability.
+
+### JSON Output for Scripts
+
+Extract specific information using JSON output and jq:
+
+```bash
+# Get all enabled servers
+go-go-mcp editor config claude list --output json | jq '.[] | select(.enabled == true)'
+
+# Extract server names only
+go-go-mcp editor config claude,cursor list --output json | jq -r '.[].name'
+
+# Find servers using specific commands
+go-go-mcp editor config claude list --output json | jq '.[] | select(.command | contains("go-go-mcp"))'
+
+# Count servers by editor
+go-go-mcp editor config claude,cursor,amp list --output json | jq 'group_by(.editor) | map({editor: .[0].editor, count: length})'
+```
+
+### Bulk Operations with Structured Output
+
+Perform bulk operations and track results:
+
+```bash
+# Add servers to multiple editors with JSON tracking
+go-go-mcp editor config claude,cursor,amp add bulk-server /path/to/cmd \
+  --structured-output --output json > operation_results.json
+
+# Track which operations succeeded
+cat operation_results.json | jq '.[] | select(.success == true) | .editor'
+
+# Export operations to CSV for reporting
+go-go-mcp editor config claude,cursor add monitoring-server /path/to/monitor \
+  --structured-output --output csv >> operations_log.csv
+```
+
+### Configuration Monitoring
+
+Monitor configuration changes over time:
+
+```bash
+#!/bin/bash
+# config-monitor.sh - Track configuration changes
+
+TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
+OUTPUT_DIR="config-snapshots"
+mkdir -p "$OUTPUT_DIR"
+
+# Snapshot all configurations
+for editor in claude cursor ampcode amp crush; do
+  go-go-mcp editor config $editor list --output json > "$OUTPUT_DIR/${editor}_${TIMESTAMP}.json" 2>/dev/null || true
+done
+
+echo "Configuration snapshot saved to $OUTPUT_DIR"
+```
+
+### Environment-Specific Deployments
+
+Deploy different configurations per environment:
+
+```bash
+#!/bin/bash
+# deploy-config.sh - Deploy environment-specific configurations
+ENVIRONMENT=${1:-development}
+
+case $ENVIRONMENT in
+  development)
+    go-go-mcp editor config cursor,amp add dev-tools go-go-mcp \
+      --args "server start --profile development" \
+      --env "LOG_LEVEL=debug" \
+      --target local \
+      --structured-output --output json
+    ;;
+  production)
+    go-go-mcp editor config claude,cursor add prod-tools go-go-mcp \
+      --args "server start --profile production" \
+      --env "LOG_LEVEL=error" \
+      --target global \
+      --structured-output --output json
+    ;;
+esac
+```
+
+## Data Analysis and Reporting
+
+Structured output enables comprehensive analysis and reporting of MCP server configurations.
+
+### Configuration Analysis
+
+Analyze your MCP setup across editors:
+
+```bash
+# Export all configurations to CSV for analysis
+go-go-mcp editor config claude,cursor,ampcode,amp,crush list --output csv > all_configs.csv
+
+# Generate configuration summary
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq '{
+  total: length,
+  enabled: [.[] | select(.enabled == true)] | length,
+  disabled: [.[] | select(.enabled == false)] | length,
+  editors: [.[] | .editor] | unique,
+  transports: [.[] | .transport] | unique,
+  targets: [.[] | .target] | unique
+}'
+```
+
+### Usage Reporting
+
+Generate usage reports for team or compliance purposes:
+
+```bash
+#!/bin/bash
+# generate-report.sh - Generate MCP configuration report
+
+echo "# MCP Configuration Report - $(date)"
+echo
+
+# Summary statistics
+echo "## Summary"
+go-go-mcp editor config claude,cursor,ampcode,amp list --output json | \
+jq -r '
+  group_by(.editor) | 
+  map("\(.[]|.editor): \(length) servers") | 
+  .[]
+'
+
+echo
+echo "## Enabled Servers by Editor"
+go-go-mcp editor config claude,cursor,ampcode,amp list --output json | \
+jq -r '
+  map(select(.enabled == true)) |
+  group_by(.editor) |
+  map("### \(.[0].editor)\n" + (map("- \(.name): \(.command)") | join("\n"))) |
+  join("\n\n")
+'
+
+# Export detailed CSV
+go-go-mcp editor config claude,cursor,ampcode,amp list --output csv > mcp_report.csv
+echo
+echo "Detailed CSV report saved to: mcp_report.csv"
+```
+
+### Health Monitoring
+
+Monitor server health and configuration drift:
+
+```bash
+# Check for configuration inconsistencies
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq 'group_by(.name) | map(select(length > 1)) | 
+    map({name: .[0].name, editors: [.[] | .editor], commands: [.[] | .command] | unique})'
+
+# Find disabled servers that might need attention
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq '.[] | select(.enabled == false) | {editor, name, command}'
+```
+
+## Output Format Reference
+
+### List Command Schema
+
+The `list` command outputs the following fields:
+
+```json
+{
+  "editor": "string",      // Editor name (claude, cursor, etc.)
+  "name": "string",        // Server name
+  "command": "string",     // Command path
+  "args": ["string"],      // Command arguments array
+  "env": {"key": "value"}, // Environment variables object
+  "url": "string",         // Server URL (if applicable)
+  "transport": "string",   // Transport type (stdio, http, sse)
+  "enabled": boolean,      // Server enabled state
+  "target": "string"       // Configuration target (global, local, cwd)
+}
+```
+
+### Operation Command Schema
+
+Commands like `add`, `remove`, `copy`, `enable`, and `disable` output:
+
+```json
+{
+  "operation": "string",    // Operation performed (add, remove, copy, etc.)
+  "editor": "string",       // Target editor
+  "server_name": "string",  // Server name
+  "success": boolean,       // Operation success status
+  "error": "string",        // Error message (if success is false)
+  "server": {               // Server details (same as list schema)
+    "name": "string",
+    "command": "string",
+    "args": ["string"],
+    "env": {"key": "value"},
+    "url": "string",
+    "transport": "string",
+    "enabled": boolean,
+    "target": "string"
+  }
+}
+```
+
+### CSV Format
+
+CSV output includes all fields as columns with proper escaping:
+
+```csv
+editor,name,command,args,env,url,transport,enabled,target
+claude,myserver,/path/to/cmd,"arg1,arg2","KEY1=val1,KEY2=val2",,stdio,true,global
+```
+
+### Field Selection
+
+Use `--fields` to select specific columns:
+
+```bash
+# Common field combinations
+--fields name,enabled                    # Basic status
+--fields editor,name,command            # Server overview  
+--fields name,transport,target          # Configuration details
+--fields editor,name,enabled,target     # Multi-editor status
 ```
 
 ## Common Use Cases

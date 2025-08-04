@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/go-go-mcp/pkg/core/configstore"
 	"github.com/spf13/cobra"
 )
@@ -203,23 +204,88 @@ Examples:
 
 	// Add subcommands for each editor (single-editor commands)
 	for _, editorInfo := range SupportedEditors {
-		editorCmd := createEditorCommand(editorInfo)
+		editorCmd, err := createEditorCommand(editorInfo)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to create editor command for %s: %v", editorInfo.Name, err))
+		}
 		cmd.AddCommand(editorCmd)
 	}
 
-	// Add multi-editor verb commands
-	cmd.AddCommand(NewMultiAddCommand())
-	cmd.AddCommand(NewMultiListCommand())
-	cmd.AddCommand(NewMultiRemoveCommand())
-	cmd.AddCommand(NewMultiEnableCommand())
-	cmd.AddCommand(NewMultiDisableCommand())
-	// Add other multi-editor commands as we create them
+	// Add multi-editor verb commands using Glazed dual commands
+	
+	// Multi-editor add command (dual mode)
+	multiAddCmd, err := NewAddCommandDual()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create multi-editor add command: %v", err))
+	}
+	cobraMultiAddCmd, err := cli.BuildCobraCommand(multiAddCmd)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to build multi-editor add command: %v", err))
+	}
+	// Override Use to match multi-editor format
+	cobraMultiAddCmd.Use = "add EDITORS NAME COMMAND [ARGS...]"
+	cmd.AddCommand(cobraMultiAddCmd)
+
+	// Multi-editor list command (single mode Glazed)
+	cmd.AddCommand(NewMultiListCommandGlazed())
+	
+	// Multi-editor remove command (dual mode)
+	multiRemoveCmd, err := NewRemoveCommandDual()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create multi-editor remove command: %v", err))
+	}
+	cobraMultiRemoveCmd, err := cli.BuildCobraCommand(multiRemoveCmd)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to build multi-editor remove command: %v", err))
+	}
+	// Override Use to match multi-editor format
+	cobraMultiRemoveCmd.Use = "remove EDITORS NAME"
+	cmd.AddCommand(cobraMultiRemoveCmd)
+	
+	// Multi-editor enable command (dual mode)
+	multiEnableCmd, err := NewEnableCommandDual()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create multi-editor enable command: %v", err))
+	}
+	cobraMultiEnableCmd, err := cli.BuildCobraCommand(multiEnableCmd)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to build multi-editor enable command: %v", err))
+	}
+	// Override Use to match multi-editor format
+	cobraMultiEnableCmd.Use = "enable EDITORS NAME"
+	cmd.AddCommand(cobraMultiEnableCmd)
+	
+	// Multi-editor disable command (dual mode)
+	multiDisableCmd, err := NewDisableCommandDual()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create multi-editor disable command: %v", err))
+	}
+	cobraMultiDisableCmd, err := cli.BuildCobraCommand(multiDisableCmd)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to build multi-editor disable command: %v", err))
+	}
+	// Override Use to match multi-editor format
+	cobraMultiDisableCmd.Use = "disable EDITORS NAME"
+	cmd.AddCommand(cobraMultiDisableCmd)
+	
+	// Multi-editor copy command (dual mode)
+	multiCopyCmd, err := NewCopyCommandDual()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create multi-editor copy command: %v", err))
+	}
+	cobraMultiCopyCmd, err := cli.BuildCobraCommand(multiCopyCmd)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to build multi-editor copy command: %v", err))
+	}
+	// Override Use to match multi-editor format (copy has its own format)
+	cobraMultiCopyCmd.Use = "copy FROM_EDITOR TO_EDITOR SERVER_NAME"
+	cmd.AddCommand(cobraMultiCopyCmd)
 
 	return cmd
 }
 
 // createEditorCommand creates a subcommand for a specific editor
-func createEditorCommand(editorInfo EditorInfo) *cobra.Command {
+func createEditorCommand(editorInfo EditorInfo) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   editorInfo.Name,
 		Short: fmt.Sprintf("Manage %s", editorInfo.Description),
@@ -232,23 +298,158 @@ func createEditorCommand(editorInfo EditorInfo) *cobra.Command {
 		},
 	}
 
-	// Add verb subcommands
-	cmd.AddCommand(NewAddCommand(editorInfo.Name))
-	cmd.AddCommand(NewRemoveCommand(editorInfo.Name))
-	cmd.AddCommand(NewListCommand(editorInfo.Name))
-	cmd.AddCommand(NewEnableCommand(editorInfo.Name))
-	cmd.AddCommand(NewDisableCommand(editorInfo.Name))
-	cmd.AddCommand(NewCopyCommand(editorInfo.Name))
-	cmd.AddCommand(NewEditCommand(editorInfo.Name))
-	cmd.AddCommand(NewInitCommand(editorInfo.Name))
+	// Add verb subcommands using new Glazed dual commands
+	
+	// Add command (dual mode)
+	addCmd, err := NewAddCommandDual()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create add command: %w", err)
+	}
+	cobraAddCmd, err := cli.BuildCobraCommand(addCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build add command: %w", err)
+	}
+	// Override Use to match single editor format
+	cobraAddCmd.Use = "add NAME COMMAND [ARGS...]"
+	// Add editor context to command
+	originalAddRunE := cobraAddCmd.RunE
+	if originalAddRunE != nil {
+		cobraAddCmd.RunE = func(cmd *cobra.Command, args []string) error {
+			// Set the editors flag to this specific editor
+			if err := cmd.Flags().Set("editors", editorInfo.Name); err != nil {
+				return err
+			}
+			return originalAddRunE(cmd, args)
+		}
+	}
+	cmd.AddCommand(cobraAddCmd)
+	
+	// Remove command (dual mode)
+	removeCmd, err := NewRemoveCommandDual()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create remove command: %w", err)
+	}
+	cobraRemoveCmd, err := cli.BuildCobraCommand(removeCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build remove command: %w", err)
+	}
+	// Override Use to match single editor format
+	cobraRemoveCmd.Use = "remove NAME"
+	// Add editor context to command
+	originalRemoveRunE := cobraRemoveCmd.RunE
+	if originalRemoveRunE != nil {
+		cobraRemoveCmd.RunE = func(cmd *cobra.Command, args []string) error {
+			// Set the editors flag to this specific editor
+			if err := cmd.Flags().Set("editors", editorInfo.Name); err != nil {
+				return err
+			}
+			return originalRemoveRunE(cmd, args)
+		}
+	}
+	cmd.AddCommand(cobraRemoveCmd)
+	
+	// List command (single mode Glazed)
+	cmd.AddCommand(NewListCommandGlazed(editorInfo.Name))
+	
+	// Enable command (dual mode)
+	enableCmd, err := NewEnableCommandDual()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create enable command: %w", err)
+	}
+	cobraEnableCmd, err := cli.BuildCobraCommand(enableCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build enable command: %w", err)
+	}
+	// Override Use to match single editor format
+	cobraEnableCmd.Use = "enable NAME"
+	// Add editor context to command
+	originalEnableRunE := cobraEnableCmd.RunE
+	if originalEnableRunE != nil {
+		cobraEnableCmd.RunE = func(cmd *cobra.Command, args []string) error {
+			// Set the editors flag to this specific editor
+			if err := cmd.Flags().Set("editors", editorInfo.Name); err != nil {
+				return err
+			}
+			return originalEnableRunE(cmd, args)
+		}
+	}
+	cmd.AddCommand(cobraEnableCmd)
+	
+	// Disable command (dual mode)
+	disableCmd, err := NewDisableCommandDual()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create disable command: %w", err)
+	}
+	cobraDisableCmd, err := cli.BuildCobraCommand(disableCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build disable command: %w", err)
+	}
+	// Override Use to match single editor format
+	cobraDisableCmd.Use = "disable NAME"
+	// Add editor context to command
+	originalDisableRunE := cobraDisableCmd.RunE
+	if originalDisableRunE != nil {
+		cobraDisableCmd.RunE = func(cmd *cobra.Command, args []string) error {
+			// Set the editors flag to this specific editor
+			if err := cmd.Flags().Set("editors", editorInfo.Name); err != nil {
+				return err
+			}
+			return originalDisableRunE(cmd, args)
+		}
+	}
+	cmd.AddCommand(cobraDisableCmd)
+	
+	// Copy command (dual mode)
+	copyCmd, err := NewCopyCommandDual()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create copy command: %w", err)
+	}
+	cobraCopyCmd, err := cli.BuildCobraCommand(copyCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build copy command: %w", err)
+	}
+	// Override Use to match single editor format
+	cobraCopyCmd.Use = "copy FROM_EDITOR TO_EDITOR SERVER_NAME"
+	// Add editor context to command (for copy, the context is different as it involves multiple editors)
+	cmd.AddCommand(cobraCopyCmd)
+	// Create and add Edit command
+	editCmd, err := NewEditCommand()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create edit command: %w", err)
+	}
+	cobraEditCmd, err := cli.BuildCobraCommandFromBareCommand(editCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build edit command: %w", err)
+	}
+	cmd.AddCommand(cobraEditCmd)
+
+	// Create and add Init command
+	initCmd, err := NewInitCommand()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create init command: %w", err)
+	}
+	cobraInitCmd, err := cli.BuildCobraCommandFromBareCommand(initCmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build init command: %w", err)
+	}
+	cmd.AddCommand(cobraInitCmd)
+
 	cmd.AddCommand(NewAddGoGoCommand(editorInfo.Name))
 
 	// Add tail command only for Claude (Claude-specific feature)
 	if editorInfo.Name == "claude" {
-		cmd.AddCommand(NewTailCommand(editorInfo.Name))
+		tailCmd, err := NewTailCommand()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create tail command: %w", err)
+		}
+		cobraTailCmd, err := cli.BuildCobraCommandFromBareCommand(tailCmd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build tail command: %w", err)
+		}
+		cmd.AddCommand(cobraTailCmd)
 	}
 
-	return cmd
+	return cmd, nil
 }
 
 // getSupportedEditorNames returns a slice of supported editor names

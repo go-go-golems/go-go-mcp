@@ -27,15 +27,17 @@ This tutorial will guide you through setting up and managing MCP server configur
 1. [Prerequisites](#prerequisites)
 2. [First Time Setup](#first-time-setup)
 3. [Adding Your First Server](#adding-your-first-server)
-4. [Managing Multiple Editors](#managing-multiple-editors)
-5. [Working with Different Targets](#working-with-different-targets)
-6. [Environment Variables and Arguments](#environment-variables-and-arguments)
-7. [Copying and Migration](#copying-and-migration)
-8. [Multi-Editor Workflows](#multi-editor-workflows)
-9. [Using the TUI](#using-the-tui)
-10. [Advanced Scenarios](#advanced-scenarios)
-11. [Best Practices](#best-practices)
-12. [Troubleshooting Guide](#troubleshooting-guide)
+4. [Working with Structured Output](#working-with-structured-output)
+5. [Managing Multiple Editors](#managing-multiple-editors)
+6. [Working with Different Targets](#working-with-different-targets)
+7. [Environment Variables and Arguments](#environment-variables-and-arguments)
+8. [Copying and Migration](#copying-and-migration)
+9. [Multi-Editor Workflows](#multi-editor-workflows)
+10. [Using the TUI](#using-the-tui)
+11. [Advanced Scenarios](#advanced-scenarios)
+12. [Automation Examples](#automation-examples)
+13. [Best Practices](#best-practices)
+14. [Troubleshooting Guide](#troubleshooting-guide)
 
 ## Prerequisites
 
@@ -131,6 +133,95 @@ The command above:
 3. Added arguments to start the server with the default profile
 4. Used the `stdio` transport (automatically detected)
 5. Enabled the server by default
+
+## Working with Structured Output
+
+All configuration commands now support structured output formats for automation and analysis. Let's explore these capabilities using the server we just created.
+
+### Basic Structured Output
+
+```bash
+# View your server in different formats
+go-go-mcp editor config claude list                    # Default table format
+go-go-mcp editor config claude list --output json      # JSON format
+go-go-mcp editor config claude list --output yaml      # YAML format  
+go-go-mcp editor config claude list --output csv       # CSV format
+```
+
+### JSON Output Example
+
+Try the JSON output to see the structured data:
+
+```bash
+go-go-mcp editor config claude list --output json
+```
+
+You should see output like:
+```json
+[
+  {
+    "editor": "claude",
+    "name": "my-first-server",
+    "command": "go-go-mcp",
+    "args": ["server", "start", "--profile", "default"],
+    "env": {},
+    "url": "",
+    "transport": "stdio",
+    "enabled": true,
+    "target": "global"
+  }
+]
+```
+
+### Field Selection
+
+Select only the information you need:
+
+```bash
+# Show only name and status
+go-go-mcp editor config claude list --fields name,enabled
+
+# Show command details
+go-go-mcp editor config claude list --fields name,command,args --output json
+
+# Basic overview
+go-go-mcp editor config claude list --fields name,transport,enabled
+```
+
+### Exercise: Using Structured Output
+
+1. **Export to CSV**: Create a CSV file of your configuration
+   ```bash
+   go-go-mcp editor config claude list --output csv > my-servers.csv
+   cat my-servers.csv
+   ```
+
+2. **Filter with jq**: Use jq to filter JSON output  
+   ```bash
+   # Install jq if needed: sudo apt install jq (Ubuntu) or brew install jq (macOS)
+   go-go-mcp editor config claude list --output json | jq '.[] | .name'
+   go-go-mcp editor config claude list --output json | jq '.[] | select(.enabled == true)'
+   ```
+
+3. **Custom Field Selection**: Practice selecting different field combinations
+   ```bash
+   go-go-mcp editor config claude list --fields name,command
+   go-go-mcp editor config claude list --fields enabled,transport
+   ```
+
+### Structured Output for Operations
+
+Add another server and see structured output for operations:
+
+```bash
+# Add server with structured output
+go-go-mcp editor config claude add test-server go-go-mcp \
+  --args "server start --profile test" \
+  --structured-output --output json
+
+# The output shows operation details:
+# {"operation": "add", "editor": "claude", "server_name": "test-server", "success": true, ...}
+```
 
 ## Managing Multiple Editors
 
@@ -561,6 +652,220 @@ go-go-mcp editor config amp add sse-server go-go-mcp \
   --transport sse
 ```
 
+## Automation Examples
+
+Now that you understand structured output, let's explore practical automation scenarios.
+
+### Configuration Backup Script
+
+Create a script to backup all your MCP configurations:
+
+```bash
+#!/bin/bash
+# backup-mcp-config.sh - Backup all MCP configurations
+
+BACKUP_DIR="mcp-backups/$(date +%Y-%m-%d)"
+mkdir -p "$BACKUP_DIR"
+
+echo "Backing up MCP configurations to $BACKUP_DIR"
+
+# Backup each editor's configuration
+for editor in claude cursor ampcode amp crush; do
+  echo "Backing up $editor..."
+  go-go-mcp editor config $editor list --output json > "$BACKUP_DIR/${editor}.json" 2>/dev/null || true
+done
+
+# Create a combined report
+echo "Creating combined report..."
+go-go-mcp editor config claude,cursor,ampcode,amp,crush list --output csv > "$BACKUP_DIR/all-servers.csv" 2>/dev/null || true
+
+echo "Backup completed in $BACKUP_DIR"
+```
+
+### Server Health Check
+
+Monitor which servers are enabled and working:
+
+```bash
+#!/bin/bash
+# health-check.sh - Check MCP server status
+
+echo "# MCP Server Health Report - $(date)"
+echo
+
+# Check enabled servers
+echo "## Enabled Servers"
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq -r '.[] | select(.enabled == true) | "- \(.editor): \(.name) (\(.command))"'
+
+echo
+echo "## Disabled Servers (may need attention)"
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq -r '.[] | select(.enabled == false) | "- \(.editor): \(.name) (\(.command))"'
+
+# Count by editor
+echo
+echo "## Server Count by Editor"
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq -r 'group_by(.editor) | map("\(.[]|.editor): \(length) servers") | .[]'
+```
+
+### Bulk Configuration Updates
+
+Update multiple servers across editors:
+
+```bash
+#!/bin/bash
+# update-dev-servers.sh - Update development server configurations
+
+echo "Updating development servers across editors..."
+
+# Remove old development servers
+for editor in cursor ampcode amp; do
+  echo "Removing old dev-server from $editor..."
+  go-go-mcp editor config $editor remove dev-server 2>/dev/null || true
+done
+
+# Add new development server configuration
+go-go-mcp editor config cursor,ampcode,amp add dev-server go-go-mcp \
+  --args "server start --profile development --log-level debug" \
+  --env "DEV_MODE=true" \
+  --env "LOG_LEVEL=debug" \
+  --target local \
+  --structured-output --output json > update_results.json
+
+echo "Update completed. Results:"
+cat update_results.json | jq '.[] | "\(.editor): \(.success)"'
+```
+
+### Environment Deployment
+
+Deploy different configurations per environment:
+
+```bash
+#!/bin/bash
+# deploy-environment.sh - Deploy environment-specific configurations
+
+ENVIRONMENT=${1:-development}
+echo "Deploying $ENVIRONMENT environment configuration..."
+
+case $ENVIRONMENT in
+  development)
+    go-go-mcp editor config cursor,amp add dev-tools go-go-mcp \
+      --args "server start --profile development" \
+      --env "NODE_ENV=development" \
+      --env "LOG_LEVEL=debug" \
+      --target local \
+      --structured-output --output json
+    ;;
+  staging)
+    go-go-mcp editor config cursor,ampcode add staging-tools go-go-mcp \
+      --args "server start --profile staging" \
+      --env "NODE_ENV=staging" \
+      --env "LOG_LEVEL=info" \
+      --target cwd \
+      --structured-output --output json
+    ;;
+  production)
+    go-go-mcp editor config claude,cursor add prod-tools go-go-mcp \
+      --args "server start --profile production" \
+      --env "NODE_ENV=production" \
+      --env "LOG_LEVEL=error" \
+      --target global \
+      --structured-output --output json
+    ;;
+  *)
+    echo "Unknown environment: $ENVIRONMENT"
+    echo "Usage: $0 [development|staging|production]"
+    exit 1
+    ;;
+esac
+```
+
+### Configuration Analysis
+
+Analyze your setup for inconsistencies:
+
+```bash
+#!/bin/bash
+# analyze-config.sh - Analyze MCP configuration
+
+echo "# MCP Configuration Analysis"
+echo
+
+# Find servers with same name across editors
+echo "## Servers with same name across editors:"
+go-go-mcp editor config claude,cursor,ampcode,amp list --output json | \
+jq 'group_by(.name) | map(select(length > 1)) | 
+    map("- \(.[0].name): \([.[] | .editor] | join(", "))")' -r
+
+echo
+echo "## Transport usage:"
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq 'group_by(.transport) | map("\(.[]|.transport): \(length) servers")' -r
+
+echo
+echo "## Servers by target:"
+go-go-mcp editor config cursor,ampcode,amp list --output json | \
+jq 'group_by(.target) | map("\(.[]|.target): \(length) servers")' -r
+
+echo
+echo "## Disabled servers that might need attention:"
+go-go-mcp editor config claude,cursor,amp list --output json | \
+jq '.[] | select(.enabled == false) | "- \(.editor): \(.name)"' -r
+```
+
+### CSV Export for Spreadsheet Analysis
+
+Export configuration data for analysis in spreadsheets:
+
+```bash
+#!/bin/bash
+# export-for-analysis.sh - Export MCP data for spreadsheet analysis
+
+echo "Exporting MCP configuration data..."
+
+# Export all configurations to CSV
+go-go-mcp editor config claude,cursor,ampcode,amp,crush list --output csv > mcp-full-export.csv
+
+# Export only enabled servers
+go-go-mcp editor config claude,cursor,ampcode,amp list --output json | \
+jq '.[] | select(.enabled == true)' | \
+jq -r '["editor","name","command","transport","target"], 
+       [.editor,.name,.command,.transport,.target] | @csv' > mcp-enabled-servers.csv
+
+# Export summary by editor
+go-go-mcp editor config claude,cursor,ampcode,amp list --output json | \
+jq -r 'group_by(.editor) | 
+       ["editor","total_servers","enabled_servers"], 
+       (.[] | [.[0].editor, length, ([.[] | select(.enabled == true)] | length)]) | @csv' > mcp-summary.csv
+
+echo "Exported files:"
+echo "- mcp-full-export.csv (all servers)"
+echo "- mcp-enabled-servers.csv (enabled servers only)"  
+echo "- mcp-summary.csv (summary by editor)"
+```
+
+### Exercise: Create Your Own Automation
+
+Try creating a script that:
+
+1. **Checks server status**: Lists all enabled servers
+2. **Finds duplicates**: Identifies servers with the same name across editors
+3. **Creates a backup**: Exports current configuration to timestamped files
+4. **Generates a report**: Creates a markdown report of your setup
+
+```bash
+#!/bin/bash
+# my-mcp-tool.sh - Custom MCP management tool
+
+# Your implementation here
+echo "My MCP Management Tool"
+echo "====================="
+
+# Add your automation logic using the examples above
+```
+
 ## Best Practices
 
 ### 1. Naming Conventions
@@ -688,7 +993,98 @@ echo "Run \`./setup-mcp.sh\` to configure MCP servers for development." >> READM
 
 ### Common Issues and Solutions
 
-#### 1. Server Not Appearing in Editor
+#### 1. Structured Output Issues
+
+**Problem**: Structured output not working or showing unexpected format.
+
+**Solutions**:
+```bash
+# Check if the command supports structured output
+go-go-mcp editor config claude list --help | grep -E "(output|structured)"
+
+# Verify jq is installed for JSON processing
+which jq || echo "Install jq: sudo apt install jq (Ubuntu) or brew install jq (macOS)"
+
+# Test basic JSON output
+go-go-mcp editor config claude list --output json | jq '.'
+
+# If JSON is malformed, try table format first
+go-go-mcp editor config claude list --output table
+```
+
+**Problem**: Field selection not working as expected.
+
+**Solutions**:
+```bash
+# Check available fields
+go-go-mcp editor config claude list --output json | jq '.[0] | keys'
+
+# Use exact field names (case-sensitive)
+go-go-mcp editor config claude list --fields name,enabled
+go-go-mcp editor config claude list --fields editor,name,command
+
+# Test single field first
+go-go-mcp editor config claude list --fields name
+```
+
+**Problem**: CSV output has formatting issues.
+
+**Solutions**:
+```bash
+# Check CSV output directly
+go-go-mcp editor config claude list --output csv
+
+# Import to spreadsheet to check formatting
+# If special characters cause issues, try JSON instead
+go-go-mcp editor config claude list --output json | jq -r '(.[0] | keys_unsorted) as $keys | $keys, (.[] | [.[$keys[]]] | @csv)'
+```
+
+#### 2. Automation Script Issues
+
+**Problem**: Scripts using structured output fail or produce wrong results.
+
+**Solutions**:
+```bash
+# Test commands manually first
+go-go-mcp editor config claude list --output json
+go-go-mcp editor config claude list --output json | jq '.[] | .name'
+
+# Check for empty results
+RESULT=$(go-go-mcp editor config claude list --output json)
+if [ -z "$RESULT" ] || [ "$RESULT" = "[]" ]; then
+  echo "No servers configured"
+  exit 1
+fi
+
+# Add error handling to scripts
+set -e  # Exit on error
+set -o pipefail  # Fail on pipe errors
+
+# Use defensive jq queries
+go-go-mcp editor config claude list --output json | jq -r '.[]? | select(.enabled == true)? | .name // "unnamed"'
+```
+
+#### 3. Multi-Editor Structured Output
+
+**Problem**: Multi-editor commands don't produce expected structured output.
+
+**Solutions**:
+```bash
+# Test each editor individually
+go-go-mcp editor config claude list --output json
+go-go-mcp editor config cursor list --output json
+
+# Check for missing editors
+for editor in claude cursor amp; do
+  echo "Testing $editor..."
+  go-go-mcp editor config $editor list --output json 2>/dev/null || echo "$editor not configured"
+done
+
+# Use only configured editors
+go-go-mcp editor config claude,cursor list --output json
+```
+
+#### 4. Server Not Appearing in Editor
 
 **Problem**: Added server but it doesn't show up in the editor.
 
