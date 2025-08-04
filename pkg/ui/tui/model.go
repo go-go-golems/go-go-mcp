@@ -8,9 +8,35 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/go-go-golems/go-go-mcp/pkg/config"
+	"github.com/go-go-golems/go-go-mcp/pkg/core/configstore"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
+
+// convertConfigType converts TUI ConfigType to configstore ConfigType
+func convertConfigType(tType ConfigType) configstore.ConfigType {
+	switch tType {
+	case ConfigTypeCursor:
+		return configstore.ConfigTypeCursor
+	case ConfigTypeClaude:
+		return configstore.ConfigTypeClaude
+	case ConfigTypeAmpCode:
+		return configstore.ConfigTypeAmpCode
+	case ConfigTypeAmp:
+		return configstore.ConfigTypeAmp
+	case ConfigTypeProfile:
+		return configstore.ConfigTypeProfile
+	case ConfigTypeCrushLocal:
+		return configstore.ConfigTypeCrushLocal
+	case ConfigTypeCrushCwd:
+		return configstore.ConfigTypeCrushCwd
+	case ConfigTypeCrushGlobal:
+		return configstore.ConfigTypeCrushGlobal
+	case ConfigTypeNone:
+		return configstore.ConfigTypeNone
+	default:
+		return configstore.ConfigTypeNone
+	}
+}
 
 // Main application model
 type Model struct {
@@ -27,11 +53,9 @@ type Model struct {
 	currentMenuType MenuType
 	breadcrumb      string
 
-	// Configuration editor interface
-	currentEditor types.ServerConfigEditor
-
-	// Profile configuration editor
-	profileEditor *config.ConfigEditor
+	// Domain stores for configuration management
+	currentStore configstore.Store
+	profileStore configstore.ProfileStore
 
 	// Track which config type is being edited (used for display/loading)
 	configType ConfigType // Use the enum type
@@ -203,7 +227,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				case "Profiles":
 					m.createSubmenu(MenuTypeProfiles)
-					return m, m.loadProfiles()
+					return m, LoadProfilesCmd()
 				}
 			}
 
@@ -230,40 +254,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					case "Claude Desktop Config":
 						m.configType = ConfigTypeClaude
 						m.breadcrumb = "Claude Desktop > Config"
-						return m, m.loadServers(ConfigTypeClaude)
+						return m, LoadServersCmd(configstore.ConfigTypeClaude)
 					}
 				case MenuTypeCursor:
 					switch selectedItem.title {
 					case "Global Cursor Config":
 						m.configType = ConfigTypeCursor
 						m.breadcrumb = "Cursor > Global Config"
-						return m, m.loadServers(ConfigTypeCursor)
+						return m, LoadServersCmd(configstore.ConfigTypeCursor)
 					}
 				case MenuTypeAmpCode:
 					switch selectedItem.title {
 					case "Cursor settings.json":
 						m.configType = ConfigTypeAmpCode
 						m.breadcrumb = "Amp Code > Cursor settings.json"
-						return m, m.loadServers(ConfigTypeAmpCode)
+						return m, LoadServersCmd(configstore.ConfigTypeAmpCode)
 					case "~/.config/amp/settings.json":
 						m.configType = ConfigTypeAmp
 						m.breadcrumb = "Amp Code > ~/.config/amp/settings.json"
-						return m, m.loadServers(ConfigTypeAmp)
+						return m, LoadServersCmd(configstore.ConfigTypeAmp)
 					}
 				case MenuTypeCrush:
 					switch selectedItem.title {
 					case ".crush.json (local)":
 						m.configType = ConfigTypeCrushLocal
 						m.breadcrumb = "Crush > .crush.json (local)"
-						return m, m.loadServers(ConfigTypeCrushLocal)
+						return m, LoadServersCmd(configstore.ConfigTypeCrushLocal)
 					case "crush.json (cwd)":
 						m.configType = ConfigTypeCrushCwd
 						m.breadcrumb = "Crush > crush.json (cwd)"
-						return m, m.loadServers(ConfigTypeCrushCwd)
+						return m, LoadServersCmd(configstore.ConfigTypeCrushCwd)
 					case "~/.config/crush/crush.json (global)":
 						m.configType = ConfigTypeCrushGlobal
 						m.breadcrumb = "Crush > ~/.config/crush/crush.json (global)"
-						return m, m.loadServers(ConfigTypeCrushGlobal)
+						return m, LoadServersCmd(configstore.ConfigTypeCrushGlobal)
 					}
 				}
 			}
@@ -377,8 +401,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					selectedItem := m.activeList.SelectedItem().(serverItem)
 					serverName := selectedItem.name
 
-					if m.currentEditor != nil {
-						server, found, err := m.currentEditor.GetServer(serverName)
+					if m.currentStore != nil {
+						server, found, err := m.currentStore.GetServer(serverName)
 						if err != nil {
 							m.errorMsg = fmt.Sprintf("Error yanking server: %v", err)
 						} else if !found {
@@ -415,12 +439,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.configType != ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
 					selectedItem := m.activeList.SelectedItem().(serverItem)
 					serverName := selectedItem.name
-					return m, m.toggleServerEnabled(serverName)
+					return m, ToggleServerEnabledCmd(m.currentStore, serverName)
 				} else if m.configType == ConfigTypeProfile && m.activeList != nil && m.activeList.SelectedItem() != nil {
 					// For profiles, set as default
 					selectedItem := m.activeList.SelectedItem().(listItem)
 					profileName := selectedItem.title
-					return m, m.setDefaultProfile(profileName)
+					// Need to create/get profile store for setting default
+					store, err := configstore.NewProfileStore()
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error creating profile store: %v", err)
+						return m, nil
+					}
+					return m, SetDefaultProfileCmd(store, profileName)
 				}
 				return m, nil
 			}
@@ -450,7 +480,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					toolDirs, toolFiles, promptDirs, promptFiles := m.profileFormState.GetToolsAndPrompts()
 
 					// Save the profile
-					return m, m.saveProfile(name, description, toolDirs, toolFiles, promptDirs, promptFiles, m.profileFormState.isAddMode)
+					// Need to create/get profile store for saving
+					store, err := configstore.NewProfileStore()
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error creating profile store: %v", err)
+						return m, nil
+					}
+					return m, SaveProfileCmd(store, name, description, toolDirs, toolFiles, promptDirs, promptFiles, m.profileFormState.isAddMode)
 
 				} else if m.profileFormState.cancelled {
 					// Go back to list view
@@ -472,7 +508,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					// Save the server (overwrite if editing)
 					overwrite := !m.formState.isAddMode
-					return m, m.saveServer(server, overwrite)
+					return m, SaveServerCmd(m.currentStore, server, overwrite)
 
 				} else if m.formState.cancelled {
 					// Go back to list view
@@ -491,10 +527,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				switch m.confirmAction {
 				case "delete":
 					m.mode = modeList
-					return m, m.deleteServer(m.actionServerName)
+					return m, DeleteServerCmd(m.currentStore, m.actionServerName)
 				case "delete_profile":
 					m.mode = modeList
-					return m, m.deleteProfile(m.actionServerName)
+					// Need to create/get profile store for deleting
+					store, err := configstore.NewProfileStore()
+					if err != nil {
+						m.errorMsg = fmt.Sprintf("Error creating profile store: %v", err)
+						return m, nil
+					}
+					return m, DeleteProfileCmd(store, m.actionServerName)
 				}
 				m.mode = modeList
 			} else if m.confirmDialog.Cancelled() {
@@ -510,8 +552,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Store the editor and servers
-		m.currentEditor = msg.editor
+		// Create and store the appropriate store
+		store, err := configstore.NewStore(convertConfigType(msg.configType))
+		if err != nil {
+			m.errorMsg = fmt.Sprintf("Error creating store: %v", err)
+			return m, nil
+		}
+		m.currentStore = store
 
 		// Convert servers to list items
 		items := make([]list.Item, 0, len(msg.servers))
@@ -552,8 +599,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Store the profile editor
-		m.profileEditor = msg.editor
+		// Create and store the profile store
+		store, err := configstore.NewProfileStore()
+		if err != nil {
+			m.errorMsg = fmt.Sprintf("Error creating profile store: %v", err)
+			return m, nil
+		}
+		m.profileStore = store
 
 		// Convert profiles to list items
 		items := make([]list.Item, 0, len(msg.profiles))
@@ -593,7 +645,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMsg = fmt.Sprintf("Error deleting server: %v", msg.err)
 		} else {
 			// Successfully deleted, reload the server list
-			return m, m.loadServers(m.configType)
+			return m, LoadServersCmd(convertConfigType(m.configType))
 		}
 		return m, nil
 
@@ -602,7 +654,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMsg = fmt.Sprintf("Error deleting profile: %v", msg.err)
 		} else {
 			// Successfully deleted, reload the profile list
-			return m, m.loadProfiles()
+			return m, LoadProfilesCmd()
 		}
 		return m, nil
 
@@ -611,7 +663,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMsg = fmt.Sprintf("Error toggling server: %v", msg.err)
 		} else {
 			// Successfully toggled, reload the server list
-			return m, m.loadServers(m.configType)
+			return m, LoadServersCmd(convertConfigType(m.configType))
 		}
 		return m, nil
 
@@ -622,7 +674,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			// Successfully saved, go back to list and reload
 			m.mode = modeList
-			return m, m.loadServers(m.configType)
+			return m, LoadServersCmd(convertConfigType(m.configType))
 		}
 
 	case profileSavedMsg:
@@ -632,7 +684,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			// Successfully saved, go back to list and reload
 			m.mode = modeList
-			return m, m.loadProfiles()
+			return m, LoadProfilesCmd()
 		}
 
 	case defaultProfileSetMsg:
@@ -640,7 +692,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errorMsg = fmt.Sprintf("Error setting default profile: %v", msg.err)
 		} else {
 			// Successfully set default, reload the profile list
-			return m, m.loadProfiles()
+			return m, LoadProfilesCmd()
 		}
 		return m, nil
 

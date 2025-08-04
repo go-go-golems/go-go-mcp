@@ -8,11 +8,11 @@ import (
 
 // loadServerToForm loads the data for the selected server into the form model.
 func (m *Model) loadServerToForm(serverName string) (FormModel, error) {
-	if m.currentEditor == nil {
-		return FormModel{}, fmt.Errorf("no configuration editor loaded")
+	if m.currentStore == nil {
+		return FormModel{}, fmt.Errorf("no configuration store loaded")
 	}
 
-	server, found, err := m.currentEditor.GetServer(serverName)
+	server, found, err := m.currentStore.GetServer(serverName)
 	if err != nil {
 		return FormModel{}, fmt.Errorf("error getting server '%s': %w", serverName, err)
 	}

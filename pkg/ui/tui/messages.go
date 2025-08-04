@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	"github.com/go-go-golems/go-go-mcp/pkg/mcp/types"
 )
 
@@ -9,7 +8,6 @@ import (
 
 // Message indicating servers have been loaded
 type loadedServersMsg struct {
-	editor     types.ServerConfigEditor
 	servers    map[string]types.CommonServer
 	configType ConfigType // Use the enum type
 	err        error
@@ -43,7 +41,6 @@ func (e errorMsg) Error() string { return e.err.Error() }
 
 // Message indicating profiles have been loaded
 type loadedProfilesMsg struct {
-	editor         *config.ConfigEditor
 	profiles       map[string]string
 	defaultProfile string
 	err            error
