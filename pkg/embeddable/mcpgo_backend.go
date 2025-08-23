@@ -8,6 +8,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	mcp "github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/rs/zerolog/log"
 )
 
 // Backend represents a runnable server backend
@@ -24,9 +25,17 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		return nil, fmt.Errorf("nil server config")
 	}
 
+	log.Debug().
+		Str("name", cfg.Name).
+		Str("version", cfg.Version).
+		Str("transport", cfg.defaultTransport).
+		Int("port", cfg.defaultPort).
+		Msg("Creating mcp-go backend")
+
 	// Build mcp-go server
 	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
 		mcpserver.WithToolCapabilities(true),
+		mcpserver.WithLogging(),
 	)
 
 	// Register tools from our registry into mcp-go server
@@ -36,10 +45,13 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 
 	switch cfg.defaultTransport {
 	case "stdio":
+		log.Debug().Str("transport", "stdio").Msg("Selected transport")
 		return &stdioBackend{server: s}, nil
 	case "sse":
+		log.Debug().Str("transport", "sse").Int("port", cfg.defaultPort).Msg("Selected transport")
 		return &sseBackend{server: s, port: cfg.defaultPort}, nil
 	case "streamable_http":
+		log.Debug().Str("transport", "streamable_http").Int("port", cfg.defaultPort).Msg("Selected transport")
 		return &streamBackend{server: s, port: cfg.defaultPort}, nil
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
@@ -48,6 +60,7 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 
 func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry, cfg *ServerConfig) error {
 	if reg == nil {
+		log.Debug().Msg("No tool registry set; skipping registration")
 		return nil
 	}
 
@@ -56,11 +69,17 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 		return fmt.Errorf("list tools: %w", err)
 	}
 
+	log.Debug().Int("count", len(tools)).Msg("Registering tools")
+
 	for _, t := range tools {
 		// Map our protocol.Tool to mcp-go Tool with raw schema
 		mt := mcp.NewToolWithRawSchema(t.Name, t.Description, t.InputSchema)
 
 		name := t.Name
+		log.Debug().
+			Str("tool", name).
+			Str("description", t.Description).
+			Msg("Adding tool to mcp-go server")
 
 		// Build a wrapped handler that applies middleware and hooks around registry.CallTool
 		baseHandler := func(callCtx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
@@ -70,6 +89,7 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 		// Apply middleware stack (reverse order)
 		wrapped := baseHandler
 		if len(cfg.middleware) > 0 {
+			log.Debug().Str("tool", name).Int("middleware_count", len(cfg.middleware)).Msg("Applying middleware chain")
 			for i := len(cfg.middleware) - 1; i >= 0; i-- {
 				wrapped = cfg.middleware[i](wrapped)
 			}
@@ -85,6 +105,8 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 				}
 			}
 
+			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
+
 			res, err := wrapped(callCtx, args)
 
 			mcpRes := mapToolResultToMCP(res)
@@ -93,6 +115,11 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 				cfg.hooks.AfterToolCall(callCtx, name, res, err)
 			}
 
+			if err != nil {
+				log.Error().Str("tool", name).Err(err).Msg("Tool call errored")
+			} else {
+				log.Debug().Str("tool", name).Bool("is_error", mcpRes.IsError).Msg("Tool call completed")
+			}
 			return mcpRes, err
 		})
 	}

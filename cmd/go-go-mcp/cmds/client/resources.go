@@ -129,7 +129,6 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 	}
 
 	if res.NextCursor != "" {
-		// Add cursor as a separate row with a special type
 		row := types.NewRow(
 			types.MRP("cursor", res.NextCursor),
 			types.MRP("type", "cursor"),
@@ -139,6 +138,31 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 		}
 	}
 
+	return nil
+}
+
+func (c *ListResourcesCommand) RunIntoWriter(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	w io.Writer,
+) error {
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	res, err := client.ListResources(ctx, mcp.ListResourcesRequest{})
+	if err != nil {
+		return err
+	}
+	if len(res.Resources) == 0 {
+		_, _ = fmt.Fprintln(w, "No resources available")
+		return nil
+	}
+	for _, r := range res.Resources {
+		_, _ = fmt.Fprintf(w, "- %s (%s)\n", r.Name, r.URI)
+	}
 	return nil
 }
 
@@ -166,36 +190,71 @@ func (c *ReadResourceCommand) RunIntoWriter(
 		}
 	}()
 
-	res, err := client.ReadResource(ctx, mcp.ReadResourceRequest{
-		Request: mcp.Request{Method: string(mcp.MethodResourcesRead)},
-		Params: mcp.ReadResourceParams{URI: s.URI},
-	})
+	res, err := client.ReadResource(ctx, mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: s.URI}})
 	if err != nil {
 		return err
 	}
 
-	// Print textual resource contents if present
 	for _, c := range res.Contents {
 		if tc, ok := c.(mcp.TextResourceContents); ok {
-			_, err = fmt.Fprintf(w, "URI: %s\nMimeType: %s\nContent:\n%s\n", tc.URI, tc.MIMEType, tc.Text)
-			return err
+			_, _ = fmt.Fprintf(w, "%s\n", tc.Text)
+			return nil
 		}
 	}
-	_, err = fmt.Fprintf(w, "Resource %s has non-text contents\n", s.URI)
-	return err
+	_, _ = fmt.Fprintf(w, "Resource %s has non-text contents\n", s.URI)
+	return nil
+}
+
+func (c *ReadResourceCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	s := &ReadResourceSettings{}
+	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+		return err
+	}
+
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	var closeErr error
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			closeErr = errors.Wrap(cerr, "failed to close client")
+		}
+		if err == nil {
+			err = closeErr
+		}
+	}()
+
+	res, err := client.ReadResource(ctx, mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: s.URI}})
+	if err != nil {
+		return err
+	}
+
+	for _, c := range res.Contents {
+		if tc, ok := c.(mcp.TextResourceContents); ok {
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("uri", tc.URI), types.MRP("mime", tc.MIMEType), types.MRP("text", tc.Text))); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func init() {
 	listCmd, err := NewListResourcesCommand()
 	cobra.CheckErr(err)
 
-	cobralistCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	cobralistCmd, err := cli.BuildCobraCommand(listCmd)
 	cobra.CheckErr(err)
 
 	readCmd, err := NewReadResourceCommand()
 	cobra.CheckErr(err)
 
-	cobraReadCmd, err := cli.BuildCobraCommandFromWriterCommand(readCmd)
+	cobraReadCmd, err := cli.BuildCobraCommand(readCmd)
 	cobra.CheckErr(err)
 
 	ResourcesCmd.AddCommand(cobralistCmd)

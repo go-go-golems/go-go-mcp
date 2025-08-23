@@ -82,11 +82,20 @@ func (c *StartCommand) Run(
 	transportType := s_.Transport
 	port := s_.Port
 
+	logger.Debug().Str("transport", transportType).Int("port", port).Msg("Starting server")
+
 	// Get server settings
 	serverSettings := &layers.ServerSettings{}
 	if err := parsedLayers.InitializeStruct(layers.ServerLayerSlug, serverSettings); err != nil {
 		return err
 	}
+
+	logger.Debug().
+		Strs("directories", serverSettings.Directories).
+		Str("config_file", serverSettings.ConfigFile).
+		Strs("internal_servers", serverSettings.InternalServers).
+		Bool("watch", serverSettings.Watch).
+		Msg("Server settings loaded")
 
 	// Create tool provider
 	configToolProvider, err := layers.CreateToolProvider(serverSettings)
@@ -108,13 +117,16 @@ func (c *StartCommand) Run(
 	if err != nil {
 		return errors.Wrap(err, "failed to list tools from provider")
 	}
+	logger.Debug().Int("tool_count", len(toolsList)).Msg("Registering tools from provider")
 	for _, t := range toolsList {
 		toolImpl, err := tools.NewToolImpl(t.Name, t.Description, t.InputSchema)
 		if err != nil {
 			return errors.Wrapf(err, "failed to create tool %s", t.Name)
 		}
 		name := t.Name
+		logger.Debug().Str("tool", name).Str("description", t.Description).Msg("Registering tool")
 		reg.RegisterToolWithHandler(toolImpl, func(ctx context.Context, _ tools.Tool, arguments map[string]interface{}) (*protocol.ToolResult, error) {
+			logger.Debug().Str("tool", name).Interface("args", arguments).Msg("Invoking tool via provider")
 			return toolProvider.CallTool(ctx, name, arguments)
 		})
 	}
@@ -134,6 +146,8 @@ func (c *StartCommand) Run(
 	if err != nil {
 		return errors.Wrap(err, "failed to create backend")
 	}
+
+	logger.Info().Str("transport", transportType).Int("port", port).Msg("Starting backend")
 
 	// Create a context that will be cancelled on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

@@ -123,7 +123,6 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 			types.MRP("description", prompt.Description),
 		)
 
-		// Create a JSON array of arguments
 		args := make([]map[string]interface{}, len(prompt.Arguments))
 		for i, arg := range prompt.Arguments {
 			args[i] = map[string]interface{}{
@@ -140,15 +139,37 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 	}
 
 	if res.NextCursor != "" {
-		// Add cursor as a final row
-		cursorRow := types.NewRow(
-			types.MRP("cursor", res.NextCursor),
-		)
+		cursorRow := types.NewRow(types.MRP("cursor", res.NextCursor))
 		if err := gp.AddRow(ctx, cursorRow); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func (c *ListPromptsCommand) RunIntoWriter(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	w io.Writer,
+) error {
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	res, err := client.ListPrompts(ctx, mcp.ListPromptsRequest{})
+	if err != nil {
+		return err
+	}
+	if len(res.Prompts) == 0 {
+		_, _ = fmt.Fprintln(w, "No prompts available")
+		return nil
+	}
+	for _, p := range res.Prompts {
+		_, _ = fmt.Fprintf(w, "- %s: %s\n", p.Name, p.Description)
+	}
 	return nil
 }
 
@@ -172,7 +193,6 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		}
 	}()
 
-	// Parse prompt arguments
 	promptArgMap := make(map[string]string)
 	if s.Args != "" {
 		if err := json.Unmarshal([]byte(s.Args), &promptArgMap); err != nil {
@@ -180,40 +200,72 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		}
 	}
 
-	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{
-		Request: mcp.Request{Method: string(mcp.MethodPromptsGet)},
-		Params: mcp.GetPromptParams{
-			Name:      s.PromptName,
-			Arguments: promptArgMap,
-		},
-	})
+	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{Params: mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap}})
 	if err != nil {
 		return err
 	}
 
-	// Write formatted output to writer
 	for _, message := range res.Messages {
 		if tc, ok := message.Content.(mcp.TextContent); ok {
-			_, err = fmt.Fprintf(w, "Role: %s\nContent: %s\n", message.Role, tc.Text)
-			if err != nil {
+			_, _ = fmt.Fprintf(w, "%s: %s\n", message.Role, tc.Text)
+		}
+	}
+	return nil
+}
+
+func (c *ExecutePromptCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	s := &ExecutePromptSettings{}
+	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+		return err
+	}
+
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	promptArgMap := make(map[string]string)
+	if s.Args != "" {
+		if err := json.Unmarshal([]byte(s.Args), &promptArgMap); err != nil {
+			return fmt.Errorf("invalid prompt arguments JSON: %w", err)
+		}
+	}
+
+	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{Params: mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap}})
+	if err != nil {
+		return err
+	}
+
+	for _, message := range res.Messages {
+		if tc, ok := message.Content.(mcp.TextContent); ok {
+			row := types.NewRow(
+				types.MRP("role", message.Role),
+				types.MRP("text", tc.Text),
+			)
+			if err := gp.AddRow(ctx, row); err != nil {
 				return err
 			}
 		}
 	}
-	return err
+	return nil
 }
 
 func init() {
 	listCmd, err := NewListPromptsCommand()
 	cobra.CheckErr(err)
 
+	listCobraCmd, err := cli.BuildCobraCommand(listCmd)
+	cobra.CheckErr(err)
+
 	executeCmd, err := NewExecutePromptCommand()
 	cobra.CheckErr(err)
 
-	listCobraCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
-	cobra.CheckErr(err)
-
-	executeCobraCmd, err := cli.BuildCobraCommandFromWriterCommand(executeCmd)
+	executeCobraCmd, err := cli.BuildCobraCommand(executeCmd)
 	cobra.CheckErr(err)
 
 	PromptsCmd.AddCommand(listCobraCmd)

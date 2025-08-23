@@ -77,6 +77,13 @@ func createClient(s *ClientSettings) (*mcpclient.Client, error) {
 		return nil, fmt.Errorf("invalid transport type: %s", s.Transport)
 	}
 
+	// Start transport for non-stdio clients
+	if s.Transport != "command" {
+		if err := c.Start(context.Background()); err != nil {
+			return nil, fmt.Errorf("failed to start client transport: %w", err)
+		}
+	}
+
 	log.Debug().Msgf("Initializing client")
 	_, err = c.Initialize(context.Background(), mcp.InitializeRequest{
 		Request: mcp.Request{Method: string(mcp.MethodInitialize)},
