@@ -14,6 +14,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
+	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -102,7 +103,7 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 	}
 	var closeErr error
 	defer func() {
-		if cerr := client.Close(ctx); cerr != nil {
+		if cerr := client.Close(); cerr != nil {
 			closeErr = errors.Wrap(cerr, "failed to close client")
 		}
 		if err == nil {
@@ -110,27 +111,26 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 		}
 	}()
 
-	resources, cursor, err := client.ListResources(ctx, "")
+	res, err := client.ListResources(ctx, mcp.ListResourcesRequest{})
 	if err != nil {
 		return err
 	}
 
-	for _, resource := range resources {
+	for _, resource := range res.Resources {
 		row := types.NewRow(
 			types.MRP("uri", resource.URI),
 			types.MRP("name", resource.Name),
 			types.MRP("description", resource.Description),
-			types.MRP("mime_type", resource.MimeType),
+			types.MRP("mime_type", resource.MIMEType),
 		)
 		if err := gp.AddRow(ctx, row); err != nil {
 			return err
 		}
 	}
 
-	if cursor != "" {
-		// Add cursor as a separate row with a special type
+	if res.NextCursor != "" {
 		row := types.NewRow(
-			types.MRP("cursor", cursor),
+			types.MRP("cursor", res.NextCursor),
 			types.MRP("type", "cursor"),
 		)
 		if err := gp.AddRow(ctx, row); err != nil {
@@ -138,6 +138,36 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 		}
 	}
 
+	return nil
+}
+
+func (c *ListResourcesCommand) RunIntoWriter(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	w io.Writer,
+) error {
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			// log and continue
+			_ = cerr
+		}
+	}()
+
+	res, err := client.ListResources(ctx, mcp.ListResourcesRequest{})
+	if err != nil {
+		return err
+	}
+	if len(res.Resources) == 0 {
+		_, _ = fmt.Fprintln(w, "No resources available")
+		return nil
+	}
+	for _, r := range res.Resources {
+		_, _ = fmt.Fprintf(w, "- %s (%s)\n", r.Name, r.URI)
+	}
 	return nil
 }
 
@@ -157,7 +187,7 @@ func (c *ReadResourceCommand) RunIntoWriter(
 	}
 	var closeErr error
 	defer func() {
-		if cerr := client.Close(ctx); cerr != nil {
+		if cerr := client.Close(); cerr != nil {
 			closeErr = errors.Wrap(cerr, "failed to close client")
 		}
 		if err == nil {
@@ -165,29 +195,79 @@ func (c *ReadResourceCommand) RunIntoWriter(
 		}
 	}()
 
-	content, err := client.ReadResource(ctx, s.URI)
+	res, err := client.ReadResource(ctx, mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: s.URI}})
 	if err != nil {
 		return err
 	}
 
-	_, err = fmt.Fprintf(w, "URI: %s\nMimeType: %s\nContent:\n%s\n",
-		content.URI, content.MimeType, content.Text)
-	return err
+	for _, c := range res.Contents {
+		if tc, ok := c.(mcp.TextResourceContents); ok {
+			_, _ = fmt.Fprintf(w, "%s\n", tc.Text)
+			return nil
+		}
+	}
+	_, _ = fmt.Fprintf(w, "Resource %s has non-text contents\n", s.URI)
+	return nil
+}
+
+func (c *ReadResourceCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	s := &ReadResourceSettings{}
+	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+		return err
+	}
+
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	var closeErr error
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			closeErr = errors.Wrap(cerr, "failed to close client")
+		}
+		if err == nil {
+			err = closeErr
+		}
+	}()
+
+	res, err := client.ReadResource(ctx, mcp.ReadResourceRequest{Params: mcp.ReadResourceParams{URI: s.URI}})
+	if err != nil {
+		return err
+	}
+
+	for _, c := range res.Contents {
+		if tc, ok := c.(mcp.TextResourceContents); ok {
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("uri", tc.URI), types.MRP("mime", tc.MIMEType), types.MRP("text", tc.Text))); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func init() {
 	listCmd, err := NewListResourcesCommand()
 	cobra.CheckErr(err)
 
-	cobraListCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	cobralistCmd, err := cli.BuildCobraCommand(listCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	readCmd, err := NewReadResourceCommand()
 	cobra.CheckErr(err)
 
-	cobraReadCmd, err := cli.BuildCobraCommandFromWriterCommand(readCmd)
+	cobraReadCmd, err := cli.BuildCobraCommand(readCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
-	ResourcesCmd.AddCommand(cobraListCmd)
+	ResourcesCmd.AddCommand(cobralistCmd)
 	ResourcesCmd.AddCommand(cobraReadCmd)
 }

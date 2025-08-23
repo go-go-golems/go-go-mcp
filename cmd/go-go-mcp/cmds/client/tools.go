@@ -15,7 +15,9 @@ import (
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
+	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -109,6 +111,7 @@ func NewCallToolCommand() (*CallToolCommand, error) {
 	}, nil
 }
 
+// Glaze output (structured)
 func (c *ListToolsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
 	parsedLayers *glazed_layers.ParsedLayers,
@@ -124,22 +127,34 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(ctx); closeErr != nil {
+		if closeErr := client.Close(); closeErr != nil {
 			if err == nil {
 				err = errors.Wrap(closeErr, "failed to close client")
 			}
 		}
 	}()
 
-	tools, cursor, err := client.ListTools(ctx, "")
+	res, err := client.ListTools(ctx, mcp.ListToolsRequest{})
 	if err != nil {
 		return err
 	}
 
-	for _, tool := range tools {
-		// First unmarshal the schema into an interface{} to ensure it's valid JSON
+	for _, tool := range res.Tools {
+		// Prepare raw schema JSON from either RawInputSchema or structured InputSchema
+		var schemaBytes []byte
+		if tool.RawInputSchema != nil {
+			schemaBytes = tool.RawInputSchema
+		} else {
+			var err error
+			schemaBytes, err = json.Marshal(tool.InputSchema)
+			if err != nil {
+				return fmt.Errorf("failed to marshal structured schema: %w", err)
+			}
+		}
+
+		// Unmarshal into interface for display
 		var schemaObj interface{}
-		if err := json.Unmarshal(tool.InputSchema, &schemaObj); err != nil {
+		if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
 			return fmt.Errorf("failed to parse schema JSON: %w", err)
 		}
 
@@ -153,9 +168,9 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		}
 	}
 
-	if cursor != "" {
+	if res.NextCursor != "" {
 		row := types.NewRow(
-			types.MRP("cursor", cursor),
+			types.MRP("cursor", res.NextCursor),
 			types.MRP("type", "cursor"),
 		)
 		if err := gp.AddRow(ctx, row); err != nil {
@@ -163,6 +178,36 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		}
 	}
 
+	return nil
+}
+
+// Human-readable default output
+func (c *ListToolsCommand) RunIntoWriter(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	w io.Writer,
+) error {
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
+
+	res, err := client.ListTools(ctx, mcp.ListToolsRequest{})
+	if err != nil {
+		return err
+	}
+	if len(res.Tools) == 0 {
+		_, _ = fmt.Fprintln(w, "No tools available")
+		return nil
+	}
+	for _, tool := range res.Tools {
+		_, _ = fmt.Fprintf(w, "- %s: %s\n", tool.Name, tool.Description)
+	}
 	return nil
 }
 
@@ -181,7 +226,7 @@ func (c *CallToolCommand) RunIntoWriter(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(ctx); closeErr != nil {
+		if closeErr := client.Close(); closeErr != nil {
 			if err == nil {
 				err = errors.Wrap(closeErr, "failed to close client")
 			}
@@ -201,26 +246,28 @@ func (c *CallToolCommand) RunIntoWriter(
 		toolArgMap = s.Args
 	}
 
-	result, err := client.CallTool(ctx, s.ToolName, toolArgMap)
+	res, err := client.CallTool(ctx, mcp.CallToolRequest{
+		Request: mcp.Request{Method: string(mcp.MethodToolsCall)},
+		Params: mcp.CallToolParams{
+			Name:      s.ToolName,
+			Arguments: toolArgMap,
+		},
+	})
 	if err != nil {
 		return err
 	}
 
 	// Pretty print the result
-	for _, content := range result.Content {
-		_, err = fmt.Fprintf(w, "Type: %s\n", content.Type)
-		if err != nil {
-			return err
-		}
-
-		switch content.Type {
-		case "text":
-			_, err = fmt.Fprintf(w, "Content:\n%s\n", content.Text)
-		case "image":
-			_, err = fmt.Fprintf(w, "Image:\n%s\n", content.Data)
-		case "resource":
-			_, err = fmt.Fprintf(w, "URI: %s\nMimeType: %s\n",
-				content.Resource.URI, content.Resource.MimeType)
+	for _, content := range res.Content {
+		switch c := content.(type) {
+		case mcp.TextContent:
+			_, err = fmt.Fprintf(w, "%s\n", c.Text)
+		case mcp.ImageContent:
+			_, err = fmt.Fprintf(w, "[image %s, %d bytes base64]\n", c.MIMEType, len(c.Data))
+		case mcp.EmbeddedResource:
+			_, err = fmt.Fprintf(w, "[embedded resource]\n")
+		default:
+			_, err = fmt.Fprintf(w, "[unknown content]\n")
 		}
 		if err != nil {
 			return err
@@ -229,17 +276,79 @@ func (c *CallToolCommand) RunIntoWriter(
 	return nil
 }
 
+// Structured output for call tool
+func (c *CallToolCommand) RunIntoGlazeProcessor(
+	ctx context.Context,
+	parsedLayers *glazed_layers.ParsedLayers,
+	gp middlewares.Processor,
+) error {
+	s := &CallToolSettings{}
+	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+		return err
+	}
+
+	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
+
+	toolArgMap := make(map[string]interface{})
+	if s.JSON != "" {
+		if err := json.Unmarshal([]byte(s.JSON), &toolArgMap); err != nil {
+			return fmt.Errorf("invalid tool arguments JSON: %w", err)
+		}
+	} else if len(s.Args) > 0 {
+		toolArgMap = s.Args
+	}
+
+	res, err := client.CallTool(ctx, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: s.ToolName, Arguments: toolArgMap}})
+	if err != nil {
+		return err
+	}
+
+	for _, content := range res.Content {
+		switch c := content.(type) {
+		case mcp.TextContent:
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "text"), types.MRP("text", c.Text))); err != nil {
+				return err
+			}
+		case mcp.ImageContent:
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "image"), types.MRP("mime", c.MIMEType), types.MRP("data", c.Data))); err != nil {
+				return err
+			}
+		case mcp.EmbeddedResource:
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "resource"))); err != nil {
+				return err
+			}
+		default:
+			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "unknown"))); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func init() {
 	listCmd, err := NewListToolsCommand()
 	cobra.CheckErr(err)
-
-	cobraListCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	cobraListCmd, err := cli.BuildCobraCommand(listCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	callCmd, err := NewCallToolCommand()
 	cobra.CheckErr(err)
-
-	cobraCallCmd, err := cli.BuildCobraCommandFromWriterCommand(callCmd)
+	cobraCallCmd, err := cli.BuildCobraCommand(callCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	ToolsCmd.AddCommand(cobraListCmd)

@@ -93,12 +93,11 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Create and add schema command
 	schemaCmd, err := mcp_cmds.NewSchemaCommand()
 	cobra.CheckErr(err)
-	cobraSchemaCmd, err := cli.BuildCobraCommandFromWriterCommand(schemaCmd)
+	cobraSchemaCmd, err := cli.BuildCobraCommand(schemaCmd)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 
-	bridgeCmd := mcp_cmds.NewBridgeCommand(log.Logger)
-	rootCmd.AddCommand(bridgeCmd)
+	// bridge command removed
 
 	// Add config command group
 	configCmd := mcp_cmds.NewConfigGroupCommand()
@@ -146,7 +145,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		cobraCommand, err := cli.BuildCobraCommandFromWriterCommand(writerCommand)
+		cobraCommand, err := cli.BuildCobraCommand(writerCommand)
 		if err != nil {
 			fmt.Printf("Could not build cobra command: %v\n", err)
 			os.Exit(1)

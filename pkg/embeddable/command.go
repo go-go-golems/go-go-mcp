@@ -6,14 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/server"
-	transportpkg "github.com/go-go-golems/go-go-mcp/pkg/transport"
-	"github.com/go-go-golems/go-go-mcp/pkg/transport/sse"
-	"github.com/go-go-golems/go-go-mcp/pkg/transport/stdio"
-	"github.com/go-go-golems/go-go-mcp/pkg/transport/streamable_http"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -131,6 +125,7 @@ func AddMCPCommand(rootCmd *cobra.Command, opts ...ServerOption) error {
 func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	// Set up logger
 	logger := log.Logger
+	_ = logger
 
 	// Get transport type
 	transportType, err := cmd.Flags().GetString("transport")
@@ -144,49 +139,9 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		return fmt.Errorf("failed to get port flag: %w", err)
 	}
 
-	// Create transport
-	var transport transportpkg.Transport
-	switch transportType {
-	case "stdio":
-		transport, err = stdio.NewStdioTransport(transportpkg.WithLogger(logger))
-		if err != nil {
-			return fmt.Errorf("failed to create stdio transport: %w", err)
-		}
-	case "sse":
-		addr := ":" + strconv.Itoa(port)
-		transport, err = sse.NewSSETransport(
-			transportpkg.WithLogger(logger),
-			transportpkg.WithSSEOptions(transportpkg.SSEOptions{
-				Addr: addr,
-			}),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create SSE transport: %w", err)
-		}
-	case "streamable_http":
-		addr := ":" + strconv.Itoa(port)
-		transport, err = streamable_http.NewStreamableHTTPTransport(
-			transportpkg.WithLogger(logger),
-			transportpkg.WithStreamableHTTPOptions(transportpkg.StreamableHTTPOptions{
-				Addr:            addr,
-				ReadBufferSize:  1024,
-				WriteBufferSize: 1024,
-			}),
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create streamable HTTP transport: %w", err)
-		}
-	default:
-		return fmt.Errorf("unsupported transport type: %s", transportType)
-	}
-
-	// Create server
-	srv := server.NewServer(logger, transport,
-		server.WithServerName(config.Name),
-		server.WithServerVersion(config.Version),
-		server.WithToolProvider(config.GetToolProvider()),
-		server.WithSessionStore(config.sessionStore),
-	)
+	// Update defaults from flags
+	config.defaultTransport = transportType
+	config.defaultPort = port
 
 	// Set up context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
@@ -198,7 +153,6 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 
 	go func() {
 		<-sigChan
-		logger.Info().Msg("Received shutdown signal")
 		cancel()
 	}()
 
@@ -216,25 +170,19 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 
 	// Call startup hook if configured
 	if config.hooks != nil && config.hooks.OnServerStart != nil {
-		logger.Debug().Msg("Calling startup hook")
 		if err := config.hooks.OnServerStart(ctxWithFlags); err != nil {
 			return fmt.Errorf("startup hook failed: %w", err)
 		}
 	}
 
-	// Start server
-	logger.Info().
-		Str("transport", transportType).
-		Int("port", port).
-		Msg("Starting MCP server")
-
-	err = srv.Start(ctx)
-	if err != nil && err != context.Canceled {
-		return fmt.Errorf("server error: %w", err)
+	// Create backend
+	backend, err := NewBackend(config)
+	if err != nil {
+		return fmt.Errorf("failed to create backend: %w", err)
 	}
 
-	logger.Info().Msg("Server stopped")
-	return nil
+	// Start backend
+	return backend.Start(ctxWithFlags)
 }
 
 func listTools(cmd *cobra.Command, config *ServerConfig) error {
