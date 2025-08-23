@@ -231,13 +231,13 @@ func init() {
 	listCmd, err := NewListToolsCommand()
 	cobra.CheckErr(err)
 
-	cobraListCmd, err := cli.BuildCobraCommandFromGlazeCommand(listCmd)
+	cobraListCmd, err := cli.BuildCobraCommand(listCmd)
 	cobra.CheckErr(err)
 
 	callCmd, err := NewCallToolCommand()
 	cobra.CheckErr(err)
 
-	cobraCallCmd, err := cli.BuildCobraCommandFromWriterCommand(callCmd)
+	cobraCallCmd, err := cli.BuildCobraCommand(callCmd)
 	cobra.CheckErr(err)
 
 	ToolsCmd.AddCommand(cobraListCmd)

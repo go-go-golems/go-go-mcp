@@ -18,6 +18,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
 	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -107,8 +108,8 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			err = errors.Wrap(closeErr, "failed to close client")
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
 		}
 	}()
 
@@ -157,7 +158,11 @@ func (c *ListPromptsCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
 
 	res, err := client.ListPrompts(ctx, mcp.ListPromptsRequest{})
 	if err != nil {
@@ -188,8 +193,8 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			err = errors.Wrap(closeErr, "failed to close client")
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
 		}
 	}()
 
@@ -227,7 +232,11 @@ func (c *ExecutePromptCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
 
 	promptArgMap := make(map[string]string)
 	if s.Args != "" {
@@ -259,13 +268,19 @@ func init() {
 	listCmd, err := NewListPromptsCommand()
 	cobra.CheckErr(err)
 
-	listCobraCmd, err := cli.BuildCobraCommand(listCmd)
+	listCobraCmd, err := cli.BuildCobraCommand(listCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	executeCmd, err := NewExecutePromptCommand()
 	cobra.CheckErr(err)
 
-	executeCobraCmd, err := cli.BuildCobraCommand(executeCmd)
+	executeCobraCmd, err := cli.BuildCobraCommand(executeCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	PromptsCmd.AddCommand(listCobraCmd)

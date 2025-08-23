@@ -17,6 +17,7 @@ import (
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
 	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
@@ -190,7 +191,11 @@ func (c *ListToolsCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
 
 	res, err := client.ListTools(ctx, mcp.ListToolsRequest{})
 	if err != nil {
@@ -286,7 +291,11 @@ func (c *CallToolCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Warn().Err(cerr).Msg("failed to close client")
+		}
+	}()
 
 	toolArgMap := make(map[string]interface{})
 	if s.JSON != "" {
@@ -328,12 +337,18 @@ func (c *CallToolCommand) RunIntoGlazeProcessor(
 func init() {
 	listCmd, err := NewListToolsCommand()
 	cobra.CheckErr(err)
-	cobraListCmd, err := cli.BuildCobraCommand(listCmd)
+	cobraListCmd, err := cli.BuildCobraCommand(listCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	callCmd, err := NewCallToolCommand()
 	cobra.CheckErr(err)
-	cobraCallCmd, err := cli.BuildCobraCommand(callCmd)
+	cobraCallCmd, err := cli.BuildCobraCommand(callCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	ToolsCmd.AddCommand(cobraListCmd)

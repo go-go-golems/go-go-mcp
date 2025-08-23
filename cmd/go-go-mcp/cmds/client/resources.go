@@ -150,7 +150,12 @@ func (c *ListResourcesCommand) RunIntoWriter(
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			// log and continue
+			_ = cerr
+		}
+	}()
 
 	res, err := client.ListResources(ctx, mcp.ListResourcesRequest{})
 	if err != nil {
@@ -248,13 +253,19 @@ func init() {
 	listCmd, err := NewListResourcesCommand()
 	cobra.CheckErr(err)
 
-	cobralistCmd, err := cli.BuildCobraCommand(listCmd)
+	cobralistCmd, err := cli.BuildCobraCommand(listCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	readCmd, err := NewReadResourceCommand()
 	cobra.CheckErr(err)
 
-	cobraReadCmd, err := cli.BuildCobraCommand(readCmd)
+	cobraReadCmd, err := cli.BuildCobraCommand(readCmd,
+		cli.WithDualMode(true),
+		cli.WithGlazeToggleFlag("with-glaze-output"),
+	)
 	cobra.CheckErr(err)
 
 	ResourcesCmd.AddCommand(cobralistCmd)

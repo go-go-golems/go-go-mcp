@@ -179,6 +179,7 @@ type sseBackend struct {
 
 func (b *sseBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
+	log.Debug().Str("addr", addr).Msg("Starting SSE server")
 	return mcpserver.NewSSEServer(b.server).Start(addr)
 }
 
@@ -191,5 +192,6 @@ type streamBackend struct {
 
 func (b *streamBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server")
 	return mcpserver.NewStreamableHTTPServer(b.server).Start(addr)
 }
