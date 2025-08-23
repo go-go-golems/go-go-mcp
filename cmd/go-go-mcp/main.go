@@ -97,8 +97,7 @@ func initRootCmd() (*help.HelpSystem, error) {
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(cobraSchemaCmd)
 
-	bridgeCmd := mcp_cmds.NewBridgeCommand(log.Logger)
-	rootCmd.AddCommand(bridgeCmd)
+	// bridge command removed
 
 	// Add config command group
 	configCmd := mcp_cmds.NewConfigGroupCommand()

@@ -16,6 +16,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
+	mcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -106,17 +107,17 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(ctx); closeErr != nil {
+		if closeErr := client.Close(); closeErr != nil {
 			err = errors.Wrap(closeErr, "failed to close client")
 		}
 	}()
 
-	prompts, cursor, err := client.ListPrompts(ctx, "")
+	res, err := client.ListPrompts(ctx, mcp.ListPromptsRequest{})
 	if err != nil {
 		return err
 	}
 
-	for _, prompt := range prompts {
+	for _, prompt := range res.Prompts {
 		row := types.NewRow(
 			types.MRP("name", prompt.Name),
 			types.MRP("description", prompt.Description),
@@ -138,10 +139,10 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 		}
 	}
 
-	if cursor != "" {
+	if res.NextCursor != "" {
 		// Add cursor as a final row
 		cursorRow := types.NewRow(
-			types.MRP("cursor", cursor),
+			types.MRP("cursor", res.NextCursor),
 		)
 		if err := gp.AddRow(ctx, cursorRow); err != nil {
 			return err
@@ -166,7 +167,7 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		return err
 	}
 	defer func() {
-		if closeErr := client.Close(ctx); closeErr != nil {
+		if closeErr := client.Close(); closeErr != nil {
 			err = errors.Wrap(closeErr, "failed to close client")
 		}
 	}()
@@ -179,13 +180,26 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		}
 	}
 
-	message, err := client.GetPrompt(ctx, s.PromptName, promptArgMap)
+	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{
+		Request: mcp.Request{Method: string(mcp.MethodPromptsGet)},
+		Params: mcp.GetPromptParams{
+			Name:      s.PromptName,
+			Arguments: promptArgMap,
+		},
+	})
 	if err != nil {
 		return err
 	}
 
 	// Write formatted output to writer
-	_, err = fmt.Fprintf(w, "Role: %s\nContent: %s\n", message.Role, message.Content.Text)
+	for _, message := range res.Messages {
+		if tc, ok := message.Content.(mcp.TextContent); ok {
+			_, err = fmt.Fprintf(w, "Role: %s\nContent: %s\n", message.Role, tc.Text)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return err
 }
 
