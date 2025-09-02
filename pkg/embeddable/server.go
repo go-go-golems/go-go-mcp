@@ -41,6 +41,10 @@ type ServerConfig struct {
 	middleware         []ToolMiddleware
 	hooks              *Hooks
 	commandCustomizers []CommandCustomizer
+
+	// OIDC options (HTTP transports only)
+	oidcEnabled bool
+	oidcOptions OIDCOptions
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -212,6 +216,26 @@ func WithConfigFile(file string) ServerOption {
 func WithInternalServers(servers ...string) ServerOption {
 	return func(config *ServerConfig) error {
 		config.internalServers = append(config.internalServers, servers...)
+		return nil
+	}
+}
+
+// OIDC options
+type OIDCOptions struct {
+	Issuer          string
+	DBPath          string
+	EnableDevTokens bool
+	// Optional static auth key for direct bearer access (testing/dev only)
+	AuthKey string
+	// Optional static user/password for the embedded login form (testing/dev only)
+	User string
+	Pass string
+}
+
+func WithOIDC(opts OIDCOptions) ServerOption {
+	return func(config *ServerConfig) error {
+		config.oidcEnabled = true
+		config.oidcOptions = opts
 		return nil
 	}
 }

@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolog/log"
 )
 
 type Tool struct {
@@ -39,6 +40,8 @@ func NewToolResult(opts ...ToolResultOption) *ToolResult {
 	for _, opt := range opts {
 		opt(tr)
 	}
+
+	log.Trace().Interface("tr", tr).Msg("NewToolResult")
 
 	return tr
 }

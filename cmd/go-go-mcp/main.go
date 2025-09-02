@@ -114,6 +114,10 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Add UI command
 	rootCmd.AddCommand(mcp_cmds.NewUICommand())
 
+	// Add OIDC admin group
+	oidcCmd := mcp_cmds.NewOIDCCommand()
+	rootCmd.AddCommand(oidcCmd)
+
 	return helpSystem, nil
 }
 

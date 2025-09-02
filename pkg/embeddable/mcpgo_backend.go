@@ -2,8 +2,13 @@ package embeddable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
 
+	"github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	mcp "github.com/mark3labs/mcp-go/mcp"
@@ -49,10 +54,10 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		return &stdioBackend{server: s}, nil
 	case "sse":
 		log.Debug().Str("transport", "sse").Int("port", cfg.defaultPort).Msg("Selected transport")
-		return &sseBackend{server: s, port: cfg.defaultPort}, nil
+		return &sseBackend{server: s, port: cfg.defaultPort, cfg: cfg}, nil
 	case "streamable_http":
 		log.Debug().Str("transport", "streamable_http").Int("port", cfg.defaultPort).Msg("Selected transport")
-		return &streamBackend{server: s, port: cfg.defaultPort}, nil
+		return &streamBackend{server: s, port: cfg.defaultPort, cfg: cfg}, nil
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
 	}
@@ -175,12 +180,50 @@ func (b *stdioBackend) Start(ctx context.Context) error {
 type sseBackend struct {
 	server *mcpserver.MCPServer
 	port   int
+	cfg    *ServerConfig
 }
 
 func (b *sseBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-	log.Debug().Str("addr", addr).Msg("Starting SSE server")
-	return mcpserver.NewSSEServer(b.server).Start(addr)
+
+	// Create mcp-go SSE server and mount on mux
+	sse := mcpserver.NewSSEServer(b.server, mcpserver.WithStaticBasePath("/mcp"))
+	mux := http.NewServeMux()
+
+	var handler http.Handler = sse
+
+	if b.cfg != nil && b.cfg.oidcEnabled {
+		// OIDC-enabled: create OIDC server, mount routes, and protect /mcp
+		oidcSrv, err := oidc.New(oidc.Config{
+			Issuer:          b.cfg.oidcOptions.Issuer,
+			DBPath:          b.cfg.oidcOptions.DBPath,
+			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+			User:            b.cfg.oidcOptions.User,
+			Pass:            b.cfg.oidcOptions.Pass,
+		})
+		if err != nil {
+			return err
+		}
+		oidcSrv.Routes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(b.cfg))
+		handler = oidcAuthMiddleware(b.cfg, oidcSrv, handler)
+	}
+
+	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
+	mux.Handle("/mcp/", withRequestLogging(handler))
+
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		log.Info().Str("addr", addr).Msg("Shutting down SSE HTTP server")
+		_ = server.Shutdown(context.Background())
+	}()
+
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 // streamable-http backend
@@ -188,10 +231,149 @@ func (b *sseBackend) Start(ctx context.Context) error {
 type streamBackend struct {
 	server *mcpserver.MCPServer
 	port   int
+	cfg    *ServerConfig
 }
 
 func (b *streamBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server")
-	return mcpserver.NewStreamableHTTPServer(b.server).Start(addr)
+
+	// Create mcp-go Streamable HTTP server and mount on mux
+	stream := mcpserver.NewStreamableHTTPServer(b.server)
+	mux := http.NewServeMux()
+
+	var handler http.Handler = stream
+
+	if b.cfg != nil && b.cfg.oidcEnabled {
+		// OIDC-enabled: create OIDC server, mount routes, and protect /mcp
+		oidcSrv, err := oidc.New(oidc.Config{
+			Issuer:          b.cfg.oidcOptions.Issuer,
+			DBPath:          b.cfg.oidcOptions.DBPath,
+			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+			User:            b.cfg.oidcOptions.User,
+			Pass:            b.cfg.oidcOptions.Pass,
+		})
+		if err != nil {
+			return err
+		}
+		oidcSrv.Routes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(b.cfg))
+		handler = oidcAuthMiddleware(b.cfg, oidcSrv, handler)
+	}
+
+	// Mount streamable HTTP under /mcp
+	mux.Handle("/mcp", withRequestLogging(handler))
+	mux.Handle("/mcp/", withRequestLogging(handler))
+
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
+		_ = server.Shutdown(context.Background())
+	}()
+
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+// --- OIDC helpers ---
+
+func oidcAuthMiddleware(cfg *ServerConfig, oidcSrv *oidc.Server, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if p == "/.well-known/openid-configuration" || p == "/.well-known/oauth-authorization-server" || p == "/jwks.json" || p == "/login" || strings.HasPrefix(p, "/oauth2/") || p == "/register" || p == "/.well-known/oauth-protected-resource" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		authz := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authz, "Bearer ") {
+			advertiseWWWAuthenticate(w, cfg)
+			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("Unauthorized: missing bearer header")
+			http.Error(w, "missing bearer", http.StatusUnauthorized)
+			return
+		}
+		tok := strings.TrimPrefix(authz, "Bearer ")
+
+		// Accept static AuthKey for testing if configured
+		if cfg.oidcOptions.AuthKey != "" && tok == cfg.oidcOptions.AuthKey {
+			r2 := r.Clone(r.Context())
+			r2.Header.Set("X-MCP-Subject", "static-key-user")
+			r2.Header.Set("X-MCP-Client-ID", "static-key-client")
+			log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Bool("auth_static_key", true).Msg("Authorized via static auth key")
+			next.ServeHTTP(w, r2)
+			return
+		}
+
+		subj, cid, ok, err := oidcSrv.IntrospectAccessToken(r.Context(), tok)
+		if err != nil || !ok {
+			advertiseWWWAuthenticate(w, cfg)
+			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Err(err).Bool("introspection_ok", ok).Msg("Unauthorized: token introspection failed")
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		r2.Header.Set("X-MCP-Subject", subj)
+		r2.Header.Set("X-MCP-Client-ID", cid)
+		log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("subject", subj).Str("client_id", cid).Bool("authorized", true).Msg("Authorized request")
+		next.ServeHTTP(w, r2)
+	})
+}
+
+func protectedResourceHandler(cfg *ServerConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		j := map[string]any{
+			"authorization_servers": []string{cfg.oidcOptions.Issuer},
+			"resource":              cfg.oidcOptions.Issuer + "/mcp",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(j)
+		log.Info().Str("endpoint", "/.well-known/oauth-protected-resource").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Interface("response", j).Msg("served protected resource metadata")
+	}
+}
+
+func advertiseWWWAuthenticate(w http.ResponseWriter, cfg *ServerConfig) {
+	asMeta := cfg.oidcOptions.Issuer + "/.well-known/oauth-authorization-server"
+	prm := cfg.oidcOptions.Issuer + "/.well-known/oauth-protected-resource"
+	hdr := "Bearer realm=\"mcp\", resource=\"" + cfg.oidcOptions.Issuer + "/mcp\"" + ", authorization_uri=\"" + asMeta + "\", resource_metadata=\"" + prm + "\""
+	w.Header().Set("WWW-Authenticate", hdr)
+	log.Debug().Str("header", hdr).Msg("set WWW-Authenticate")
+}
+
+// withRequestLogging logs request summaries for debugging while censoring sensitive data.
+func withRequestLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Censor Authorization header presence
+		hasAuth := r.Header.Get("Authorization") != ""
+		// Censor known sensitive query params
+		q := r.URL.Query()
+		if q.Has("code") {
+			q.Set("code", "***")
+		}
+		if q.Has("code_verifier") {
+			q.Set("code_verifier", "***")
+		}
+		if q.Has("refresh_token") {
+			q.Set("refresh_token", "***")
+		}
+		if q.Has("token") {
+			q.Set("token", "***")
+		}
+
+		log.Debug().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("ua", r.UserAgent()).
+			Str("remote", r.RemoteAddr).
+			Str("accept", r.Header.Get("Accept")).
+			Str("content_type", r.Header.Get("Content-Type")).
+			Str("x_forwarded_for", r.Header.Get("X-Forwarded-For")).
+			Bool("has_authz", hasAuth).
+			Str("query", q.Encode()).
+			Msg("http request")
+
+		next.ServeHTTP(w, r)
+	})
 }
