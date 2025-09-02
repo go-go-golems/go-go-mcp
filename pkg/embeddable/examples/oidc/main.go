@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,15 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/spf13/cobra"
 )
+
+// shared in-memory corpus
+type doc struct{ id, title, text, url string }
+
+var corpus = []doc{
+	{"1", "Welcome", "Welcome to the OIDC MCP example.", "https://example.com/welcome"},
+	{"2", "OIDC Notes", "OIDC Authorization Code with PKCE example.", "https://example.com/oidc"},
+	{"3", "MCP Docs", "Model Context Protocol reference.", "https://example.com/mcp"},
+}
 
 func main() {
 	rootCmd := &cobra.Command{Use: "oidc-example"}
@@ -32,9 +42,15 @@ func main() {
 			EnableDevTokens: false,
 			AuthKey:         "TEST_AUTH_KEY_123",
 		}),
+		// search tool: returns exactly one text content with JSON-encoded {"results":[{id,title,url},...]}
 		embeddable.WithTool("search", searchHandler,
-			embeddable.WithDescription("Search a tiny in-memory corpus and return items"),
+			embeddable.WithDescription("Return relevant results: {results:[{id,title,url}]} JSON as text content"),
 			embeddable.WithStringArg("query", "Query string", true),
+		),
+		// fetch tool: returns exactly one text content with JSON-encoded {id,title,text,url,metadata}
+		embeddable.WithTool("fetch", fetchHandler,
+			embeddable.WithDescription("Fetch a document by id: {id,title,text,url,metadata} JSON as text content"),
+			embeddable.WithStringArg("id", "Document ID", true),
 		),
 	)
 	if err != nil {
@@ -51,34 +67,47 @@ func main() {
 	}
 }
 
-// searchHandler implements a simple in-memory search tool
+// searchHandler returns a single text content with JSON-encoded results: {"results":[{id,title,url}, ...]}
 func searchHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
 	query, _ := args["query"].(string)
 	if query == "" {
 		return protocol.NewErrorToolResult(protocol.NewTextContent("query is required")), nil
 	}
 
-	// Minimal corpus
-	corpus := []struct{ id, title, text, url string }{
-		{"1", "Welcome", "Welcome to the OIDC MCP example.", "https://example.com/welcome"},
-		{"2", "OIDC Notes", "OIDC Authorization Code with PKCE example.", "https://example.com/oidc"},
-		{"3", "MCP Docs", "Model Context Protocol reference.", "https://example.com/mcp"},
-	}
-
-	var items []map[string]any
+	// Build results [{id,title,url}]
+	type result struct{ ID, Title, URL string }
+	var results []result
 	for _, d := range corpus {
-		if query == "" || containsFold(d.text, query) || containsFold(d.title, query) {
-			items = append(items, map[string]any{
-				"id": d.id, "title": d.title, "text": d.text, "url": d.url,
-			})
+		if containsFold(d.text, query) || containsFold(d.title, query) {
+			results = append(results, result{ID: d.id, Title: d.title, URL: d.url})
 		}
 	}
+	payload := map[string]any{"results": results}
+	b, _ := json.Marshal(payload)
+	return protocol.NewToolResult(protocol.WithText(string(b))), nil
+}
 
-	// Return results as JSON content
-	return protocol.NewToolResult(
-		protocol.WithJSON(map[string]any{"items": items}),
-		protocol.WithText(fmt.Sprintf("%d result(s)", len(items))),
-	), nil
+// fetchHandler returns a single text content with JSON-encoded document {id,title,text,url,metadata}
+func fetchHandler(ctx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
+	id, _ := args["id"].(string)
+	if id == "" {
+		return protocol.NewErrorToolResult(protocol.NewTextContent("id is required")), nil
+	}
+
+	for _, d := range corpus {
+		if d.id == id {
+			obj := map[string]any{
+				"id":       d.id,
+				"title":    d.title,
+				"text":     d.text,
+				"url":      d.url,
+				"metadata": map[string]any{"source": "in_memory"},
+			}
+			b, _ := json.Marshal(obj)
+			return protocol.NewToolResult(protocol.WithText(string(b))), nil
+		}
+	}
+	return protocol.NewErrorToolResult(protocol.NewTextContent("not found")), nil
 }
 
 func containsFold(haystack, needle string) bool {
