@@ -207,7 +207,7 @@ func (b *sseBackend) Start(ctx context.Context) error {
 	}
 
 	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
-	mux.Handle("/mcp/", handler)
+	mux.Handle("/mcp/", withRequestLogging(handler))
 
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
 	return http.ListenAndServe(addr, mux)
@@ -246,8 +246,8 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	}
 
 	// Mount streamable HTTP under /mcp
-	mux.Handle("/mcp", handler)
-	mux.Handle("/mcp/", handler)
+	mux.Handle("/mcp", withRequestLogging(handler))
+	mux.Handle("/mcp/", withRequestLogging(handler))
 
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
 	return http.ListenAndServe(addr, mux)
@@ -266,6 +266,7 @@ func oidcAuthMiddleware(cfg *ServerConfig, oidcSrv *oidc.Server, next http.Handl
 		authz := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authz, "Bearer ") {
 			advertiseWWWAuthenticate(w, cfg)
+			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("Unauthorized: missing bearer header")
 			http.Error(w, "missing bearer", http.StatusUnauthorized)
 			return
 		}
@@ -276,6 +277,7 @@ func oidcAuthMiddleware(cfg *ServerConfig, oidcSrv *oidc.Server, next http.Handl
 			r2 := r.Clone(r.Context())
 			r2.Header.Set("X-MCP-Subject", "static-key-user")
 			r2.Header.Set("X-MCP-Client-ID", "static-key-client")
+			log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Bool("auth_static_key", true).Msg("Authorized via static auth key")
 			next.ServeHTTP(w, r2)
 			return
 		}
@@ -283,12 +285,14 @@ func oidcAuthMiddleware(cfg *ServerConfig, oidcSrv *oidc.Server, next http.Handl
 		subj, cid, ok, err := oidcSrv.IntrospectAccessToken(r.Context(), tok)
 		if err != nil || !ok {
 			advertiseWWWAuthenticate(w, cfg)
+			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Err(err).Bool("introspection_ok", ok).Msg("Unauthorized: token introspection failed")
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}
 		r2 := r.Clone(r.Context())
 		r2.Header.Set("X-MCP-Subject", subj)
 		r2.Header.Set("X-MCP-Client-ID", cid)
+		log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("subject", subj).Str("client_id", cid).Bool("authorized", true).Msg("Authorized request")
 		next.ServeHTTP(w, r2)
 	})
 }
@@ -301,6 +305,7 @@ func protectedResourceHandler(cfg *ServerConfig) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(j)
+		log.Info().Str("endpoint", "/.well-known/oauth-protected-resource").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Interface("response", j).Msg("served protected resource metadata")
 	}
 }
 
@@ -309,4 +314,33 @@ func advertiseWWWAuthenticate(w http.ResponseWriter, cfg *ServerConfig) {
 	prm := cfg.oidcOptions.Issuer + "/.well-known/oauth-protected-resource"
 	hdr := "Bearer realm=\"mcp\", resource=\"" + cfg.oidcOptions.Issuer + "/mcp\"" + ", authorization_uri=\"" + asMeta + "\", resource_metadata=\"" + prm + "\""
 	w.Header().Set("WWW-Authenticate", hdr)
+	log.Debug().Str("header", hdr).Msg("set WWW-Authenticate")
+}
+
+// withRequestLogging logs request summaries for debugging while censoring sensitive data.
+func withRequestLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Censor Authorization header presence
+		hasAuth := r.Header.Get("Authorization") != ""
+		// Censor known sensitive query params
+		q := r.URL.Query()
+		if q.Has("code") { q.Set("code", "***") }
+		if q.Has("code_verifier") { q.Set("code_verifier", "***") }
+		if q.Has("refresh_token") { q.Set("refresh_token", "***") }
+		if q.Has("token") { q.Set("token", "***") }
+
+		log.Debug().
+			Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("ua", r.UserAgent()).
+			Str("remote", r.RemoteAddr).
+			Str("accept", r.Header.Get("Accept")).
+			Str("content_type", r.Header.Get("Content-Type")).
+			Str("x_forwarded_for", r.Header.Get("X-Forwarded-For")).
+			Bool("has_authz", hasAuth).
+			Str("query", q.Encode()).
+			Msg("http request")
+
+		next.ServeHTTP(w, r)
+	})
 }

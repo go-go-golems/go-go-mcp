@@ -161,7 +161,7 @@ func (s *Server) IntrospectAccessToken(ctx context.Context, token string) (strin
 }
 
 func (s *Server) oidcDiscovery(w http.ResponseWriter, r *http.Request) {
-	log.Debug().Str("endpoint", "/.well-known/openid-configuration").Msg("serving OIDC discovery")
+	log.Info().Str("endpoint", "/.well-known/openid-configuration").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("serving OIDC discovery")
 	j := map[string]any{
 		"issuer":                                s.Issuer,
 		"authorization_endpoint":                s.Issuer + "/oauth2/auth",
@@ -179,7 +179,7 @@ func (s *Server) oidcDiscovery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) asMetadata(w http.ResponseWriter, r *http.Request) {
-	log.Debug().Str("endpoint", "/.well-known/oauth-authorization-server").Msg("serving AS metadata")
+	log.Info().Str("endpoint", "/.well-known/oauth-authorization-server").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("serving AS metadata")
 	j := map[string]any{
 		"issuer":                                s.Issuer,
 		"authorization_endpoint":                s.Issuer + "/oauth2/auth",
@@ -196,7 +196,7 @@ func (s *Server) asMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) jwks(w http.ResponseWriter, r *http.Request) {
-	log.Debug().Str("endpoint", "/jwks.json").Msg("serving JWKS")
+	log.Info().Str("endpoint", "/jwks.json").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("serving JWKS")
 	pub := &s.PrivateKey.PublicKey
 	jwks := map[string]any{
 		"keys": []map[string]any{
@@ -227,12 +227,12 @@ var loginTpl = template.Must(template.New("login").Parse(`
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		log.Debug().Str("endpoint", "/login").Str("method", "GET").Str("return_to", r.URL.Query().Get("return_to")).Msg("render login")
+		log.Info().Str("endpoint", "/login").Str("method", "GET").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("return_to", r.URL.Query().Get("return_to")).Msg("render login")
 		_ = loginTpl.Execute(w, struct{ ReturnTo string }{r.URL.Query().Get("return_to")})
 	case http.MethodPost:
 		_ = r.ParseForm()
 		u := r.FormValue("username")
-		log.Debug().Str("endpoint", "/login").Str("method", "POST").Str("username", u).Str("return_to", r.FormValue("return_to")).Msg("attempt login")
+		log.Info().Str("endpoint", "/login").Str("method", "POST").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("username", u).Str("return_to", r.FormValue("return_to")).Msg("attempt login")
 		p := r.FormValue("password")
 		if u == s.User && p == s.Pass {
 			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "ok:" + u, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
