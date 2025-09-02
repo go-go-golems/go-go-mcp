@@ -2,8 +2,12 @@ package embeddable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
 
+	"github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	mcp "github.com/mark3labs/mcp-go/mcp"
@@ -49,10 +53,10 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		return &stdioBackend{server: s}, nil
 	case "sse":
 		log.Debug().Str("transport", "sse").Int("port", cfg.defaultPort).Msg("Selected transport")
-		return &sseBackend{server: s, port: cfg.defaultPort}, nil
+		return &sseBackend{server: s, port: cfg.defaultPort, cfg: cfg}, nil
 	case "streamable_http":
 		log.Debug().Str("transport", "streamable_http").Int("port", cfg.defaultPort).Msg("Selected transport")
-		return &streamBackend{server: s, port: cfg.defaultPort}, nil
+		return &streamBackend{server: s, port: cfg.defaultPort, cfg: cfg}, nil
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
 	}
@@ -175,12 +179,38 @@ func (b *stdioBackend) Start(ctx context.Context) error {
 type sseBackend struct {
 	server *mcpserver.MCPServer
 	port   int
+	cfg    *ServerConfig
 }
 
 func (b *sseBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-	log.Debug().Str("addr", addr).Msg("Starting SSE server")
-	return mcpserver.NewSSEServer(b.server).Start(addr)
+
+	// Create mcp-go SSE server and mount on mux
+	sse := mcpserver.NewSSEServer(b.server, mcpserver.WithStaticBasePath("/mcp"))
+	mux := http.NewServeMux()
+
+	var handler http.Handler = sse
+
+	if b.cfg != nil && b.cfg.oidcEnabled {
+		// OIDC-enabled: create OIDC server, mount routes, and protect /mcp
+		oidcSrv, err := oidc.New(oidc.Config{
+			Issuer:          b.cfg.oidcOptions.Issuer,
+			DBPath:          b.cfg.oidcOptions.DBPath,
+			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+		})
+		if err != nil {
+			return err
+		}
+		oidcSrv.Routes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(b.cfg))
+		handler = oidcAuthMiddleware(b.cfg, oidcSrv, handler)
+	}
+
+	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
+	mux.Handle("/mcp/", handler)
+
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
+	return http.ListenAndServe(addr, mux)
 }
 
 // streamable-http backend
@@ -188,10 +218,95 @@ func (b *sseBackend) Start(ctx context.Context) error {
 type streamBackend struct {
 	server *mcpserver.MCPServer
 	port   int
+	cfg    *ServerConfig
 }
 
 func (b *streamBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server")
-	return mcpserver.NewStreamableHTTPServer(b.server).Start(addr)
+
+	// Create mcp-go Streamable HTTP server and mount on mux
+	stream := mcpserver.NewStreamableHTTPServer(b.server)
+	mux := http.NewServeMux()
+
+	var handler http.Handler = stream
+
+	if b.cfg != nil && b.cfg.oidcEnabled {
+		// OIDC-enabled: create OIDC server, mount routes, and protect /mcp
+		oidcSrv, err := oidc.New(oidc.Config{
+			Issuer:          b.cfg.oidcOptions.Issuer,
+			DBPath:          b.cfg.oidcOptions.DBPath,
+			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+		})
+		if err != nil {
+			return err
+		}
+		oidcSrv.Routes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(b.cfg))
+		handler = oidcAuthMiddleware(b.cfg, oidcSrv, handler)
+	}
+
+	// Mount streamable HTTP under /mcp
+	mux.Handle("/mcp", handler)
+	mux.Handle("/mcp/", handler)
+
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
+	return http.ListenAndServe(addr, mux)
+}
+
+// --- OIDC helpers ---
+
+func oidcAuthMiddleware(cfg *ServerConfig, oidcSrv *oidc.Server, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if p == "/.well-known/openid-configuration" || p == "/.well-known/oauth-authorization-server" || p == "/jwks.json" || p == "/login" || strings.HasPrefix(p, "/oauth2/") || p == "/register" || p == "/.well-known/oauth-protected-resource" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		authz := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authz, "Bearer ") {
+			advertiseWWWAuthenticate(w, cfg)
+			http.Error(w, "missing bearer", http.StatusUnauthorized)
+			return
+		}
+		tok := strings.TrimPrefix(authz, "Bearer ")
+
+		// Accept static AuthKey for testing if configured
+		if cfg.oidcOptions.AuthKey != "" && tok == cfg.oidcOptions.AuthKey {
+			r2 := r.Clone(r.Context())
+			r2.Header.Set("X-MCP-Subject", "static-key-user")
+			r2.Header.Set("X-MCP-Client-ID", "static-key-client")
+			next.ServeHTTP(w, r2)
+			return
+		}
+
+		subj, cid, ok, err := oidcSrv.IntrospectAccessToken(r.Context(), tok)
+		if err != nil || !ok {
+			advertiseWWWAuthenticate(w, cfg)
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		r2.Header.Set("X-MCP-Subject", subj)
+		r2.Header.Set("X-MCP-Client-ID", cid)
+		next.ServeHTTP(w, r2)
+	})
+}
+
+func protectedResourceHandler(cfg *ServerConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		j := map[string]any{
+			"authorization_servers": []string{cfg.oidcOptions.Issuer},
+			"resource":              cfg.oidcOptions.Issuer + "/mcp",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(j)
+	}
+}
+
+func advertiseWWWAuthenticate(w http.ResponseWriter, cfg *ServerConfig) {
+	asMeta := cfg.oidcOptions.Issuer + "/.well-known/oauth-authorization-server"
+	prm := cfg.oidcOptions.Issuer + "/.well-known/oauth-protected-resource"
+	hdr := "Bearer realm=\"mcp\", resource=\"" + cfg.oidcOptions.Issuer + "/mcp\"" + ", authorization_uri=\"" + asMeta + "\", resource_metadata=\"" + prm + "\""
+	w.Header().Set("WWW-Authenticate", hdr)
 }

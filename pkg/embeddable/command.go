@@ -52,6 +52,12 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().String("transport", config.defaultTransport, "Transport type (stdio, sse, streamable_http)")
 	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE and streamable HTTP transport")
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
+	// OIDC-related flags
+	startCmd.Flags().Bool("oidc", config.oidcEnabled, "Enable embedded OIDC and protect HTTP endpoints")
+	startCmd.Flags().String("issuer", config.oidcOptions.Issuer, "OIDC issuer base URL (e.g. https://yourdomain)")
+	startCmd.Flags().String("oidc-db", config.oidcOptions.DBPath, "SQLite DB path for OIDC persistence")
+	startCmd.Flags().Bool("oidc-dev-tokens", config.oidcOptions.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
+	startCmd.Flags().String("oidc-auth-key", config.oidcOptions.AuthKey, "Static bearer token for testing (development only)")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
 	}
@@ -142,6 +148,20 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	// Update defaults from flags
 	config.defaultTransport = transportType
 	config.defaultPort = port
+
+	// OIDC flags
+	oidcEnabled, _ := cmd.Flags().GetBool("oidc")
+	issuer, _ := cmd.Flags().GetString("issuer")
+	oidcDB, _ := cmd.Flags().GetString("oidc-db")
+	devTokens, _ := cmd.Flags().GetBool("oidc-dev-tokens")
+	authKey, _ := cmd.Flags().GetString("oidc-auth-key")
+	if oidcEnabled {
+		config.oidcEnabled = true
+		config.oidcOptions.Issuer = issuer
+		config.oidcOptions.DBPath = oidcDB
+		config.oidcOptions.EnableDevTokens = devTokens
+		config.oidcOptions.AuthKey = authKey
+	}
 
 	// Set up context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
