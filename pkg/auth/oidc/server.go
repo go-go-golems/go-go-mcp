@@ -295,9 +295,11 @@ func sanitizeReturnTo(rt string) string {
 	if rt == "" {
 		return "/"
 	}
-	// Only allow local-absolute paths like "/x"; reject scheme, host, and protocol-relative "//".
-	if strings.HasPrefix(rt, "/") && !strings.HasPrefix(rt, "//") {
-		return rt
+	// Only allow local-absolute paths like "/x"; reject scheme, host, and protocol-relative "//" or "/\\".
+	if len(rt) > 0 && rt[0] == '/' {
+		if len(rt) == 1 || (rt[1] != '/' && rt[1] != '\\') {
+			return rt
+		}
 	}
 	return "/"
 }
