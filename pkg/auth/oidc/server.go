@@ -290,6 +290,18 @@ var loginTpl = template.Must(template.New("login").Parse(`
   </form>
 </body>`))
 
+// sanitizeReturnTo restricts redirects to local absolute paths to avoid open redirects.
+func sanitizeReturnTo(rt string) string {
+	if rt == "" {
+		return "/"
+	}
+	// Only allow local-absolute paths like "/x"; reject scheme, host, and protocol-relative "//".
+	if strings.HasPrefix(rt, "/") && !strings.HasPrefix(rt, "//") {
+		return rt
+	}
+	return "/"
+}
+
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -312,10 +324,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 		if ok {
 			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "ok:" + u, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
-			rt := r.FormValue("return_to")
-			if rt == "" {
-				rt = "/"
-			}
+			rt := sanitizeReturnTo(r.FormValue("return_to"))
 			log.Info().Str("endpoint", "/login").Str("username", u).Str("return_to", rt).Msg("login success, redirecting")
 			http.Redirect(w, r, rt, http.StatusFound)
 			return

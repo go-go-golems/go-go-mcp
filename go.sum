@@ -139,8 +139,8 @@ github.com/go-go-golems/glazed v0.6.12 h1:Y/AJodJs/vZPuwQFd6peoRv44oOEaEIzbgscuU
 github.com/go-go-golems/glazed v0.6.12/go.mod h1:xJZ2H2NUlJk02le1+ypHE0/LvAH0EW7NrPFkpD/7/6o=
 github.com/go-go-golems/parka v0.5.28 h1:A5VQK6XqPrREL9GL5bvqCqYZhpuaE771X91DeNtLxiM=
 github.com/go-go-golems/parka v0.5.28/go.mod h1:K6j5zwr+BKszzMb4Kajv9v8VVrXfKgz47nFtwyf/jMA=
-github.com/go-jose/go-jose/v3 v3.0.3 h1:fFKWeig/irsp7XD2zBxvnmA/XaRWp5V3CBsZXJF7G7k=
-github.com/go-jose/go-jose/v3 v3.0.3/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
+github.com/go-jose/go-jose/v3 v3.0.4 h1:Wp5HA7bLQcKnf6YYao/4kpRpVMp/yf6+pJKV8WFSaNY=
+github.com/go-jose/go-jose/v3 v3.0.4/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
 github.com/go-kit/log v0.1.0/go.mod h1:zbhenjAZHb184qTLMA9ZjW7ThYL0H2mk7Q6pNt4vbaY=
 github.com/go-logfmt/logfmt v0.5.0/go.mod h1:wCYkCAKZfumFQihp8CzCvQ3paCTfi41vtzG1KdI/P7A=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
