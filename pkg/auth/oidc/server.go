@@ -91,7 +91,7 @@ func (a *SQLiteAuthenticator) Authenticate(ctx context.Context, username, passwo
 	if err != nil {
 		return false, errors.Wrap(err, "open sqlite")
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	var hash string
 	var disabled bool
 	row := db.QueryRow(`SELECT password_hash, disabled FROM oauth_users WHERE username = ?`, username)
@@ -754,7 +754,7 @@ func (s *Server) DeleteToken(token string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	_, err = db.Exec(`DELETE FROM oauth_tokens WHERE token = ?`, token)
 	return err
 }
@@ -779,7 +779,7 @@ func (s *Server) CreateUser(ctx context.Context, username, password string) erro
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.Wrap(err, "hash password")
@@ -802,7 +802,7 @@ func (s *Server) SetUserPassword(ctx context.Context, username, password string)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.Wrap(err, "hash password")
@@ -823,7 +823,7 @@ func (s *Server) DeleteUser(ctx context.Context, username string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	_, err = db.Exec(`DELETE FROM oauth_users WHERE username = ?`, username)
 	return err
 }
@@ -837,12 +837,12 @@ func (s *Server) ListUsers(ctx context.Context) ([]UserRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	rows, err := db.Query(`SELECT username, disabled, created_at, updated_at FROM oauth_users ORDER BY username`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []UserRecord
 	for rows.Next() {
 		var ur UserRecord
@@ -875,12 +875,12 @@ func (s *Server) ListClients() ([]ClientRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	rows, err := db.Query(`SELECT client_id, redirect_uris FROM oauth_clients ORDER BY client_id`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ClientRecord
 	for rows.Next() {
 		var id string
