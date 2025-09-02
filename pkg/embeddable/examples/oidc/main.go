@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
+	clay "github.com/go-go-golems/clay/pkg"
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/spf13/cobra"
@@ -12,6 +15,9 @@ import (
 
 func main() {
 	rootCmd := &cobra.Command{Use: "oidc-example"}
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		return logging.InitLoggerFromViper()
+	}
 
 	// Add MCP server capability with OIDC enabled
 	err := embeddable.AddMCPCommand(rootCmd,
@@ -33,6 +39,11 @@ func main() {
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if err := clay.InitViper("jesus", rootCmd); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize viper: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := rootCmd.Execute(); err != nil {
@@ -65,8 +76,8 @@ func searchHandler(ctx context.Context, args map[string]interface{}) (*protocol.
 
 	// Return results as JSON content
 	return protocol.NewToolResult(
-		protocol.WithText(fmt.Sprintf("%d result(s)", len(items))),
 		protocol.WithJSON(map[string]any{"items": items}),
+		protocol.WithText(fmt.Sprintf("%d result(s)", len(items))),
 	), nil
 }
 

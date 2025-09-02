@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/signal"
 	"syscall"
 
@@ -163,18 +162,9 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		config.oidcOptions.AuthKey = authKey
 	}
 
-	// Set up context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Handle signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		cancel()
-	}()
+	// Set up context with cancellation, tied to OS signals
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
 
 	// Store command flags in context
 	flagsMap := make(map[string]interface{})

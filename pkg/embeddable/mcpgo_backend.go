@@ -209,8 +209,18 @@ func (b *sseBackend) Start(ctx context.Context) error {
 	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
 	mux.Handle("/mcp/", withRequestLogging(handler))
 
+	server := &http.Server{Addr: addr, Handler: mux}
+	go func() {
+		<-ctx.Done()
+		log.Info().Str("addr", addr).Msg("Shutting down SSE HTTP server")
+		_ = server.Shutdown(context.Background())
+	}()
+
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
-	return http.ListenAndServe(addr, mux)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 // streamable-http backend
@@ -249,8 +259,18 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	mux.Handle("/mcp", withRequestLogging(handler))
 	mux.Handle("/mcp/", withRequestLogging(handler))
 
+	server := &http.Server{Addr: addr, Handler: mux}
+	go func() {
+		<-ctx.Done()
+		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
+		_ = server.Shutdown(context.Background())
+	}()
+
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
-	return http.ListenAndServe(addr, mux)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 // --- OIDC helpers ---
@@ -324,10 +344,18 @@ func withRequestLogging(next http.Handler) http.Handler {
 		hasAuth := r.Header.Get("Authorization") != ""
 		// Censor known sensitive query params
 		q := r.URL.Query()
-		if q.Has("code") { q.Set("code", "***") }
-		if q.Has("code_verifier") { q.Set("code_verifier", "***") }
-		if q.Has("refresh_token") { q.Set("refresh_token", "***") }
-		if q.Has("token") { q.Set("token", "***") }
+		if q.Has("code") {
+			q.Set("code", "***")
+		}
+		if q.Has("code_verifier") {
+			q.Set("code_verifier", "***")
+		}
+		if q.Has("refresh_token") {
+			q.Set("refresh_token", "***")
+		}
+		if q.Has("token") {
+			q.Set("token", "***")
+		}
 
 		log.Debug().
 			Str("method", r.Method).
