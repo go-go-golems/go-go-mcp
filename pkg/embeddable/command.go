@@ -57,6 +57,8 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().String("oidc-db", config.oidcOptions.DBPath, "SQLite DB path for OIDC persistence")
 	startCmd.Flags().Bool("oidc-dev-tokens", config.oidcOptions.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
 	startCmd.Flags().String("oidc-auth-key", config.oidcOptions.AuthKey, "Static bearer token for testing (development only)")
+	startCmd.Flags().String("oidc-user", config.oidcOptions.User, "Static login username (dev only; ignored when custom authenticator is used)")
+	startCmd.Flags().String("oidc-pass", config.oidcOptions.Pass, "Static login password (dev only; ignored when custom authenticator is used)")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
 	}
@@ -154,12 +156,16 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	oidcDB, _ := cmd.Flags().GetString("oidc-db")
 	devTokens, _ := cmd.Flags().GetBool("oidc-dev-tokens")
 	authKey, _ := cmd.Flags().GetString("oidc-auth-key")
+	user, _ := cmd.Flags().GetString("oidc-user")
+	pass, _ := cmd.Flags().GetString("oidc-pass")
 	if oidcEnabled {
 		config.oidcEnabled = true
 		config.oidcOptions.Issuer = issuer
 		config.oidcOptions.DBPath = oidcDB
 		config.oidcOptions.EnableDevTokens = devTokens
 		config.oidcOptions.AuthKey = authKey
+		config.oidcOptions.User = user
+		config.oidcOptions.Pass = pass
 	}
 
 	// Set up context with cancellation, tied to OS signals

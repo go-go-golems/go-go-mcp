@@ -23,7 +23,9 @@ import (
 	"github.com/ory/fosite/handler/openid"
 	"github.com/ory/fosite/storage"
 	"github.com/ory/fosite/token/jwt"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Config controls the embedded OIDC server behavior.
@@ -31,9 +33,11 @@ type Config struct {
 	Issuer          string
 	DBPath          string
 	EnableDevTokens bool
-	// Demo login credentials (optional; defaults used if empty)
+	// Demo/static login credentials (optional; defaults used if empty when no other authenticator is configured)
 	User string
 	Pass string
+	// Optional pluggable authenticator; if nil, one is chosen based on DBPath or static User/Pass
+	Authenticator Authenticator
 }
 
 type Server struct {
@@ -51,6 +55,59 @@ type Server struct {
 	// demo login
 	User string
 	Pass string
+
+	// pluggable authenticator
+	authenticator Authenticator
+}
+
+// Authenticator provides a pluggable username/password verification hook.
+// Implementations should return (true, nil) when the credentials are valid.
+type Authenticator interface {
+	Authenticate(ctx context.Context, username, password string) (bool, error)
+}
+
+// StaticAuthenticator validates against fixed credentials.
+type StaticAuthenticator struct {
+	User string
+	Pass string
+}
+
+func (a *StaticAuthenticator) Authenticate(ctx context.Context, username, password string) (bool, error) {
+	_ = ctx
+	return username == a.User && password == a.Pass, nil
+}
+
+// SQLiteAuthenticator validates credentials against oauth_users table using bcrypt password hashes.
+type SQLiteAuthenticator struct {
+	DBPath string
+}
+
+func (a *SQLiteAuthenticator) Authenticate(ctx context.Context, username, password string) (bool, error) {
+	_ = ctx
+	if a.DBPath == "" {
+		return false, errors.Errorf("db path not configured")
+	}
+	db, err := sqlOpen(a.DBPath)
+	if err != nil {
+		return false, errors.Wrap(err, "open sqlite")
+	}
+	defer db.Close()
+	var hash string
+	var disabled bool
+	row := db.QueryRow(`SELECT password_hash, disabled FROM oauth_users WHERE username = ?`, username)
+	if err := row.Scan(&hash, &disabled); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, errors.Wrap(err, "scan user")
+	}
+	if disabled {
+		return false, nil
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // New creates a new embedded OIDC server with the provided configuration.
@@ -107,6 +164,15 @@ func New(c Config) (*Server, error) {
 		if err := s.InitSQLite(c.DBPath); err != nil {
 			return nil, err
 		}
+	}
+
+	// Choose authenticator
+	if c.Authenticator != nil {
+		s.authenticator = c.Authenticator
+	} else if c.DBPath != "" {
+		s.authenticator = &SQLiteAuthenticator{DBPath: c.DBPath}
+	} else {
+		s.authenticator = &StaticAuthenticator{User: s.User, Pass: s.Pass}
 	}
 
 	log.Debug().
@@ -234,7 +300,17 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		u := r.FormValue("username")
 		log.Info().Str("endpoint", "/login").Str("method", "POST").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("username", u).Str("return_to", r.FormValue("return_to")).Msg("attempt login")
 		p := r.FormValue("password")
-		if u == s.User && p == s.Pass {
+		ok := false
+		var err error
+		if s.authenticator != nil {
+			ok, err = s.authenticator.Authenticate(r.Context(), u, p)
+			if err != nil {
+				log.Error().Err(err).Str("endpoint", "/login").Str("username", u).Msg("authenticator error")
+			}
+		} else {
+			ok = (u == s.User && p == s.Pass)
+		}
+		if ok {
 			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "ok:" + u, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
 			rt := r.FormValue("return_to")
 			if rt == "" {
@@ -459,6 +535,15 @@ func (s *Server) InitSQLite(path string) error {
     );`); err != nil {
 		return err
 	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS oauth_users (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        disabled BOOLEAN NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL,
+        updated_at TIMESTAMP NOT NULL
+    );`); err != nil {
+		return err
+	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS mcp_tool_calls (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts TIMESTAMP NOT NULL,
@@ -658,6 +743,201 @@ func (s *Server) ListTokens() ([]TokenRecord, error) {
 		out = append(out, tr)
 	}
 	return out, nil
+}
+
+// DeleteToken removes a token from storage (when SQLite is enabled).
+func (s *Server) DeleteToken(token string) error {
+	if s.dbPath == "" {
+		return fosite.ErrServerError.WithHint("db not enabled")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec(`DELETE FROM oauth_tokens WHERE token = ?`, token)
+	return err
+}
+
+// Users persistence and management
+type UserRecord struct {
+	Username  string
+	Disabled  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (s *Server) CreateUser(ctx context.Context, username, password string) error {
+	_ = ctx
+	if s.dbPath == "" {
+		return fosite.ErrServerError.WithHint("db not enabled")
+	}
+	if username == "" || password == "" {
+		return errors.Errorf("username and password required")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.Wrap(err, "hash password")
+	}
+	now := time.Now()
+	_, err = db.Exec(`INSERT INTO oauth_users (username, password_hash, disabled, created_at, updated_at) VALUES (?, ?, 0, ?, ?)`,
+		username, string(hash), now, now)
+	return err
+}
+
+func (s *Server) SetUserPassword(ctx context.Context, username, password string) error {
+	_ = ctx
+	if s.dbPath == "" {
+		return fosite.ErrServerError.WithHint("db not enabled")
+	}
+	if username == "" || password == "" {
+		return errors.Errorf("username and password required")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.Wrap(err, "hash password")
+	}
+	_, err = db.Exec(`UPDATE oauth_users SET password_hash = ?, updated_at = ? WHERE username = ?`, string(hash), time.Now(), username)
+	return err
+}
+
+func (s *Server) DeleteUser(ctx context.Context, username string) error {
+	_ = ctx
+	if s.dbPath == "" {
+		return fosite.ErrServerError.WithHint("db not enabled")
+	}
+	if username == "" {
+		return errors.Errorf("username required")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec(`DELETE FROM oauth_users WHERE username = ?`, username)
+	return err
+}
+
+func (s *Server) ListUsers(ctx context.Context) ([]UserRecord, error) {
+	_ = ctx
+	if s.dbPath == "" {
+		return nil, fosite.ErrServerError.WithHint("db not enabled")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT username, disabled, created_at, updated_at FROM oauth_users ORDER BY username`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UserRecord
+	for rows.Next() {
+		var ur UserRecord
+		if err := rows.Scan(&ur.Username, &ur.Disabled, &ur.CreatedAt, &ur.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, ur)
+	}
+	return out, nil
+}
+
+// --- Client helpers ---
+
+type ClientRecord struct {
+	ClientID     string
+	RedirectURIs []string
+}
+
+// PersistClient stores/updates a client entry in SQLite.
+func (s *Server) PersistClient(id string, redirects []string) error {
+	return s.persistClientToSQLite(id, redirects)
+}
+
+// ListClients returns clients from SQLite.
+func (s *Server) ListClients() ([]ClientRecord, error) {
+	if s.dbPath == "" {
+		return nil, fosite.ErrServerError.WithHint("db not enabled")
+	}
+	db, err := sqlOpen(s.dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT client_id, redirect_uris FROM oauth_clients ORDER BY client_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ClientRecord
+	for rows.Next() {
+		var id string
+		var uris string
+		if err := rows.Scan(&id, &uris); err != nil {
+			return nil, err
+		}
+		out = append(out, ClientRecord{ClientID: id, RedirectURIs: splitCSV(uris)})
+	}
+	return out, nil
+}
+
+// --- Convenience DB-level helpers ---
+
+func CreateUserInDB(dbPath, username, password string) error {
+	s := &Server{dbPath: dbPath}
+	return s.CreateUser(context.Background(), username, password)
+}
+
+func SetUserPasswordInDB(dbPath, username, password string) error {
+	s := &Server{dbPath: dbPath}
+	return s.SetUserPassword(context.Background(), username, password)
+}
+
+func DeleteUserInDB(dbPath, username string) error {
+	s := &Server{dbPath: dbPath}
+	return s.DeleteUser(context.Background(), username)
+}
+
+func ListUsersInDB(dbPath string) ([]UserRecord, error) {
+	s := &Server{dbPath: dbPath}
+	return s.ListUsers(context.Background())
+}
+
+func PersistTokenInDB(dbPath string, tr TokenRecord) error {
+	s := &Server{dbPath: dbPath}
+	return s.PersistToken(tr)
+}
+
+func DeleteTokenInDB(dbPath, token string) error {
+	s := &Server{dbPath: dbPath}
+	return s.DeleteToken(token)
+}
+
+func ListTokensInDB(dbPath string) ([]TokenRecord, error) {
+	s := &Server{dbPath: dbPath}
+	return s.ListTokens()
+}
+
+func PersistClientInDB(dbPath, id string, redirects []string) error {
+	s := &Server{dbPath: dbPath}
+	return s.PersistClient(id, redirects)
+}
+
+func ListClientsInDB(dbPath string) ([]ClientRecord, error) {
+	s := &Server{dbPath: dbPath}
+	return s.ListClients()
 }
 
 // MCP tool call logging

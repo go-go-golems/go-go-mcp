@@ -197,6 +197,8 @@ func (b *sseBackend) Start(ctx context.Context) error {
 			Issuer:          b.cfg.oidcOptions.Issuer,
 			DBPath:          b.cfg.oidcOptions.DBPath,
 			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+			User:            b.cfg.oidcOptions.User,
+			Pass:            b.cfg.oidcOptions.Pass,
 		})
 		if err != nil {
 			return err
@@ -246,6 +248,8 @@ func (b *streamBackend) Start(ctx context.Context) error {
 			Issuer:          b.cfg.oidcOptions.Issuer,
 			DBPath:          b.cfg.oidcOptions.DBPath,
 			EnableDevTokens: b.cfg.oidcOptions.EnableDevTokens,
+			User:            b.cfg.oidcOptions.User,
+			Pass:            b.cfg.oidcOptions.Pass,
 		})
 		if err != nil {
 			return err

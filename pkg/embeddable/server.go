@@ -227,6 +227,9 @@ type OIDCOptions struct {
 	EnableDevTokens bool
 	// Optional static auth key for direct bearer access (testing/dev only)
 	AuthKey string
+	// Optional static user/password for the embedded login form (testing/dev only)
+	User string
+	Pass string
 }
 
 func WithOIDC(opts OIDCOptions) ServerOption {
