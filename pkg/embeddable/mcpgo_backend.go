@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -211,7 +212,7 @@ func (b *sseBackend) Start(ctx context.Context) error {
 	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
 	mux.Handle("/mcp/", withRequestLogging(handler))
 
-	server := &http.Server{Addr: addr, Handler: mux}
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		log.Info().Str("addr", addr).Msg("Shutting down SSE HTTP server")
@@ -263,7 +264,7 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	mux.Handle("/mcp", withRequestLogging(handler))
 	mux.Handle("/mcp/", withRequestLogging(handler))
 
-	server := &http.Server{Addr: addr, Handler: mux}
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
