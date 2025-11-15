@@ -874,7 +874,7 @@ Added a new configuration file with three profiles (all, github, google) to demo
 
 Added support for XDG config directory for configuration files:
 - Set default config file path to ~/.config/go-go-mcp/profiles.yaml
-- Maintains backward compatibility with explicit --config-file flag
+- Maintains backward compatibility with explicit --server-config-file flag
 - Improved configuration file discovery and organization
 
 ## CORS Support for SSE Messages Endpoint

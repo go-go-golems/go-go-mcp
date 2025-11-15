@@ -19,7 +19,12 @@ func init() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create start command")
 	}
-	cobraStartCmd, err := cli.BuildCobraCommandFromBareCommand(startCmd)
+	cobraStartCmd, err := cli.BuildCobraCommandFromCommand(
+		startCmd,
+		cli.WithParserConfig(cli.CobraParserConfig{
+			SkipCommandSettingsLayer: true,
+		}),
+	)
 	cobra.CheckErr(err)
 	ServerCmd.AddCommand(cobraStartCmd)
 }

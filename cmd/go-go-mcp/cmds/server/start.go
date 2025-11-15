@@ -92,7 +92,7 @@ func (c *StartCommand) Run(
 
 	logger.Debug().
 		Strs("directories", serverSettings.Directories).
-		Str("config_file", serverSettings.ConfigFile).
+		Str("server_config_file", serverSettings.ServerConfigFile).
 		Strs("internal_servers", serverSettings.InternalServers).
 		Bool("watch", serverSettings.Watch).
 		Msg("Server settings loaded")

@@ -13,22 +13,22 @@ import (
 
 // ServerSettings contains settings for the server
 type ServerSettings struct {
-	ConfigFile      string   `glazed.parameter:"config-file"`
-	Profile         string   `glazed.parameter:"profile"`
-	Directories     []string `glazed.parameter:"directories"`
-	Files           []string `glazed.parameter:"files"`
-	Debug           bool     `glazed.parameter:"debug"`
-	TracingDir      string   `glazed.parameter:"tracing-dir"`
-	Watch           bool     `glazed.parameter:"watch"`
-	ConvertDashes   bool     `glazed.parameter:"convert-dashes"`
-	InternalServers []string `glazed.parameter:"internal-servers"`
+	ServerConfigFile string   `glazed.parameter:"server-config-file"`
+	Profile          string   `glazed.parameter:"profile"`
+	Directories      []string `glazed.parameter:"directories"`
+	Files            []string `glazed.parameter:"files"`
+	Debug            bool     `glazed.parameter:"debug"`
+	TracingDir       string   `glazed.parameter:"tracing-dir"`
+	Watch            bool     `glazed.parameter:"watch"`
+	ConvertDashes    bool     `glazed.parameter:"convert-dashes"`
+	InternalServers  []string `glazed.parameter:"internal-servers"`
 }
 
 const ServerLayerSlug = "mcp-server"
 
 // NewServerParameterLayer creates a new parameter layer for server settings
 func NewServerParameterLayer() (layers.ParameterLayer, error) {
-	defaultConfigFile, err := config.GetDefaultProfilesPath()
+	defaultServerConfigFile, err := config.GetDefaultProfilesPath()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get default profiles path")
 	}
@@ -36,10 +36,10 @@ func NewServerParameterLayer() (layers.ParameterLayer, error) {
 	return layers.NewParameterLayer(ServerLayerSlug, "MCP Server Settings",
 		layers.WithParameterDefinitions(
 			parameters.NewParameterDefinition(
-				"config-file",
+				"server-config-file",
 				parameters.ParameterTypeString,
-				parameters.WithHelp("Configuration file path"),
-				parameters.WithDefault(defaultConfigFile),
+				parameters.WithHelp("Server configuration file path"),
+				parameters.WithDefault(defaultServerConfigFile),
 			),
 			parameters.NewParameterDefinition(
 				"profile",
@@ -114,9 +114,9 @@ func CreateToolProvider(serverSettings *ServerSettings) (*config_provider.Config
 	var err error
 
 	// Try to create tool provider from config file first
-	if serverSettings.ConfigFile != "" {
+	if serverSettings.ServerConfigFile != "" {
 		toolProvider, err = config_provider.CreateToolProviderFromConfig(
-			serverSettings.ConfigFile,
+			serverSettings.ServerConfigFile,
 			serverSettings.Profile,
 			toolProviderOptions...)
 		if err != nil {

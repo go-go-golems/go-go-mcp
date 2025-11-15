@@ -22,6 +22,8 @@ type Backend interface {
 	Start(ctx context.Context) error
 }
 
+const toolDescriptionPreviewEdge = 80
+
 // NewBackend constructs an mcp-go based backend from the provided ServerConfig.
 // It builds an MCP server, registers tools via existing configuration, and
 // returns a transport-specific backend that can Start(ctx).
@@ -83,7 +85,7 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 		name := t.Name
 		log.Debug().
 			Str("tool", name).
-			Str("description", t.Description).
+			Str("description_preview", previewDescription(t.Description, toolDescriptionPreviewEdge)).
 			Msg("Adding tool to mcp-go server")
 
 		// Build a wrapped handler that applies middleware and hooks around registry.CallTool
@@ -162,6 +164,22 @@ func mapToolResultToMCP(res *protocol.ToolResult) *mcp.CallToolResult {
 	}
 
 	return out
+}
+
+func previewDescription(desc string, edge int) string {
+	desc = strings.TrimSpace(desc)
+	if edge <= 0 {
+		return desc
+	}
+
+	runes := []rune(desc)
+	if len(runes) <= edge*2 {
+		return desc
+	}
+
+	start := string(runes[:edge])
+	end := string(runes[len(runes)-edge:])
+	return fmt.Sprintf("%s...%s", start, end)
 }
 
 // stdio backend

@@ -708,7 +708,7 @@ Start the server with all available tools:
 
 ```bash
 go-go-mcp server start \
-  --config-file config.yaml \
+  --server-config-file config.yaml \
   --profile all \
   --transport sse \
   --port 3001
@@ -727,7 +727,7 @@ Start the server with just system monitoring tools:
 
 ```bash
 go-go-mcp server start \
-  --config-file config.yaml \
+  --server-config-file config.yaml \
   --profile system \
   --transport sse \
   --port 3001
@@ -787,7 +787,7 @@ Start with data analysis tools:
 
 ```bash
 go-go-mcp server start \
-  --config-file config.yaml \
+  --server-config-file config.yaml \
   --profile data \
   --transport sse \
   --port 3001
@@ -799,7 +799,7 @@ Start with calendar management tools:
 
 ```bash
 go-go-mcp server start \
-  --config-file config.yaml \
+  --server-config-file config.yaml \
   --profile calendar \
   --transport sse \
   --port 3001
