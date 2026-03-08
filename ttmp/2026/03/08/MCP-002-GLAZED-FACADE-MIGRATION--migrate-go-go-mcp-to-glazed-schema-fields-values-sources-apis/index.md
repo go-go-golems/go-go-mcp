@@ -11,12 +11,14 @@ DocType: index
 Intent: long-term
 Owners: []
 RelatedFiles: []
-ExternalSources: []
+ExternalSources:
+    - local:01-mcp-testing.md
 Summary: ""
-LastUpdated: 2026-03-08T18:30:22.318602282-04:00
+LastUpdated: 2026-03-08T19:10:45.748661167-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 # Migrate go-go-mcp to glazed schema fields values sources APIs
 
