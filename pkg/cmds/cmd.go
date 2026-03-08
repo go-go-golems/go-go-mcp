@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/helpers/templating"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -21,19 +22,19 @@ import (
 
 // ShellCommandDescription represents the YAML structure for shell commands
 type ShellCommandDescription struct {
-	Name          string                            `yaml:"name"`
-	Short         string                            `yaml:"short"`
-	Long          string                            `yaml:"long,omitempty"`
-	Flags         []*parameters.ParameterDefinition `yaml:"flags,omitempty"`
-	Arguments     []*parameters.ParameterDefinition `yaml:"arguments,omitempty"`
-	Layers        []layers.ParameterLayer           `yaml:"layers,omitempty"`
-	ShellScript   string                            `yaml:"shell-script,omitempty"`
-	Command       []string                          `yaml:"command,omitempty"`
-	Cwd           string                            `yaml:"cwd,omitempty"`
-	Environment   map[string]string                 `yaml:"environment,omitempty"`
-	CaptureStderr bool                              `yaml:"capture-stderr,omitempty"`
-	Debug         bool                              `yaml:"debug,omitempty"`
-	SaveScriptDir string                            `yaml:"save-script-dir,omitempty"`
+	Name          string                `yaml:"name"`
+	Short         string                `yaml:"short"`
+	Long          string                `yaml:"long,omitempty"`
+	Flags         []*fields.Definition  `yaml:"flags,omitempty"`
+	Arguments     []*fields.Definition  `yaml:"arguments,omitempty"`
+	Layers        []*schema.SectionImpl `yaml:"layers,omitempty"`
+	ShellScript   string                `yaml:"shell-script,omitempty"`
+	Command       []string              `yaml:"command,omitempty"`
+	Cwd           string                `yaml:"cwd,omitempty"`
+	Environment   map[string]string     `yaml:"environment,omitempty"`
+	CaptureStderr bool                  `yaml:"capture-stderr,omitempty"`
+	Debug         bool                  `yaml:"debug,omitempty"`
+	SaveScriptDir string                `yaml:"save-script-dir,omitempty"`
 }
 
 // ShellCommand is the runtime representation of a shell command
@@ -325,11 +326,10 @@ func (c *ShellCommand) ExecuteCommand(
 // RunIntoWriter implements the WriterCommand interface
 func (c *ShellCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
-	// Get arguments from parsed layers
-	args := parsedLayers.GetDefaultParameterLayer().Parameters.ToMap()
+	args := parsedValues.DefaultSectionValues().Fields.ToMap()
 
 	log.Debug().Interface("args", args).Msg("executing command")
 	err := c.ExecuteCommand(ctx, args, w)
@@ -348,13 +348,18 @@ func LoadShellCommandFromYAML(data []byte) (*ShellCommand, error) {
 		return nil, errors.Wrap(err, "failed to unmarshal YAML")
 	}
 
+	sections := make([]schema.Section, 0, len(desc.Layers))
+	for _, section := range desc.Layers {
+		sections = append(sections, section)
+	}
+
 	cmdDesc := cmds.NewCommandDescription(
 		desc.Name,
 		cmds.WithShort(desc.Short),
 		cmds.WithLong(desc.Long),
 		cmds.WithFlags(desc.Flags...),
 		cmds.WithArguments(desc.Arguments...),
-		cmds.WithLayersList(desc.Layers...),
+		cmds.WithSections(sections...),
 	)
 
 	return NewShellCommand(

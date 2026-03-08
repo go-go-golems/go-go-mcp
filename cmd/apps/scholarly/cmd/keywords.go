@@ -6,8 +6,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,19 +27,19 @@ var _ cmds.GlazeCommand = &KeywordsCommand{}
 
 // KeywordsSettings holds the parameters for keyword suggestion
 type KeywordsSettings struct {
-	Text     string `glazed.parameter:"text"`
-	MaxCount int    `glazed.parameter:"max_count"`
+	Text     string `glazed:"text"`
+	MaxCount int    `glazed:"max_count"`
 }
 
 // RunIntoGlazeProcessor executes the keyword suggestion and processes results
 func (c *KeywordsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &KeywordsSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -95,7 +96,7 @@ func truncateText(text string, length int) string {
 // NewKeywordsCommand creates a new keywords command
 func NewKeywordsCommand() (*KeywordsCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -116,24 +117,24 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"text",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Text to analyze for keywords (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("t"),
+				fields.TypeString,
+				fields.WithHelp("Text to analyze for keywords (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("t"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"max_count",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of keywords to return"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("m"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of keywords to return"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("m"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 	"github.com/go-go-golems/go-go-mcp/pkg/config"
 	config_provider "github.com/go-go-golems/go-go-mcp/pkg/tools/providers/config-provider"
 	"github.com/pkg/errors"
@@ -13,81 +13,81 @@ import (
 
 // ServerSettings contains settings for the server
 type ServerSettings struct {
-	ServerConfigFile string   `glazed.parameter:"server-config-file"`
-	Profile          string   `glazed.parameter:"profile"`
-	Directories      []string `glazed.parameter:"directories"`
-	Files            []string `glazed.parameter:"files"`
-	Debug            bool     `glazed.parameter:"debug"`
-	TracingDir       string   `glazed.parameter:"tracing-dir"`
-	Watch            bool     `glazed.parameter:"watch"`
-	ConvertDashes    bool     `glazed.parameter:"convert-dashes"`
-	InternalServers  []string `glazed.parameter:"internal-servers"`
+	ServerConfigFile string   `glazed:"server-config-file"`
+	Profile          string   `glazed:"profile"`
+	Directories      []string `glazed:"directories"`
+	Files            []string `glazed:"files"`
+	Debug            bool     `glazed:"debug"`
+	TracingDir       string   `glazed:"tracing-dir"`
+	Watch            bool     `glazed:"watch"`
+	ConvertDashes    bool     `glazed:"convert-dashes"`
+	InternalServers  []string `glazed:"internal-servers"`
 }
 
 const ServerLayerSlug = "mcp-server"
 
 // NewServerParameterLayer creates a new parameter layer for server settings
-func NewServerParameterLayer() (layers.ParameterLayer, error) {
+func NewServerParameterLayer() (schema.Section, error) {
 	defaultServerConfigFile, err := config.GetDefaultProfilesPath()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get default profiles path")
 	}
 
-	return layers.NewParameterLayer(ServerLayerSlug, "MCP Server Settings",
-		layers.WithParameterDefinitions(
-			parameters.NewParameterDefinition(
+	return schema.NewSection(ServerLayerSlug, "MCP Server Settings",
+		schema.WithFields(
+			fields.New(
 				"server-config-file",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Server configuration file path"),
-				parameters.WithDefault(defaultServerConfigFile),
+				fields.TypeString,
+				fields.WithHelp("Server configuration file path"),
+				fields.WithDefault(defaultServerConfigFile),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"profile",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Profile to use from configuration file"),
-				parameters.WithDefault(""),
+				fields.TypeString,
+				fields.WithHelp("Profile to use from configuration file"),
+				fields.WithDefault(""),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"directories",
-				parameters.ParameterTypeStringList,
-				parameters.WithHelp("Directories to load commands from"),
-				parameters.WithDefault([]string{}),
+				fields.TypeStringList,
+				fields.WithHelp("Directories to load commands from"),
+				fields.WithDefault([]string{}),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"files",
-				parameters.ParameterTypeStringList,
-				parameters.WithHelp("Files to load commands from"),
-				parameters.WithDefault([]string{}),
+				fields.TypeStringList,
+				fields.WithHelp("Files to load commands from"),
+				fields.WithDefault([]string{}),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"debug",
-				parameters.ParameterTypeBool,
-				parameters.WithHelp("Enable debug mode"),
-				parameters.WithDefault(false),
+				fields.TypeBool,
+				fields.WithHelp("Enable debug mode"),
+				fields.WithDefault(false),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"tracing-dir",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Directory to store tracing files"),
-				parameters.WithDefault(""),
+				fields.TypeString,
+				fields.WithHelp("Directory to store tracing files"),
+				fields.WithDefault(""),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"watch",
-				parameters.ParameterTypeBool,
-				parameters.WithHelp("Watch for file changes"),
-				parameters.WithDefault(true),
+				fields.TypeBool,
+				fields.WithHelp("Watch for file changes"),
+				fields.WithDefault(true),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"convert-dashes",
-				parameters.ParameterTypeBool,
-				parameters.WithHelp("Convert dashes to underscores in tool names and arguments"),
-				parameters.WithDefault(false),
+				fields.TypeBool,
+				fields.WithHelp("Convert dashes to underscores in tool names and arguments"),
+				fields.WithDefault(false),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"internal-servers",
-				parameters.ParameterTypeStringList,
-				parameters.WithHelp("List of internal servers to register (comma-separated). Available: sqlite,fetch,echo,scholarly"),
-				parameters.WithDefault([]string{}),
+				fields.TypeStringList,
+				fields.WithHelp("List of internal servers to register (comma-separated). Available: sqlite,fetch,echo,scholarly"),
+				fields.WithDefault([]string{}),
 			),
 		),
 	)

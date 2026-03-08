@@ -22,7 +22,7 @@ func init() {
 	cobraStartCmd, err := cli.BuildCobraCommandFromCommand(
 		startCmd,
 		cli.WithParserConfig(cli.CobraParserConfig{
-			SkipCommandSettingsLayer: true,
+			SkipCommandSettingsSection: true,
 		}),
 	)
 	cobra.CheckErr(err)

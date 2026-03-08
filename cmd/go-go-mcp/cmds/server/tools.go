@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -37,13 +38,13 @@ type CallToolCommand struct {
 }
 
 type CallToolSettings struct {
-	ToolName string                 `glazed.parameter:"tool-name"`
-	JSON     string                 `glazed.parameter:"json"`
-	Args     map[string]interface{} `glazed.parameter:"args"`
+	ToolName string                 `glazed:"tool-name"`
+	JSON     string                 `glazed:"json"`
+	Args     map[string]interface{} `glazed:"args"`
 }
 
 func NewListToolsCommand() (*ListToolsCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedParameterLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}
@@ -57,7 +58,7 @@ func NewListToolsCommand() (*ListToolsCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"list",
 			cmds.WithShort("List available tools"),
-			cmds.WithLayersList(
+			cmds.WithSections(
 				glazedParameterLayer,
 				serverLayer,
 			),
@@ -76,50 +77,50 @@ func NewCallToolCommand() (*CallToolCommand, error) {
 			"call",
 			cmds.WithShort("Call a specific tool"),
 			cmds.WithArguments(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"tool-name",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Name of the tool to call"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Name of the tool to call"),
+					fields.WithRequired(true),
 				),
 			),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"json",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Tool arguments as JSON string"),
-					parameters.WithDefault(""),
+					fields.TypeString,
+					fields.WithHelp("Tool arguments as JSON string"),
+					fields.WithDefault(""),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"json-file",
-					parameters.ParameterTypeStringFromFile,
-					parameters.WithHelp("Tool arguments as JSON file"),
-					parameters.WithDefault(""),
+					fields.TypeStringFromFile,
+					fields.WithHelp("Tool arguments as JSON file"),
+					fields.WithDefault(""),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"args",
-					parameters.ParameterTypeKeyValue,
-					parameters.WithHelp("Tool arguments as key=value pairs"),
-					parameters.WithDefault(map[string]interface{}{}),
+					fields.TypeKeyValue,
+					fields.WithHelp("Tool arguments as key=value pairs"),
+					fields.WithDefault(map[string]interface{}{}),
 				),
 			),
-			cmds.WithLayersList(serverLayer),
+			cmds.WithSections(serverLayer),
 		),
 	}, nil
 }
 
 func (c *ListToolsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	s := &ListToolsSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
 	serverSettings := &layers.ServerSettings{}
-	if err := parsedLayers.InitializeStruct(layers.ServerLayerSlug, serverSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(layers.ServerLayerSlug, serverSettings); err != nil {
 		return err
 	}
 
@@ -167,16 +168,16 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 
 func (c *CallToolCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
 	s := &CallToolSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
 	serverSettings := &layers.ServerSettings{}
-	if err := parsedLayers.InitializeStruct(layers.ServerLayerSlug, serverSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(layers.ServerLayerSlug, serverSettings); err != nil {
 		return err
 	}
 

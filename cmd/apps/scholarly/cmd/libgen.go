@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -27,20 +28,20 @@ var _ cmds.GlazeCommand = &LibgenCommand{}
 
 // LibgenSettings holds the parameters for LibGen search
 type LibgenSettings struct {
-	Query      string `glazed.parameter:"query"`
-	MaxResults int    `glazed.parameter:"max_results"`
-	Mirror     string `glazed.parameter:"mirror"`
+	Query      string `glazed:"query"`
+	MaxResults int    `glazed:"max_results"`
+	Mirror     string `glazed:"mirror"`
 }
 
 // RunIntoGlazeProcessor executes the LibGen search and processes results
 func (c *LibgenCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &LibgenSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -132,7 +133,7 @@ func (c *LibgenCommand) RunIntoGlazeProcessor(
 // NewLibgenCommand creates a new LibGen command
 func NewLibgenCommand() (*LibgenCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -149,31 +150,31 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Search query for LibGen (e.g., \"artificial intelligence\", \"ISBN:9783319994912\") (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("q"),
+				fields.TypeString,
+				fields.WithHelp("Search query for LibGen (e.g., \"artificial intelligence\", \"ISBN:9783319994912\") (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("q"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"max_results",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of results to display"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("n"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of results to display"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("n"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"mirror",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("LibGen mirror URL (e.g., https://libgen.is, http://libgen.st)"),
-				parameters.WithDefault("https://libgen.is"),
-				parameters.WithShortFlag("m"),
+				fields.TypeString,
+				fields.WithHelp("LibGen mirror URL (e.g., https://libgen.is, http://libgen.st)"),
+				fields.WithDefault("https://libgen.is"),
+				fields.WithShortFlag("m"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -193,7 +194,7 @@ func init() {
 
 	// Convert to Cobra command
 	lgCobraCmd, err := cli.BuildCobraCommandFromCommand(libgenCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build libgen cobra command")

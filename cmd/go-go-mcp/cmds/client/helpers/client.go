@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcp "github.com/mark3labs/mcp-go/mcp"
@@ -39,9 +39,9 @@ func CreateClient(cmd *cobra.Command) (*mcpclient.Client, error) {
 }
 
 // CreateClientFromSettings initializes and returns a new MCP client based on the provided settings.
-func CreateClientFromSettings(parsedLayers *glazed_layers.ParsedLayers) (*mcpclient.Client, error) {
+func CreateClientFromSettings(parsedValues *values.Values) (*mcpclient.Client, error) {
 	s := &ClientSettings{}
-	if err := parsedLayers.InitializeStruct(layers.ClientLayerSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(layers.ClientLayerSlug, s); err != nil {
 		return nil, err
 	}
 

@@ -11,9 +11,10 @@ import (
 
 	"github.com/go-go-golems/clay/pkg/repositories"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/middlewares"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/sources"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/help"
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
@@ -21,7 +22,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/examples"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
-	parka_config "github.com/go-go-golems/parka/pkg/handlers/config"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -326,39 +326,26 @@ func (p *ConfigToolProvider) CallTool(ctx context.Context, name string, argument
 }
 
 func (p *ConfigToolProvider) executeCommand(ctx context.Context, cmd cmds.Command, arguments map[string]interface{}) (*protocol.ToolResult, error) {
-	// Get parameter layers from command description
-	parameterLayers := cmd.Description().Layers
+	schema_ := cmd.Description().Schema
 
-	// Create empty parsed layers
-	parsedLayers := layers.NewParsedLayers()
+	parsedValues := values.New()
 
-	// Create a map structure for the arguments
 	argsMap := map[string]map[string]interface{}{
-		layers.DefaultSlug: arguments,
+		schema.DefaultSlug: arguments,
 	}
 
-	// Build middleware chain
-	var middlewareChain []middlewares.Middleware
+	var middlewareChain []sources.Middleware
 
-	// Add parameter filtering middlewares if we have a config
 	if config, ok := p.toolConfigs[cmd.Description().Name]; ok {
-		// Convert our config to Parka's parameter filter
-		paramFilter := p.createParkaParameterFilter(config)
-		middlewareChain = append(middlewareChain, paramFilter.ComputeMiddlewares(false)...)
+		middlewareChain = append(middlewareChain, p.createConfigMiddlewares(config)...)
 	}
 
-	// Add the user arguments middleware last
 	middlewareChain = append(middlewareChain,
-		middlewares.SetFromDefaults(parameters.WithParseStepSource(parameters.SourceDefaults)),
-		middlewares.UpdateFromMap(argsMap),
+		sources.FromDefaults(fields.WithSource(fields.SourceDefaults)),
+		sources.FromMap(argsMap),
 	)
 
-	// Execute middlewares in order
-	err := middlewares.ExecuteMiddlewares(
-		parameterLayers,
-		parsedLayers,
-		middlewareChain...,
-	)
+	err := sources.Execute(schema_, parsedValues, middlewareChain...)
 	if err != nil {
 		return protocol.NewErrorToolResult(protocol.NewTextContent(err.Error())), nil
 	}
@@ -369,7 +356,7 @@ func (p *ConfigToolProvider) executeCommand(ctx context.Context, cmd cmds.Comman
 	// Run the command with parsed parameters
 	switch c := cmd.(type) {
 	case cmds.WriterCommand:
-		if err := c.RunIntoWriter(ctx, parsedLayers, buf); err != nil {
+		if err := c.RunIntoWriter(ctx, parsedValues, buf); err != nil {
 			return protocol.NewErrorToolResult(protocol.NewTextContent(fmt.Sprintf("%s\n\nOutput so far:\n%s", err.Error(), buf.String()))), nil
 		}
 	case cmds.BareCommand:
@@ -389,50 +376,26 @@ func (p *ConfigToolProvider) executeCommand(ctx context.Context, cmd cmds.Comman
 	return protocol.NewToolResult(protocol.WithText(text)), nil
 }
 
-func (p *ConfigToolProvider) createParkaParameterFilter(sourceConfig *config.SourceConfig) *parka_config.ParameterFilter {
-	options := []parka_config.ParameterFilterOption{}
+func (p *ConfigToolProvider) createConfigMiddlewares(sourceConfig *config.SourceConfig) []sources.Middleware {
+	ret := []sources.Middleware{}
 
-	// Handle defaults
-	if sourceConfig.Defaults != nil {
-		layerParams := parka_config.NewLayerParameters()
-		for layer, params := range sourceConfig.Defaults {
-			layerParams.Layers[layer] = params
-		}
-		options = append(options, parka_config.WithReplaceDefaults(layerParams))
-	}
-
-	// Handle overrides
-	if sourceConfig.Overrides != nil {
-		layerParams := parka_config.NewLayerParameters()
-		for layer, params := range sourceConfig.Overrides {
-			layerParams.Layers[layer] = params
-		}
-		options = append(options, parka_config.WithReplaceOverrides(layerParams))
-	}
-
-	// Handle whitelist
-	if sourceConfig.Whitelist != nil {
-		whitelist := &parka_config.ParameterFilterList{}
-		for layer, params := range sourceConfig.Whitelist {
-			whitelist.LayerParameters = map[string][]string{
-				layer: params,
-			}
-		}
-		options = append(options, parka_config.WithWhitelist(whitelist))
-	}
-
-	// Handle blacklist
 	if sourceConfig.Blacklist != nil {
-		blacklist := &parka_config.ParameterFilterList{}
-		for layer, params := range sourceConfig.Blacklist {
-			blacklist.LayerParameters = map[string][]string{
-				layer: params,
-			}
-		}
-		options = append(options, parka_config.WithBlacklist(blacklist))
+		ret = append(ret, sources.BlacklistSectionFieldsFirst(sourceConfig.Blacklist))
 	}
 
-	return parka_config.NewParameterFilter(options...)
+	if sourceConfig.Whitelist != nil {
+		ret = append(ret, sources.WhitelistSectionFieldsFirst(sourceConfig.Whitelist))
+	}
+
+	if sourceConfig.Overrides != nil {
+		ret = append(ret, sources.FromMap(sourceConfig.Overrides, fields.WithSource("overrides")))
+	}
+
+	if sourceConfig.Defaults != nil {
+		ret = append(ret, sources.FromMapAsDefaultFirst(sourceConfig.Defaults, fields.WithSource("defaults")))
+	}
+
+	return ret
 }
 
 // Watch starts watching all configured directories for changes

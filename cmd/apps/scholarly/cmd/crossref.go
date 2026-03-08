@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,21 +27,21 @@ var _ cmds.GlazeCommand = &CrossrefCommand{}
 
 // CrossrefSettings holds the parameters for Crossref search
 type CrossrefSettings struct {
-	Query  string `glazed.parameter:"query"`
-	Rows   int    `glazed.parameter:"rows"`
-	Mailto string `glazed.parameter:"mailto"`
-	Filter string `glazed.parameter:"cr_filter"`
+	Query  string `glazed:"query"`
+	Rows   int    `glazed:"rows"`
+	Mailto string `glazed:"mailto"`
+	Filter string `glazed:"cr_filter"`
 }
 
 // RunIntoGlazeProcessor executes the Crossref search and processes results
 func (c *CrossrefCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &CrossrefSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -134,7 +135,7 @@ func (c *CrossrefCommand) RunIntoGlazeProcessor(
 // NewCrossrefCommand creates a new Crossref command
 func NewCrossrefCommand() (*CrossrefCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -151,38 +152,38 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Search query for Crossref (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("q"),
+				fields.TypeString,
+				fields.WithHelp("Search query for Crossref (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("q"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"rows",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Number of results to return"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("n"),
+				fields.TypeInteger,
+				fields.WithHelp("Number of results to return"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("n"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"mailto",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Email address for Crossref polite pool (recommended)"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("m"),
+				fields.TypeString,
+				fields.WithHelp("Email address for Crossref polite pool (recommended)"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("m"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"cr_filter",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Filter parameters for Crossref (e.g., from-pub-date:2020,type:journal-article)"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("f"),
+				fields.TypeString,
+				fields.WithHelp("Filter parameters for Crossref (e.g., from-pub-date:2020,type:journal-article)"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("f"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -202,7 +203,7 @@ func init() {
 
 	// Convert to Cobra command
 	cfCobraCmd, err := cli.BuildCobraCommandFromCommand(crossrefCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build crossref cobra command")

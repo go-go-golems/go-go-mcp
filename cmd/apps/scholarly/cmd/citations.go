@@ -9,8 +9,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -27,20 +28,20 @@ var _ cmds.GlazeCommand = &CitationsCommand{}
 
 // CitationsSettings holds the parameters for citation retrieval
 type CitationsSettings struct {
-	WorkID    string `glazed.parameter:"id"`
-	Direction string `glazed.parameter:"direction"`
-	Limit     int    `glazed.parameter:"limit"`
+	WorkID    string `glazed:"id"`
+	Direction string `glazed:"direction"`
+	Limit     int    `glazed:"limit"`
 }
 
 // RunIntoGlazeProcessor executes the citation retrieval and processes results
 func (c *CitationsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &CitationsSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -129,7 +130,7 @@ func getDirectionDisplayName(direction string) string {
 // NewCitationsCommand creates a new citations command
 func NewCitationsCommand() (*CitationsCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -147,32 +148,32 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"id",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Work ID (DOI or OpenAlex ID) (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("i"),
+				fields.TypeString,
+				fields.WithHelp("Work ID (DOI or OpenAlex ID) (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("i"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"direction",
-				parameters.ParameterTypeChoice,
-				parameters.WithHelp("Citation direction: 'refs' (outgoing) or 'cited_by' (incoming)"),
-				parameters.WithDefault("cited_by"),
-				parameters.WithChoices("refs", "cited_by"),
-				parameters.WithShortFlag("r"),
+				fields.TypeChoice,
+				fields.WithHelp("Citation direction: 'refs' (outgoing) or 'cited_by' (incoming)"),
+				fields.WithDefault("cited_by"),
+				fields.WithChoices("refs", "cited_by"),
+				fields.WithShortFlag("r"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"limit",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of citations to return"),
-				parameters.WithDefault(20),
-				parameters.WithShortFlag("l"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of citations to return"),
+				fields.WithDefault(20),
+				fields.WithShortFlag("l"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -192,7 +193,7 @@ func init() {
 
 	// Convert to Cobra command
 	ctCobraCmd, err := cli.BuildCobraCommandFromCommand(citationsCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build citations cobra command")

@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,18 +27,18 @@ var _ cmds.GlazeCommand = &DOICommand{}
 
 // DOISettings holds the parameters for DOI resolution
 type DOISettings struct {
-	DOI string `glazed.parameter:"doi"`
+	DOI string `glazed:"doi"`
 }
 
 // RunIntoGlazeProcessor executes the DOI resolution and processes results
 func (c *DOICommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &DOISettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -80,7 +81,7 @@ func (c *DOICommand) RunIntoGlazeProcessor(
 // NewDOICommand creates a new DOI command
 func NewDOICommand() (*DOICommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +101,17 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"doi",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("DOI to resolve (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("i"),
+				fields.TypeString,
+				fields.WithHelp("DOI to resolve (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("i"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -130,7 +131,7 @@ func init() {
 
 	// Convert to Cobra command
 	doiCobraCmd, err := cli.BuildCobraCommandFromCommand(doiCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build DOI cobra command")

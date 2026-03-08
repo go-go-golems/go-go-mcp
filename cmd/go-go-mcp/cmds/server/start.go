@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/server/layers"
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
@@ -24,8 +25,8 @@ import (
 )
 
 type StartCommandSettings struct {
-	Transport string `glazed.parameter:"transport"`
-	Port      int    `glazed.parameter:"port"`
+	Transport string `glazed:"transport"`
+	Port      int    `glazed:"port"`
 }
 
 type StartCommand struct {
@@ -49,32 +50,32 @@ Available transports:
 - sse: Server-Sent Events transport over HTTP
 - streamable_http: Streamable HTTP transport with WebSocket support`),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"transport",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Transport type (stdio, sse, or streamable_http)"),
-					parameters.WithDefault("stdio"),
+					fields.TypeString,
+					fields.WithHelp("Transport type (stdio, sse, or streamable_http)"),
+					fields.WithDefault("stdio"),
 				),
-				parameters.NewParameterDefinition(
+				fields.New(
 					"port",
-					parameters.ParameterTypeInteger,
-					parameters.WithHelp("Port to listen on for SSE and streamable HTTP transport"),
-					parameters.WithDefault(3001),
+					fields.TypeInteger,
+					fields.WithHelp("Port to listen on for SSE and streamable HTTP transport"),
+					fields.WithDefault(3001),
 				),
 			),
-			cmds.WithLayersList(serverLayer),
+			cmds.WithSections(serverLayer),
 		),
 	}, nil
 }
 
 func (c *StartCommand) Run(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 ) error {
 	logger := log.Logger
 
 	s_ := &StartCommandSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s_); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s_); err != nil {
 		return err
 	}
 
@@ -86,7 +87,7 @@ func (c *StartCommand) Run(
 
 	// Get server settings
 	serverSettings := &layers.ServerSettings{}
-	if err := parsedLayers.InitializeStruct(layers.ServerLayerSlug, serverSettings); err != nil {
+	if err := parsedValues.DecodeSectionInto(layers.ServerLayerSlug, serverSettings); err != nil {
 		return err
 	}
 
