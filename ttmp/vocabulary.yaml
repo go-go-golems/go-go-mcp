@@ -1,0 +1,22 @@
+topics:
+    - slug: architecture
+      description: Architecture-related documentation and analysis
+    - slug: go
+      description: Go language and Go repositories
+    - slug: mcp
+      description: Model Context Protocol work
+    - slug: assessment
+      description: Assessment and audit work
+    - slug: glazed
+      description: Glazed framework and command-facade migration work
+    - slug: refactor
+      description: Refactoring and API migration work
+docTypes:
+    - slug: index
+      description: Ticket index document
+intent:
+    - slug: long-term
+      description: Long-term reference material
+status:
+    - slug: active
+      description: Actively maintained or currently relevant document
