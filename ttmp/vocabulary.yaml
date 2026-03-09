@@ -23,6 +23,10 @@ topics:
       description: Documentation architecture, authoring, and maintenance topics
     - slug: oidc
       description: OpenID Connect authentication and authorization topics
+    - slug: authentication
+      description: Authentication and authorization architecture work
+    - slug: keycloak
+      description: Keycloak identity provider and OIDC integration work
 docTypes:
     - slug: index
       description: Ticket index document
