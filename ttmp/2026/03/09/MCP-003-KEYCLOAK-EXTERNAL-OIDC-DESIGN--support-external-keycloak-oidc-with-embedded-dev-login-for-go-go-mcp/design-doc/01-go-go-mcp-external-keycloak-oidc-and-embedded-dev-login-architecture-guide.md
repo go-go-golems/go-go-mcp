@@ -50,7 +50,7 @@ ExternalSources:
     - https://www.keycloak.org/securing-apps/oidc-layers
     - https://coolify.io/docs/services/keycloak
 Summary: Detailed intern-facing guide for evolving go-go-mcp from an embedded-issuer-only model to a dual-mode auth architecture that supports Keycloak as an external issuer while retaining an embedded local password login path for development.
-LastUpdated: 2026-03-09T18:12:00-04:00
+LastUpdated: 2026-03-09T19:21:31-04:00
 WhatFor: Explain the current auth architecture, identify the coupling that prevents external issuer support today, and provide a concrete implementation design for Keycloak-compatible production auth plus embedded dev auth.
 WhenToUse: Use when designing or implementing external issuer support, refactoring go-go-mcp auth middleware, or onboarding an engineer to the current and future OIDC/MCP auth architecture.
 ---
@@ -70,6 +70,22 @@ The recommended design is a dual-mode auth subsystem behind a shared validation 
 - `embedded_dev` mode: keep the current in-process issuer and the lightweight password login flow, but explicitly classify it as development-only.
 
 The crucial refactor is not “rewrite everything around Keycloak.” It is “split issuer responsibilities from resource-server responsibilities.” Today those responsibilities are fused together. After the refactor, the MCP HTTP layer should depend on an abstract auth provider contract instead of directly creating an embedded issuer.
+
+## Implementation Status
+
+The first implementation slices are now landed in `go-go-mcp`:
+
+- explicit auth modes via `AuthMode`, `AuthOptions`, `WithAuth(...)`, and compatibility `WithOIDC(...)`
+- provider-backed HTTP auth in [auth_provider.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/auth_provider.go)
+- external discovery/JWKS/JWT validation in [auth_provider_external.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/auth_provider_external.go)
+- explicit external and embedded CLI flags in [command.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/command.go)
+- focused regression coverage in [auth_test.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/auth_test.go) and [auth_provider_external_test.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/auth_provider_external_test.go)
+
+The remaining work after this implementation pass is mostly polish and productization:
+
+- document or harden the exact production configuration expectations for `external_oidc`
+- decide whether the external mode should eventually support introspection in addition to local JWT validation
+- clean up the pre-existing `clay.InitViper` deprecation warnings outside this auth refactor
 
 ## Problem Statement
 

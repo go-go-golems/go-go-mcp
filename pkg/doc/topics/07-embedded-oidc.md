@@ -13,11 +13,16 @@ ShowPerDefault: true
 SectionType: GeneralTopic
 ---
 
-# Embedded OIDC in go-go-mcp
+# Embedded and External OIDC in go-go-mcp
 
 ## Overview
 
-This document explains how the embedded OIDC (OpenID Connect) server in `go-go-mcp` secures HTTP transports (SSE and streamable HTTP) for MCP servers. The integration is first‑class and runs in‑process: the OIDC Authorization Server (AS) and the MCP resource live on the same port and share a single HTTP mux.
+This document explains how HTTP auth works in `go-go-mcp` for SSE and streamable HTTP transports. There are now two supported auth modes:
+
+- `embedded_dev`: the built-in OIDC server runs in-process and shares a mux with the MCP resource
+- `external_oidc`: `go-go-mcp` trusts an external issuer such as Keycloak and validates bearer JWTs against discovery and JWKS metadata
+
+The embedded integration is still first-class and runs in-process: the OIDC Authorization Server (AS) and the MCP resource live on the same port and share a single HTTP mux. The external mode keeps the same protected-resource behavior but removes the requirement that `go-go-mcp` itself be the issuer.
 
 The goal is to make the secure path the easy path: enable standards‑compliant OAuth 2.1/OIDC flows (authorization code with PKCE), serve discovery/JWKS, protect `/mcp` with Bearer tokens, and provide pragmatic developer conveniences for local testing.
 
@@ -70,9 +75,49 @@ If `DBPath` is set, the OIDC server persists:
 - `oauth_tokens`: optional dev tokens
 - `mcp_tool_calls`: optional tool call logs
 
+## Enabling Auth
+
+The embeddable API now exposes an explicit auth model. `WithOIDC(...)` is still supported as a compatibility wrapper for the embedded path, but new code should prefer `WithAuth(...)`.
+
+```go
+type AuthMode string
+
+const (
+    AuthModeNone         AuthMode = "none"
+    AuthModeEmbeddedDev  AuthMode = "embedded_dev"
+    AuthModeExternalOIDC AuthMode = "external_oidc"
+)
+
+type AuthOptions struct {
+    Mode        AuthMode
+    ResourceURL string
+    Embedded    EmbeddedOIDCOptions
+    External    ExternalOIDCOptions
+}
+
+type EmbeddedOIDCOptions struct {
+    Issuer          string
+    DBPath          string
+    EnableDevTokens bool
+    AuthKey         string
+    User            string
+    Pass            string
+}
+
+type ExternalOIDCOptions struct {
+    IssuerURL      string
+    DiscoveryURL   string
+    Audience       string
+    RequiredScopes []string
+}
+
+func WithAuth(opts AuthOptions) ServerOption
+func WithOIDC(opts OIDCOptions) ServerOption // compatibility wrapper to embedded_dev
+```
+
 ## Enabling Embedded OIDC
 
-The embeddable API exposes a minimal configuration surface for OIDC:
+The compatibility API is still available and keeps the old embedded behavior:
 
 ```go
 // OIDC options
@@ -88,7 +133,7 @@ type OIDCOptions struct {
 func WithOIDC(opts OIDCOptions) ServerOption
 ```
 
-You can enable OIDC both programmatically and via CLI flags on the generated `mcp` command.
+You can enable embedded auth both programmatically and via CLI flags on the generated `mcp` command.
 
 ### Programmatic Configuration
 
@@ -96,11 +141,14 @@ You can enable OIDC both programmatically and via CLI flags on the generated `mc
 err := embeddable.AddMCPCommand(rootCmd,
     embeddable.WithDefaultTransport("sse"),
     embeddable.WithDefaultPort(3001),
-    embeddable.WithOIDC(embeddable.OIDCOptions{
-        Issuer:          "https://your.domain",
-        DBPath:          "/var/lib/mcp/oidc.db",
-        EnableDevTokens: false,
-        AuthKey:         "", // disabled by default
+    embeddable.WithAuth(embeddable.AuthOptions{
+        Mode: embeddable.AuthModeEmbeddedDev,
+        Embedded: embeddable.EmbeddedOIDCOptions{
+            Issuer:          "https://your.domain",
+            DBPath:          "/var/lib/mcp/oidc.db",
+            EnableDevTokens: false,
+            AuthKey:         "", // disabled by default
+        },
     }),
 )
 ```
@@ -109,25 +157,40 @@ err := embeddable.AddMCPCommand(rootCmd,
 
 When you add the embeddable server to your Cobra app, the generated `mcp start` command supports:
 
-- `--oidc` (bool): enable embedded OIDC protection
-- `--issuer` (string): issuer base URL (e.g. your public HTTPS URL)
-- `--oidc-db` (string): SQLite DB path for OIDC persistence
-- `--oidc-dev-tokens` (bool): accept DB tokens for dev
-- `--oidc-auth-key` (string): static bearer token for dev
-- `--oidc-user` (string): static login user (dev only)
-- `--oidc-pass` (string): static login password (dev only)
+- `--auth-mode none|embedded_dev|external_oidc`
+- `--auth-resource-url` (string): public MCP resource URL advertised in protected-resource metadata
+- `--oidc-issuer-url` (string): external issuer URL for `external_oidc`
+- `--oidc-discovery-url` (string): optional discovery override for `external_oidc`
+- `--oidc-audience` (string): required audience for `external_oidc`
+- `--oidc-required-scope` (repeatable/string-slice): required scopes for `external_oidc`
+- `--embedded-issuer` (string): issuer base URL for `embedded_dev`
+- `--embedded-db` (string): SQLite DB path for `embedded_dev`
+- `--embedded-dev-tokens` (bool): accept DB tokens for embedded dev mode
+- `--embedded-auth-key` (string): static bearer token for embedded dev mode
+- `--embedded-user` (string): static login user for embedded dev mode
+- `--embedded-pass` (string): static login password for embedded dev mode
 - `--transport` (stdio | sse | streamable_http)
 - `--port` (int)
+
+Legacy embedded flags are still accepted for compatibility:
+
+- `--oidc`
+- `--issuer`
+- `--oidc-db`
+- `--oidc-dev-tokens`
+- `--oidc-auth-key`
+- `--oidc-user`
+- `--oidc-pass`
 
 Example:
 
 ```bash
 go run . mcp start --transport sse --port 3001 \
-  --oidc \
-  --issuer https://your.ngrok.app \
-  --oidc-db /tmp/mcp-oidc.db \
-  --oidc-dev-tokens=false \
-  --oidc-auth-key ''
+  --auth-mode embedded_dev \
+  --embedded-issuer https://your.ngrok.app \
+  --embedded-db /tmp/mcp-oidc.db \
+  --embedded-dev-tokens=false \
+  --embedded-auth-key ''
 ```
 
 ## Example: `pkg/embeddable/examples/oidc/main.go`
@@ -158,10 +221,10 @@ These shapes are designed to integrate cleanly with deep research workflows and 
 ```bash
 go run ./pkg/embeddable/examples/oidc \
   mcp start --transport sse --port 3001 \
-  --oidc \
-  --issuer http://localhost:3001 \
-  --oidc-db /tmp/mcp-oidc.db \
-  --oidc-auth-key TEST_AUTH_KEY_123
+  --auth-mode embedded_dev \
+  --embedded-issuer http://localhost:3001 \
+  --embedded-db /tmp/mcp-oidc.db \
+  --embedded-auth-key TEST_AUTH_KEY_123
 ```
 
 Test `search` with a static key:
@@ -186,9 +249,35 @@ The server returns `401` with `WWW-Authenticate` advertising the AS and resource
 
 ### Developer Modes (Optional)
 
-- Static Auth Key: set `--oidc-auth-key <key>` and use it as the bearer token.
-- Dev Tokens: set `--oidc-dev-tokens=true` and `--oidc-db <path>`. You can insert rows into `oauth_tokens` for quick testing; the middleware accepts them if not expired when introspection fails.
-- Static User/Pass: set `--oidc-user` and `--oidc-pass` to enable a quick login for the Authorization Code flow without provisioning users in the DB.
+- Static Auth Key: set `--embedded-auth-key <key>` and use it as the bearer token.
+- Dev Tokens: set `--embedded-dev-tokens=true` and `--embedded-db <path>`. You can insert rows into `oauth_tokens` for quick testing; the middleware accepts them if not expired when introspection fails.
+- Static User/Pass: set `--embedded-user` and `--embedded-pass` to enable a quick login for the Authorization Code flow without provisioning users in the DB.
+
+## External OIDC Mode
+
+`external_oidc` turns `go-go-mcp` into a protected resource that trusts an external issuer such as Keycloak. In this mode:
+
+- `go-go-mcp` fetches the OIDC discovery document
+- it fetches and caches the JWKS
+- it validates bearer JWTs locally
+- it checks issuer, time-based claims, optional audience, and optional scopes
+- it still serves `/.well-known/oauth-protected-resource` and still emits `WWW-Authenticate`
+
+Minimal example:
+
+```go
+err := embeddable.AddMCPCommand(rootCmd,
+    embeddable.WithAuth(embeddable.AuthOptions{
+        Mode:        embeddable.AuthModeExternalOIDC,
+        ResourceURL: "https://mcp.example.com/mcp",
+        External: embeddable.ExternalOIDCOptions{
+            IssuerURL:      "https://keycloak.example.com/realms/myrealm",
+            Audience:       "mcp-resource",
+            RequiredScopes: []string{"mcp:invoke"},
+        },
+    }),
+)
+```
 
 ## Pluggable Authentication
 
@@ -262,5 +351,4 @@ If you see no logs when pointing a client to the server, check:
 - Obtain a token (auth code with PKCE) or set a temporary `AuthKey` for smoke tests.
 - Verify `/mcp` responds with `401` + `WWW-Authenticate` when unauthenticated.
 - Verify `/mcp` accepts authenticated calls.
-
 
