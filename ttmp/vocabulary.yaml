@@ -11,6 +11,14 @@ topics:
       description: Glazed framework and command-facade migration work
     - slug: refactor
       description: Refactoring and API migration work
+    - slug: smailnail
+      description: Smailnail email tooling and IMAP DSL repository
+    - slug: email
+      description: Email and IMAP related tooling, workflows, and protocols
+    - slug: review
+      description: Code review, repository audit, and assessment work
+    - slug: javascript
+      description: JavaScript runtime, module, and integration work
 docTypes:
     - slug: index
       description: Ticket index document

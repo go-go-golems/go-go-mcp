@@ -11,13 +11,24 @@ Topics:
 DocType: index
 Intent: long-term
 Owners: []
-RelatedFiles: []
+RelatedFiles:
+    - Path: smailnail/pkg/js/modules/smailnail/module.go
+      Note: Native go-go-goja module registration and JS exports
+    - Path: smailnail/pkg/js/modules/smailnail/module_test.go
+      Note: Runtime integration coverage for require smailnail
+    - Path: smailnail/pkg/services/smailnailjs/service.go
+      Note: Primary JS-facing service layer and dialer-backed connection abstraction
+    - Path: smailnail/pkg/services/smailnailjs/views.go
+      Note: Conversion layer from internal dsl types to JS-friendly objects
+    - Path: smailnail/scripts/js-module-smoke.sh
+      Note: Maintained smoke path for the new JS module slice
 ExternalSources: []
 Summary: Initial implementation ticket for a reusable smailnail Go service layer and native go-go-goja module.
 LastUpdated: 2026-03-08T23:06:02.627686024-04:00
 WhatFor: Use this ticket to track the first end-to-end implementation of smailnail's JavaScript surface before the eval-style MCP host is added.
 WhenToUse: Read this ticket when implementing or reviewing the service package, native module, tests, or smoke/demo path.
 ---
+
 
 # Implement smailnail JavaScript module and initial service layer
 

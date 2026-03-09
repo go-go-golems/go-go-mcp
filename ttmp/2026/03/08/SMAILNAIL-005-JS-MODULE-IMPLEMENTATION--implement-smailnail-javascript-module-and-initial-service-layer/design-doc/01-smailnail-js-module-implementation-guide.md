@@ -11,7 +11,15 @@ Topics:
 DocType: design-doc
 Intent: long-term
 Owners: []
-RelatedFiles: []
+RelatedFiles:
+    - Path: smailnail/cmd/smailnail/commands/fetch_mail.go
+      Note: Shows CLI reuse of the service-layer rule builder
+    - Path: smailnail/pkg/js/modules/smailnail/module.go
+      Note: Documents the native module export surface
+    - Path: smailnail/pkg/services/smailnailjs/service.go
+      Note: Documents the canonical service-layer API
+    - Path: smailnail/scripts/js-module-smoke.sh
+      Note: Documents the maintained validation entrypoint
 ExternalSources: []
 Summary: Implementation guide for the first smailnail JavaScript module milestone, covering the service layer, native module registration, tests, and smoke validation.
 LastUpdated: 2026-03-08T23:06:02.688769124-04:00
@@ -19,11 +27,14 @@ WhatFor: Use this guide to implement and review the first smailnail native JavaS
 WhenToUse: Read this before modifying the new service package or JS module code.
 ---
 
+
 # smailnail JS module implementation guide
 
 ## Executive Summary
 
 This ticket implements the first production-quality JavaScript surface for `smailnail`. The immediate goal is not the full sandboxed MCP server yet. Instead, this ticket focuses on the lower layers that the future MCP server will depend on: a pure Go service package and a native `go-go-goja` module called `smailnail`.
+
+Current status in this ticket: the service layer, native module, unit tests, runtime integration tests, and maintained smoke script are all implemented. The remaining work is ticket hygiene, broader review, and the later follow-up that will host the module behind MCP.
 
 ## Problem Statement
 
@@ -58,6 +69,16 @@ Implement the feature in three stages:
 5. Add unit tests and goja integration tests.
 6. Add a smoke/demo entrypoint.
 7. Update ticket docs and validate with `docmgr doctor`.
+
+## Implemented Files
+
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/services/smailnailjs/service.go`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/services/smailnailjs/views.go`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/services/smailnailjs/service_test.go`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/module.go`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/js/modules/smailnail/module_test.go`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/scripts/js-module-smoke.sh`
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/cmd/smailnail/commands/fetch_mail.go`
 
 ## Open Questions
 
