@@ -19,6 +19,10 @@ topics:
       description: Code review, repository audit, and assessment work
     - slug: javascript
       description: JavaScript runtime, module, and integration work
+    - slug: documentation
+      description: Documentation architecture, authoring, and maintenance topics
+    - slug: oidc
+      description: OpenID Connect authentication and authorization topics
 docTypes:
     - slug: index
       description: Ticket index document
