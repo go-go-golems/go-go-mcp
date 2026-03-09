@@ -13,18 +13,27 @@ Owners: []
 RelatedFiles:
     - Path: smailnail/cmd/smailnail-imap-mcp/main.go
       Note: New dedicated MCP binary entrypoint
+    - Path: smailnail/pkg/js/modules/smailnail/module_test.go
+      Note: Runtime-backed drift validation for documented JS exports
+    - Path: smailnail/pkg/mcp/imapjs/docs_query.go
+      Note: Structured documentation query modes and render support
+    - Path: smailnail/pkg/mcp/imapjs/docs_registry.go
+      Note: Embedded documentation registry and example-body enrichment path
     - Path: smailnail/pkg/mcp/imapjs/execute_tool.go
       Note: Implements the first executeIMAPJS runtime path
     - Path: smailnail/pkg/mcp/imapjs/execute_tool_test.go
       Note: Validates success and error execution paths
     - Path: smailnail/pkg/mcp/imapjs/server.go
       Note: Registers the two-tool MCP surface
+    - Path: smailnail/scripts/imap-js-mcp-smoke.sh
+      Note: Maintained smoke script wired into Makefile
 ExternalSources: []
 Summary: Detailed implementation guide for building the dedicated smailnail IMAP JavaScript MCP, its queryable documentation tool, and its validation/smoke coverage.
 LastUpdated: 2026-03-09T16:05:07.176403861-04:00
 WhatFor: Guide the implementation of the smailnail IMAP JS MCP in concrete, reviewable steps.
 WhenToUse: Use while implementing, reviewing, or extending the smailnail IMAP JS MCP and its documentation stack.
 ---
+
 
 
 # Implement the smailnail IMAP JS MCP and queryable docs
