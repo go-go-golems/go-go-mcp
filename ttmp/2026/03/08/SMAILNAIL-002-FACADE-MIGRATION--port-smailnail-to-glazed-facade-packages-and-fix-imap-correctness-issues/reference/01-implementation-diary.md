@@ -14,14 +14,22 @@ Owners: []
 RelatedFiles:
     - Path: ../../../../../../../../../../code/others/docker-test-dovecot/README.md
       Note: Fixture setup details captured in Step 1
+    - Path: ../../../../../../../smailnail/.golangci.yml
+      Note: Config file rejected by the installed GolangCI-Lint
+    - Path: ../../../../../../../smailnail/Makefile
+      Note: make smoke-docker-imap target exercised in Step 5
     - Path: ../../../../../../../smailnail/cmd/mailgen/cmds/generate.go
       Note: Header serialization fix described in Step 3
     - Path: ../../../../../../../smailnail/cmd/smailnail/commands/mail_rules.go
       Note: Rule execution bug discovered during runtime validation
+    - Path: ../../../../../../../smailnail/lefthook.yml
+      Note: Hook command chain explained in Step 5
     - Path: ../../../../../../../smailnail/pkg/dsl/actions.go
       Note: Action-targeting repair described in Step 3
     - Path: ../../../../../../../smailnail/pkg/dsl/fetch.go
       Note: Fetch runtime defect discovered and fixed during Docker validation
+    - Path: ../../../../../../../smailnail/scripts/docker-imap-smoke.sh
+      Note: Maintained smoke script described in Step 5
     - Path: ttmp/2026/03/08/SMAILNAIL-002-FACADE-MIGRATION--port-smailnail-to-glazed-facade-packages-and-fix-imap-correctness-issues/scripts/docker-imap-validation.sh
       Note: Chronological runtime validation harness referenced throughout the diary
 ExternalSources: []
@@ -30,6 +38,7 @@ LastUpdated: 2026-03-08T20:21:22.665131043-04:00
 WhatFor: Record the implementation sequence, exact commands, failures, fixes, and validation evidence for the smailnail migration ticket.
 WhenToUse: Use when reviewing what changed in the migration, how it was validated, or how to continue the work.
 ---
+
 
 
 # Implementation diary
@@ -333,3 +342,69 @@ This is administrative work, but it matters because the user asked for an intern
 
 ### Technical details
 - The ticket lives under `go-go-mcp/ttmp/2026/03/08/SMAILNAIL-002-FACADE-MIGRATION--port-smailnail-to-glazed-facade-packages-and-fix-imap-correctness-issues`.
+
+## Step 5: Promote The Docker Validation Flow Into The Repo
+
+After the migration ticket was closed out, I moved the validation harness from a ticket-only artifact into the `smailnail` repository itself. The intent here was straightforward: the smoke test should be maintained where the code lives, while the ticket should still retain an executable entrypoint for historical reproducibility.
+
+This follow-up also gave me a precise answer on the hook problem. The failure is not abstract “lint drift”; `lefthook` invokes `make lint`, and the installed `golangci-lint` now refuses the checked-in `.golangci.yml` schema before any lint rules run.
+
+### Prompt Context
+
+**User prompt (verbatim):** "yes, move all the scripts you did into the ticket's scripts/ folder at least. Add the script as a maintained smoke test too. what is broken abut the hook?"
+
+**Assistant interpretation:** Keep the ticket scripts organized, promote the Docker validation script into the repo as a maintained smoke test, and explain the exact hook failure.
+
+**Inferred user intent:** Make the validation durable and remove ambiguity around the repo hygiene problem.
+
+### What I did
+- Added `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/scripts/docker-imap-smoke.sh` as the maintained smoke script.
+- Changed the ticket-local `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/08/SMAILNAIL-002-FACADE-MIGRATION--port-smailnail-to-glazed-facade-packages-and-fix-imap-correctness-issues/scripts/docker-imap-validation.sh` into a thin wrapper around the maintained repo script.
+- Added `make smoke-docker-imap` in `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Makefile`.
+- Updated `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/README.md` with the maintained smoke-test command.
+- Fixed an unrelated but user-visible `Makefile` sharp edge by replacing `ls doc/vhs/*tape` with `wildcard`, so `make smoke-docker-imap` no longer emits a missing-path warning when no VHS tapes exist.
+- Ran `make smoke-docker-imap` successfully after the promotion.
+- Re-ran `golangci-lint run ./...` to capture the exact hook error text.
+
+### Why
+- A ticket-local script is useful evidence, but it is not a maintained test surface.
+- The hook explanation needed an exact, reproducible failure mode rather than a vague statement about “old tooling.”
+
+### What worked
+- The repo script passed end to end and now serves as the maintained Docker-backed smoke gate.
+- The ticket still has a runnable script entrypoint, but there is now only one source of truth for the actual test logic.
+
+### What didn't work
+- `golangci-lint` still fails immediately with:
+
+```text
+Error: can't load config: unsupported version of the configuration: ""
+```
+
+- That means the current `.golangci.yml` is using a configuration schema that the installed linter no longer accepts.
+
+### What I learned
+- The hook problem is one layer lower than repository code quality: the linter never reaches the code because it rejects the config file format itself.
+- Promoting ticket scripts into the repo is easier if the ticket copy becomes a wrapper rather than a second full implementation.
+
+### What was tricky to build
+- The main constraint was avoiding logic duplication. If both the ticket and the repo kept independent copies of the smoke script, they would drift quickly.
+
+### What warrants a second pair of eyes
+- The eventual `.golangci.yml` migration should be reviewed carefully because GolangCI-Lint v2 config changes are easy to partially apply and still get surprising lint behavior.
+
+### What should be done in the future
+- Migrate `.golangci.yml` to the currently installed GolangCI-Lint schema and only then remove `--no-verify` from the expected commit workflow.
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/scripts/docker-imap-smoke.sh`.
+- Then review `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Makefile` and `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/README.md`.
+- Validate with:
+  - `cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail`
+  - `make smoke-docker-imap`
+  - `golangci-lint run ./...`
+
+### Technical details
+- Hook entrypoint: `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/lefthook.yml`
+- Failing command path: `lefthook` -> `make lint` -> `golangci-lint run -v`
+- Error cause observed at runtime: the installed GolangCI-Lint rejects the current `.golangci.yml` schema version.
