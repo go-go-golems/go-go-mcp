@@ -52,13 +52,13 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE and streamable HTTP transport")
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
 	// OIDC-related flags
-	startCmd.Flags().Bool("oidc", config.oidcEnabled, "Enable embedded OIDC and protect HTTP endpoints")
-	startCmd.Flags().String("issuer", config.oidcOptions.Issuer, "OIDC issuer base URL (e.g. https://yourdomain)")
-	startCmd.Flags().String("oidc-db", config.oidcOptions.DBPath, "SQLite DB path for OIDC persistence")
-	startCmd.Flags().Bool("oidc-dev-tokens", config.oidcOptions.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
-	startCmd.Flags().String("oidc-auth-key", config.oidcOptions.AuthKey, "Static bearer token for testing (development only)")
-	startCmd.Flags().String("oidc-user", config.oidcOptions.User, "Static login username (dev only; ignored when custom authenticator is used)")
-	startCmd.Flags().String("oidc-pass", config.oidcOptions.Pass, "Static login password (dev only; ignored when custom authenticator is used)")
+	startCmd.Flags().Bool("oidc", config.authEnabled, "Enable embedded OIDC and protect HTTP endpoints")
+	startCmd.Flags().String("issuer", config.authOptions.Embedded.Issuer, "OIDC issuer base URL (e.g. https://yourdomain)")
+	startCmd.Flags().String("oidc-db", config.authOptions.Embedded.DBPath, "SQLite DB path for OIDC persistence")
+	startCmd.Flags().Bool("oidc-dev-tokens", config.authOptions.Embedded.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
+	startCmd.Flags().String("oidc-auth-key", config.authOptions.Embedded.AuthKey, "Static bearer token for testing (development only)")
+	startCmd.Flags().String("oidc-user", config.authOptions.Embedded.User, "Static login username (dev only; ignored when custom authenticator is used)")
+	startCmd.Flags().String("oidc-pass", config.authOptions.Embedded.Pass, "Static login password (dev only; ignored when custom authenticator is used)")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
 	}
@@ -159,13 +159,14 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	user, _ := cmd.Flags().GetString("oidc-user")
 	pass, _ := cmd.Flags().GetString("oidc-pass")
 	if oidcEnabled {
-		config.oidcEnabled = true
-		config.oidcOptions.Issuer = issuer
-		config.oidcOptions.DBPath = oidcDB
-		config.oidcOptions.EnableDevTokens = devTokens
-		config.oidcOptions.AuthKey = authKey
-		config.oidcOptions.User = user
-		config.oidcOptions.Pass = pass
+		config.authEnabled = true
+		config.authOptions.Mode = AuthModeEmbeddedDev
+		config.authOptions.Embedded.Issuer = issuer
+		config.authOptions.Embedded.DBPath = oidcDB
+		config.authOptions.Embedded.EnableDevTokens = devTokens
+		config.authOptions.Embedded.AuthKey = authKey
+		config.authOptions.Embedded.User = user
+		config.authOptions.Embedded.Pass = pass
 	}
 
 	// Set up context with cancellation, tied to OS signals

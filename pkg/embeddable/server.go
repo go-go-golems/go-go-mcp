@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -42,9 +43,9 @@ type ServerConfig struct {
 	hooks              *Hooks
 	commandCustomizers []CommandCustomizer
 
-	// OIDC options (HTTP transports only)
-	oidcEnabled bool
-	oidcOptions OIDCOptions
+	// Auth options (HTTP transports only)
+	authEnabled bool
+	authOptions AuthOptions
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -220,8 +221,18 @@ func WithInternalServers(servers ...string) ServerOption {
 	}
 }
 
-// OIDC options
-type OIDCOptions struct {
+type AuthMode string
+
+const (
+	AuthModeNone         AuthMode = "none"
+	AuthModeEmbeddedDev  AuthMode = "embedded_dev"
+	AuthModeExternalOIDC AuthMode = "external_oidc"
+)
+
+// OIDCOptions is kept as a compatibility alias for the legacy embedded-only API.
+type OIDCOptions = EmbeddedOIDCOptions
+
+type EmbeddedOIDCOptions struct {
 	Issuer          string
 	DBPath          string
 	EnableDevTokens bool
@@ -232,12 +243,54 @@ type OIDCOptions struct {
 	Pass string
 }
 
-func WithOIDC(opts OIDCOptions) ServerOption {
+type ExternalOIDCOptions struct {
+	IssuerURL      string
+	DiscoveryURL   string
+	Audience       string
+	RequiredScopes []string
+}
+
+type AuthOptions struct {
+	Mode        AuthMode
+	ResourceURL string
+	Embedded    EmbeddedOIDCOptions
+	External    ExternalOIDCOptions
+}
+
+func (o AuthOptions) Enabled() bool {
+	return o.Mode != "" && o.Mode != AuthModeNone
+}
+
+func (o AuthOptions) EffectiveResourceURL() string {
+	if strings.TrimSpace(o.ResourceURL) != "" {
+		return strings.TrimSpace(o.ResourceURL)
+	}
+
+	switch o.Mode {
+	case AuthModeNone:
+		return ""
+	case AuthModeEmbeddedDev:
+		return strings.TrimRight(strings.TrimSpace(o.Embedded.Issuer), "/") + "/mcp"
+	case AuthModeExternalOIDC:
+		return strings.TrimRight(strings.TrimSpace(o.External.IssuerURL), "/") + "/mcp"
+	default:
+		return ""
+	}
+}
+
+func WithAuth(opts AuthOptions) ServerOption {
 	return func(config *ServerConfig) error {
-		config.oidcEnabled = true
-		config.oidcOptions = opts
+		config.authEnabled = opts.Enabled()
+		config.authOptions = opts
 		return nil
 	}
+}
+
+func WithOIDC(opts OIDCOptions) ServerOption {
+	return WithAuth(AuthOptions{
+		Mode:     AuthModeEmbeddedDev,
+		Embedded: opts,
+	})
 }
 
 func WithCommandCustomizer(customizer CommandCustomizer) ServerOption {
