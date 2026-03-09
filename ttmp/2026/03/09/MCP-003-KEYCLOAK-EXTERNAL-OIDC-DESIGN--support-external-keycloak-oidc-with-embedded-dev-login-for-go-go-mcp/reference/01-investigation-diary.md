@@ -62,7 +62,13 @@ The answer became clear very quickly: `go-go-mcp` already contains a substantial
 
 ### Prompt Context
 
-**User prompt (verbatim):** "ok, create a new ticket and then do a detailed analysis, keeping a diary. You can even run experiments in the scripts/ folder of that ticket if needed.\n\nCreate a detailed analysis / design / implementation guide that is very detailed for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file\n  references.\n  It should be very clear and detailed. Store in the ticket and the nupload to remarkable."
+**User prompt (verbatim):**
+
+> ok, create a new ticket and then do a detailed analysis, keeping a diary. You can even run experiments in the scripts/ folder of that ticket if needed.
+>
+> Create a detailed analysis / design / implementation guide that is very detailed for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file
+>   references.
+>   It should be very clear and detailed. Store in the ticket and the nupload to remarkable.
 
 **Assistant interpretation:** Create a new `docmgr` research ticket for the `go-go-mcp` auth refactor question, investigate the current embedded OIDC code and current standards guidance, write a detailed architecture guide and diary, and upload the ticket bundle to reMarkable.
 
