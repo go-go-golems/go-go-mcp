@@ -37,7 +37,7 @@ func newHTTPAuthProvider(cfg *ServerConfig) (HTTPAuthProvider, error) {
 	case AuthModeEmbeddedDev:
 		return newEmbeddedDevAuthProvider(cfg.authOptions)
 	case AuthModeExternalOIDC:
-		return nil, fmt.Errorf("external_oidc auth mode not implemented yet")
+		return newExternalOIDCAuthProvider(cfg.authOptions)
 	default:
 		return nil, fmt.Errorf("unsupported auth mode: %s", cfg.authOptions.Mode)
 	}
