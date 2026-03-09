@@ -37,3 +37,14 @@ Implemented external OIDC support for embeddable MCP HTTP backends, including di
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/command.go — Explicit `auth-mode`, external issuer, audience, scope, and embedded-dev flags
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/doc/topics/07-embedded-oidc.md — Updated user-facing auth documentation for embedded and external modes
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/auth-mode-smoke.sh — Ticket-local smoke harness used during the implementation closeout
+
+## 2026-03-09
+
+Added a ticket-local Docker Compose Keycloak playbook, an imported test realm with both basic and strict service-account clients, and a fully validated local smoke harness that proves `go-go-mcp` works against a real external Keycloak issuer in both lenient and audience-plus-scope-enforced modes.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/playbooks/01-local-keycloak-external-oidc-testing-playbook.md — Human-readable local setup and verification instructions
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/docker-compose.yml — Ticket-local Keycloak dev stack
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/import/mcp-local-realm.json — Imported realm with `mcp-cli-basic` and `mcp-cli-strict`
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/local-keycloak-smoke.sh — End-to-end local Keycloak smoke harness validated in this workspace

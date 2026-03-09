@@ -25,3 +25,4 @@
 - [x] Add or update smoke coverage for both auth modes where practical.
 - [x] Update docs and the ticket diary/changelog as each slice lands.
 - [x] Run validation and upload the updated implementation ticket bundle to reMarkable.
+- [x] Add and validate a ticket-local Docker Compose Keycloak playbook for local external OIDC testing.

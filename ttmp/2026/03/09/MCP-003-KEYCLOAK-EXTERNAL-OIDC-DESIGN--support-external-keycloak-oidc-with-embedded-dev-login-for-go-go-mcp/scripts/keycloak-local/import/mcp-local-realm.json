@@ -1,0 +1,80 @@
+{
+  "realm": "mcp-local",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "clientScopes": [
+    {
+      "name": "mcp-invoke",
+      "protocol": "openid-connect",
+      "attributes": {
+        "display.on.consent.screen": "false",
+        "include.in.token.scope": "true"
+      }
+    },
+    {
+      "name": "mcp-resource-audience",
+      "protocol": "openid-connect",
+      "attributes": {
+        "display.on.consent.screen": "false",
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud-mcp-resource",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mcp-resource",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "mcp-cli-basic",
+      "name": "MCP CLI Basic",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "mcp-cli-basic-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "profile",
+        "email"
+      ]
+    },
+    {
+      "clientId": "mcp-cli-strict",
+      "name": "MCP CLI Strict",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "mcp-cli-strict-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "mcp-invoke",
+        "mcp-resource-audience"
+      ]
+    }
+  ]
+}

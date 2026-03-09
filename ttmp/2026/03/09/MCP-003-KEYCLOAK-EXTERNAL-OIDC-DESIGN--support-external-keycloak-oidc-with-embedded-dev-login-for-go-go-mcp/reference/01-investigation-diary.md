@@ -42,7 +42,7 @@ ExternalSources:
     - https://www.keycloak.org/securing-apps/oidc-layers
     - https://coolify.io/docs/services/keycloak
 Summary: Chronological investigation diary for designing external Keycloak issuer support and embedded dev login coexistence in go-go-mcp.
-LastUpdated: 2026-03-09T19:23:09-04:00
+LastUpdated: 2026-03-09T19:46:32-04:00
 WhatFor: Record the evidence-gathering steps, command outputs, failures, and design conclusions behind the external-issuer refactor plan.
 WhenToUse: Use when reviewing the auth design, continuing the implementation later, or validating why the recommended architecture separates external and embedded auth modes.
 ---
@@ -626,3 +626,112 @@ Those failures were not auth failures. They were transport-behavior mismatches. 
 ### Technical details
 
 - The final reMarkable upload required `--force` because the earlier research bundle already existed in the same remote ticket directory.
+
+## Step 8: Add a local Keycloak playbook, validate it against Docker Compose, and fix the real playbook bugs
+
+After the implementation ticket was done, the user asked for the local setup instructions to be turned into a concrete ticket playbook and then to actually run that playbook. That changed the task from “describe how local testing could work” into “prove that a fresh engineer could really do it from the ticket.” I kept that work entirely inside the ticket workspace: one human-readable playbook under `playbooks/`, one local Compose stack under `scripts/keycloak-local/`, one imported realm JSON, and one end-to-end smoke harness.
+
+The first versions were close, but not correct enough. That was exactly the point of running them. The early failures exposed three real problems: my strict Keycloak scope setup was wrong, the smoke harness had an off-by-one path bug when locating the repo root, and the Keycloak readiness probe could hang because it used `curl` without a timeout. Fixing those issues in the ticket artifacts was more valuable than any amount of speculative polishing.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+> ok, save this as a playbook in the ticket, and then do exactly that, so I can verify that the playbook is actually correct. Let me know what I need to do to test it fully.
+
+**Assistant interpretation:** Create a concrete ticket playbook plus runnable local assets for Keycloak-based external OIDC testing, then execute them end to end and correct the playbook until it is actually valid.
+
+**Inferred user intent:** Replace a theoretical setup recipe with a verified local runbook that another engineer can execute without guesswork.
+
+### What I did
+
+- Added the playbook:
+  - [playbooks/01-local-keycloak-external-oidc-testing-playbook.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/playbooks/01-local-keycloak-external-oidc-testing-playbook.md)
+- Added the local Keycloak stack:
+  - [scripts/keycloak-local/docker-compose.yml](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/docker-compose.yml)
+- Added the imported realm:
+  - [scripts/keycloak-local/import/mcp-local-realm.json](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/import/mcp-local-realm.json)
+- Added and ran the smoke harness:
+  - [scripts/local-keycloak-smoke.sh](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/local-keycloak-smoke.sh)
+- Verified tool availability:
+  - `docker --version`
+  - `docker compose version`
+  - `jq --version`
+  - `curl --version`
+- Ran the smoke harness repeatedly until it passed.
+
+### Why
+
+- The user explicitly wanted a playbook that had been executed, not just written.
+- The only way to trust the playbook was to let it fail and then fix the exact places where it was wrong.
+
+### What worked
+
+- The final smoke harness passed end to end.
+- The imported strict Keycloak client now produces a token with:
+  - `aud: "mcp-resource"`
+  - `scope: "mcp-invoke"`
+- The final smoke proved:
+  - basic external issuer validation works
+  - stricter audience-plus-scope validation works
+  - the stricter mode rejects the basic token and accepts the strict token
+
+### What didn't work
+
+- The first strict token setup used a hardcoded claim mapper for `scope`, but Keycloak still produced:
+
+```json
+"scope": "email profile"
+```
+
+- The first smoke harness version computed `REPO_DIR` one level too high, which caused:
+
+```text
+stat /home/manuel/workspaces/2026-03-08/update-imap-mcp/pkg/embeddable/examples/oidc: directory not found
+```
+
+- The readiness probe used `curl` without `--max-time`, which could hang on startup instead of failing quickly and retrying.
+- The audience assertion in `jq` was written too loosely and rejected a valid token even when the payload already showed:
+
+```json
+"aud": "mcp-resource"
+```
+
+### What I learned
+
+- For Keycloak, the more reliable local pattern here is:
+  - use real client scopes for scope values
+  - use an audience mapper for the resource audience
+  - then validate exactly those claims in `go-go-mcp`
+- Tiny shell details matter in a playbook just as much as the auth design itself.
+
+### What was tricky to build
+
+- The tricky part was distinguishing auth bugs from playbook bugs. The auth implementation itself was already good; the failures were in the ticket-local scaffolding:
+  - wrong Keycloak scope modeling
+  - wrong repo-root calculation
+  - readiness probe without timeout
+  - bad `jq` audience assertion
+
+The symptom pattern only became clear because I kept inspecting the actual token payload and the actual log files instead of assuming the problem lived in `go-go-mcp`.
+
+### What warrants a second pair of eyes
+
+- The Keycloak realm import in [mcp-local-realm.json](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/import/mcp-local-realm.json), mainly because Keycloak import schemas are easy to regress if you later change versions.
+
+### What should be done in the future
+
+- If this local workflow becomes part of regular regression testing, move the validated smoke harness into a maintained repo-level script or CI job instead of leaving it ticket-local.
+
+### Code review instructions
+
+- Read the playbook first.
+- Then inspect [local-keycloak-smoke.sh](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/local-keycloak-smoke.sh).
+- Then inspect [mcp-local-realm.json](/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/keycloak-local/import/mcp-local-realm.json).
+- Re-run:
+  - `bash /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/09/MCP-003-KEYCLOAK-EXTERNAL-OIDC-DESIGN--support-external-keycloak-oidc-with-embedded-dev-login-for-go-go-mcp/scripts/local-keycloak-smoke.sh`
+
+### Technical details
+
+- The final validated strict scope name is `mcp-invoke`.
+- The final validated strict audience is `mcp-resource`.
