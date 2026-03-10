@@ -23,7 +23,8 @@ func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
 	cfg := NewServerConfig()
 	cfg.authEnabled = true
 	cfg.authOptions = AuthOptions{
-		Mode: AuthModeExternalOIDC,
+		Mode:        AuthModeExternalOIDC,
+		ResourceURL: "https://mcp.example.com/mcp",
 		External: ExternalOIDCOptions{
 			IssuerURL:    issuer,
 			DiscoveryURL: discoveryURL,
@@ -100,7 +101,8 @@ func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
 	defer server.Close()
 
 	provider, err := newExternalOIDCAuthProvider(AuthOptions{
-		Mode: AuthModeExternalOIDC,
+		Mode:        AuthModeExternalOIDC,
+		ResourceURL: "https://mcp.example.com/mcp",
 		External: ExternalOIDCOptions{
 			IssuerURL:      issuer,
 			DiscoveryURL:   discoveryURL,
@@ -115,6 +117,28 @@ func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
 	token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid profile")
 	if _, err := provider.ValidateBearerToken(context.Background(), token); err == nil {
 		t.Fatalf("expected missing-scope validation error")
+	}
+}
+
+func TestExternalOIDCProviderRequiresExplicitResourceURL(t *testing.T) {
+	privateKey, publicJWK := generateTestJWK(t)
+	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
+	defer server.Close()
+
+	_, _ = privateKey, issuer
+
+	_, err := newExternalOIDCAuthProvider(AuthOptions{
+		Mode: AuthModeExternalOIDC,
+		External: ExternalOIDCOptions{
+			IssuerURL:    issuer,
+			DiscoveryURL: discoveryURL,
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected missing resource url error")
+	}
+	if !strings.Contains(err.Error(), "resource url") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

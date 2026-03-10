@@ -87,7 +87,7 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 
 	provider := &externalOIDCAuthProvider{
 		opts:           opts.External,
-		resourceURL:    opts.EffectiveResourceURL(),
+		resourceURL:    strings.TrimSpace(opts.EffectiveResourceURL()),
 		discoveryURL:   discoveryURL,
 		discovery:      discovery,
 		httpClient:     httpClient,
@@ -97,6 +97,10 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 			jwksURI:         discovery.JWKSURI,
 			refreshInterval: defaultJWKSRefresh,
 		},
+	}
+
+	if provider.resourceURL == "" {
+		return nil, fmt.Errorf("external oidc auth requires resource url")
 	}
 
 	return provider, nil

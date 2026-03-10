@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/rs/zerolog/log"
@@ -205,6 +206,10 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	config.authOptions.External.DiscoveryURL = externalDiscoveryURL
 	config.authOptions.External.Audience = externalAudience
 	config.authOptions.External.RequiredScopes = externalRequiredScopes
+
+	if authMode == AuthModeExternalOIDC && strings.TrimSpace(config.authOptions.ResourceURL) == "" {
+		return fmt.Errorf("external_oidc auth mode requires --auth-resource-url to point at the public MCP endpoint")
+	}
 
 	if authMode == AuthModeEmbeddedDev {
 		config.authOptions.Embedded.Issuer = firstNonEmpty(embeddedIssuer, issuer)

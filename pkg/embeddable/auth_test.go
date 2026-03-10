@@ -49,6 +49,19 @@ func TestWithOIDCUsesEmbeddedDevMode(t *testing.T) {
 	}
 }
 
+func TestEffectiveResourceURLDoesNotDefaultExternalOIDCToIssuer(t *testing.T) {
+	got := (AuthOptions{
+		Mode: AuthModeExternalOIDC,
+		External: ExternalOIDCOptions{
+			IssuerURL: "https://issuer.example.com/realms/test",
+		},
+	}).EffectiveResourceURL()
+
+	if got != "" {
+		t.Fatalf("expected empty resource url fallback for external oidc, got %q", got)
+	}
+}
+
 func TestAuthMiddlewareRejectsMissingBearer(t *testing.T) {
 	provider := &stubAuthProvider{
 		authHeader: `Bearer realm="mcp", resource="https://mcp.example.com/mcp"`,

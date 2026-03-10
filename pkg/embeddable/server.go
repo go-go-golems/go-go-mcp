@@ -272,7 +272,7 @@ func (o AuthOptions) EffectiveResourceURL() string {
 	case AuthModeEmbeddedDev:
 		return strings.TrimRight(strings.TrimSpace(o.Embedded.Issuer), "/") + "/mcp"
 	case AuthModeExternalOIDC:
-		return strings.TrimRight(strings.TrimSpace(o.External.IssuerURL), "/") + "/mcp"
+		return ""
 	default:
 		return ""
 	}
