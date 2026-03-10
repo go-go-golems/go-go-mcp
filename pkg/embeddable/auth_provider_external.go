@@ -120,7 +120,7 @@ func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, toke
 	if audience := strings.TrimSpace(p.opts.Audience); audience != "" {
 		expected.Audience = jwt.Audience{audience}
 	}
-	if err := claims.Claims.Validate(expected); err != nil {
+	if err := claims.Validate(expected); err != nil {
 		return AuthPrincipal{}, err
 	}
 

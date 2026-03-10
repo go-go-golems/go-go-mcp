@@ -42,11 +42,7 @@ The server implements the Model Context Protocol (MCP) specification,
 providing a framework for building MCP servers and clients.`,
 	Version: version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		err := logging.InitLoggerFromViper()
-		if err != nil {
-			return err
-		}
-		return nil
+		return logging.InitLoggerFromCobra(cmd)
 	},
 }
 
@@ -73,7 +69,7 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Set up help system with UI support
 	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
-	err = clay.InitViper("mcp", rootCmd)
+	err = clay.InitGlazed("mcp", rootCmd)
 	if err != nil {
 		return nil, err
 	}
