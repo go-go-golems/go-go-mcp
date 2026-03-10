@@ -10,8 +10,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -28,19 +29,19 @@ var _ cmds.GlazeCommand = &ArxivCommand{}
 
 // ArxivSettings holds the parameters for arxiv search
 type ArxivSettings struct {
-	Query      string `glazed.parameter:"query"`
-	MaxResults int    `glazed.parameter:"max_results"`
+	Query      string `glazed:"query"`
+	MaxResults int    `glazed:"max_results"`
 }
 
 // RunIntoGlazeProcessor executes the arxiv search and processes results
 func (c *ArxivCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &ArxivSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -95,7 +96,7 @@ func (c *ArxivCommand) RunIntoGlazeProcessor(
 // NewArxivCommand creates a new arxiv command
 func NewArxivCommand() (*ArxivCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -114,24 +115,24 @@ Thank you to arXiv for use of its open access interoperability.`),
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Search query for Arxiv (e.g., 'all:electron', 'ti:\"quantum computing\" AND au:\"John Preskill\"') (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("q"),
+				fields.TypeString,
+				fields.WithHelp("Search query for Arxiv (e.g., 'all:electron', 'ti:\"quantum computing\" AND au:\"John Preskill\"') (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("q"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"max_results",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of results to return"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("n"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of results to return"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("n"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -152,7 +153,7 @@ func init() {
 	// Convert to Cobra command
 	axCobraCmd, err := cli.BuildCobraCommandFromCommand(
 		arxivCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build arxiv cobra command")

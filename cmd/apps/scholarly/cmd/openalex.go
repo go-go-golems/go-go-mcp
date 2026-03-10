@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,22 +27,22 @@ var _ cmds.GlazeCommand = &OpenAlexCommand{}
 
 // OpenAlexSettings holds the parameters for OpenAlex search
 type OpenAlexSettings struct {
-	Query   string `glazed.parameter:"query"`
-	PerPage int    `glazed.parameter:"per_page"`
-	Mailto  string `glazed.parameter:"mailto"`
-	Filter  string `glazed.parameter:"oa_filter"`
-	Sort    string `glazed.parameter:"oa_sort"`
+	Query   string `glazed:"query"`
+	PerPage int    `glazed:"per_page"`
+	Mailto  string `glazed:"mailto"`
+	Filter  string `glazed:"oa_filter"`
+	Sort    string `glazed:"oa_sort"`
 }
 
 // RunIntoGlazeProcessor executes the OpenAlex search and processes results
 func (c *OpenAlexCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &OpenAlexSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -146,7 +147,7 @@ func (c *OpenAlexCommand) RunIntoGlazeProcessor(
 // NewOpenAlexCommand creates a new OpenAlex command
 func NewOpenAlexCommand() (*OpenAlexCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -163,45 +164,45 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Search query for OpenAlex (searches title, abstract, fulltext)"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("q"),
+				fields.TypeString,
+				fields.WithHelp("Search query for OpenAlex (searches title, abstract, fulltext)"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("q"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"per_page",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Number of results per page"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("n"),
+				fields.TypeInteger,
+				fields.WithHelp("Number of results per page"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("n"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"mailto",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Email address for OpenAlex polite pool (highly recommended)"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("m"),
+				fields.TypeString,
+				fields.WithHelp("Email address for OpenAlex polite pool (highly recommended)"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("m"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"oa_filter",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Filter parameters for OpenAlex (e.g., publication_year:2022,type:journal-article)"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("f"),
+				fields.TypeString,
+				fields.WithHelp("Filter parameters for OpenAlex (e.g., publication_year:2022,type:journal-article)"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("f"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"oa_sort",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Sort order (e.g., cited_by_count:desc, publication_date:asc)"),
-				parameters.WithDefault("relevance_score:desc"),
-				parameters.WithShortFlag("s"),
+				fields.TypeString,
+				fields.WithHelp("Sort order (e.g., cited_by_count:desc, publication_date:asc)"),
+				fields.WithDefault("relevance_score:desc"),
+				fields.WithShortFlag("s"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -221,7 +222,7 @@ func init() {
 
 	// Convert to Cobra command
 	oaCobraCmd, err := cli.BuildCobraCommandFromCommand(openalexCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build openalex cobra command")

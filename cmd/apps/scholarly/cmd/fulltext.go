@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,20 +27,20 @@ var _ cmds.GlazeCommand = &FulltextCommand{}
 
 // FulltextSettings holds the parameters for full text search
 type FulltextSettings struct {
-	DOI           string `glazed.parameter:"doi"`
-	Title         string `glazed.parameter:"title"`
-	PreferVersion string `glazed.parameter:"version"`
+	DOI           string `glazed:"doi"`
+	Title         string `glazed:"title"`
+	PreferVersion string `glazed:"version"`
 }
 
 // RunIntoGlazeProcessor executes the full text search and processes results
 func (c *FulltextCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &FulltextSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -101,7 +102,7 @@ func (c *FulltextCommand) RunIntoGlazeProcessor(
 // NewFulltextCommand creates a new fulltext command
 func NewFulltextCommand() (*FulltextCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -122,31 +123,31 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"doi",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("DOI of the work"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("i"),
+				fields.TypeString,
+				fields.WithHelp("DOI of the work"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("i"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"title",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Title of the work"),
-				parameters.WithDefault(""),
-				parameters.WithShortFlag("t"),
+				fields.TypeString,
+				fields.WithHelp("Title of the work"),
+				fields.WithDefault(""),
+				fields.WithShortFlag("t"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"version",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Preferred version (published, accepted, submitted)"),
-				parameters.WithDefault("published"),
-				parameters.WithShortFlag("v"),
+				fields.TypeString,
+				fields.WithHelp("Preferred version (published, accepted, submitted)"),
+				fields.WithDefault("published"),
+				fields.WithShortFlag("v"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -166,7 +167,7 @@ func init() {
 
 	// Convert to Cobra command
 	ftCobraCmd, err := cli.BuildCobraCommandFromCommand(fulltextCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build fulltext cobra command")

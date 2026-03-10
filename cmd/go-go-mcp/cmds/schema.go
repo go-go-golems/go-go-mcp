@@ -8,16 +8,17 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	mcp_cmds "github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/pkg/errors"
 )
 
 type SchemaCommandSettings struct {
-	File string `glazed.parameter:"file"`
+	File string `glazed:"file"`
 }
 
 type SchemaCommand struct {
@@ -25,7 +26,7 @@ type SchemaCommand struct {
 }
 
 func NewSchemaCommand() (*SchemaCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedParameterLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create glazed parameter layer")
 	}
@@ -40,14 +41,14 @@ This schema can be used for LLM tool calling definitions or command validation.
 Example:
   mcp-server schema ./commands/my-command.yaml`),
 			cmds.WithArguments(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"file",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Path to YAML command file"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Path to YAML command file"),
+					fields.WithRequired(true),
 				),
 			),
-			cmds.WithLayersList(
+			cmds.WithSections(
 				glazedParameterLayer,
 			),
 		),
@@ -56,11 +57,11 @@ Example:
 
 func (c *SchemaCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
 	s := &SchemaCommandSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 

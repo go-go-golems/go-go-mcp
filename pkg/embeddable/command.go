@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/rs/zerolog/log"
@@ -51,14 +52,28 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().String("transport", config.defaultTransport, "Transport type (stdio, sse, streamable_http)")
 	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE and streamable HTTP transport")
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
-	// OIDC-related flags
-	startCmd.Flags().Bool("oidc", config.oidcEnabled, "Enable embedded OIDC and protect HTTP endpoints")
-	startCmd.Flags().String("issuer", config.oidcOptions.Issuer, "OIDC issuer base URL (e.g. https://yourdomain)")
-	startCmd.Flags().String("oidc-db", config.oidcOptions.DBPath, "SQLite DB path for OIDC persistence")
-	startCmd.Flags().Bool("oidc-dev-tokens", config.oidcOptions.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
-	startCmd.Flags().String("oidc-auth-key", config.oidcOptions.AuthKey, "Static bearer token for testing (development only)")
-	startCmd.Flags().String("oidc-user", config.oidcOptions.User, "Static login username (dev only; ignored when custom authenticator is used)")
-	startCmd.Flags().String("oidc-pass", config.oidcOptions.Pass, "Static login password (dev only; ignored when custom authenticator is used)")
+	// Auth-related flags
+	startCmd.Flags().String("auth-mode", defaultAuthModeFlagValue(config), "Authentication mode for HTTP transports (none, embedded_dev, external_oidc)")
+	startCmd.Flags().String("auth-resource-url", config.authOptions.ResourceURL, "Public MCP resource URL advertised to OAuth/OIDC clients")
+	startCmd.Flags().String("oidc-issuer-url", config.authOptions.External.IssuerURL, "External OIDC issuer URL (for example a Keycloak realm issuer)")
+	startCmd.Flags().String("oidc-discovery-url", config.authOptions.External.DiscoveryURL, "Optional override for the external OIDC discovery document URL")
+	startCmd.Flags().String("oidc-audience", config.authOptions.External.Audience, "Required audience for external OIDC bearer tokens")
+	startCmd.Flags().StringSlice("oidc-required-scope", config.authOptions.External.RequiredScopes, "Required scopes for external OIDC bearer tokens")
+
+	// Legacy embedded OIDC flags, kept for compatibility.
+	startCmd.Flags().Bool("oidc", config.authEnabled && config.authOptions.Mode == AuthModeEmbeddedDev, "Enable embedded OIDC and protect HTTP endpoints")
+	startCmd.Flags().String("issuer", config.authOptions.Embedded.Issuer, "OIDC issuer base URL (e.g. https://yourdomain)")
+	startCmd.Flags().String("oidc-db", config.authOptions.Embedded.DBPath, "SQLite DB path for OIDC persistence")
+	startCmd.Flags().Bool("oidc-dev-tokens", config.authOptions.Embedded.EnableDevTokens, "Allow dev tokens stored in DB (development only)")
+	startCmd.Flags().String("oidc-auth-key", config.authOptions.Embedded.AuthKey, "Static bearer token for testing (development only)")
+	startCmd.Flags().String("oidc-user", config.authOptions.Embedded.User, "Static login username (dev only; ignored when custom authenticator is used)")
+	startCmd.Flags().String("oidc-pass", config.authOptions.Embedded.Pass, "Static login password (dev only; ignored when custom authenticator is used)")
+	startCmd.Flags().String("embedded-issuer", config.authOptions.Embedded.Issuer, "Issuer URL for embedded_dev auth mode")
+	startCmd.Flags().String("embedded-db", config.authOptions.Embedded.DBPath, "SQLite DB path for embedded_dev auth mode")
+	startCmd.Flags().Bool("embedded-dev-tokens", config.authOptions.Embedded.EnableDevTokens, "Allow DB-backed dev tokens in embedded_dev auth mode")
+	startCmd.Flags().String("embedded-auth-key", config.authOptions.Embedded.AuthKey, "Static bearer token for embedded_dev mode")
+	startCmd.Flags().String("embedded-user", config.authOptions.Embedded.User, "Static login username for embedded_dev mode")
+	startCmd.Flags().String("embedded-pass", config.authOptions.Embedded.Pass, "Static login password for embedded_dev mode")
 	if config.enableConfig {
 		startCmd.Flags().String("config", config.configFile, "Configuration file path")
 	}
@@ -150,7 +165,21 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	config.defaultTransport = transportType
 	config.defaultPort = port
 
-	// OIDC flags
+	authModeValue, _ := cmd.Flags().GetString("auth-mode")
+	authResourceURL, _ := cmd.Flags().GetString("auth-resource-url")
+	externalIssuerURL, _ := cmd.Flags().GetString("oidc-issuer-url")
+	externalDiscoveryURL, _ := cmd.Flags().GetString("oidc-discovery-url")
+	externalAudience, _ := cmd.Flags().GetString("oidc-audience")
+	externalRequiredScopes, _ := cmd.Flags().GetStringSlice("oidc-required-scope")
+
+	embeddedIssuer, _ := cmd.Flags().GetString("embedded-issuer")
+	embeddedDB, _ := cmd.Flags().GetString("embedded-db")
+	embeddedDevTokens, _ := cmd.Flags().GetBool("embedded-dev-tokens")
+	embeddedAuthKey, _ := cmd.Flags().GetString("embedded-auth-key")
+	embeddedUser, _ := cmd.Flags().GetString("embedded-user")
+	embeddedPass, _ := cmd.Flags().GetString("embedded-pass")
+
+	// Legacy embedded OIDC flags
 	oidcEnabled, _ := cmd.Flags().GetBool("oidc")
 	issuer, _ := cmd.Flags().GetString("issuer")
 	oidcDB, _ := cmd.Flags().GetString("oidc-db")
@@ -158,14 +187,37 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	authKey, _ := cmd.Flags().GetString("oidc-auth-key")
 	user, _ := cmd.Flags().GetString("oidc-user")
 	pass, _ := cmd.Flags().GetString("oidc-pass")
-	if oidcEnabled {
-		config.oidcEnabled = true
-		config.oidcOptions.Issuer = issuer
-		config.oidcOptions.DBPath = oidcDB
-		config.oidcOptions.EnableDevTokens = devTokens
-		config.oidcOptions.AuthKey = authKey
-		config.oidcOptions.User = user
-		config.oidcOptions.Pass = pass
+
+	authMode := AuthMode(authModeValue)
+	switch authMode {
+	case "", AuthModeNone:
+		if oidcEnabled {
+			authMode = AuthModeEmbeddedDev
+		}
+	case AuthModeEmbeddedDev, AuthModeExternalOIDC:
+	default:
+		return fmt.Errorf("unsupported auth mode: %s", authModeValue)
+	}
+
+	config.authOptions.Mode = authMode
+	config.authEnabled = config.authOptions.Enabled()
+	config.authOptions.ResourceURL = authResourceURL
+	config.authOptions.External.IssuerURL = externalIssuerURL
+	config.authOptions.External.DiscoveryURL = externalDiscoveryURL
+	config.authOptions.External.Audience = externalAudience
+	config.authOptions.External.RequiredScopes = externalRequiredScopes
+
+	if authMode == AuthModeExternalOIDC && strings.TrimSpace(config.authOptions.ResourceURL) == "" {
+		return fmt.Errorf("external_oidc auth mode requires --auth-resource-url to point at the public MCP endpoint")
+	}
+
+	if authMode == AuthModeEmbeddedDev {
+		config.authOptions.Embedded.Issuer = firstNonEmpty(embeddedIssuer, issuer)
+		config.authOptions.Embedded.DBPath = firstNonEmpty(embeddedDB, oidcDB)
+		config.authOptions.Embedded.EnableDevTokens = embeddedDevTokens || devTokens
+		config.authOptions.Embedded.AuthKey = firstNonEmpty(embeddedAuthKey, authKey)
+		config.authOptions.Embedded.User = firstNonEmpty(embeddedUser, user)
+		config.authOptions.Embedded.Pass = firstNonEmpty(embeddedPass, pass)
 	}
 
 	// Set up context with cancellation, tied to OS signals
@@ -258,6 +310,22 @@ func testTool(cmd *cobra.Command, config *ServerConfig, toolName string) error {
 func initConfig(cmd *cobra.Command, config *ServerConfig) error {
 	fmt.Println("Configuration initialization not implemented yet")
 	return nil
+}
+
+func defaultAuthModeFlagValue(config *ServerConfig) string {
+	if config == nil || !config.authEnabled || !config.authOptions.Enabled() {
+		return string(AuthModeNone)
+	}
+	return string(config.authOptions.Mode)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func showConfig(cmd *cobra.Command, config *ServerConfig) error {

@@ -8,8 +8,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -28,30 +29,30 @@ var _ cmds.GlazeCommand = &SearchCommand{}
 
 // SearchSettings holds the parameters for scholarly search
 type SearchSettings struct {
-	Query         string   `glazed.parameter:"query"`
-	Sources       []string `glazed.parameter:"sources"`
-	Limit         int      `glazed.parameter:"limit"`
-	Author        string   `glazed.parameter:"author"`
-	Title         string   `glazed.parameter:"title"`
-	Category      string   `glazed.parameter:"category"`
-	WorkType      string   `glazed.parameter:"work-type"`
-	FromYear      int      `glazed.parameter:"from-year"`
-	ToYear        int      `glazed.parameter:"to-year"`
-	SortOrder     string   `glazed.parameter:"sort"`
-	OpenAccess    string   `glazed.parameter:"open-access"`
-	Mailto        string   `glazed.parameter:"mailto"`
-	DisableRerank bool     `glazed.parameter:"disable-rerank"`
+	Query         string   `glazed:"query"`
+	Sources       []string `glazed:"sources"`
+	Limit         int      `glazed:"limit"`
+	Author        string   `glazed:"author"`
+	Title         string   `glazed:"title"`
+	Category      string   `glazed:"category"`
+	WorkType      string   `glazed:"work-type"`
+	FromYear      int      `glazed:"from-year"`
+	ToYear        int      `glazed:"to-year"`
+	SortOrder     string   `glazed:"sort"`
+	OpenAccess    string   `glazed:"open-access"`
+	Mailto        string   `glazed:"mailto"`
+	DisableRerank bool     `glazed:"disable-rerank"`
 }
 
 // RunIntoGlazeProcessor executes the scholarly search and processes results
 func (c *SearchCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &SearchSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -189,7 +190,7 @@ func (c *SearchCommand) RunIntoGlazeProcessor(
 // NewSearchCommand creates a new search command
 func NewSearchCommand() (*SearchCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -218,85 +219,85 @@ Examples:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Main search query text"),
-				parameters.WithShortFlag("q"),
+				fields.TypeString,
+				fields.WithHelp("Main search query text"),
+				fields.WithShortFlag("q"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"sources",
-				parameters.ParameterTypeChoiceList,
-				parameters.WithHelp("Sources to search from"),
-				parameters.WithDefault([]string{"all"}),
-				parameters.WithShortFlag("s"),
-				parameters.WithChoices("arxiv", "crossref", "openalex", "all"),
+				fields.TypeChoiceList,
+				fields.WithHelp("Sources to search from"),
+				fields.WithDefault([]string{"all"}),
+				fields.WithShortFlag("s"),
+				fields.WithChoices("arxiv", "crossref", "openalex", "all"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"limit",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of results to return"),
-				parameters.WithDefault(20),
-				parameters.WithShortFlag("l"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of results to return"),
+				fields.WithDefault(20),
+				fields.WithShortFlag("l"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"author",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Author name to search for"),
+				fields.TypeString,
+				fields.WithHelp("Author name to search for"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"title",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Title words/phrase to search for"),
+				fields.TypeString,
+				fields.WithHelp("Title words/phrase to search for"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"category",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("ArXiv category (e.g., cs.AI)"),
+				fields.TypeString,
+				fields.WithHelp("ArXiv category (e.g., cs.AI)"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"work-type",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Publication type (e.g., journal-article)"),
+				fields.TypeString,
+				fields.WithHelp("Publication type (e.g., journal-article)"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"from-year",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Starting year (inclusive)"),
-				parameters.WithDefault(0),
+				fields.TypeInteger,
+				fields.WithHelp("Starting year (inclusive)"),
+				fields.WithDefault(0),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"to-year",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Ending year (inclusive)"),
-				parameters.WithDefault(0),
+				fields.TypeInteger,
+				fields.WithHelp("Ending year (inclusive)"),
+				fields.WithDefault(0),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"sort",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Sort order: relevance, newest, oldest"),
+				fields.TypeString,
+				fields.WithHelp("Sort order: relevance, newest, oldest"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"open-access",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Open access filter: true, false"),
+				fields.TypeString,
+				fields.WithHelp("Open access filter: true, false"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"mailto",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Email address for OpenAlex polite pool (highly recommended)"),
-				parameters.WithDefault("wesen@ruinwesen.com"),
+				fields.TypeString,
+				fields.WithHelp("Email address for OpenAlex polite pool (highly recommended)"),
+				fields.WithDefault("wesen@ruinwesen.com"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"disable-rerank",
-				parameters.ParameterTypeBool,
-				parameters.WithHelp("Disable reranking of search results using the local reranker service"),
-				parameters.WithDefault(false),
+				fields.TypeBool,
+				fields.WithHelp("Disable reranking of search results using the local reranker service"),
+				fields.WithDefault(false),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -361,7 +362,7 @@ func init() {
 	// Convert to Cobra command
 	sCobraCmd, err := cli.BuildCobraCommandFromCommand(
 		searchCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build search cobra command")

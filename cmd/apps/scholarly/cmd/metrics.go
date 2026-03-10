@@ -6,8 +6,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -26,18 +27,18 @@ var _ cmds.GlazeCommand = &MetricsCommand{}
 
 // MetricsSettings holds the parameters for metrics retrieval
 type MetricsSettings struct {
-	WorkID string `glazed.parameter:"work_id"`
+	WorkID string `glazed:"work_id"`
 }
 
 // RunIntoGlazeProcessor executes the metrics retrieval and processes results
 func (c *MetricsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &MetricsSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -80,7 +81,7 @@ func (c *MetricsCommand) RunIntoGlazeProcessor(
 // NewMetricsCommand creates a new metrics command
 func NewMetricsCommand() (*MetricsCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +101,17 @@ Example:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"work_id",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Work ID (DOI or OpenAlex ID) (required)"),
-				parameters.WithRequired(true),
-				parameters.WithShortFlag("i"),
+				fields.TypeString,
+				fields.WithHelp("Work ID (DOI or OpenAlex ID) (required)"),
+				fields.WithRequired(true),
+				fields.WithShortFlag("i"),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)

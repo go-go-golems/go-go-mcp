@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -28,22 +29,22 @@ var _ cmds.GlazeCommand = &RerankerCommand{}
 
 // RerankerSettings holds the parameters for document reranking
 type RerankerSettings struct {
-	Query     string   `glazed.parameter:"query"`
-	Documents []string `glazed.parameter:"documents"`
-	Limit     int      `glazed.parameter:"limit"`
-	URL       string   `glazed.parameter:"url"`
-	Timeout   int      `glazed.parameter:"timeout"`
+	Query     string   `glazed:"query"`
+	Documents []string `glazed:"documents"`
+	Limit     int      `glazed:"limit"`
+	URL       string   `glazed:"url"`
+	Timeout   int      `glazed:"timeout"`
 }
 
 // RunIntoGlazeProcessor executes the document reranking and processes results
 func (c *RerankerCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *layers.ParsedLayers,
+	parsedLayers *values.Values,
 	gp middlewares.Processor,
 ) error {
 	// Parse settings from layers
 	s := &RerankerSettings{}
-	if err := parsedLayers.InitializeStruct(layers.DefaultSlug, s); err != nil {
+	if err := parsedLayers.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
@@ -105,7 +106,7 @@ func (c *RerankerCommand) RunIntoGlazeProcessor(
 // NewRerankerCommand creates a new reranker command
 func NewRerankerCommand() (*RerankerCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedParameterLayers()
+	glazedLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, err
 	}
@@ -130,42 +131,42 @@ Examples:
 
 		// Define command flags
 		cmds.WithFlags(
-			parameters.NewParameterDefinition(
+			fields.New(
 				"query",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("The query to rerank documents against"),
-				parameters.WithShortFlag("q"),
-				parameters.WithRequired(true),
+				fields.TypeString,
+				fields.WithHelp("The query to rerank documents against"),
+				fields.WithShortFlag("q"),
+				fields.WithRequired(true),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"documents",
-				parameters.ParameterTypeStringList,
-				parameters.WithHelp("List of documents to rerank"),
-				parameters.WithShortFlag("d"),
+				fields.TypeStringList,
+				fields.WithHelp("List of documents to rerank"),
+				fields.WithShortFlag("d"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"limit",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Maximum number of results to return"),
-				parameters.WithDefault(10),
-				parameters.WithShortFlag("l"),
+				fields.TypeInteger,
+				fields.WithHelp("Maximum number of results to return"),
+				fields.WithDefault(10),
+				fields.WithShortFlag("l"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"url",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("URL of the reranker service"),
-				parameters.WithDefault("http://localhost:8000/rerank"),
+				fields.TypeString,
+				fields.WithHelp("URL of the reranker service"),
+				fields.WithDefault("http://localhost:8000/rerank"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"timeout",
-				parameters.ParameterTypeInteger,
-				parameters.WithHelp("Timeout in seconds for the reranker request"),
-				parameters.WithDefault(10),
+				fields.TypeInteger,
+				fields.WithHelp("Timeout in seconds for the reranker request"),
+				fields.WithDefault(10),
 			),
 		),
 
 		// Add parameter layers
-		cmds.WithLayersList(
+		cmds.WithSections(
 			glazedLayer,
 		),
 	)
@@ -186,7 +187,7 @@ func init() {
 	// Convert to Cobra command
 	rCobraCmd, err := cli.BuildCobraCommandFromCommand(
 		rerankerCmd,
-		cli.WithCobraShortHelpLayers(layers.DefaultSlug),
+		cli.WithCobraShortHelpSections(schema.DefaultSlug),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to build reranker cobra command")

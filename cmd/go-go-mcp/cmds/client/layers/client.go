@@ -1,38 +1,38 @@
 package layers
 
 import (
-	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
 )
 
 type ClientSettings struct {
-	Transport string   `glazed.parameter:"transport"`
-	Server    string   `glazed.parameter:"server"`
-	Command   []string `glazed.parameter:"command"`
+	Transport string   `glazed:"transport"`
+	Server    string   `glazed:"server"`
+	Command   []string `glazed:"command"`
 }
 
 const ClientLayerSlug = "mcp-client"
 
-func NewClientParameterLayer() (layers.ParameterLayer, error) {
-	return layers.NewParameterLayer(ClientLayerSlug, "MCP Client Settings",
-		layers.WithParameterDefinitions(
-			parameters.NewParameterDefinition(
+func NewClientParameterLayer() (schema.Section, error) {
+	return schema.NewSection(ClientLayerSlug, "MCP Client Settings",
+		schema.WithFields(
+			fields.New(
 				"transport",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Transport type (command or sse)"),
-				parameters.WithDefault("command"),
+				fields.TypeString,
+				fields.WithHelp("Transport type (command or sse)"),
+				fields.WithDefault("command"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"server",
-				parameters.ParameterTypeString,
-				parameters.WithHelp("Server URL for SSE transport"),
-				parameters.WithDefault("http://localhost:3001"),
+				fields.TypeString,
+				fields.WithHelp("Server URL for SSE transport"),
+				fields.WithDefault("http://localhost:3001"),
 			),
-			parameters.NewParameterDefinition(
+			fields.New(
 				"command",
-				parameters.ParameterTypeStringList,
-				parameters.WithHelp("Command and arguments for command transport (starts go-go-mcp in stdio mode per default)"),
-				parameters.WithDefault([]string{"mcp", "server", "start", "--transport", "stdio"}),
+				fields.TypeStringList,
+				fields.WithHelp("Command and arguments for command transport (starts go-go-mcp in stdio mode per default)"),
+				fields.WithDefault([]string{"mcp", "server", "start", "--transport", "stdio"}),
 			),
 		),
 	)

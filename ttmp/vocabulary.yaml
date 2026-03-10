@@ -1,0 +1,38 @@
+topics:
+    - slug: architecture
+      description: Architecture-related documentation and analysis
+    - slug: go
+      description: Go language and Go repositories
+    - slug: mcp
+      description: Model Context Protocol work
+    - slug: assessment
+      description: Assessment and audit work
+    - slug: glazed
+      description: Glazed framework and command-facade migration work
+    - slug: refactor
+      description: Refactoring and API migration work
+    - slug: smailnail
+      description: Smailnail email tooling and IMAP DSL repository
+    - slug: email
+      description: Email and IMAP related tooling, workflows, and protocols
+    - slug: review
+      description: Code review, repository audit, and assessment work
+    - slug: javascript
+      description: JavaScript runtime, module, and integration work
+    - slug: documentation
+      description: Documentation architecture, authoring, and maintenance topics
+    - slug: oidc
+      description: OpenID Connect authentication and authorization topics
+    - slug: authentication
+      description: Authentication and authorization architecture work
+    - slug: keycloak
+      description: Keycloak identity provider and OIDC integration work
+docTypes:
+    - slug: index
+      description: Ticket index document
+intent:
+    - slug: long-term
+      description: Long-term reference material
+status:
+    - slug: active
+      description: Actively maintained or currently relevant document

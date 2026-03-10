@@ -8,10 +8,11 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
 
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -38,12 +39,12 @@ type ExecutePromptCommand struct {
 }
 
 type ExecutePromptSettings struct {
-	Args       string `glazed.parameter:"args"`
-	PromptName string `glazed.parameter:"prompt-name"`
+	Args       string `glazed:"args"`
+	PromptName string `glazed:"prompt-name"`
 }
 
 func NewListPromptsCommand() (*ListPromptsCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedParameterLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}
@@ -57,7 +58,7 @@ func NewListPromptsCommand() (*ListPromptsCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"list",
 			cmds.WithShort("List available prompts"),
-			cmds.WithLayersList(
+			cmds.WithSections(
 				glazedParameterLayer,
 				clientLayer,
 			),
@@ -76,22 +77,22 @@ func NewExecutePromptCommand() (*ExecutePromptCommand, error) {
 			"execute",
 			cmds.WithShort("Execute a specific prompt"),
 			cmds.WithFlags(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"args",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Prompt arguments as JSON string"),
-					parameters.WithDefault(""),
+					fields.TypeString,
+					fields.WithHelp("Prompt arguments as JSON string"),
+					fields.WithDefault(""),
 				),
 			),
 			cmds.WithArguments(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"prompt-name",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("Name of the prompt to execute"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("Name of the prompt to execute"),
+					fields.WithRequired(true),
 				),
 			),
-			cmds.WithLayersList(
+			cmds.WithSections(
 				clientLayer,
 			),
 		),
@@ -100,10 +101,10 @@ func NewExecutePromptCommand() (*ExecutePromptCommand, error) {
 
 func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -151,10 +152,10 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 
 func (c *ListPromptsCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -180,15 +181,15 @@ func (c *ListPromptsCommand) RunIntoWriter(
 
 func (c *ExecutePromptCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
 	s := &ExecutePromptSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -220,15 +221,15 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 
 func (c *ExecutePromptCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	s := &ExecutePromptSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}

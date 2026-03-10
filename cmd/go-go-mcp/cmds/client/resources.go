@@ -7,8 +7,9 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
-	glazed_layers "github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/cmds/fields"
+	"github.com/go-go-golems/glazed/pkg/cmds/schema"
+	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/middlewares"
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
@@ -38,11 +39,11 @@ type ReadResourceCommand struct {
 }
 
 type ReadResourceSettings struct {
-	URI string `glazed.parameter:"uri"`
+	URI string `glazed:"uri"`
 }
 
 func NewListResourcesCommand() (*ListResourcesCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
+	glazedParameterLayer, err := settings.NewGlazedSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}
@@ -56,7 +57,7 @@ func NewListResourcesCommand() (*ListResourcesCommand, error) {
 		CommandDescription: cmds.NewCommandDescription(
 			"list",
 			cmds.WithShort("List available resources"),
-			cmds.WithLayersList(
+			cmds.WithSections(
 				glazedParameterLayer,
 				clientLayer,
 			),
@@ -75,29 +76,29 @@ func NewReadResourceCommand() (*ReadResourceCommand, error) {
 			"read",
 			cmds.WithShort("Read a specific resource"),
 			cmds.WithArguments(
-				parameters.NewParameterDefinition(
+				fields.New(
 					"uri",
-					parameters.ParameterTypeString,
-					parameters.WithHelp("URI of the resource to read"),
-					parameters.WithRequired(true),
+					fields.TypeString,
+					fields.WithHelp("URI of the resource to read"),
+					fields.WithRequired(true),
 				),
 			),
-			cmds.WithLayersList(clientLayer),
+			cmds.WithSections(clientLayer),
 		),
 	}, nil
 }
 
 func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	s := &ListResourcesSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -143,10 +144,10 @@ func (c *ListResourcesCommand) RunIntoGlazeProcessor(
 
 func (c *ListResourcesCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -173,15 +174,15 @@ func (c *ListResourcesCommand) RunIntoWriter(
 
 func (c *ReadResourceCommand) RunIntoWriter(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	w io.Writer,
 ) error {
 	s := &ReadResourceSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}
@@ -212,15 +213,15 @@ func (c *ReadResourceCommand) RunIntoWriter(
 
 func (c *ReadResourceCommand) RunIntoGlazeProcessor(
 	ctx context.Context,
-	parsedLayers *glazed_layers.ParsedLayers,
+	parsedValues *values.Values,
 	gp middlewares.Processor,
 ) error {
 	s := &ReadResourceSettings{}
-	if err := parsedLayers.InitializeStruct(glazed_layers.DefaultSlug, s); err != nil {
+	if err := parsedValues.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
 		return err
 	}
 
-	client, err := helpers.CreateClientFromSettings(parsedLayers)
+	client, err := helpers.CreateClientFromSettings(parsedValues)
 	if err != nil {
 		return err
 	}

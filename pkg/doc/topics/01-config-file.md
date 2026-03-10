@@ -86,8 +86,10 @@ profiles:
 
 Save this as `config.yaml` and run:
 ```bash
-go-go-mcp server start --config-file config.yaml
+go-go-mcp server start --server-config-file config.yaml
 ```
+
+The `--server-config-file` flag explicitly points the server to a configuration file; omit it to rely on the default search paths (`$XDG_CONFIG_HOME/go-go-mcp`, `$HOME/.config/go-go-mcp`, etc.).
 
 This will:
 1. Load tools from the `./tools` directory
@@ -130,7 +132,7 @@ profiles:
 
 To use a specific profile:
 ```bash
-go-go-mcp server start --config-file config.yaml --profile production
+go-go-mcp server start --server-config-file config.yaml --profile production
 ```
 
 ## Tool Configuration

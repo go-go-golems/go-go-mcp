@@ -26,7 +26,7 @@ var corpus = []doc{
 func main() {
 	rootCmd := &cobra.Command{Use: "oidc-example"}
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		return logging.InitLoggerFromViper()
+		return logging.InitLoggerFromCobra(cmd)
 	}
 
 	// Add MCP server capability with OIDC enabled
@@ -57,8 +57,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := clay.InitViper("jesus", rootCmd); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize viper: %v\n", err)
+	if err := clay.InitGlazed("oidc-example", rootCmd); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize glazed root command: %v\n", err)
 		os.Exit(1)
 	}
 

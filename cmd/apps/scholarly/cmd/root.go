@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var debugMode bool
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "scholarly",
@@ -21,17 +19,13 @@ var rootCmd = &cobra.Command{
 
 It provides specific subcommands for each platform, allowing targeted searches with various filters and options.
 
-Examples:
+	Examples:
   scholarly arxiv -q "all:electron" -n 5
   scholarly libgen -q "artificial intelligence" -m "https://libgen.is"
   scholarly crossref -q "climate change mitigation"
   scholarly openalex -q "machine learning applications"`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		err := logging.InitLoggerFromViper()
-		if err != nil {
-			return err
-		}
-		return nil
+		return logging.InitLoggerFromCobra(cmd)
 	},
 }
 
@@ -41,19 +35,13 @@ func Execute() {
 	helpSystem := help.NewHelpSystem()
 	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
-	err := clay.InitViper("mcp", rootCmd)
+	err := clay.InitGlazed("scholarly", rootCmd)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize viper")
+		log.Fatal().Err(err).Msg("Failed to initialize glazed root command")
 	}
 
 	err = rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
-}
-
-func init() {
-	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug logging")
-	// Remove the default toggle flag if it exists from the initial cobra init
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
