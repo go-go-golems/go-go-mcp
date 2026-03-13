@@ -36,3 +36,5 @@ intent:
 status:
     - slug: active
       description: Actively maintained or currently relevant document
+    - slug: complete
+      description: Closed ticket state
