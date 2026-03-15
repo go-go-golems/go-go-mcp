@@ -13,3 +13,18 @@ Created the dedicated implementation ticket, wrote the first implementation plan
 
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/15/SMAILNAIL-008-SMAILNAILD-SQL-BOOTSTRAP-IMPLEMENTATION--implement-smailnaild-hosted-app-skeleton-with-clay-sql-bootstrap/design-doc/01-implementation-plan-for-smailnaild-hosted-skeleton-and-clay-sql-bootstrap.md — Initial implementation plan for the hosted binary slice
 
+
+## 2026-03-15
+
+Implemented the first hosted smailnaild slice: root and serve commands, Clay SQL-backed app DB bootstrap, minimal hosted HTTP endpoints, and focused tests (commit 52e175d).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/cmd/smailnaild/commands/serve.go — Serve command now wires hosted flags and Clay SQL sections
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/db.go — Application DB config/default/bootstrap implementation
+
+
+## 2026-03-15
+
+Ticket closed
+

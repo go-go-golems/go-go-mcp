@@ -27,6 +27,8 @@ topics:
       description: Authentication and authorization architecture work
     - slug: keycloak
       description: Keycloak identity provider and OIDC integration work
+    - slug: sql
+      description: SQL database configuration and storage work
 docTypes:
     - slug: index
       description: Ticket index document

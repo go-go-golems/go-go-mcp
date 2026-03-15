@@ -1,7 +1,7 @@
 ---
 Title: Implement smailnaild hosted app skeleton with Clay SQL bootstrap
 Ticket: SMAILNAIL-008-SMAILNAILD-SQL-BOOTSTRAP-IMPLEMENTATION
-Status: active
+Status: complete
 Topics:
     - smailnail
     - glazed
@@ -11,18 +11,25 @@ DocType: index
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: ../../../../../../../../../code/wesen/corporate-headquarters/clay/pkg/sql/config.go
-      Note: Driver normalization and sqlx connection bootstrap for SQLite and Postgres
-    - Path: ../../../../../../../../../code/wesen/corporate-headquarters/clay/pkg/sql/settings.go
-      Note: Clay SQL section and config helpers that the hosted binary should reuse
     - Path: smailnail/README.md
       Note: Current repo shape and command surface for the hosted binary work
+    - Path: smailnail/cmd/smailnaild/commands/serve.go
+      Note: Glazed serve command with hosted and Clay SQL sections
+    - Path: smailnail/cmd/smailnaild/main.go
+      Note: Hosted binary root command for the new smailnaild process
+    - Path: smailnail/pkg/smailnaild/db.go
+      Note: Clay-backed DB config loading
+    - Path: smailnail/pkg/smailnaild/http.go
+      Note: Minimal hosted HTTP server and handlers
 ExternalSources: []
 Summary: 'Implementation ticket for the first hosted smailnaild slice: a Glazed-based root command, a serve command, Clay SQL-backed application database bootstrap, and a minimal HTTP server surface suitable for later login, settings, and MCP work.'
-LastUpdated: 2026-03-15T18:03:01.252598537-04:00
+LastUpdated: 2026-03-15T18:14:31.292260183-04:00
 WhatFor: Use this ticket to implement the initial hosted smailnaild binary with a database connection model that is SQLite-first but Postgres-ready through Clay SQL sections.
 WhenToUse: Use when building or reviewing the first deployable hosted smailnail application skeleton and its DB bootstrap path.
 ---
+
+
+
 
 
 # Implement smailnaild hosted app skeleton with Clay SQL bootstrap
