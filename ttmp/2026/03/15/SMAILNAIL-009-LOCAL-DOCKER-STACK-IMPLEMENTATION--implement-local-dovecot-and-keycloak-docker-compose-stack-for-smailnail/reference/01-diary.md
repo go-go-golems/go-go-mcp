@@ -1,7 +1,7 @@
 ---
 Title: Diary
 Ticket: SMAILNAIL-009-LOCAL-DOCKER-STACK-IMPLEMENTATION
-Status: done
+Status: complete
 Topics:
     - smailnail
     - go

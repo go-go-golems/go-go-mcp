@@ -1,7 +1,7 @@
 ---
 Title: Implement local Dovecot and Keycloak docker compose stack for smailnail
 Ticket: SMAILNAIL-009-LOCAL-DOCKER-STACK-IMPLEMENTATION
-Status: done
+Status: complete
 Topics:
     - smailnail
     - go
@@ -11,10 +11,14 @@ DocType: index
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docker-compose.local.yml
-    - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/dev/keycloak/realm-import/smailnail-dev-realm.json
-    - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/README.md
-    - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/.gitignore
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docker-compose.local.yml
+      Note: Repo-local Docker Compose stack for Dovecot, Keycloak, and Postgres
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/dev/keycloak/realm-import/smailnail-dev-realm.json
+      Note: Imported development realm and starter OIDC clients
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/README.md
+      Note: Developer-facing startup, port, and credential instructions for the local stack
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/.gitignore
+      Note: Ignore local SQLite runtime artifacts produced during hosted-app work
 ExternalSources: []
 Summary: Local Docker Compose stack added for Dovecot plus Keycloak-with-Postgres, with an imported development realm and documented local defaults.
 LastUpdated: 2026-03-15T19:28:00-04:00
@@ -40,7 +44,7 @@ The implementation is complete. The stack was brought up locally, the Keycloak d
 
 ## Status
 
-Current status: **done**
+Current status: **complete**
 
 ## Topics
 
