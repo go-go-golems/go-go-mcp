@@ -12,3 +12,4 @@
 - Added read-only IMAP account tests, mailbox listing, preview-message fetches, rule CRUD, dry-run persistence, and a DSL field-normalization fix needed for saved-rule execution
 - Added Dovecot-backed integration coverage for account services, rule dry-runs, and the hosted HTTP flow
 - Updated `smailnaild` README/help/docs with encryption-key setup, local account-flow walkthroughs, and exact verification commands
+- Added a focused UX handover document for the frontend developer covering only the add-account and lightweight connection-test slice

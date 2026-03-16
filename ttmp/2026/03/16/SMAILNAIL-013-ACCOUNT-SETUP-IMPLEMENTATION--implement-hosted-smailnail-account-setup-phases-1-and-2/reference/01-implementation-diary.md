@@ -227,6 +227,26 @@ go run ./cmd/smailnaild serve --help
 
 The full repo test sweep passed with the Dovecot-backed hosted tests enabled, and the `serve` help output reflected the new backend capabilities and encryption-key requirement.
 
+### Step 14: wrote the focused UX handover for the first frontend slice
+
+After the backend and API reference were in place, I added a separate UX handover document aimed specifically at the frontend/UX developer.
+
+I intentionally scoped it to only:
+
+- add account
+- lightweight connection test
+
+I left mailbox exploration and rules out of scope so the UX designer can start with the smallest high-value flow instead of designing the whole hosted app at once.
+
+The handover covers:
+
+- user needs
+- UX principles
+- field-level copy guidance
+- success, warning, and failure states
+- the recommended frontend interaction sequence
+- ASCII wireframes for the first screen states
+
 ## Quick reference
 
 ### First delivery target
