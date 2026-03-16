@@ -9,3 +9,8 @@
 
 Create shared OIDC identity implementation ticket with detailed design, implementation phases, and granular task breakdown.
 
+
+## 2026-03-16
+
+Add ticket-local git-history-to-sqlite exporter and record the deeper MCP history result.
+

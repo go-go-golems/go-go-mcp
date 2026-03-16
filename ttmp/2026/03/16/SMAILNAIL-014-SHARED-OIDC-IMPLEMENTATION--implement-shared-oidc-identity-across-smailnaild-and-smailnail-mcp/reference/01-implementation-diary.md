@@ -73,3 +73,18 @@ Use this diary when:
 - Main plan: [../design-doc/01-implementation-plan-for-shared-oidc-identity-across-smailnaild-and-smailnail-mcp.md](../design-doc/01-implementation-plan-for-shared-oidc-identity-across-smailnaild-and-smailnail-mcp.md)
 - Background guide: [../../SMAILNAIL-011-OIDC-IDENTITY-CREDENTIALS-GUIDE--explain-oidc-identity-user-mapping-and-imap-credential-storage-design-for-smailnail/index.md](../../SMAILNAIL-011-OIDC-IDENTITY-CREDENTIALS-GUIDE--explain-oidc-identity-user-mapping-and-imap-credential-storage-design-for-smailnail/index.md)
 - Execution dependency: [../../SMAILNAIL-013-ACCOUNT-SETUP-IMPLEMENTATION--implement-hosted-smailnail-account-setup-phases-1-and-2/index.md](../../SMAILNAIL-013-ACCOUNT-SETUP-IMPLEMENTATION--implement-hosted-smailnail-account-setup-phases-1-and-2/index.md)
+
+## History Analysis Addendum
+
+To support wider repo-history searches, a reusable exporter was added under:
+
+- [../scripts/export_git_history_to_sqlite.py](../scripts/export_git_history_to_sqlite.py)
+
+That script exports full reachable git history into SQLite so future questions about timeline, path introduction, and file-level evolution can be answered with SQL instead of repeated ad hoc `git log` commands.
+
+It was exercised against the `smailnail` repo and confirmed:
+
+- the repo is not shallow
+- the oldest reachable commit is `27c2460` (`Initial commit`)
+- the first reachable MCP files appear in `ff584b4` (`Add smailnail IMAP JS MCP runtime slice`)
+- there is no earlier non-JS MCP surface in the reachable history before that commit
