@@ -32,6 +32,12 @@ RelatedFiles:
       Note: go generate script that builds frontend and copies to embed/public (commit cc59315)
     - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/vite.config.ts
       Note: Vite config with /api proxy and build output path (commit cc59315)
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/mailbox/MailboxExplorer.tsx
+      Note: Mailbox explorer page with sidebar, message list, and detail (commit e6ee50b)
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/rules/rulesSlice.ts
+      Note: Redux rules state machine with CRUD and dry-run thunks (commit e58bfe4)
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/rules/RulesPage.tsx
+      Note: Rules page with list/form/detail/dryrun view modes (commit e58bfe4)
 ExternalSources: []
 Summary: Chronological notes for turning the hosted smailnail UI research into a concrete Phase 1 and Phase 2 implementation ticket.
 LastUpdated: 2026-03-16T10:02:00-04:00
@@ -451,6 +457,109 @@ smailnail/
   --sn-shell-padding-x: 1.5rem;
 }
 ```
+
+### Step 16: added mailbox explorer and account delete UI
+
+This step delivers the second frontend slice: clicking an account in the list opens a mailbox explorer with sidebar, paginated message list, and full message detail. I also added inline account deletion with a confirmation step.
+
+#### Prompt Context
+
+**User prompt (verbatim):** "Alright, continue. we also want to be able to remove mailboxes."
+
+**Assistant interpretation:** Build the mailbox explorer UI and add account deletion.
+
+**Inferred user intent:** Users who set up an account need to see what's in it, and need to be able to remove accounts they no longer want.
+
+**Commit (code):** e6ee50b — "feat(smailnaild): add mailbox explorer and account delete UI"
+
+#### What I did
+
+- Created `features/mailbox/` module: `MailboxSidebar`, `MessageList`, `MessageDetail`, `MailboxExplorer`
+- Created `mailboxSlice` with thunks for `fetchMailboxes`, `fetchMessages`, `fetchMessageDetail`
+- Added `MailboxInfo`, `MessageView`, `MimePartView`, `AddressView`, `ListMessagesParams` types
+- Added `listMailboxes`, `listMessages`, `getMessage` to API client
+- Updated `AccountList` with separate Edit/Delete/Explore click targets and inline delete confirmation
+- Added `onExploreAccount` prop to `AccountSetupPage` for App-level navigation
+- App-level `AppView` state machine: accounts | explore | rules
+
+#### What worked
+
+- Auto-selects INBOX on mailbox load
+- Message detail shows text body, headers, flags, attachments, and MIME structure
+- Pagination with prev/next and count display
+- TypeScript and Vite build clean
+
+#### What was tricky to build
+
+- The AccountList needed to support three distinct click targets (explore the whole row, edit button, delete button) without click events bubbling. Used `e.stopPropagation()` on the Edit and Delete buttons.
+
+#### What warrants a second pair of eyes
+
+- The `MailboxExplorer` useEffect for auto-selecting INBOX fires on every `mailboxLoadState` change. Could potentially double-trigger if the component remounts.
+
+#### What should be done in the future
+
+- Message search/filter (backend already supports `query` and `unread_only` params)
+- Keyboard navigation in message list
+
+#### Code review instructions
+
+- Start at `ui/src/features/mailbox/MailboxExplorer.tsx` — the page-level component
+- Validate: `cd smailnail/ui && pnpm run check && pnpm run build`
+
+---
+
+### Step 17: added rules CRUD and dry-run UI
+
+This step delivers the third and fourth frontend slices: rules list, create/edit with YAML editor, rule detail view, and dry-run execution with results display. The SPA now covers the full backend API surface.
+
+#### Prompt Context
+
+**User prompt (verbatim):** "go ahead. continue committing and keeping a diary"
+
+**Assistant interpretation:** Continue with rules CRUD and dry-run, commit incrementally, and keep the diary updated.
+
+**Inferred user intent:** Complete the remaining frontend slices so the hosted app has full UI coverage.
+
+**Commit (code):** e58bfe4 — "feat(smailnaild): add rules CRUD and dry-run UI"
+
+#### What I did
+
+- Created `features/rules/` module: `RuleList`, `RuleForm`, `RuleDetail`, `DryRunView`, `RulesPage`
+- Created `rulesSlice` with thunks for `fetchRules`, `createRule`, `updateRule`, `deleteRule`, `runDryRun`
+- Added `RuleRecord`, `CreateRuleInput`, `UpdateRuleInput`, `DryRunInput`, `DryRunResult` types
+- Added all rule + dry-run API client methods
+- App header now shows "Rules" button for navigation between accounts and rules views
+- RuleForm includes account selector dropdown, status picker, and monospace YAML textarea with placeholder
+- DryRunView shows spinner during execution, matched count, action plan JSON, and sample matched messages
+
+#### What worked
+
+- Full CRUD cycle: list → create → detail → edit → delete all wired
+- Dry-run: trigger from detail → spinner → results with matched messages and action plan
+- Clean tsc + vite build, 266 KB JS bundle (still reasonable)
+
+#### What was tricky to build
+
+- The RuleForm needs the accounts list for the account selector dropdown. This required reading from both `rules` and `accounts` Redux slices in the `RulesPage` component. The accounts are loaded by `AccountSetupPage` on first mount, so they're available when the user navigates to rules.
+
+#### What warrants a second pair of eyes
+
+- If the user navigates directly to rules without visiting accounts first, the account selector will be empty because `fetchAccounts` hasn't been dispatched. The `RulesPage` should probably dispatch `fetchAccounts` if needed.
+- The dry-run action plan is displayed as raw JSON. A structured display would be better once the action plan schema is stabilized.
+
+#### What should be done in the future
+
+- Dispatch `fetchAccounts` from `RulesPage` if accounts haven't been loaded
+- YAML syntax highlighting or a proper code editor (CodeMirror/Monaco)
+- YAML validation feedback before save
+- Structured action plan display
+
+#### Code review instructions
+
+- Start at `ui/src/features/rules/rulesSlice.ts` — state machine and thunks
+- Then `ui/src/features/rules/RulesPage.tsx` — view-mode router
+- Validate: `cd smailnail/ui && pnpm run check && pnpm run build`
 
 ## Quick reference
 

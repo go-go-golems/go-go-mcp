@@ -25,3 +25,21 @@ Step 15: React/Vite SPA frontend with account setup UI (commit cc59315)
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/http.go — Wired SPA handler into NewHandler
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/web/spa.go — SPA handler with API guard
 - /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/accounts/accountsSlice.ts — Redux state machine and async thunks
+
+## 2026-03-16
+
+Step 16: Mailbox explorer with sidebar, message list, detail, and account delete (commit e6ee50b)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/mailbox/MailboxExplorer.tsx — Mailbox explorer page component
+
+
+## 2026-03-16
+
+Step 17: Rules CRUD and dry-run UI covering full backend API surface (commit e58bfe4)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/rules/rulesSlice.ts — Redux rules slice with CRUD and dry-run thunks
+
