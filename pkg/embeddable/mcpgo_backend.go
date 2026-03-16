@@ -64,6 +64,43 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 	}
 }
 
+// MountHTTPHandlers mounts HTTP-based MCP routes into an existing mux.
+// It is intended for applications that already own an http.Server and want to
+// expose MCP on the same listener.
+func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
+	if mux == nil {
+		return fmt.Errorf("nil mux")
+	}
+	if cfg == nil {
+		return fmt.Errorf("nil server config")
+	}
+
+	log.Debug().
+		Str("name", cfg.Name).
+		Str("version", cfg.Version).
+		Str("transport", cfg.defaultTransport).
+		Msg("Mounting MCP HTTP handlers")
+
+	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
+		mcpserver.WithToolCapabilities(true),
+		mcpserver.WithLogging(),
+	)
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
+		return err
+	}
+
+	switch cfg.defaultTransport {
+	case "sse":
+		return mountSSEHandlers(mux, s, cfg)
+	case "streamable_http":
+		return mountStreamableHTTPHandlers(mux, s, cfg)
+	case "stdio":
+		return fmt.Errorf("stdio transport cannot be mounted into an existing HTTP mux")
+	default:
+		return fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
+	}
+}
+
 func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry, cfg *ServerConfig) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
@@ -202,25 +239,10 @@ type sseBackend struct {
 
 func (b *sseBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-
-	// Create mcp-go SSE server and mount on mux
-	sse := mcpserver.NewSSEServer(b.server, mcpserver.WithStaticBasePath("/mcp"))
 	mux := http.NewServeMux()
-
-	var handler http.Handler = sse
-
-	if b.cfg != nil && b.cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(b.cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	if err := mountSSEHandlers(mux, b.server, b.cfg); err != nil {
+		return err
 	}
-
-	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
-	mux.Handle("/mcp/", withRequestLogging(handler))
 
 	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -246,26 +268,10 @@ type streamBackend struct {
 
 func (b *streamBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-
-	// Create mcp-go Streamable HTTP server and mount on mux
-	stream := mcpserver.NewStreamableHTTPServer(b.server)
 	mux := http.NewServeMux()
-
-	var handler http.Handler = stream
-
-	if b.cfg != nil && b.cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(b.cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	if err := mountStreamableHTTPHandlers(mux, b.server, b.cfg); err != nil {
+		return err
 	}
-
-	// Mount streamable HTTP under /mcp
-	mux.Handle("/mcp", withRequestLogging(handler))
-	mux.Handle("/mcp/", withRequestLogging(handler))
 
 	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -278,6 +284,43 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
+	return nil
+}
+
+func mountSSEHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
+	sse := mcpserver.NewSSEServer(server, mcpserver.WithStaticBasePath("/mcp"))
+
+	var handler http.Handler = sse
+	if cfg != nil && cfg.authEnabled {
+		provider, err := newHTTPAuthProvider(cfg)
+		if err != nil {
+			return err
+		}
+		provider.MountRoutes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
+		handler = authMiddleware(provider, handler)
+	}
+
+	mux.Handle("/mcp/", withRequestLogging(handler))
+	return nil
+}
+
+func mountStreamableHTTPHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
+	stream := mcpserver.NewStreamableHTTPServer(server)
+
+	var handler http.Handler = stream
+	if cfg != nil && cfg.authEnabled {
+		provider, err := newHTTPAuthProvider(cfg)
+		if err != nil {
+			return err
+		}
+		provider.MountRoutes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
+		handler = authMiddleware(provider, handler)
+	}
+
+	mux.Handle("/mcp", withRequestLogging(handler))
+	mux.Handle("/mcp/", withRequestLogging(handler))
 	return nil
 }
 

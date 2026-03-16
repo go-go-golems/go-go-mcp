@@ -2,12 +2,12 @@
 
 ## Backend implementation
 
-- [ ] A1. Refactor the MCP server package so it can build mounted HTTP handlers instead of assuming a standalone server process.
-- [ ] A2. Define the merged config surface for `smailnaild serve`, including explicit MCP auth/resource settings alongside the existing web OIDC settings.
-- [ ] A3. Update `smailnaild` bootstrap to construct shared DB, encryption, identity, and account dependencies once and pass them into both the hosted API and the MCP layer.
-- [ ] A4. Mount `/.well-known/oauth-protected-resource` and `/mcp` into the hosted router while preserving the existing SPA and `/api/*` behavior.
+- [x] A1. Refactor the MCP server package so it can build mounted HTTP handlers instead of assuming a standalone server process.
+- [x] A2. Define the merged config surface for `smailnaild serve`, including explicit MCP auth/resource settings alongside the existing web OIDC settings.
+- [x] A3. Update `smailnaild` bootstrap to construct shared DB, encryption, identity, and account dependencies once and pass them into both the hosted API and the MCP layer.
+- [x] A4. Mount `/.well-known/oauth-protected-resource` and `/mcp` into the hosted router while preserving the existing SPA and `/api/*` behavior.
 - [ ] A5. Add tests proving route separation: browser auth still protects `/api/*`, bearer auth still protects `/mcp`, and public metadata remains accessible.
-- [ ] A6. Update the MCP execution path to use the merged dependency graph rather than any standalone-only bootstrap.
+- [x] A6. Update the MCP execution path to use the merged dependency graph rather than any standalone-only bootstrap.
 - [ ] A7. Decide the future of `cmd/smailnail-imap-mcp` and implement the chosen compatibility shape.
 
 ## Local validation
@@ -48,10 +48,10 @@
 
 ### Slice 1: code-structure refactor
 
-- [ ] S1. Extract reusable MCP mountable handler construction.
-- [ ] S2. Thread merged config into `smailnaild serve`.
-- [ ] S3. Mount the MCP routes into the hosted router.
-- [ ] S4. Keep the old standalone binary working via wrapper or adapter.
+- [x] S1. Extract reusable MCP mountable handler construction.
+- [x] S2. Thread merged config into `smailnaild serve`.
+- [x] S3. Mount the MCP routes into the hosted router.
+- [x] S4. Keep the old standalone binary working via wrapper or adapter.
 
 ### Slice 2: local proof
 
