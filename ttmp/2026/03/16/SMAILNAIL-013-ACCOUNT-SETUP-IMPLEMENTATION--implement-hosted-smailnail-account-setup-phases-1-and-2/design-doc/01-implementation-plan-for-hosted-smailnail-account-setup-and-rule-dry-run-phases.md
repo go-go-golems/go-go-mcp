@@ -188,6 +188,41 @@ Expected new or expanded areas in `smailnail`:
 - `pkg/smailnaild/web/...`
 - a frontend directory if we choose SPA embedding
 
+## Workstream split
+
+This ticket should be executed as two parallel but ordered workstreams.
+
+### Backend workstream
+
+This is the work we will do in the current implementation slice. It owns:
+
+- schema and bootstrap changes
+- encrypted secret handling
+- account repositories and services
+- rule repositories and services
+- account test, mailbox list, message preview, rule CRUD, and dry-run APIs
+- integration tests and hosted smoke coverage
+
+The backend workstream should land first wherever there is a dependency. The frontend developer should not have to invent API contracts while building screens.
+
+### Frontend workstream
+
+This is the work the UI frontend developer will do once the API contracts and payloads are stable enough. It owns:
+
+- hosted frontend scaffold
+- app shell and navigation
+- account management screens
+- mailbox explorer and message preview screens
+- rule library, rule builder, YAML preview, and dry-run result screens
+- frontend-focused tests
+
+The frontend workstream can start once:
+
+- the core DTOs are stable
+- account CRUD and account test APIs exist
+- mailbox preview payloads are representative
+- rule save and dry-run payloads are defined
+
 ## Phase 1: hosted backend primitives for account setup
 
 ### Functional deliverables
@@ -429,6 +464,11 @@ Recommended commit boundaries:
 8. `feat(smailnaild): add rule dry-run api and ui`
 9. `docs(smailnail): document hosted account setup flow`
 
+If backend and frontend proceed separately, reinterpret those commits as:
+
+- backend commits through account/rule APIs first
+- frontend commits for the UI scaffold and screens after those APIs stabilize
+
 ## Risks and mitigation
 
 ### Risk: too much frontend before stable APIs
@@ -464,4 +504,3 @@ Mitigation:
 - Should Phase 1 ship a minimal login/session implementation first, or should that be tracked in a sibling ticket if not already underway?
 - Should the first frontend be server-rendered for speed, or should we commit immediately to an embedded SPA?
 - Should rule ownership be single-account only in Phase 2, even if the schema later allows multi-account rules?
-
