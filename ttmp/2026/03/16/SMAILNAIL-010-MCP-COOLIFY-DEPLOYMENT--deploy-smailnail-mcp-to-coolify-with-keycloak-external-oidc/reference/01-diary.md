@@ -11,13 +11,18 @@ Topics:
 DocType: reference
 Intent: long-term
 Owners: []
-RelatedFiles: []
+RelatedFiles:
+    - Path: smailnail/Dockerfile
+      Note: Captured the healthcheck-specific runtime fix that made the hosted deployment healthy
+    - Path: smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
+      Note: Captured the exact Coolify create command and hosted route expectations
 ExternalSources: []
 Summary: Chronological implementation diary for packaging and deploying smailnail-mcp on Coolify with Keycloak OIDC and a hosted Dovecot target.
-LastUpdated: 2026-03-16T00:10:00-04:00
+LastUpdated: 2026-03-16T04:50:00-04:00
 WhatFor: Preserve the exact commands, reasoning, deployment constraints, and validation steps used during this implementation.
 WhenToUse: Use when reviewing the deployment work or continuing it later.
 ---
+
 
 # Diary
 
@@ -207,6 +212,197 @@ The validation mattered as much as the code. The first packaging attempt failed 
   - `{"authorization_servers":["https://auth.scapegoat.dev/realms/master"],"resource":"http://127.0.0.1:33201/mcp"}`
 - Successful unauthenticated response status:
   - `HTTP/1.1 401 Unauthorized`
+
+## Step 3: Coolify app creation, Keycloak setup, and first hosted rollout attempt
+
+I finished the public-repo deployment path and moved the work from “local packaging” to a real hosted application. This step created the actual Coolify app, created the production Keycloak realm and MCP client, and wired the hosted env vars against `https://smailnail.mcp.scapegoat.dev` and `https://auth.scapegoat.dev/realms/smailnail`.
+
+This also exposed two concrete platform issues that were not visible from local testing. First, the current `coolify` CLI env helpers are out of sync with the API and send `is_build_time`, while the server expects `is_buildtime`. Second, the first hosted deployment failed even though the app itself was fine, because Coolify runs health checks from inside the container and the runtime image did not yet include `curl` or `wget`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Continue from the initial packaging work into real hosted provisioning, keeping the ticket and diary current while executing live deployment steps.
+
+**Inferred user intent:** Turn the MCP from a prepared artifact into a reachable HTTPS service with real Keycloak-backed OIDC and a repeatable Coolify setup.
+
+**Commit (code):** `f24629d` — `feat(smailnail): add coolify-friendly dockerfile`
+
+### What I did
+- Added a standard root `Dockerfile` to `smailnail` so Coolify can build directly from the public repository
+- Pushed branch `task/update-imap-mcp` to `origin`
+- Installed and configured `coolify` CLI on `root@89.167.52.236`
+- Fixed Coolify API allowlisting so server-side CLI calls from `89.167.52.236` are accepted
+- Identified the target Coolify project/server:
+  - project UUID `n8xkgqpbjj04m4pishy3su5e`
+  - environment `production`
+  - server UUID `cgl105090ljoxitdf7gmvbrm`
+- Created the public-repo app:
+  - app UUID `fhp3mxqlfftdxdib3vxz89l3`
+  - domain `https://smailnail.mcp.scapegoat.dev`
+- Created Keycloak realm `smailnail`
+- Created Keycloak client `smailnail-mcp` with Claude callback URIs:
+  - `https://claude.ai/api/mcp/auth_callback`
+  - `https://claude.com/api/mcp/auth_callback`
+- Discovered the `coolify app env sync` / `coolify app env create` bug and switched to direct API calls with the saved token in `~/.apitoken`
+- Set the hosted MCP env vars through the API:
+  - `SMAILNAIL_MCP_TRANSPORT=streamable_http`
+  - `SMAILNAIL_MCP_PORT=3201`
+  - `SMAILNAIL_MCP_AUTH_MODE=external_oidc`
+  - `SMAILNAIL_MCP_AUTH_RESOURCE_URL=https://smailnail.mcp.scapegoat.dev/mcp`
+  - `SMAILNAIL_MCP_OIDC_ISSUER_URL=https://auth.scapegoat.dev/realms/smailnail`
+- Triggered the first deployment with `coolify deploy uuid fhp3mxqlfftdxdib3vxz89l3 --force`
+
+### Why
+- The public repo path is the simplest deploy surface for this repository
+- Using the real Keycloak issuer and public HTTPS domain is required for remote MCP/OAuth consumers like Claude Desktop
+- The hosted app had to be created before any real external OIDC verification could happen
+
+### What worked
+- Coolify successfully cloned and built from the public `wesen/smailnail` repository
+- Keycloak realm and client creation succeeded on the live server
+- The app build itself completed on the host
+- The exact app UUID, domain, and issuer are now fixed and testable
+
+### What didn't work
+- `coolify app create public ... --domains smailnail.mcp.scapegoat.dev` failed with:
+  - `Validation failed.`
+  - `Invalid URL: smailnail.mcp.scapegoat.dev`
+- The working create command required a full URL:
+  - `--domains https://smailnail.mcp.scapegoat.dev`
+- `coolify app env create` failed with:
+  - `API error 422 on applications/fhp3mxqlfftdxdib3vxz89l3/envs: Validation failed.`
+- The debug output showed the underlying payload bug:
+  - request body included `"is_build_time":true`
+  - server error returned `{"errors":{"is_build_time":["This field is not allowed."]}}`
+- The first hosted deployment failed its health checks because the runtime image lacked a probing binary:
+  - `/bin/sh: 1: curl: not found`
+  - `/bin/sh: 1: wget: not found`
+
+### What I learned
+- Coolify’s application create flow for public repos is usable from the CLI once the dashboard API allowlist is correct
+- The current Coolify CLI env code path is incompatible with this server build and needs either a direct API workaround or an upstream fix
+- Coolify’s Dockerfile/image health checks are not external-only; they shell into the container and need `curl` or `wget`
+
+### What was tricky to build
+- The hardest part here was separating “the app is broken” from “the platform glue is wrong.” The initial deployment looked unhealthy from the top-level app status, but the actual application build and start were fine. The failure was entirely in the health-check contract: Coolify expects an HTTP client binary inside the image. The env configuration path had a similar shape, where the CLI looked correct at first glance but the server-side controller only accepts `is_buildtime`, not `is_build_time`.
+
+### What warrants a second pair of eyes
+- Whether the Coolify CLI env mismatch is a known upstream regression or something version-specific to this host
+- Whether the Keycloak client should immediately enforce audience/scope claims instead of starting with issuer-only validation
+
+### What should be done in the future
+- Patch the image to satisfy Coolify health checks
+- Re-run the deployment and verify the public endpoints
+- Set up the hosted Dovecot target next
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Dockerfile`
+- Then review `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnail-imap-mcp-coolify.md`
+- Then review the live deployment state with:
+  - `ssh root@89.167.52.236 'export PATH=$PATH:/usr/local/bin:$HOME/go/bin; coolify app get fhp3mxqlfftdxdib3vxz89l3 --context scapegoat --format pretty'`
+  - `ssh root@89.167.52.236 'docker exec keycloak-k12lm4blpo13louovn3pfsgs /opt/keycloak/bin/kcadm.sh get realms/smailnail'`
+
+### Technical details
+- Coolify app UUID: `fhp3mxqlfftdxdib3vxz89l3`
+- First failed deployment UUID: `mwz6x6hr6a7zyuqginolpup8`
+- Keycloak client ID: `smailnail-mcp`
+- Keycloak issuer: `https://auth.scapegoat.dev/realms/smailnail`
+- Coolify env API workaround:
+  - `POST https://hq.scapegoat.dev/api/v1/applications/fhp3mxqlfftdxdib3vxz89l3/envs`
+  - payload keys must use `is_buildtime`, not `is_build_time`
+
+## Step 4: Health-check image fix and successful hosted MCP verification
+
+I fixed the runtime image for Coolify’s health-check model, redeployed the application, and verified the public HTTPS behavior end to end. This is the point where `smailnail-mcp` became a real hosted service instead of an app record with a failed rollout.
+
+I also cleaned up the duplicated environment rows created while working around the broken CLI env helper, so the hosted configuration is now minimal and deterministic. The deployed application is healthy in Coolify, the protected-resource metadata resolves publicly, and unauthenticated access to `/mcp` returns the expected bearer challenge.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Continue through the failure rather than stopping at diagnosis, and record the exact fix plus verification steps in the ticket diary.
+
+**Inferred user intent:** Finish the hosted MCP slice to the point where it is actually reachable and behaves correctly for OAuth-protected MCP clients.
+
+**Commit (code):** `6072f7c` — `fix(smailnail): add curl for coolify healthchecks`
+
+### What I did
+- Updated both deployment Dockerfiles to install `curl` in the Debian runtime image
+- Updated the deployment doc to note Coolify’s in-container health-check requirement
+- Rebuilt the image locally with:
+  - `docker build -t smailnail-imap-mcp:dev /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail`
+- Verified `curl` exists in the runtime image with:
+  - `docker run --rm --entrypoint sh smailnail-imap-mcp:dev -lc 'command -v curl'`
+- Committed and pushed the fix
+- Removed the duplicated env rows through direct API deletes, preserving one row per key
+- Triggered a new deployment:
+  - deployment UUID `vhgfh6tubvan4g796fn3ue7u`
+- Verified Coolify app status:
+  - `running:healthy`
+- Verified the public metadata endpoint:
+  - `curl -fsS https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource | jq -c .`
+- Verified the unauthenticated MCP behavior:
+  - `curl -i -s -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}' https://smailnail.mcp.scapegoat.dev/mcp`
+
+### Why
+- The hosted deployment could not be considered complete while Coolify rolled it back as unhealthy
+- Duplicated env rows were avoidable operator debt after the manual API workaround and were worth cleaning before moving to the next slice
+- Public endpoint verification is the real proof that this deployment is ready for an OAuth client to test against
+
+### What worked
+- The new deployment finished successfully in Coolify
+- Coolify now reports the app as `running:healthy`
+- The live metadata endpoint returns:
+  - `{"authorization_servers":["https://auth.scapegoat.dev/realms/smailnail"],"resource":"https://smailnail.mcp.scapegoat.dev/mcp"}`
+- The live unauthenticated MCP call returns:
+  - `HTTP/2 401`
+  - `www-authenticate: Bearer realm="mcp", resource="https://smailnail.mcp.scapegoat.dev/mcp", authorization_uri="https://auth.scapegoat.dev/realms/smailnail/.well-known/openid-configuration", resource_metadata="https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource"`
+  - body: `missing bearer`
+
+### What didn't work
+- The first `git push` after the fix did not complete cleanly on the first attempt even though the hooks ran; it succeeded on retry
+- `golangci-lint` in the pre-push hook still emits:
+  - `typechecking error: pattern ./...: open dist: no such file or directory`
+  - but still reports `0 issues` and the later retry completed successfully
+
+### What I learned
+- The Coolify-hosted path is now real and testable from outside the server
+- The current MCP deploy path is stable enough for remote client/OIDC work before the hosted Dovecot target exists
+- The remaining infrastructure slice is the companion IMAP target, not the MCP container itself
+
+### What was tricky to build
+- The sharp edge here was that the failing health check was outside the app’s own logs. The service binary could start correctly and still get rolled back if the container image did not satisfy Coolify’s probe mechanism. Once that was fixed, the rest of the deployment path behaved as expected, which confirms the underlying MCP/OIDC configuration was already sound.
+
+### What warrants a second pair of eyes
+- Whether the pre-push lint behavior around `dist/` should be cleaned up separately so future deployment commits do not look flaky
+- Whether the Keycloak client needs additional claim mapping before Claude/Desktop testing
+
+### What should be done in the future
+- Set up the hosted Dovecot target on the same Coolify machine
+- Document the end-to-end remote test procedure against the hosted MCP plus hosted IMAP target
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Dockerfile`
+- Then review `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Dockerfile.smailnail-imap-mcp`
+- Then verify the hosted service with:
+  - `curl -fsS https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource | jq`
+  - `curl -i -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}' https://smailnail.mcp.scapegoat.dev/mcp`
+  - `ssh root@89.167.52.236 'export PATH=$PATH:/usr/local/bin:$HOME/go/bin; coolify app get fhp3mxqlfftdxdib3vxz89l3 --context scapegoat --format pretty'`
+
+### Technical details
+- Healthy app container:
+  - `fhp3mxqlfftdxdib3vxz89l3-044752750295`
+- Healthy image tag:
+  - `fhp3mxqlfftdxdib3vxz89l3:6072f7c1ab15840dbeb6cdde6a8458b5c49dc2ab`
+- Remaining env rows after cleanup:
+  - `SMAILNAIL_MCP_TRANSPORT`
+  - `SMAILNAIL_MCP_PORT`
+  - `SMAILNAIL_MCP_AUTH_MODE`
+  - `SMAILNAIL_MCP_AUTH_RESOURCE_URL`
+  - `SMAILNAIL_MCP_OIDC_ISSUER_URL`
 
 ## Related
 
