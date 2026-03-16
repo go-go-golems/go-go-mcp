@@ -12,20 +12,25 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: smailnail/Dockerfile
+    - Path: ../../../../../../../smailnail/Dockerfile
       Note: Captured the healthcheck-specific runtime fix that made the hosted deployment healthy
-    - Path: smailnail/deployments/coolify/smailnail-dovecot.compose.yaml
+    - Path: ../../../../../../../smailnail/deployments/coolify/smailnail-dovecot.compose.yaml
       Note: Defines the raw-port Coolify Dovecot fixture used for hosted IMAP testing
-    - Path: smailnail/docs/deployments/smailnail-dovecot-coolify.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnail-dovecot-coolify.md
       Note: Documents the hosted Dovecot fixture UUID
-    - Path: smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
       Note: Captured the exact Coolify create command and hosted route expectations
+    - Path: ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.go
+      Note: Implements the authenticated hosted MCP smoke client
+    - Path: ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh
+      Note: Fetches the smoke client secret and runs the authenticated hosted MCP smoke
 ExternalSources: []
 Summary: Chronological implementation diary for packaging and deploying smailnail-mcp on Coolify with Keycloak OIDC and a hosted Dovecot target.
 LastUpdated: 2026-03-16T05:07:00-04:00
 WhatFor: Preserve the exact commands, reasoning, deployment constraints, and validation steps used during this implementation.
 WhenToUse: Use when reviewing the deployment work or continuing it later.
 ---
+
 
 
 
@@ -500,6 +505,143 @@ The result is a direct-port Coolify service that binds `24`, `110`, `143`, `993`
 - Current remote test host: `89.167.52.236`
 - Remote seeded mailbox: `Archive`
 - Remote seeded subject: `Hosted Coolify Dovecot Test`
+
+## Step 6: Retroactive ticket script capture
+
+I consolidated the ad hoc deployment helpers into the ticket `scripts/` directory so the work can be replayed without relying on shell history or piecing commands back together from the diary. This step is small in code terms, but it materially improves traceability because the actual operator commands now live next to the ticket instead of only in prose.
+
+It also closed a documentation gap created by moving quickly through the live rollout. The hosted MCP, Keycloak, and Dovecot steps already existed as successful commands, but they had not all been preserved as reusable files. This step fixed that retroactively and linked the scripts back into the recreate flow.
+
+### Prompt Context
+
+**User prompt (verbatim):** "store all scripts in the ticket's scripts/ folder, retroactively too"
+
+**Assistant interpretation:** Move the deployment helper commands into checked-in files under the ticket and update the ticket docs so those scripts are discoverable and attributable.
+
+**Inferred user intent:** Make the ticket reproducible from artifacts, not just from memory or shell history.
+
+### What I did
+- Added the following files under the ticket workspace:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/01-scripts-index.md`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_coolify_mcp_app.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/set_coolify_mcp_envs.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/dedupe_coolify_mcp_envs.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_keycloak_realm_and_mcp_client.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_keycloak_smoke_client.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_coolify_dovecot_service.sh`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_dovecot.sh`
+- Updated the recreate doc to point directly at the ticket `scripts/` directory
+- Updated the changelog and task list to capture the retroactive script archival step
+
+### Why
+- The user explicitly asked that all scripts live in the ticket workspace
+- The deployment already relied on several one-off helper commands that were too useful to leave undocumented
+- Keeping the scripts in the ticket improves reviewability and future handoff
+
+### What worked
+- The existing ad hoc commands were straightforward to preserve as checked-in scripts
+- The ticket now has a single obvious home for executable helpers
+- The recreate doc can point to concrete files instead of paraphrasing every shell sequence
+
+### What didn't work
+- The scripts were not captured early enough during the live rollout, so this had to be done retroactively after the fact
+
+### What I learned
+- The helper surface for this deployment is large enough that script capture should happen during the first implementation step, not after the system is already working
+- The `scripts/` directory is the right place to keep ticket-scoped operational glue, especially when the commands include Coolify and Keycloak interactions that are easy to mistype
+
+### What was tricky to build
+- The subtle part here was deciding what counts as a durable script versus a transient shell experiment. For this ticket, the right threshold is broad: if a command materially created, configured, or validated live infrastructure, it belongs in `scripts/`. That includes the env-var API workaround and the hosted Dovecot smoke, not just the obvious app-creation commands.
+
+### What warrants a second pair of eyes
+- Whether any additional throwaway commands from the hosted rollout still exist only in the diary and should also become scripts
+- Whether the existing shell helpers should be parameterized further before re-use on another environment
+
+### What should be done in the future
+- Add the authenticated hosted MCP smoke as another first-class script in this same directory
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/01-scripts-index.md`
+- Then review the individual scripts in the same directory to confirm they cover Coolify app creation, env setup, Keycloak setup, and Dovecot validation
+- Confirm the recreate doc now points to the script directory:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/reference/02-recreate-and-verify-hosted-smailnail-mcp.md`
+
+### Technical details
+- The ticket script inventory intentionally reflects the exact live rollout sequence that was used:
+  - create app
+  - set env
+  - dedupe env
+  - create Keycloak realm/client
+  - create smoke client
+  - create hosted Dovecot service
+  - smoke hosted Dovecot
+
+## Step 7: Authenticated hosted MCP end-to-end smoke
+
+I finished the last missing validation step by running a real bearer-authenticated MCP session against the hosted server and using it to call `executeIMAPJS` against the hosted Dovecot fixture. This is the first proof that the complete remote path works as deployed: Keycloak issues a token, the hosted MCP accepts it over streamable HTTP, and the tool runtime can connect to the remote IMAP server and return a result.
+
+I also turned that validation into reusable ticket scripts instead of leaving it as a one-off terminal experiment. The resulting smoke pair is a small Go streamable-HTTP MCP client plus a shell wrapper that can fetch the Keycloak smoke-client secret automatically when only the admin credentials are available.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead"
+
+**Assistant interpretation:** Continue from the hosted Dovecot rollout into the final end-to-end validation step and keep documenting as the work lands.
+
+**Inferred user intent:** Prove that the hosted deployment is usable in practice, not just reachable and theoretically configured.
+
+### What I did
+- Added `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.go`
+- Added `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh`
+- Updated the ticket script README and recreate doc to include the authenticated smoke path
+- Ran:
+  - `cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp && KEYCLOAK_ADMIN_USER='...' KEYCLOAK_ADMIN_PASSWORD='...' ./ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh`
+- Verified the live result:
+  - `{"serverURL":"https://smailnail.mcp.scapegoat.dev/mcp","tokenEndpoint":"https://auth.scapegoat.dev/realms/smailnail/protocol/openid-connect/token","toolCount":2,"value":{"mailbox":"INBOX"}}`
+
+### Why
+- The hosted MCP deployment was not fully proven until an authenticated client actually initialized a session and called a tool
+- Raw `curl` against `/mcp` was enough to verify `401` behavior, but not enough to validate the streamable-HTTP protocol flow
+- The user asked to continue and keep the ticket reproducible, so the smoke needed to become a checked-in script
+
+### What worked
+- The wrapper successfully logged into Keycloak admin, resolved the `smailnail-mcp-smoke` client UUID, fetched the client secret, and exported it for the Go smoke client
+- The Go smoke client initialized the streamable-HTTP MCP session with a bearer token
+- `tools/list` returned the advertised tool set
+- `executeIMAPJS` connected to the hosted Dovecot fixture and returned `{"mailbox":"INBOX"}`
+
+### What didn't work
+- The first version of the Go smoke client only reported `tool returned error result`, which hid the actual tool payload and made debugging slower
+- After improving the error output, the rerun succeeded, so there was no underlying server defect to fix
+
+### What I learned
+- The hosted stack is now validated at the correct abstraction level: not just HTTP reachability, but a real authenticated MCP tool call
+- A tiny dedicated client is the right tool for streamable-HTTP validation; hand-rolled JSON-RPC POSTs are too lossy for this workflow
+- The `smailnail-mcp-smoke` service-account client is a good operational testing hook for future hosted regressions
+
+### What was tricky to build
+- The subtle issue here was separating auth transport problems from tool/runtime problems. A raw bearer `curl` POST to `/mcp` had already shown that authentication worked, but it still failed with `400` because streamable HTTP expects proper MCP initialization and session behavior. The fix was not on the server side; it was to use a real MCP client transport and only then judge the hosted stack.
+
+### What warrants a second pair of eyes
+- Whether the `smailnail-mcp-smoke` client should remain a long-lived operational client or be rotated/recreated per deployment
+- Whether the smoke should eventually be promoted into CI against a staging environment rather than remaining a ticket-local script
+
+### What should be done in the future
+- Optionally add an authenticated Claude/Desktop-specific validation once a real remote connector test is needed
+- Consider creating a dedicated hostname and valid certificate for the hosted IMAP fixture if operator ergonomics around `--insecure` become a problem
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.go`
+- Then review `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh`
+- Then confirm the recreate doc includes the authenticated smoke section:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/reference/02-recreate-and-verify-hosted-smailnail-mcp.md`
+
+### Technical details
+- Hosted MCP endpoint: `https://smailnail.mcp.scapegoat.dev/mcp`
+- Keycloak token endpoint: `https://auth.scapegoat.dev/realms/smailnail/protocol/openid-connect/token`
+- Hosted IMAPS target used by the tool: `89.167.52.236:993`
+- Successful tool result payload:
+  - `{"mailbox":"INBOX"}`
 
 ## Related
 

@@ -12,18 +12,23 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: smailnail/Dockerfile
+    - Path: ../../../../../../../smailnail/Dockerfile
       Note: Defines the Coolify-facing container image used by the hosted MCP deployment
-    - Path: smailnail/docs/deployments/smailnail-dovecot-coolify.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnail-dovecot-coolify.md
       Note: Companion hosted IMAP target used by the hosted MCP deployment
-    - Path: smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
       Note: Contains the operator-facing deployment and routing contract for the hosted MCP service
+    - Path: ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/01-scripts-index.md
+      Note: Indexes the ticket-side operational helper scripts
+    - Path: ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.go
+      Note: Replays the authenticated hosted MCP validation against Keycloak and Dovecot
 ExternalSources: []
 Summary: Exact commands and notes required to recreate the hosted smailnail-mcp deployment and understand how the public /mcp path is routed.
 LastUpdated: 2026-03-16T05:00:00-04:00
 WhatFor: Re-run the hosted MCP deployment from scratch and retrace the routing, Keycloak, Coolify, and verification steps without relying on memory.
 WhenToUse: Use when reproducing the hosted MCP deployment or reviewing how the public HTTPS endpoint reaches the smailnail MCP binary.
 ---
+
 
 
 
@@ -53,6 +58,8 @@ The effective mapping is:
 - Coolify server SSH: `root@89.167.52.236`
 - Coolify API token is stored on the server in `~/.apitoken`
 - Coolify CLI is installed on the server and configured with context `scapegoat`
+- Ticket helper scripts are stored in:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts`
 
 ## Repo-side deployment shape
 
@@ -265,6 +272,64 @@ Expected shape:
   "resource": "https://smailnail.mcp.scapegoat.dev/mcp"
 }
 ```
+
+Unauthenticated tool call should fail:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}' \
+  https://smailnail.mcp.scapegoat.dev/mcp
+```
+
+Expected status:
+
+```text
+HTTP/2 401
+```
+
+## Authenticated end-to-end smoke
+
+Ticket scripts:
+
+- wrapper:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh`
+- MCP client:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.go`
+
+Run with either:
+
+- `SMAILNAIL_MCP_SMOKE_CLIENT_SECRET` already exported
+- or `KEYCLOAK_ADMIN_USER` and `KEYCLOAK_ADMIN_PASSWORD` exported so the wrapper can fetch the smoke-client secret from Keycloak
+
+Example:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp
+
+KEYCLOAK_ADMIN_USER='...' \
+KEYCLOAK_ADMIN_PASSWORD='...' \
+./ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/smoke_hosted_mcp_oidc.sh
+```
+
+Expected result:
+
+```json
+{
+  "serverURL": "https://smailnail.mcp.scapegoat.dev/mcp",
+  "tokenEndpoint": "https://auth.scapegoat.dev/realms/smailnail/protocol/openid-connect/token",
+  "toolCount": 2,
+  "value": {
+    "mailbox": "INBOX"
+  }
+}
+```
+
+What this validates:
+
+- the confidential Keycloak smoke client can obtain a bearer token
+- the hosted MCP accepts that token for streamable HTTP initialization and tool calls
+- `executeIMAPJS` can require the `smailnail` module and connect to the hosted IMAPS fixture at `89.167.52.236:993`
 
 Unauthenticated MCP call:
 

@@ -13,4 +13,6 @@
 - [x] Configure and document the Keycloak realm/client settings required for remote MCP OIDC
 - [x] Deploy `smailnail-mcp` to the Hetzner/Coolify host and verify the protected-resource metadata plus unauthenticated `401` behavior
 - [x] Set up a separate hosted Dovecot test target on the Coolify machine and document how to use it for remote testing
-- [ ] Update the diary, changelog, related files, and task state as each implementation step lands
+- [x] Retroactively store the ticket helper scripts under `scripts/` and document how they map to the deployment flow
+- [x] Run an authenticated hosted MCP smoke against the live Keycloak realm and hosted Dovecot fixture
+- [x] Update the diary, changelog, related files, and task state as each implementation step lands

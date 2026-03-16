@@ -1,7 +1,7 @@
 ---
 Title: Deploy smailnail-mcp to Coolify with Keycloak external OIDC
 Ticket: SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT
-Status: active
+Status: complete
 Topics:
     - smailnail
     - mcp
@@ -39,7 +39,7 @@ The work starts from the current state where the MCP binary exists and supports 
 
 ## Status
 
-Current status: **active**
+Current status: **complete**
 
 ## Topics
 
