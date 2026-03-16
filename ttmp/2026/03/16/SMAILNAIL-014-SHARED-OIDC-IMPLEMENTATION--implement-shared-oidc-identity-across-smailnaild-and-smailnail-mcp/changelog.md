@@ -48,3 +48,8 @@ Add a live local Keycloak plus Dovecot end-to-end regression test for shared OID
 ## 2026-03-16
 
 Document `smailnail-web` Keycloak setup, shared OIDC playbooks, and the MCP container env needed to resolve browser-created stored accounts in hosted deployments.
+
+
+## 2026-03-16
+
+Add a frontend auth bootstrap shell around `/api/me`, including logged-out handling, login CTA, authenticated user display, and logout entry points.

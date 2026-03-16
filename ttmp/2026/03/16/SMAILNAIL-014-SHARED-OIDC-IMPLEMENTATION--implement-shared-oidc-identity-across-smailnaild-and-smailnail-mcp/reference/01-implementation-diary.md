@@ -462,3 +462,54 @@ SMAILNAIL_LOCAL_STACK_TEST=1 go test ./pkg/mcp/imapjs -run TestExecuteIMAPJSAgai
 Key result from this step:
 
 - the shared OIDC implementation is now backed by both executable coverage and a concrete operator playbook for local and hosted environments
+
+## Implementation Step 8: Make the frontend respect authenticated ownership
+
+Goal of this step:
+
+- stop rendering the hosted account and rules UI as if anonymous users were already valid application users
+- make the browser boot sequence explicitly depend on `/api/me`
+- give the UI a minimal logged-out shell and a visible authenticated-user shell without redesigning the account workflows
+
+What was changed in `smailnail`:
+
+- extended `ui/src/api/client.ts`
+  - adds `getCurrentUser()`
+  - always includes credentials on API requests
+- extended `ui/src/api/types.ts`
+  - adds the `CurrentUser` type for `/api/me`
+- added a new auth feature:
+  - `ui/src/features/auth/authSlice.ts`
+  - `ui/src/features/auth/LoggedOutShell.tsx`
+  - `ui/src/features/auth/index.ts`
+- updated `ui/src/store/index.ts`
+  - registers the new `auth` reducer
+- updated `ui/src/App.tsx`
+  - boot-time `/api/me` fetch
+  - loading shell while auth bootstrap is pending
+  - logged-out shell when `/api/me` returns `401`
+  - retry path for failed auth bootstrap
+  - authenticated header badge showing the local user profile
+  - logout link to `/auth/logout`
+- updated `ui/src/styles/theme.css`
+  - adds lightweight styling for the new auth shell
+
+Behavior added by this step:
+
+- the UI no longer tries to load account and rule screens before the current user is known
+- anonymous users now see a focused login CTA instead of a misleading account-management shell
+- authenticated users now see who the browser session resolved to before they start adding IMAP accounts
+- existing account setup flows remain intact once auth bootstrap succeeds
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui
+pnpm run check
+pnpm run build
+```
+
+Scope boundary for this step:
+
+- this is still a server-side login model; the React app does not hold OIDC tokens directly
+- the UI does not yet auto-redirect to `/auth/login`; it shows a logged-out shell with an explicit CTA instead

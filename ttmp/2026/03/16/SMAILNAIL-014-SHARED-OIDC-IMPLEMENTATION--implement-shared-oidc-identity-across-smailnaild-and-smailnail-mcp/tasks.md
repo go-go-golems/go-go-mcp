@@ -57,10 +57,10 @@
 
 ## Frontend workstream
 
-- [ ] `F1` Add boot-time `/api/me` fetch and unauthenticated redirect handling.
-- [ ] `F2` Add logged-out shell and login CTA.
-- [ ] `F3` Add authenticated user display in the top-level app shell.
-- [ ] `F4` Update account setup flows to assume authenticated ownership instead of dev fallback behavior.
+- [x] `F1` Add boot-time `/api/me` fetch and unauthenticated redirect handling.
+- [x] `F2` Add logged-out shell and login CTA.
+- [x] `F3` Add authenticated user display in the top-level app shell.
+- [x] `F4` Update account setup flows to assume authenticated ownership instead of dev fallback behavior.
 
 ## Deployment and operations
 

@@ -1,7 +1,7 @@
 ---
 Title: Implement shared OIDC identity across smailnaild and smailnail MCP
 Ticket: SMAILNAIL-014-SHARED-OIDC-IMPLEMENTATION
-Status: active
+Status: complete
 Topics:
     - smailnail
     - mcp
@@ -64,7 +64,7 @@ The goal of this ticket is to establish one provider-neutral application identit
 
 ## Status
 
-Current status: **active**
+Current status: **complete**
 
 ## Topics
 
