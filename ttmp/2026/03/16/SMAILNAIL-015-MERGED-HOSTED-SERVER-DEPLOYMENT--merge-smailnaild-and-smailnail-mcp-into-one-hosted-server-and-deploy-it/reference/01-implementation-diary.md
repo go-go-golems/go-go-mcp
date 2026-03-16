@@ -666,3 +666,69 @@ And logout should:
 - return to the app after Keycloak logout completes
 
 That will clear the app session and the Keycloak session, which is enough to make provider choice work predictably. It still will not guarantee a GitHub password prompt if GitHub itself is still logged in.
+
+## Implementation step 9: route smailnail logout through Keycloak end-session logout
+
+### Why
+
+The discussion about provider choice exposed a real gap in the hosted app:
+
+- `smailnaild` logout only deleted the local `smailnail_session`
+- it did not terminate the Keycloak realm session
+
+That meant users could log out of the app, click sign in again, and immediately be logged back in by Keycloak without seeing a meaningful choice point.
+
+### What I changed
+
+In [oidc.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/auth/oidc.go) I extended OIDC discovery parsing to include:
+
+- `end_session_endpoint`
+
+and changed `HandleLogout(...)` so it now:
+
+- deletes the local app session record
+- clears the local cookie
+- builds a Keycloak end-session redirect URL
+- sends the browser there instead of redirecting directly to `/`
+
+The logout redirect now includes:
+
+- `client_id`
+- `post_logout_redirect_uri`
+
+The `post_logout_redirect_uri` is derived from the configured `oidc-redirect-url`, normalized back to the app root.
+
+### Test coverage
+
+I updated [oidc_test.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/oidc_test.go) so the fake provider advertises an `end_session_endpoint` and the logout assertion now verifies:
+
+- redirect target path is `/logout`
+- `client_id` is present
+- `post_logout_redirect_uri` is `http://smailnail.test/`
+
+### Validation
+
+I ran:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/... ./cmd/smailnaild/...
+go test ./pkg/mcp/imapjs
+```
+
+Both passed.
+
+### Commit
+
+The change was committed as:
+
+- `8b8d80b` `fix(smailnaild): route logout through oidc end session`
+
+### Operational expectation
+
+This does not force GitHub itself to forget its own browser session. What it does fix is the app-to-Keycloak part of logout:
+
+- app session gets cleared
+- Keycloak session gets cleared
+
+So if no default IdP redirector is configured, users should again land on the Keycloak login page and be able to choose GitHub versus other login options more predictably.
