@@ -105,3 +105,356 @@ The mounted route exists, but the ticket is not close to done yet. The next conc
 - verify browser login still works
 - verify account setup still works
 - verify `/mcp` on the same server still works with bearer auth
+
+## Implementation step 2: add route-separation proof and repackage the hosted image around smailnaild
+
+### What I changed
+
+I added a second mounted-handler test in [mounted_handler_test.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/mcp/imapjs/mounted_handler_test.go):
+
+- `TestMountedHandlersKeepWebAndMCPAuthSeparated`
+
+That test proves three properties at once:
+
+- `/.well-known/oauth-protected-resource` stays public
+- `/api/me` still requires a browser-session user
+- `/mcp` still requires a bearer token and still emits `WWW-Authenticate`
+
+I then switched the production packaging to treat `smailnaild` as the primary hosted binary:
+
+- [Dockerfile](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Dockerfile) now builds the Vite UI and the embedded `smailnaild` binary
+- [docker-entrypoint.smailnaild.sh](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/scripts/docker-entrypoint.smailnaild.sh) became the primary runtime entrypoint
+- [smailnaild-merged-coolify.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnaild-merged-coolify.md) became the deployment guide for the merged server
+- [smailnail-imap-mcp-coolify.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnail-imap-mcp-coolify.md) was rewritten as legacy guidance
+- [shared-oidc-playbook.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/shared-oidc-playbook.md) was updated so the browser and MCP stories both point at the same host
+
+I also bumped the `go-go-mcp` dependency in [go.mod](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/go.mod) and [go.sum](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/go.sum) so the new `MountHTTPHandlers(...)` API is available in the merged image.
+
+### Validation
+
+I ran:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/mcp/imapjs -run 'TestMountedHandlersCanBeServedByHostedHandler|TestMountedHandlersKeepWebAndMCPAuthSeparated'
+go test ./pkg/mcp/imapjs ./pkg/smailnaild/... ./cmd/smailnaild/...
+docker build -t smailnaild-merged:dev .
+go run ./cmd/smailnail-imap-mcp mcp list-tools
+```
+
+The standalone wrapper still listed the same two tools after the merge:
+
+- `executeIMAPJS`
+- `getIMAPJSDocumentation`
+
+That was the explicit compatibility check for the old binary.
+
+### Why this mattered before deployment
+
+The merge only becomes operationally real once the container image and the route contract are both updated. At this stage the code and the packaging were finally aligned enough to replace the old production image instead of just proving the concept locally.
+
+## Implementation step 3: roll the merged image onto Coolify and wire production Keycloak
+
+### Production shape discovery
+
+Before touching the live app, I re-checked the public DNS and the existing Coolify app configuration.
+
+Important discovery:
+
+- `smailnail.scapegoat.dev` does not currently resolve
+- the already-live hostname is `smailnail.mcp.scapegoat.dev`
+
+That changed the rollout plan. Instead of creating a second public hostname first, I reused the existing public app and cut it over in place to the merged image. That preserved the already-working remote MCP URL while adding the browser surface to the same host.
+
+### Coolify app update
+
+I used the existing Coolify app:
+
+- app UUID: `fhp3mxqlfftdxdib3vxz89l3`
+
+and updated it so the container now exposes the merged `smailnaild` runtime instead of the standalone MCP image.
+
+The important runtime values I synced were:
+
+- `SMAILNAILD_LISTEN_PORT=8080`
+- `SMAILNAILD_DB_TYPE=sqlite`
+- `SMAILNAILD_DATABASE=/app/smailnaild.sqlite`
+- `SMAILNAILD_LOG_LEVEL=debug`
+- `SMAILNAILD_ENCRYPTION_KEY_ID=prod-smailnail-merged-v1`
+- `SMAILNAILD_ENCRYPTION_KEY_BASE64=aDYowYFnlu+JlsnKiE8XWGiuUUqTvxK3dmmMbpa9zl4=`
+- `SMAILNAILD_AUTH_MODE=oidc`
+- `SMAILNAILD_OIDC_ISSUER_URL=https://auth.scapegoat.dev/realms/smailnail`
+- `SMAILNAILD_OIDC_CLIENT_ID=smailnail-web`
+- `SMAILNAILD_OIDC_CLIENT_SECRET=7GuMpylfY9WkYfdMlaMq12ieJhxaeUvp`
+- `SMAILNAILD_OIDC_REDIRECT_URL=https://smailnail.mcp.scapegoat.dev/auth/callback`
+- `SMAILNAILD_OIDC_SCOPES=openid,profile,email`
+- `SMAILNAILD_MCP_ENABLED=1`
+- `SMAILNAILD_MCP_TRANSPORT=streamable_http`
+- `SMAILNAILD_MCP_AUTH_MODE=external_oidc`
+- `SMAILNAILD_MCP_AUTH_RESOURCE_URL=https://smailnail.mcp.scapegoat.dev/mcp`
+- `SMAILNAILD_MCP_OIDC_ISSUER_URL=https://auth.scapegoat.dev/realms/smailnail`
+
+I also changed the Coolify health check to:
+
+- `/readyz`
+
+because `smailnaild` now owns the hosted process.
+
+### Commands I actually used
+
+To inspect the live app:
+
+```bash
+ssh root@89.167.52.236 \
+  'TOKEN=$(cat ~/.apitoken) && curl -sS -H "Authorization: Bearer $TOKEN" \
+  https://hq.scapegoat.dev/api/v1/applications/fhp3mxqlfftdxdib3vxz89l3'
+```
+
+To inspect and sync env:
+
+```bash
+ssh root@89.167.52.236 \
+  'TOKEN=$(cat ~/.apitoken) && curl -sS -H "Authorization: Bearer $TOKEN" \
+  https://hq.scapegoat.dev/api/v1/applications/fhp3mxqlfftdxdib3vxz89l3/envs'
+```
+
+and then:
+
+```bash
+coolify app env sync fhp3mxqlfftdxdib3vxz89l3 --context scapegoat --file <env-file>
+```
+
+To trigger the rollout:
+
+```bash
+ssh root@89.167.52.236 \
+  'TOKEN=$(cat ~/.apitoken) && curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://hq.scapegoat.dev/api/v1/deploy?uuid=fhp3mxqlfftdxdib3vxz89l3&force=false"'
+```
+
+The successful deployment UUID was:
+
+- `oo9pi1q0t3zglzmyn19i56e4`
+
+and the new container became:
+
+- `fhp3mxqlfftdxdib3vxz89l3-201817575552`
+
+### Production Keycloak work
+
+The merged server needed a real browser-login client. I used `kcadm.sh` inside the production Keycloak container and created:
+
+- client: `smailnail-web`
+- redirect URI: `https://smailnail.mcp.scapegoat.dev/auth/callback`
+- web origin: `https://smailnail.mcp.scapegoat.dev`
+
+I also created the production smoke-test user:
+
+- username: `alice`
+- password: `secret`
+- email: `alice@smailnail.test`
+- first name: `Alice`
+- last name: `Smailnail`
+
+One small Keycloak CLI gotcha mattered here:
+
+- `kcadm.sh set-password` on this image rejected `--temporary false`
+- the working form was just `set-password --new-password secret`
+
+### Result after rollout
+
+The hosted server responded correctly on the new merged shape:
+
+```bash
+curl -sS https://smailnail.mcp.scapegoat.dev/readyz
+curl -sS https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource
+curl -i -sS -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}' \
+  https://smailnail.mcp.scapegoat.dev/mcp
+curl -I -sS https://smailnail.mcp.scapegoat.dev/
+```
+
+Observed behavior:
+
+- `/readyz` returned `{"status":"ready"}`
+- the protected-resource document advertised the Keycloak realm and `/mcp` resource URL
+- unauthenticated `/mcp` returned `401`
+- `/` served the embedded SPA HTML
+
+At that point the code merge was deployed, but I still needed to prove both auth paths with real traffic.
+
+## Implementation step 4: run the hosted browser-session flow and save a real IMAP account
+
+### First hosted login issue
+
+The first production browser-login attempt did not create a usable app session. I built a shell smoke around `curl` and the Keycloak login form so I could see the raw redirects and cookies instead of guessing from the browser UI.
+
+The initial problem was not the app itself. The Keycloak user `alice` got redirected into a required-action flow instead of returning straight to the app callback. I fixed that by populating `firstName`, `lastName`, `email`, and clearing `requiredActions` for the user in the production realm.
+
+I saved the final smoke script as:
+
+- [smoke_hosted_web_login.sh](../scripts/smoke_hosted_web_login.sh)
+
+### Hosted browser-login validation
+
+With the updated user, the hosted login flow succeeded:
+
+- `/auth/login` redirected into Keycloak
+- posting `alice/secret` returned to `/auth/callback`
+- `/auth/callback` created `smailnail_session`
+- `/api/me` returned the provisioned local user
+
+The successful response was:
+
+```json
+{
+  "data": {
+    "id": "0a77a135-b891-4761-a9b6-5f9c9a3a4e8a",
+    "primaryEmail": "alice@smailnail.test",
+    "displayName": "Alice Smailnail",
+    "avatarUrl": "",
+    "createdAt": "2026-03-16T20:22:43Z",
+    "updatedAt": "2026-03-16T20:28:16Z"
+  }
+}
+```
+
+That proved the merged hosted server was now doing real production browser OIDC, local identity provisioning, and secure session-cookie resolution.
+
+### Hosted account creation
+
+Using the authenticated cookie jar, I created a real saved IMAP account against the hosted Dovecot fixture:
+
+```bash
+curl -sS -b /tmp/smailnail-prod.cookies -c /tmp/smailnail-prod.cookies \
+  -H 'Content-Type: application/json' \
+  -X POST https://smailnail.mcp.scapegoat.dev/api/accounts \
+  -d '{
+    "label":"Hosted Dovecot Fixture",
+    "providerHint":"coolify-fixture",
+    "server":"89.167.52.236",
+    "port":993,
+    "username":"a",
+    "password":"pass",
+    "mailboxDefault":"INBOX",
+    "insecure":true,
+    "authKind":"password",
+    "isDefault":true,
+    "mcpEnabled":true
+  }'
+```
+
+The saved account ID was:
+
+- `79d8b6a5-c307-4eff-908b-886168177089`
+
+### Hosted IMAP-access validation
+
+I then exercised the hosted API against that stored account:
+
+```bash
+curl -sS -b /tmp/smailnail-prod.cookies \
+  https://smailnail.mcp.scapegoat.dev/api/accounts/79d8b6a5-c307-4eff-908b-886168177089/mailboxes | jq
+
+curl -sS -b /tmp/smailnail-prod.cookies \
+  'https://smailnail.mcp.scapegoat.dev/api/accounts/79d8b6a5-c307-4eff-908b-886168177089/messages?mailbox=INBOX&limit=10&offset=0' | jq
+```
+
+Those both succeeded. The hosted app listed:
+
+- `Archive`
+- `INBOX`
+
+and returned the message previews for the seeded mailbox content.
+
+### One oddity that remained
+
+The dedicated lightweight test endpoint:
+
+- `POST /api/accounts/{id}/test`
+
+returned:
+
+- `success=false`
+- `errorCode=account-test-mailbox-select-failed`
+- `errorMessage=use of closed network connection`
+
+against the hosted Dovecot fixture, even though:
+
+- direct CLI access to the same Dovecot server worked
+- hosted mailbox listing worked
+- hosted message preview worked
+- bearer-authenticated MCP execution against the same stored account worked
+
+I am recording that as a residual bug in the read-only test path, not as a blocker for the merged deployment itself. The merged deployment proved that the saved account is real and usable; this one endpoint is more pessimistic than the rest of the system against the remote fixture.
+
+## Implementation step 5: run the hosted bearer-authenticated MCP smoke against the same saved account
+
+### Keycloak test client for password-grant smoke
+
+To validate `/mcp` without involving Claude/OpenAI connector setup again, I created a temporary production realm client:
+
+- `smailnail-mcp-test`
+
+with:
+
+- `publicClient=true`
+- `directAccessGrantsEnabled=true`
+- `standardFlowEnabled=false`
+
+That was only for smoke testing. It gave me a predictable way to mint a bearer token for `alice` and use it directly against `/mcp`.
+
+### Hosted merged MCP smoke
+
+I then ran the existing ticket script:
+
+- [smoke_merged_server_mcp.go](../scripts/smoke_merged_server_mcp.go)
+
+against the production endpoints:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp
+SMAILNAIL_SERVER_URL=https://smailnail.mcp.scapegoat.dev/mcp \
+SMAILNAIL_TOKEN_URL=https://auth.scapegoat.dev/realms/smailnail/protocol/openid-connect/token \
+SMAILNAIL_CLIENT_ID=smailnail-mcp-test \
+SMAILNAIL_USERNAME=alice \
+SMAILNAIL_PASSWORD=secret \
+SMAILNAIL_ACCOUNT_ID=79d8b6a5-c307-4eff-908b-886168177089 \
+go run ./ttmp/2026/03/16/SMAILNAIL-015-MERGED-HOSTED-SERVER-DEPLOYMENT--merge-smailnaild-and-smailnail-mcp-into-one-hosted-server-and-deploy-it/scripts/smoke_merged_server_mcp.go
+```
+
+The result was:
+
+```json
+{
+  "accountID": "79d8b6a5-c307-4eff-908b-886168177089",
+  "serverURL": "https://smailnail.mcp.scapegoat.dev/mcp",
+  "value": {
+    "mailbox": "INBOX"
+  }
+}
+```
+
+That was the final proof for the merged-server design:
+
+- browser OIDC login provisioned and resolved the local user
+- the hosted app stored encrypted IMAP credentials for that user
+- the merged `/mcp` route validated the bearer token for the same Keycloak identity
+- MCP execution resolved the same stored account by `accountId`
+- the actual IMAP connection succeeded on the production merged host
+
+## End state
+
+At the end of this ticket:
+
+- one hosted binary owns the SPA, `/auth/*`, `/api/*`, `/mcp`, and `/.well-known/oauth-protected-resource`
+- the old standalone MCP binary still works as a compatibility wrapper
+- production now serves the merged host on `https://smailnail.mcp.scapegoat.dev`
+- browser-session auth and bearer-token auth remain separated by route
+- the deployment and operator docs now describe the merged shape instead of the split one
+
+The one known residual issue is the false-negative remote result from:
+
+- `POST /api/accounts/{id}/test`
+
+against the hosted Dovecot fixture. The rest of the merged hosted account and MCP flows are validated end to end.

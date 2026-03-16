@@ -1,7 +1,7 @@
 ---
 Title: Merge smailnaild and smailnail MCP into one hosted server and deploy it
 Ticket: SMAILNAIL-015-MERGED-HOSTED-SERVER-DEPLOYMENT
-Status: active
+Status: complete
 Topics:
     - smailnail
     - mcp
@@ -29,8 +29,8 @@ RelatedFiles:
 ExternalSources:
     - https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
     - https://datatracker.ietf.org/doc/html/rfc9728
-Summary: Merge the hosted web backend and the hosted MCP surface into one server process and one deployment shape, while keeping browser session auth and MCP bearer auth separated by route.
-LastUpdated: 2026-03-16T15:35:18.74617776-04:00
+Summary: Merged the hosted web backend and the hosted MCP surface into one server process and one production deployment, validated browser-session and bearer-token auth paths on the same host, and recorded one residual false-negative in the hosted account-test endpoint.
+LastUpdated: 2026-03-16T16:29:07-04:00
 WhatFor: Organize the design, implementation, validation, and Coolify deployment work required to make smailnaild the single hosted server for the SPA, browser auth flow, application API, and MCP HTTP endpoint.
 WhenToUse: Use when refactoring smailnail toward one hosted deployment surface and when preparing the next Coolify rollout that should replace the separate smailnail-imap-mcp app.
 ---
@@ -78,7 +78,11 @@ This ticket covers both the code refactor and the deployment cutover on Coolify.
 
 ## Status
 
-Current status: **active**
+Current status: **complete**
+
+Residual note:
+
+- hosted `POST /api/accounts/{id}/test` returned a false-negative mailbox-select failure against the remote Dovecot fixture, even though hosted mailbox listing, message preview, and bearer-authenticated MCP execution all succeeded against the same stored account
 
 ## Topics
 
