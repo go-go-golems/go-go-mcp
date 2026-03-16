@@ -58,11 +58,19 @@ This means the frontend can already build as if a current user exists, but produ
 
 ## Required startup configuration
 
-The hosted backend requires:
+The hosted backend requires an encryption key for stored IMAP passwords.
 
-- `SMAILNAILD_ENCRYPTION_KEY`
+Primary command-surface fields:
 
-That value must be a base64-encoded 32-byte AES-GCM key. The backend will not start without it, because stored IMAP passwords are encrypted at rest.
+- `--encryption-key-base64`
+- `--encryption-key-id`
+
+The key must be a base64-encoded 32-byte AES-GCM key. The backend will not start without it.
+
+Because these are normal Glazed fields, they can also be provided through the command environment layer:
+
+- `SMAILNAILD_ENCRYPTION_KEY_BASE64`
+- `SMAILNAILD_ENCRYPTION_KEY_ID`
 
 ## Conventions
 

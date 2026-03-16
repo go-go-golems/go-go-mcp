@@ -13,3 +13,15 @@
 - Added Dovecot-backed integration coverage for account services, rule dry-runs, and the hosted HTTP flow
 - Updated `smailnaild` README/help/docs with encryption-key setup, local account-flow walkthroughs, and exact verification commands
 - Added a focused UX handover document for the frontend developer covering only the add-account and lightweight connection-test slice
+- Moved hosted encryption-key config from direct `os.Getenv` reads to an explicit Glazed `Encryption Settings` section on `smailnaild serve`
+
+## 2026-03-16
+
+Step 15: React/Vite SPA frontend with account setup UI (commit cc59315)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/Makefile — Added dev-backend/dev-frontend/build-embed targets
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/http.go — Wired SPA handler into NewHandler
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/web/spa.go — SPA handler with API guard
+- /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/ui/src/features/accounts/accountsSlice.ts — Redux state machine and async thunks
