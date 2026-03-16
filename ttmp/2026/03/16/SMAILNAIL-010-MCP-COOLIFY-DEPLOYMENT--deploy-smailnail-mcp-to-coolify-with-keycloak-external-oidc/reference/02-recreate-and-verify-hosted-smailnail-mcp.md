@@ -14,6 +14,8 @@ Owners: []
 RelatedFiles:
     - Path: smailnail/Dockerfile
       Note: Defines the Coolify-facing container image used by the hosted MCP deployment
+    - Path: smailnail/docs/deployments/smailnail-dovecot-coolify.md
+      Note: Companion hosted IMAP target used by the hosted MCP deployment
     - Path: smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
       Note: Contains the operator-facing deployment and routing contract for the hosted MCP service
 ExternalSources: []
@@ -22,6 +24,7 @@ LastUpdated: 2026-03-16T05:00:00-04:00
 WhatFor: Re-run the hosted MCP deployment from scratch and retrace the routing, Keycloak, Coolify, and verification steps without relying on memory.
 WhenToUse: Use when reproducing the hosted MCP deployment or reviewing how the public HTTPS endpoint reaches the smailnail MCP binary.
 ---
+
 
 
 # Recreate and verify hosted smailnail-mcp
@@ -278,12 +281,22 @@ Expected result:
 - `WWW-Authenticate` bearer challenge
 - body `missing bearer`
 
+## Companion hosted Dovecot target
+
+The hosted IMAP fixture now exists separately as Coolify service `gh32795yh1av2dpi2j6lhn6h`.
+
+Current remote IMAP test target:
+
+- host: `89.167.52.236`
+- IMAPS port: `993`
+- username: `a`
+- password: `pass`
+- TLS mode: self-signed, so use `--insecure`
+
+Related operator doc:
+
+- `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnail-dovecot-coolify.md`
+
 ## What is still missing
 
-This is enough to recreate and retrace the hosted MCP deployment itself.
-
-It is not yet the full end-to-end hosted story because the separate hosted Dovecot target is still pending. Once that exists, this reference should be extended with:
-
-- the Dovecot service creation path
-- mailbox bootstrap details
-- a real remote IMAP MCP test flow
+The remaining gap is a documented end-to-end hosted MCP invocation that authenticates through Keycloak and then uses the hosted Dovecot target as the IMAP backend.

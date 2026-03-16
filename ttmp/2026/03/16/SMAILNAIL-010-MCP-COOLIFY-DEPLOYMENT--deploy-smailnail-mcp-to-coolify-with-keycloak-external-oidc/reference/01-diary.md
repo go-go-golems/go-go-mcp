@@ -14,14 +14,19 @@ Owners: []
 RelatedFiles:
     - Path: smailnail/Dockerfile
       Note: Captured the healthcheck-specific runtime fix that made the hosted deployment healthy
+    - Path: smailnail/deployments/coolify/smailnail-dovecot.compose.yaml
+      Note: Defines the raw-port Coolify Dovecot fixture used for hosted IMAP testing
+    - Path: smailnail/docs/deployments/smailnail-dovecot-coolify.md
+      Note: Documents the hosted Dovecot fixture UUID
     - Path: smailnail/docs/deployments/smailnail-imap-mcp-coolify.md
       Note: Captured the exact Coolify create command and hosted route expectations
 ExternalSources: []
 Summary: Chronological implementation diary for packaging and deploying smailnail-mcp on Coolify with Keycloak OIDC and a hosted Dovecot target.
-LastUpdated: 2026-03-16T04:50:00-04:00
+LastUpdated: 2026-03-16T05:07:00-04:00
 WhatFor: Preserve the exact commands, reasoning, deployment constraints, and validation steps used during this implementation.
 WhenToUse: Use when reviewing the deployment work or continuing it later.
 ---
+
 
 
 # Diary
@@ -403,6 +408,98 @@ I also cleaned up the duplicated environment rows created while working around t
   - `SMAILNAIL_MCP_AUTH_MODE`
   - `SMAILNAIL_MCP_AUTH_RESOURCE_URL`
   - `SMAILNAIL_MCP_OIDC_ISSUER_URL`
+
+## Step 5: Hosted Dovecot fixture deployment and remote IMAPS validation
+
+I created the hosted Dovecot fixture on the same Coolify machine so the deployment now has a real remote IMAP target, not just the local docker-compose fixture. The important part was to keep this aligned with the existing local setup, so I used the same `ghcr.io/spezifisch/docker-test-dovecot:latest` image and the same raw mail ports rather than inventing a new mail server path.
+
+The result is a direct-port Coolify service that binds `24`, `110`, `143`, `993`, `995`, and `4190` on the Hetzner host. I then validated it with the actual `smailnail` tooling by creating a mailbox remotely, appending a known message over IMAPS, and fetching that message back from `89.167.52.236:993` with `--insecure`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "once done, also set up a separate dovecot coolify server so that we have something we can test against, just like our local setup"
+
+**Assistant interpretation:** Provision a remote Dovecot fixture on the Coolify host that behaves like the local docker-test-dovecot environment and can be used for real hosted IMAP validation.
+
+**Inferred user intent:** Avoid blocking hosted MCP testing on local-only infrastructure by having a real remote IMAP server with predictable test accounts and mailbox behavior.
+
+**Commit (code):** `04f2762` — `feat(smailnail): add hosted dovecot fixture definition`
+
+### What I did
+- Added `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/coolify/smailnail-dovecot.compose.yaml`
+- Added `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnail-dovecot-coolify.md`
+- Validated the compose file locally with:
+  - `docker compose -f deployments/coolify/smailnail-dovecot.compose.yaml config`
+- Created a custom Coolify service via the API using base64-encoded compose content
+- Created service:
+  - UUID `gh32795yh1av2dpi2j6lhn6h`
+  - name `smailnail-dovecot-fixture`
+- Verified the container is running:
+  - `dovecot-gh32795yh1av2dpi2j6lhn6h`
+- Verified host port bindings exist for:
+  - `24`
+  - `110`
+  - `143`
+  - `993`
+  - `995`
+  - `4190`
+- Created remote mailbox `Archive` for user `a`
+- Stored remote message with subject `Hosted Coolify Dovecot Test`
+- Fetched the stored message back with `smailnail fetch-mail`
+
+### Why
+- The user explicitly wanted a hosted Dovecot target similar to the local setup
+- The MCP deployment is much more useful once there is a stable remote IMAP endpoint to point it at
+- Reusing the exact fixture image keeps local and hosted testing semantics aligned
+
+### What worked
+- Coolify accepted a custom compose-based service create request
+- The service started and bound all expected raw mail ports on the host
+- `imap-tests create-mailbox` succeeded remotely against `89.167.52.236:993`
+- `imap-tests store-text-message` succeeded remotely against `89.167.52.236:993`
+- `smailnail fetch-mail` returned the seeded message:
+  - subject `Hosted Coolify Dovecot Test`
+  - content `Remote hosted IMAP fixture validation.`
+
+### What didn't work
+- The first service create attempt failed because the server rejected `connect_to_docker_network`:
+  - `{"message":"Validation failed.","errors":{"connect_to_docker_network":["This field is not allowed."]}}`
+- The container’s first internal mail generation attempt raced Dovecot startup and failed once:
+  - `lda(a)<117><>: Error: auth-master: userdb lookup(a): connect(/run/dovecot/auth-userdb) failed: No such file or directory`
+  - `mailgen failed with code 75`
+- That startup race did not block real IMAP access; manual mailbox/message operations worked immediately afterward
+
+### What I learned
+- The service API path is more reliable than the current CLI for custom compose-based resources
+- For this test fixture, direct host port binding is the right model; HTTP-style proxying is irrelevant
+- The hosted Dovecot service does not need to be “healthy” in Coolify’s HTTP sense to be fully usable for IMAP testing
+
+### What was tricky to build
+- The tricky bit was choosing the right Coolify abstraction. The mail fixture is not an HTTP app and does not benefit from Traefik domains, so the right move was a compose-based service with raw host port bindings. The other sharp edge was the mismatch between what the controller source suggested and what the live API accepted: `connect_to_docker_network` looked valid in code, but this running API rejected it and required a smaller payload.
+
+### What warrants a second pair of eyes
+- Whether we want a DNS name for the hosted IMAP fixture instead of using the host IP plus `--insecure`
+- Whether the startup mailgen race in the upstream fixture image is worth patching, or whether manual seeding is enough for our purposes
+
+### What should be done in the future
+- Add one end-to-end hosted MCP invocation that points at this hosted Dovecot fixture
+- Optionally assign a dedicated IMAP hostname if that improves operator ergonomics
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/coolify/smailnail-dovecot.compose.yaml`
+- Then review `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/deployments/smailnail-dovecot-coolify.md`
+- Validate the hosted fixture with:
+  - `ssh root@89.167.52.236 'ss -ltnp | grep -E ":(24|110|143|993|995|4190)\\b"'`
+  - `cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail && go run ./cmd/imap-tests create-mailbox --server 89.167.52.236 --port 993 --username a --password pass --mailbox INBOX --new-mailbox Archive --insecure --output json`
+  - `cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail && go run ./cmd/imap-tests store-text-message --server 89.167.52.236 --port 993 --username a --password pass --mailbox INBOX --from 'Remote Seeder <seed@example.com>' --to 'User A <a@testcot>' --subject 'Hosted Coolify Dovecot Test' --body 'Remote hosted IMAP fixture validation.' --insecure --output json`
+  - `cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail && go run ./cmd/smailnail fetch-mail --server 89.167.52.236 --port 993 --username a --password pass --mailbox INBOX --subject-contains 'Hosted Coolify Dovecot Test' --insecure --output json`
+
+### Technical details
+- Service UUID: `gh32795yh1av2dpi2j6lhn6h`
+- Current service status: `running:unknown`
+- Current remote test host: `89.167.52.236`
+- Remote seeded mailbox: `Archive`
+- Remote seeded subject: `Hosted Coolify Dovecot Test`
 
 ## Related
 

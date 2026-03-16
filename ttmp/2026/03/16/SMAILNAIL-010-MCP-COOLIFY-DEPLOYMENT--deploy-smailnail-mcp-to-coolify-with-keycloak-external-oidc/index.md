@@ -14,7 +14,7 @@ Owners: []
 RelatedFiles: []
 ExternalSources: []
 Summary: Implementation ticket for packaging, deploying, and validating smailnail-mcp on Coolify with Keycloak-backed OIDC and a companion hosted Dovecot test target.
-LastUpdated: 2026-03-16T04:50:00-04:00
+LastUpdated: 2026-03-16T05:07:00-04:00
 WhatFor: Package the MCP server for production, deploy it behind HTTPS on Coolify, and provision a hosted IMAP target for remote end-to-end testing.
 WhenToUse: Use when implementing or reviewing the production deployment path for smailnail-mcp and its hosted IMAP test environment.
 ---
