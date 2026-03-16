@@ -13,10 +13,16 @@ import (
 var errUnauthorizedToken = errors.New("unauthorized token")
 
 type AuthPrincipal struct {
-	Subject  string
-	ClientID string
-	Issuer   string
-	Scopes   []string
+	Subject           string
+	ClientID          string
+	Issuer            string
+	Scopes            []string
+	Email             string
+	EmailVerified     bool
+	PreferredUsername string
+	DisplayName       string
+	AvatarURL         string
+	Claims            map[string]any
 }
 
 type HTTPAuthProvider interface {

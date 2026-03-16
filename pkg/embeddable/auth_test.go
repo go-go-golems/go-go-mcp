@@ -85,8 +85,11 @@ func TestAuthMiddlewareRejectsMissingBearer(t *testing.T) {
 func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
 	provider := &stubAuthProvider{
 		principal: AuthPrincipal{
-			Subject:  "alice",
-			ClientID: "client-123",
+			Subject:           "alice",
+			ClientID:          "client-123",
+			Issuer:            "https://auth.example.com/realms/smailnail",
+			Email:             "alice@example.com",
+			PreferredUsername: "alice",
 		},
 		authHeader: `Bearer realm="mcp"`,
 	}
@@ -101,6 +104,13 @@ func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
 		}
 		if got := r.Header.Get("X-MCP-Client-ID"); got != "client-123" {
 			t.Fatalf("unexpected client id header: %q", got)
+		}
+		principal, ok := GetAuthPrincipal(r.Context())
+		if !ok {
+			t.Fatalf("expected auth principal in request context")
+		}
+		if principal.Email != "alice@example.com" || principal.PreferredUsername != "alice" {
+			t.Fatalf("unexpected principal in context: %#v", principal)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)

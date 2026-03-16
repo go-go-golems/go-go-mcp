@@ -302,6 +302,7 @@ func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
 			return
 		}
 		r2 := r.Clone(r.Context())
+		r2 = r2.WithContext(WithAuthPrincipal(r2.Context(), principal))
 		r2.Header.Set("X-MCP-Subject", principal.Subject)
 		r2.Header.Set("X-MCP-Client-ID", principal.ClientID)
 		log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("subject", principal.Subject).Str("client_id", principal.ClientID).Bool("authorized", true).Msg("Authorized request")

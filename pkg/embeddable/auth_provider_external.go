@@ -28,10 +28,15 @@ type oidcDiscoveryDocument struct {
 
 type externalBearerClaims struct {
 	jwt.Claims
-	AuthorizedParty string   `json:"azp,omitempty"`
-	ClientID        string   `json:"client_id,omitempty"`
-	Scope           string   `json:"scope,omitempty"`
-	SCP             []string `json:"scp,omitempty"`
+	AuthorizedParty   string   `json:"azp,omitempty"`
+	ClientID          string   `json:"client_id,omitempty"`
+	Scope             string   `json:"scope,omitempty"`
+	SCP               []string `json:"scp,omitempty"`
+	Email             string   `json:"email,omitempty"`
+	EmailVerified     bool     `json:"email_verified,omitempty"`
+	PreferredUsername string   `json:"preferred_username,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	Picture           string   `json:"picture,omitempty"`
 }
 
 type externalOIDCAuthProvider struct {
@@ -144,10 +149,22 @@ func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, toke
 	}
 
 	return AuthPrincipal{
-		Subject:  claims.Subject,
-		ClientID: clientID,
-		Issuer:   claims.Issuer,
-		Scopes:   sortedScopeKeys(scopeSet),
+		Subject:           claims.Subject,
+		ClientID:          clientID,
+		Issuer:            claims.Issuer,
+		Scopes:            sortedScopeKeys(scopeSet),
+		Email:             claims.Email,
+		EmailVerified:     claims.EmailVerified,
+		PreferredUsername: claims.PreferredUsername,
+		DisplayName:       claims.Name,
+		AvatarURL:         claims.Picture,
+		Claims: map[string]any{
+			"email":              claims.Email,
+			"email_verified":     claims.EmailVerified,
+			"preferred_username": claims.PreferredUsername,
+			"name":               claims.Name,
+			"picture":            claims.Picture,
+		},
 	}, nil
 }
 

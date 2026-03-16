@@ -80,6 +80,15 @@ func TestExternalOIDCProviderValidatesJWTAndAdvertisesResourceMetadata(t *testin
 	if principal.Issuer != issuer {
 		t.Fatalf("unexpected issuer: %q", principal.Issuer)
 	}
+	if principal.Email != "alice@example.com" {
+		t.Fatalf("unexpected email: %q", principal.Email)
+	}
+	if principal.PreferredUsername != "alice" {
+		t.Fatalf("unexpected preferred username: %q", principal.PreferredUsername)
+	}
+	if principal.DisplayName != "Alice Example" {
+		t.Fatalf("unexpected display name: %q", principal.DisplayName)
+	}
 
 	header := provider.WWWAuthenticateHeader()
 	if !strings.Contains(header, `resource="https://mcp.example.com/mcp"`) {
@@ -180,8 +189,13 @@ func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, aud
 			IssuedAt:  jwt.NewNumericDate(now),
 		}).
 		Claims(map[string]any{
-			"azp":   clientID,
-			"scope": scope,
+			"azp":                clientID,
+			"scope":              scope,
+			"email":              "alice@example.com",
+			"email_verified":     true,
+			"preferred_username": "alice",
+			"name":               "Alice Example",
+			"picture":            "https://example.com/alice.png",
 		}).
 		CompactSerialize()
 	if err != nil {
