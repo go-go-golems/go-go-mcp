@@ -458,3 +458,148 @@ The one known residual issue is the false-negative remote result from:
 - `POST /api/accounts/{id}/test`
 
 against the hosted Dovecot fixture. The rest of the merged hosted account and MCP flows are validated end to end.
+
+## Implementation step 6: harden the hosted account test against transient closed-connection failures
+
+### Why I revisited this
+
+After closing the ticket the first time, the hosted account-test failure was still the obvious rough edge in the user-facing account-setup flow. The user explicitly asked to handle that item next before moving on to lower-priority follow-ups.
+
+I started by checking whether the failure was actually reproducible outside the hosted container. The important command was:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+SMAILNAILD_DOVECOT_TEST=1 \
+SMAILNAILD_DOVECOT_SERVER=89.167.52.236 \
+SMAILNAILD_DOVECOT_PORT=993 \
+SMAILNAILD_DOVECOT_USERNAME=a \
+SMAILNAILD_DOVECOT_PASSWORD=pass \
+SMAILNAILD_DOVECOT_MAILBOX=INBOX \
+go test ./pkg/smailnaild/accounts -run TestServiceAgainstLocalDovecot -v
+```
+
+That passed cleanly against the same hosted Dovecot fixture. So the failure was not a deterministic logic bug in the basic `RunTest` flow.
+
+### What I changed
+
+I refactored the account-test path in [service.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go):
+
+- extracted the actual IMAP read-only probe into `runReadOnlyProbe(...)`
+- added `shouldRetryReadOnlyProbe(...)`
+- retried the probe once when the failure looks like a transient connection-closure event
+- merged the successful retry result back into the persisted `TestResult`
+
+The transient patterns I handle now are:
+
+- `net.ErrClosed`
+- `use of closed network connection`
+- `broken pipe`
+- `connection reset by peer`
+- `unexpected eof`
+
+This is intentionally narrow. Real login failures should still fail immediately and clearly.
+
+### Test coverage
+
+I added [service_retry_test.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service_retry_test.go) with two focused unit tests:
+
+- retry once on a transient closed-network failure and succeed
+- do not retry a non-transient authentication failure
+
+That gave me a deterministic red-green loop for the retry logic without needing to rely on the hosted fixture to misbehave on demand.
+
+### Validation before deploy
+
+I ran:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/accounts ./pkg/smailnaild/... ./cmd/smailnaild/...
+```
+
+and the remote-fixture integration test again:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+SMAILNAILD_DOVECOT_TEST=1 \
+SMAILNAILD_DOVECOT_SERVER=89.167.52.236 \
+SMAILNAILD_DOVECOT_PORT=993 \
+SMAILNAILD_DOVECOT_USERNAME=a \
+SMAILNAILD_DOVECOT_PASSWORD=pass \
+SMAILNAILD_DOVECOT_MAILBOX=INBOX \
+go test ./pkg/smailnaild/accounts -run TestServiceAgainstLocalDovecot -v
+```
+
+Both passed.
+
+### Deployment and an important persistence reminder
+
+I committed the code as:
+
+- `3663738` `fix(smailnaild): retry transient imap account test failures`
+
+and redeployed the same Coolify app from that commit.
+
+During post-deploy verification, the first `POST /api/accounts/{id}/test` call came back as:
+
+- `404 account not found`
+
+That was not another account-test bug. It was the persistence issue showing up again:
+
+- the merged host still uses `/app/smailnaild.sqlite`
+- the redeploy replaced the container
+- the previously saved hosted account disappeared with it
+
+So I logged in again, recreated the hosted account, and reran the hosted smokes on the new container state.
+
+### Post-deploy hosted validation
+
+The recreated hosted account ID was:
+
+- `22d4af8c-728f-4691-91cb-abd8d80e9430`
+
+I then ran the hosted account test repeatedly:
+
+```bash
+for i in 1 2 3 4 5; do
+  curl -sS -b /tmp/smailnail-hosted.cookies \
+    -H 'Content-Type: application/json' \
+    -X POST \
+    https://smailnail.mcp.scapegoat.dev/api/accounts/22d4af8c-728f-4691-91cb-abd8d80e9430/test \
+    -d '{"mode":"read_only"}' | jq
+done
+```
+
+All five attempts succeeded against the hosted Dovecot fixture.
+
+I also reran the merged bearer-authenticated MCP smoke on the same recreated account:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp
+SMAILNAIL_SERVER_URL=https://smailnail.mcp.scapegoat.dev/mcp \
+SMAILNAIL_TOKEN_URL=https://auth.scapegoat.dev/realms/smailnail/protocol/openid-connect/token \
+SMAILNAIL_CLIENT_ID=smailnail-mcp-test \
+SMAILNAIL_USERNAME=alice \
+SMAILNAIL_PASSWORD=secret \
+SMAILNAIL_ACCOUNT_ID=22d4af8c-728f-4691-91cb-abd8d80e9430 \
+go run ./ttmp/2026/03/16/SMAILNAIL-015-MERGED-HOSTED-SERVER-DEPLOYMENT--merge-smailnaild-and-smailnail-mcp-into-one-hosted-server-and-deploy-it/scripts/smoke_merged_server_mcp.go
+```
+
+That still returned:
+
+```json
+{
+  "value": {
+    "mailbox": "INBOX"
+  }
+}
+```
+
+### Final state after this step
+
+The earlier user-visible rough edge is now handled in code and revalidated in production:
+
+- hosted `/api/accounts/{id}/test` is succeeding on the merged host
+- the merged `/mcp` flow still works on the same account
+- the remaining real operational issue is no longer the transient IMAP test failure
+- the remaining real operational issue is still the non-persistent app DB on redeploy
