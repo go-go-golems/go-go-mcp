@@ -28,3 +28,8 @@ Add hosted auth-mode configuration, session-backed user resolution, /api/me, and
 ## 2026-03-16
 
 Add hosted OIDC login, callback, logout, and fake-provider session flow tests for `smailnaild`.
+
+
+## 2026-03-16
+
+Carry richer verified OIDC principals through `go-go-mcp` and resolve the same local user for MCP bearer-authenticated requests in `smailnail`.

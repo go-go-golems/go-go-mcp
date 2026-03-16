@@ -41,11 +41,11 @@
 
 ### MCP shared identity
 
-- [ ] `D1` Extend the `go-go-mcp` auth boundary to carry a richer verified principal than forwarded headers alone.
-- [ ] `D2` Add a smailnail-side principal adapter from verified OIDC token claims to the shared identity service.
-- [ ] `D3` Resolve or provision local users for bearer-authenticated MCP requests.
-- [ ] `D4` Thread the resolved local user through MCP tool execution context.
-- [ ] `D5` Add integration tests proving browser login and MCP bearer auth resolve to the same local user.
+- [x] `D1` Extend the `go-go-mcp` auth boundary to carry a richer verified principal than forwarded headers alone.
+- [x] `D2` Add a smailnail-side principal adapter from verified OIDC token claims to the shared identity service.
+- [x] `D3` Resolve or provision local users for bearer-authenticated MCP requests.
+- [x] `D4` Thread the resolved local user through MCP tool execution context.
+- [x] `D5` Add integration tests proving browser login and MCP bearer auth resolve to the same local user.
 
 ### Account ownership and MCP account usage
 

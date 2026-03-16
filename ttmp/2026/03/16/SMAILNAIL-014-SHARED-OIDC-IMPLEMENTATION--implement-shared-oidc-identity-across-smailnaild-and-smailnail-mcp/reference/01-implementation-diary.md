@@ -23,7 +23,7 @@ ExternalSources:
     - https://datatracker.ietf.org/doc/html/rfc7591
     - https://www.keycloak.org/docs/latest/server_admin/
 Summary: Diary capturing the creation of the shared OIDC identity implementation ticket and the reasoning that connects the current browser stub to the existing MCP OIDC flow.
-LastUpdated: 2026-03-16T12:21:00-04:00
+LastUpdated: 2026-03-16T13:02:00-04:00
 WhatFor: Record the concrete reasoning, references, and scoping decisions behind the shared identity implementation ticket.
 WhenToUse: Use when reviewing why the ticket exists, what assumptions it makes, and which code paths were inspected at kickoff.
 ---
@@ -250,3 +250,65 @@ Scope boundary for this step:
 
 - provider logout redirect is still local-only; there is not yet an upstream end-session flow
 - MCP bearer-authenticated user mapping is still the next implementation slice
+
+## Implementation Step 4: Carry verified MCP principals into the same local-user mapping path
+
+Goal of this step:
+
+- stop treating MCP bearer auth as a separate identity world
+- carry a richer verified OIDC principal through `go-go-mcp`
+- resolve the same local user for browser sessions and MCP bearer requests
+
+What was changed in `go-go-mcp`:
+
+- extended `pkg/embeddable/auth_provider.go`
+  - `AuthPrincipal` now carries profile fields and raw claims, not just `subject` and `client_id`
+- added `pkg/embeddable/auth_context.go`
+  - `WithAuthPrincipal(...)`
+  - `GetAuthPrincipal(...)`
+- updated `pkg/embeddable/mcpgo_backend.go`
+  - auth middleware now stores the verified principal in request context before handing off to the MCP HTTP transport
+- updated `pkg/embeddable/auth_provider_external.go`
+  - external OIDC validation now maps `email`, `email_verified`, `preferred_username`, `name`, and `picture` into the principal
+- extended tests:
+  - `pkg/embeddable/auth_test.go`
+  - `pkg/embeddable/auth_provider_external_test.go`
+
+What was changed in `smailnail`:
+
+- added MCP-side resolved-user context support:
+  - `pkg/mcp/imapjs/identity_context.go`
+- added MCP startup/runtime wiring:
+  - `pkg/mcp/imapjs/identity_middleware.go`
+  - new `--app-db-driver`
+  - new `--app-db-dsn`
+- updated `pkg/mcp/imapjs/server.go`
+  - boots a shared-identity runtime
+  - initializes the shared application database on server start
+  - applies MCP middleware that:
+    - reads the verified principal from context
+    - resolves or provisions the local user via `identity.Service`
+    - stores the resolved local identity back into tool execution context
+- added tests:
+  - `pkg/mcp/imapjs/identity_middleware_test.go`
+  - `pkg/mcp/imapjs/web_identity_integration_test.go`
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp
+go test ./pkg/embeddable/...
+
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/mcp/imapjs ./cmd/smailnail-imap-mcp
+go test ./pkg/mcp/imapjs
+```
+
+Key result from this step:
+
+- a browser-style OIDC login flow and an MCP bearer-authenticated request now resolve to the same local `users.id` when they share the same `(issuer, subject)`
+
+Scope boundary for this step:
+
+- the resolved local user is now available to tool handlers, but stored IMAP account selection by account ID is still the next slice
+- the JavaScript execution tool still accepts only raw code; it has not yet been taught to consume browser-created stored accounts
