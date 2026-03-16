@@ -53,3 +53,23 @@ Document `smailnail-web` Keycloak setup, shared OIDC playbooks, and the MCP cont
 ## 2026-03-16
 
 Add a frontend auth bootstrap shell around `/api/me`, including logged-out handling, login CTA, authenticated user display, and logout entry points.
+
+
+## 2026-03-16
+
+Fix the Vite development auth boundary by proxying `/auth` to `smailnaild`, so browser login can start from the frontend dev server.
+
+
+## 2026-03-16
+
+Stabilize the local Keycloak realm import with predictable browser redirect URIs, a fixed `smailnail-web` client secret, and a seeded `alice` test user.
+
+
+## 2026-03-16
+
+Add debug-level hosted auth logging for request handling, session resolution, OIDC login, callback, and logout diagnostics.
+
+
+## 2026-03-16
+
+Fix the hosted account result-screen edit path so it updates the just-created account instead of creating a duplicate.
