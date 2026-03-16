@@ -371,3 +371,94 @@ Scope boundary for this step:
 
 - the full end-to-end test against local Keycloak and local Dovecot is still pending
 - documentation for the new `accountId` connect path should be expanded in a later polish pass so the docs tool reflects it more clearly
+
+## Implementation Step 6: Prove the full local Keycloak + Dovecot + stored-account path
+
+Goal of this step:
+
+- stop relying only on fake providers and unit-level account resolution tests
+- prove that one real local access token can drive the stored-account MCP path end to end
+- capture the exact fixture assumptions so this flow can be rerun later without rediscovery
+
+What was changed in `smailnail`:
+
+- added `pkg/mcp/imapjs/local_stack_test.go`
+  - gated by `SMAILNAIL_LOCAL_STACK_TEST=1`
+  - talks to the real local Keycloak container on `http://127.0.0.1:18080`
+  - ensures the `smailnail-mcp` client permits direct access grants for local automation
+  - ensures the local user exists and has a usable password
+  - fetches a real access token from Keycloak
+  - provisions the same local user in a temp app DB
+  - creates a stored IMAP account pointing at the local Dovecot fixture
+  - runs `executeIMAPJS` with `accountId`
+  - verifies the JavaScript service connects to real Dovecot and returns the mailbox name
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/mcp/imapjs
+SMAILNAIL_LOCAL_STACK_TEST=1 go test ./pkg/mcp/imapjs -run TestExecuteIMAPJSAgainstLocalKeycloakAndDovecot -v
+go run ./cmd/smailnail fetch-mail --server 127.0.0.1 --port 993 --username a --password pass --mailbox INBOX --insecure --output json
+```
+
+Observed issues and fixes:
+
+- the first run failed because the local Keycloak database contained stale state and the bootstrap admin user no longer existed
+- fixed by resetting the local Keycloak Postgres dev volume and reimporting the dev realm
+- the next run failed with `Account is not fully set up`
+- fixed by making the test user updater explicitly clear `requiredActions`, enable the user, and mark email as verified
+- the next run failed with `use of closed network connection` while opening `INBOX`
+- reran the direct CLI IMAP path against the same local Dovecot fixture to confirm the fixture itself was healthy
+- after the local Keycloak reset and rerun, the full end-to-end test passed consistently
+
+Key result from this step:
+
+- the shared identity design now has one live local proof path from Keycloak bearer token to stored account lookup to real IMAP connectivity
+
+## Implementation Step 7: Document the operator path for shared OIDC in local and hosted environments
+
+Goal of this step:
+
+- close the remaining deployment and operations tasks in the ticket
+- leave behind exact Keycloak, `smailnaild`, and MCP configuration notes instead of only test code
+- make the containerized MCP deployment match the newly documented shared app DB requirements
+
+What was changed in `smailnail`:
+
+- added `docs/deployments/smailnaild-oidc-keycloak.md`
+  - documents the current `smailnail-web` client shape
+  - explains why the current implementation wants a confidential client
+  - lists the exact OIDC/auth Glazed flags used by `smailnaild`
+- added `docs/shared-oidc-playbook.md`
+  - local stack startup
+  - browser login
+  - stored account creation
+  - MCP startup against the same shared app DB
+  - token fetch
+  - stored-account MCP invocation
+  - one-command local regression test
+- updated `docs/deployments/smailnail-imap-mcp-coolify.md`
+  - documents the shared app DB and encryption env vars needed for hosted stored-account resolution
+- updated `scripts/docker-entrypoint.smailnail-imap-mcp.sh`
+  - now forwards:
+    - `SMAILNAIL_MCP_APP_DB_DRIVER`
+    - `SMAILNAIL_MCP_APP_DB_DSN`
+    - `SMAILNAIL_MCP_APP_ENCRYPTION_KEY_ID`
+    - `SMAILNAIL_MCP_APP_ENCRYPTION_KEY_BASE64`
+- updated `README.md`
+  - links the shared-identity docs
+  - documents the new local stack regression command
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+sh -n scripts/docker-entrypoint.smailnail-imap-mcp.sh
+go test ./pkg/mcp/imapjs
+SMAILNAIL_LOCAL_STACK_TEST=1 go test ./pkg/mcp/imapjs -run TestExecuteIMAPJSAgainstLocalKeycloakAndDovecot -v
+```
+
+Key result from this step:
+
+- the shared OIDC implementation is now backed by both executable coverage and a concrete operator playbook for local and hosted environments

@@ -53,7 +53,7 @@
 - [x] `E2` Extend MCP execution APIs so stored accounts can be selected by account ID instead of requiring raw credentials.
 - [x] `E3` Add authorization checks for cross-user account access attempts.
 - [x] `E4` Ensure the same local user can use browser-created accounts through MCP.
-- [ ] `E5` Add end-to-end tests against local Keycloak and local Dovecot.
+- [x] `E5` Add end-to-end tests against local Keycloak and local Dovecot.
 
 ## Frontend workstream
 
@@ -64,7 +64,7 @@
 
 ## Deployment and operations
 
-- [ ] `G1` Add Keycloak client setup notes for `smailnail-web`.
-- [ ] `G2` Add environment examples for local dev and Coolify production.
-- [ ] `G3` Add a test playbook for local Keycloak plus local Dovecot plus hosted UI.
-- [ ] `G4` Add a test playbook for remote Keycloak plus hosted MCP.
+- [x] `G1` Add Keycloak client setup notes for `smailnail-web`.
+- [x] `G2` Add environment examples for local dev and Coolify production.
+- [x] `G3` Add a test playbook for local Keycloak plus local Dovecot plus hosted UI.
+- [x] `G4` Add a test playbook for remote Keycloak plus hosted MCP.

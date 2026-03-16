@@ -38,3 +38,13 @@ Carry richer verified OIDC principals through `go-go-mcp` and resolve the same l
 ## 2026-03-16
 
 Allow MCP JavaScript execution to select hosted stored IMAP accounts by `accountId` with ownership enforcement and browser-to-MCP account reuse tests.
+
+
+## 2026-03-16
+
+Add a live local Keycloak plus Dovecot end-to-end regression test for shared OIDC identity and stored-account MCP execution.
+
+
+## 2026-03-16
+
+Document `smailnail-web` Keycloak setup, shared OIDC playbooks, and the MCP container env needed to resolve browser-created stored accounts in hosted deployments.
