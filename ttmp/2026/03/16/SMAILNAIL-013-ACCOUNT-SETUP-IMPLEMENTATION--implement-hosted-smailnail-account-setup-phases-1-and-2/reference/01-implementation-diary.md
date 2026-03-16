@@ -71,6 +71,45 @@ I structured the plan around milestones that can be committed independently:
 
 That ordering should make it possible to keep the app runnable and reviewable throughout the work.
 
+### Step 4: implemented the backend foundation slice
+
+I started with the work that every later backend task depends on:
+
+- new package layout under `pkg/smailnaild/accounts`, `pkg/smailnaild/rules`, and `pkg/smailnaild/secrets`
+- versioned schema bootstrap in [db.go](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/db.go)
+- new schema for `imap_accounts`, `imap_account_tests`, `rules`, and `rule_runs`
+- environment-backed encryption config and AES-GCM helpers in `pkg/smailnaild/secrets`
+
+I kept this slice intentionally narrow: no repositories or HTTP handlers yet. The goal was to land stable foundations first.
+
+### Step 5: verified the slice with focused tests
+
+I ran:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/...
+```
+
+That covered:
+
+- schema bootstrap and migration behavior
+- fresh DB creation
+- legacy version-1 DB upgrade
+- secret config loading
+- encrypt/decrypt round trips
+- corrupt ciphertext handling
+
+### Step 6: started the API handoff document
+
+I added a separate API reference document to the ticket so the UI designer can track:
+
+- which endpoints already exist
+- which endpoints are still draft contracts
+- what payload shapes are being proposed before implementation
+
+This should evolve alongside each backend slice rather than being written only at the end.
+
 ## Quick reference
 
 ### First delivery target
@@ -93,4 +132,3 @@ That ordering should make it possible to keep the app runnable and reviewable th
 ## Related
 
 - [01-implementation-plan-for-hosted-smailnail-account-setup-and-rule-dry-run-phases.md](../design-doc/01-implementation-plan-for-hosted-smailnail-account-setup-and-rule-dry-run-phases.md)
-

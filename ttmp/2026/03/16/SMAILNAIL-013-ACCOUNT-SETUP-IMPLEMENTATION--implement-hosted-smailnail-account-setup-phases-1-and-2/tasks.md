@@ -4,8 +4,8 @@
 
 ### Ready
 
-- [ ] Add schema/bootstrap support for `imap_accounts`, `imap_account_tests`, `rules`, and `rule_runs`
-- [ ] Add encrypted secret storage helpers and tests
+- [x] Add schema/bootstrap support for `imap_accounts`, `imap_account_tests`, `rules`, and `rule_runs`
+- [x] Add encrypted secret storage helpers and tests
 - [ ] Add account repository and service packages
 - [ ] Add account CRUD APIs
 - [ ] Add account test API with read-only validation
@@ -17,15 +17,15 @@
 
 ### Granular breakdown
 
-- [ ] Backend A1: create package layout under `pkg/smailnaild/accounts`, `rules`, and `secrets`
-- [ ] Backend A2: refactor DB bootstrap to support versioned schema creation
-- [ ] Backend A3: add `imap_accounts` schema
-- [ ] Backend A4: add `imap_account_tests` schema
-- [ ] Backend A5: add `rules` schema
-- [ ] Backend A6: add `rule_runs` schema
-- [ ] Backend B1: add encryption key config loading
-- [ ] Backend B2: add secret encrypt/decrypt helpers
-- [ ] Backend B3: add secret helper tests
+- [x] Backend A1: create package layout under `pkg/smailnaild/accounts`, `rules`, and `secrets`
+- [x] Backend A2: refactor DB bootstrap to support versioned schema creation
+- [x] Backend A3: add `imap_accounts` schema
+- [x] Backend A4: add `imap_account_tests` schema
+- [x] Backend A5: add `rules` schema
+- [x] Backend A6: add `rule_runs` schema
+- [x] Backend B1: add encryption key config loading
+- [x] Backend B2: add secret encrypt/decrypt helpers
+- [x] Backend B3: add secret helper tests
 - [ ] Backend C1: add account repository create/get/list/update/delete
 - [ ] Backend C2: add account service ownership checks
 - [ ] Backend C3: add account service tests

@@ -39,6 +39,7 @@ This ticket turns the earlier hosted UI research into an implementation plan and
 
 - Main implementation plan: [01-implementation-plan-for-hosted-smailnail-account-setup-and-rule-dry-run-phases.md](./design-doc/01-implementation-plan-for-hosted-smailnail-account-setup-and-rule-dry-run-phases.md)
 - Diary: [01-implementation-diary.md](./reference/01-implementation-diary.md)
+- API reference: [02-api-reference-for-hosted-smailnail-account-setup-and-rule-dry-run-backend.md](./reference/02-api-reference-for-hosted-smailnail-account-setup-and-rule-dry-run-backend.md)
 
 ## Status
 
