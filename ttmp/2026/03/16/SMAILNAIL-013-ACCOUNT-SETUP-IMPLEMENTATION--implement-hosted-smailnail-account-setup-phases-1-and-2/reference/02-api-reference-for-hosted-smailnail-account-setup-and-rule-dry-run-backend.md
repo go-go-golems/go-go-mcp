@@ -14,40 +14,102 @@ Intent: long-term
 Owners: []
 RelatedFiles:
     - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/http.go
-      Note: Current implemented HTTP endpoints and the main entrypoint for future API expansion
-    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/db.go
-      Note: Current schema bootstrap that determines the stored backend resources this API will expose
-    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/types.go
-      Note: Current account and account-test domain record shapes
-    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/rules/types.go
-      Note: Current rule and rule-run domain record shapes
+      Note: Hosted JSON API router and response-envelope implementation
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/user.go
+      Note: Local-development user resolution and header override
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/accounts/service.go
+      Note: Account CRUD, IMAP testing, mailbox listing, and preview behavior
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/pkg/smailnaild/rules/service.go
+      Note: Rule CRUD, DSL validation, and dry-run behavior
+    - Path: /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/smailnaild-local-account-flow.md
+      Note: Manual local recreation and curl walkthrough
 ExternalSources: []
-Summary: Living API reference for the hosted smailnail backend, tracking implemented endpoints and draft contracts for account setup, mailbox previews, and rule dry-runs.
-LastUpdated: 2026-03-16T10:18:00-04:00
-WhatFor: Give the backend and UI developers one evolving source of truth for endpoint status, payload shapes, and contract decisions.
-WhenToUse: Use when implementing backend handlers, building the frontend against draft or implemented APIs, or handing off backend status to the UI developer.
+Summary: Implemented API reference for the hosted smailnail backend, covering account management, mailbox previews, rule CRUD, dry-runs, local-user auth assumptions, and exact verification commands.
+LastUpdated: 2026-03-16T10:02:00-04:00
+WhatFor: Give the backend team and UI developer one source of truth for the implemented hosted backend contract.
+WhenToUse: Use when wiring the frontend, validating local behavior, or checking whether an endpoint is implemented versus still future work.
 ---
 
 # API reference for hosted smailnail account setup and rule dry-run backend
 
 ## Goal
 
-Track the hosted `smailnaild` API surface as it evolves through Phase 1 and Phase 2. This document distinguishes between:
+Describe the implemented Phase 1 and Phase 2 hosted backend surface for `smailnaild`:
 
-- `Implemented`: endpoints that exist in the code today
-- `Draft`: contracts that are planned and should guide the next backend and frontend slices, but are not yet implemented
+- account CRUD
+- read-only IMAP account tests
+- mailbox listing
+- preview-message listing and message detail
+- rule CRUD
+- rule dry-runs
 
-## Context
+This document replaces the earlier draft assumptions with the actual current contract.
 
-This document is intentionally ahead of the code in a few places. The backend is being built in slices, but the frontend developer still needs early visibility into the contract direction.
+## Current development auth model
 
-As of the current slice:
+Hosted app login and OIDC session handling are not implemented yet. The backend currently uses a local development ownership model:
 
-- database schema and secret handling foundations are implemented
-- hosted account/rule APIs are not yet implemented
-- only health/info endpoints exist in `smailnaild`
+- default user ID: `local-user`
+- per-request override header: `X-Smailnail-User-ID`
+- all account and rule records are still keyed by `user_id`
+- ownership enforcement happens server-side through `(user_id, id)` lookups
 
-## Quick reference
+This means the frontend can already build as if a current user exists, but production auth still needs to be wired later.
+
+## Required startup configuration
+
+The hosted backend requires:
+
+- `SMAILNAILD_ENCRYPTION_KEY`
+
+That value must be a base64-encoded 32-byte AES-GCM key. The backend will not start without it, because stored IMAP passwords are encrypted at rest.
+
+## Conventions
+
+### Response envelope
+
+Successful application responses use:
+
+```json
+{
+  "data": {},
+  "meta": {}
+}
+```
+
+List endpoints omit `meta` only when there is nothing useful to add. Most list endpoints currently return `count`, and preview endpoints also return mailbox/pagination metadata.
+
+### Error envelope
+
+Errors use:
+
+```json
+{
+  "error": {
+    "code": "validation-error",
+    "message": "invalid account input: label is required"
+  }
+}
+```
+
+Current stable error-code families:
+
+- `validation-error`
+- `not-found`
+- `imap-error`
+- `accounts-unavailable`
+- `internal-error`
+- `invalid-body`
+- `invalid-query`
+- `invalid-uid`
+
+### Deletion behavior
+
+Delete endpoints return:
+
+- `204 No Content`
+
+No response body is sent on success.
 
 ## Endpoint status table
 
@@ -56,23 +118,23 @@ As of the current slice:
 | `/healthz` | `GET` | Implemented | Liveness check |
 | `/readyz` | `GET` | Implemented | Readiness check including DB ping |
 | `/api/info` | `GET` | Implemented | Service metadata |
-| `/api/accounts` | `GET` | Draft | List current user's saved IMAP accounts |
-| `/api/accounts` | `POST` | Draft | Create a saved IMAP account |
-| `/api/accounts/:id` | `GET` | Draft | Fetch one saved account |
-| `/api/accounts/:id` | `PATCH` | Draft | Update a saved account |
-| `/api/accounts/:id` | `DELETE` | Draft | Delete or archive a saved account |
-| `/api/accounts/:id/test` | `POST` | Draft | Run a read-only or write-probe account test |
-| `/api/accounts/:id/mailboxes` | `GET` | Draft | List mailboxes for one saved account |
-| `/api/accounts/:id/messages` | `GET` | Draft | Fetch paginated preview messages |
-| `/api/accounts/:id/messages/:uid` | `GET` | Draft | Fetch one preview message in more detail |
-| `/api/rules` | `GET` | Draft | List saved rules |
-| `/api/rules` | `POST` | Draft | Create a saved rule |
-| `/api/rules/:id` | `GET` | Draft | Fetch one saved rule |
-| `/api/rules/:id` | `PATCH` | Draft | Update one saved rule |
-| `/api/rules/:id` | `DELETE` | Draft | Delete one saved rule |
-| `/api/rules/:id/dry-run` | `POST` | Draft | Run a dry-run preview for a saved rule |
+| `/api/accounts` | `GET` | Implemented | List current user's saved IMAP accounts |
+| `/api/accounts` | `POST` | Implemented | Create a saved IMAP account |
+| `/api/accounts/{id}` | `GET` | Implemented | Fetch one saved account |
+| `/api/accounts/{id}` | `PATCH` | Implemented | Update a saved account |
+| `/api/accounts/{id}` | `DELETE` | Implemented | Delete a saved account |
+| `/api/accounts/{id}/test` | `POST` | Implemented | Run a read-only account test |
+| `/api/accounts/{id}/mailboxes` | `GET` | Implemented | List mailboxes for one saved account |
+| `/api/accounts/{id}/messages` | `GET` | Implemented | Fetch paginated preview messages |
+| `/api/accounts/{id}/messages/{uid}` | `GET` | Implemented | Fetch one preview message in more detail |
+| `/api/rules` | `GET` | Implemented | List saved rules |
+| `/api/rules` | `POST` | Implemented | Create a saved rule |
+| `/api/rules/{id}` | `GET` | Implemented | Fetch one saved rule |
+| `/api/rules/{id}` | `PATCH` | Implemented | Update one saved rule |
+| `/api/rules/{id}` | `DELETE` | Implemented | Delete one saved rule |
+| `/api/rules/{id}/dry-run` | `POST` | Implemented | Run a dry-run preview for a saved rule |
 
-## Implemented endpoints
+## Health and service endpoints
 
 ### `GET /healthz`
 
@@ -95,7 +157,7 @@ Purpose:
 - readiness probe
 - verifies DB reachability
 
-Success response:
+Success:
 
 ```json
 {
@@ -103,7 +165,7 @@ Success response:
 }
 ```
 
-Failure response:
+Failure example:
 
 ```json
 {
@@ -118,7 +180,7 @@ Purpose:
 
 - expose service identity and DB target metadata
 
-Response shape:
+Response example:
 
 ```json
 {
@@ -133,96 +195,40 @@ Response shape:
 }
 ```
 
-## Draft conventions for Phase 1 and Phase 2
-
-These are the contract conventions the next backend slices should follow unless there is a strong reason to change them.
-
-### Authentication assumption
-
-Draft assumption:
-
-- all future `/api/accounts*` and `/api/rules*` endpoints require an authenticated application user
-- the user identity should eventually come from the OIDC-backed app session or bearer-auth context
-
-### Response format
-
-For application APIs, prefer JSON objects over raw arrays so metadata can be added without breaking clients.
-
-Preferred pattern:
-
-```json
-{
-  "data": {},
-  "meta": {}
-}
-```
-
-For list endpoints:
-
-```json
-{
-  "data": [],
-  "meta": {
-    "count": 0
-  }
-}
-```
-
-### Error format
-
-Preferred draft error envelope:
-
-```json
-{
-  "error": {
-    "code": "account-test-login-failed",
-    "message": "Login failed for the provided IMAP credentials.",
-    "details": {
-      "providerHint": "gmail"
-    }
-  }
-}
-```
-
-Use:
-
-- stable `code` for frontend logic
-- human-readable `message`
-- optional `details` for display or debugging
-
-## Draft account API
+## Account API
 
 ### `GET /api/accounts`
 
-Status:
-
-- Draft
-
 Purpose:
 
-- return the current user's saved accounts with enough status data to render the accounts table
+- return the current user's saved accounts
+- include the latest saved account-test summary when available
 
-Draft response:
+Example response:
 
 ```json
 {
   "data": [
     {
-      "id": "acc_work_gmail",
-      "label": "Work Gmail",
-      "providerHint": "gmail",
-      "server": "imap.gmail.com",
+      "id": "acc-1",
+      "userId": "local-user",
+      "label": "Local Dovecot",
+      "providerHint": "local",
+      "server": "localhost",
       "port": 993,
-      "username": "user@example.com",
+      "username": "a",
       "mailboxDefault": "INBOX",
-      "insecure": false,
+      "insecure": true,
       "authKind": "password",
+      "secretKeyId": "env:smailnaild-encryption-key",
       "isDefault": true,
       "mcpEnabled": false,
+      "createdAt": "2026-03-16T14:00:00Z",
+      "updatedAt": "2026-03-16T14:00:00Z",
       "latestTest": {
         "success": true,
-        "warningCode": "provider-app-password-recommended",
-        "createdAt": "2026-03-16T10:00:00Z"
+        "warningCode": "tls-verification-disabled",
+        "createdAt": "2026-03-16T14:01:00Z"
       }
     }
   ],
@@ -232,69 +238,134 @@ Draft response:
 }
 ```
 
+Notes:
+
+- plaintext passwords never appear in responses
+- ciphertext and nonce are server-only fields and are stripped before JSON responses
+
 ### `POST /api/accounts`
-
-Status:
-
-- Draft
 
 Purpose:
 
 - save a new account with encrypted credentials
 
-Draft request:
+Request:
 
 ```json
 {
-  "label": "Work Gmail",
-  "providerHint": "gmail",
-  "server": "imap.gmail.com",
+  "label": "Local Dovecot",
+  "providerHint": "local",
+  "server": "localhost",
   "port": 993,
-  "username": "user@example.com",
-  "password": "app-password-here",
+  "username": "a",
+  "password": "pass",
   "mailboxDefault": "INBOX",
-  "insecure": false,
-  "authKind": "password"
+  "insecure": true,
+  "authKind": "password",
+  "isDefault": true,
+  "mcpEnabled": false
 }
 ```
 
-Draft response:
+Behavior:
+
+- first account for a user is forced to `isDefault=true`
+- if `isDefault=true`, other accounts for the same user are unset as default
+
+Success:
 
 ```json
 {
   "data": {
-    "id": "acc_work_gmail",
-    "label": "Work Gmail",
-    "providerHint": "gmail",
-    "server": "imap.gmail.com",
+    "id": "acc-1",
+    "label": "Local Dovecot",
+    "providerHint": "local",
+    "server": "localhost",
     "port": 993,
-    "username": "user@example.com",
+    "username": "a",
     "mailboxDefault": "INBOX",
-    "insecure": false,
+    "insecure": true,
     "authKind": "password",
-    "isDefault": false,
+    "secretKeyId": "env:smailnaild-encryption-key",
+    "isDefault": true,
     "mcpEnabled": false,
-    "createdAt": "2026-03-16T10:05:00Z",
-    "updatedAt": "2026-03-16T10:05:00Z"
+    "createdAt": "2026-03-16T14:00:00Z",
+    "updatedAt": "2026-03-16T14:00:00Z"
   }
 }
 ```
 
-Note:
-
-- plaintext `password` is request-only and must never appear in responses
-
-### `POST /api/accounts/:id/test`
-
-Status:
-
-- Draft
+### `GET /api/accounts/{id}`
 
 Purpose:
 
-- run a structured test against one saved account
+- fetch one saved account
 
-Draft request:
+Success:
+
+```json
+{
+  "data": {
+    "id": "acc-1",
+    "label": "Local Dovecot",
+    "providerHint": "local",
+    "server": "localhost",
+    "port": 993,
+    "username": "a",
+    "mailboxDefault": "INBOX",
+    "insecure": true,
+    "authKind": "password",
+    "secretKeyId": "env:smailnaild-encryption-key",
+    "isDefault": true,
+    "mcpEnabled": false,
+    "createdAt": "2026-03-16T14:00:00Z",
+    "updatedAt": "2026-03-16T14:00:00Z"
+  }
+}
+```
+
+### `PATCH /api/accounts/{id}`
+
+Purpose:
+
+- partially update one saved account
+
+Request fields are optional. Example:
+
+```json
+{
+  "label": "Work mailbox",
+  "mailboxDefault": "Archive",
+  "password": "new-secret"
+}
+```
+
+Notes:
+
+- when `password` is provided, it is re-encrypted and replaces the stored secret
+- if `isDefault=true`, other accounts for the same user are unset as default
+
+### `DELETE /api/accounts/{id}`
+
+Purpose:
+
+- delete one saved account
+
+Success:
+
+- HTTP `204 No Content`
+
+### `POST /api/accounts/{id}/test`
+
+Purpose:
+
+- run a structured read-only IMAP test against one saved account
+
+Current supported mode:
+
+- `read_only`
+
+Request:
 
 ```json
 {
@@ -302,18 +373,13 @@ Draft request:
 }
 ```
 
-Allowed draft modes:
-
-- `read_only`
-- `write_probe`
-
-Draft response:
+Response example:
 
 ```json
 {
   "data": {
-    "id": "acctest_01",
-    "imapAccountId": "acc_work_gmail",
+    "id": "test-1",
+    "imapAccountId": "acc-1",
     "testMode": "read_only",
     "success": true,
     "tcpOk": true,
@@ -321,48 +387,57 @@ Draft response:
     "mailboxSelectOk": true,
     "listOk": true,
     "sampleFetchOk": true,
-    "writeProbeOk": null,
-    "warningCode": "provider-app-password-recommended",
-    "errorCode": "",
-    "errorMessage": "",
-    "detailsJson": "{\"sampleMailboxes\":[\"INBOX\",\"Archive\"]}",
-    "createdAt": "2026-03-16T10:07:00Z"
+    "warningCode": "tls-verification-disabled",
+    "details": {
+      "mailbox": "INBOX",
+      "server": "localhost",
+      "port": 993,
+      "selectedMailbox": "INBOX",
+      "numMessages": 7,
+      "sampleMailboxes": ["INBOX"],
+      "sampleSubject": "smailnaild account integration 1773669355448646322"
+    },
+    "createdAt": "2026-03-16T14:01:00Z"
   }
 }
 ```
 
-### `GET /api/accounts/:id/mailboxes`
+Current warning behavior:
 
-Status:
+- `tls-verification-disabled` when the stored account has `insecure=true`
+- `provider-app-password-recommended` on login failures for a few known consumer providers
 
-- Draft
+Current error behavior:
+
+- account-test failures are usually returned as `200 OK` with `success=false` and populated `errorCode` and `errorMessage`
+- request-shape or account-ownership issues still return normal HTTP errors
+
+### `GET /api/accounts/{id}/mailboxes`
 
 Purpose:
 
-- list the account’s mailboxes for the explorer UI
+- list available mailboxes for one saved account
 
-Draft response:
+Response:
 
 ```json
 {
   "data": [
-    { "name": "INBOX", "path": "INBOX", "children": [] },
-    { "name": "Archive", "path": "Archive", "children": [] }
-  ]
+    { "name": "INBOX", "path": "INBOX" }
+  ],
+  "meta": {
+    "count": 1
+  }
 }
 ```
 
-### `GET /api/accounts/:id/messages`
-
-Status:
-
-- Draft
+### `GET /api/accounts/{id}/messages`
 
 Purpose:
 
-- fetch preview rows for one mailbox
+- fetch preview rows for one mailbox using the existing DSL fetch engine
 
-Draft query parameters:
+Supported query parameters:
 
 - `mailbox`
 - `limit`
@@ -370,56 +445,129 @@ Draft query parameters:
 - `query`
 - `unread_only`
 
-Draft response:
+Current implementation notes:
+
+- `query` maps to `subject_contains`
+- `unread_only=true` maps to `flags.not_has=["seen"]`
+- the current preview fields are fixed to `uid`, `subject`, `from`, `to`, `date`, `flags`, `size`
+
+Example:
 
 ```json
 {
   "data": [
     {
-      "uid": 91230,
-      "date": "2026-03-15T12:11:00Z",
-      "from": "Billing Co <billing@example.com>",
-      "subject": "Invoice 9381",
-      "flags": ["Seen"]
+      "uid": 7,
+      "seqNum": 7,
+      "subject": "smailnaild http integration 1773669405135960830",
+      "from": [
+        {
+          "name": "Seeder",
+          "address": "seed@example.com"
+        }
+      ],
+      "to": [
+        {
+          "name": "User A",
+          "address": "a@testcot"
+        }
+      ],
+      "date": "2026-03-16T09:56:45-04:00",
+      "flags": [],
+      "size": 214,
+      "totalCount": 1
     }
   ],
   "meta": {
     "mailbox": "INBOX",
     "count": 1,
     "limit": 20,
-    "offset": 0
+    "offset": 0,
+    "totalCount": 1
   }
 }
 ```
 
-## Draft rule API
+### `GET /api/accounts/{id}/messages/{uid}`
+
+Purpose:
+
+- fetch one preview message in more detail
+
+Supported query parameters:
+
+- `mailbox`
+
+Current implementation notes:
+
+- the backend resolves an exact UID by using the DSL fetch path with `after_uid` / `before_uid`
+- MIME-part content is currently limited to text parts with a maximum preview length of 4096 bytes
+
+Example:
+
+```json
+{
+  "data": {
+    "uid": 7,
+    "seqNum": 7,
+    "subject": "smailnaild account integration 1773669355448646322",
+    "from": [
+      {
+        "name": "Seeder",
+        "address": "seed@example.com"
+      }
+    ],
+    "to": [
+      {
+        "name": "User A",
+        "address": "a@testcot"
+      }
+    ],
+    "date": "2026-03-16T09:55:55-04:00",
+    "flags": [],
+    "size": 221,
+    "mimeParts": [
+      {
+        "type": "text/plain",
+        "subtype": "plain",
+        "size": 73,
+        "content": "Hosted test body for smailnaild account integration 1773669355448646322\r\n"
+      }
+    ],
+    "totalCount": 1
+  },
+  "meta": {
+    "mailbox": "INBOX"
+  }
+}
+```
+
+## Rule API
 
 ### `GET /api/rules`
-
-Status:
-
-- Draft
 
 Purpose:
 
 - list saved rules for the current user
 
-Draft response:
+Example:
 
 ```json
 {
   "data": [
     {
-      "id": "rule_invoice_triage",
-      "imapAccountId": "acc_work_gmail",
+      "id": "rule-1",
+      "userId": "local-user",
+      "imapAccountId": "acc-1",
       "name": "Invoice triage",
-      "description": "Find invoice emails and move them to Receipts",
+      "description": "Invoice triage",
       "status": "draft",
       "sourceKind": "ui",
-      "lastPreviewCount": 12,
-      "lastRunAt": null,
-      "createdAt": "2026-03-16T10:12:00Z",
-      "updatedAt": "2026-03-16T10:12:00Z"
+      "ruleYaml": "name: Invoice triage\n...",
+      "lastPreviewCount": 1,
+      "lastRunAt": "2026-03-16T14:05:00Z",
+      "createdAt": "2026-03-16T14:04:00Z",
+      "updatedAt": "2026-03-16T14:05:00Z"
     }
   ],
   "meta": {
@@ -430,87 +578,162 @@ Draft response:
 
 ### `POST /api/rules`
 
-Status:
-
-- Draft
-
 Purpose:
 
-- save a new rule record
+- create a new saved rule
 
-Draft request:
+Request:
 
 ```json
 {
-  "imapAccountId": "acc_work_gmail",
+  "imapAccountId": "acc-1",
   "name": "Invoice triage",
-  "description": "Find invoice emails and move them to Receipts",
+  "description": "Invoice triage",
   "status": "draft",
   "sourceKind": "ui",
-  "ruleYaml": "name: Invoice triage\nsearch:\n  subject_contains: invoice\noutput:\n  format: json\n  limit: 20\n  fields:\n    - subject\n    - from\n"
+  "ruleYaml": "name: placeholder\ndescription: placeholder\nsearch:\n  subject_contains: invoice\noutput:\n  format: json\n  limit: 10\n  fields:\n    - uid\n    - subject\n"
 }
 ```
 
-### `POST /api/rules/:id/dry-run`
+Behavior:
 
-Status:
+- the current DSL parser validates `ruleYaml`
+- if `name` or `description` is provided in the request, they override the parsed YAML values
+- the rule is then re-normalized and stored back as YAML so the record and DSL stay aligned
 
-- Draft
+### `GET /api/rules/{id}`
+
+Purpose:
+
+- fetch one saved rule
+
+### `PATCH /api/rules/{id}`
+
+Purpose:
+
+- partially update a saved rule
+
+Supported optional fields:
+
+- `imapAccountId`
+- `name`
+- `description`
+- `status`
+- `sourceKind`
+- `ruleYaml`
+
+Behavior:
+
+- if `ruleYaml` is omitted, the stored YAML is reused
+- if `name` or `description` changes, the backend reapplies those values to the parsed rule and stores normalized YAML again
+
+### `DELETE /api/rules/{id}`
+
+Purpose:
+
+- delete one saved rule and its stored `rule_runs`
+
+Success:
+
+- HTTP `204 No Content`
+
+### `POST /api/rules/{id}/dry-run`
 
 Purpose:
 
 - execute a non-destructive preview for a saved rule using a stored account
 
-Draft request:
+Request:
 
 ```json
 {
-  "imapAccountId": "acc_work_gmail"
+  "imapAccountId": "acc-1"
 }
 ```
 
-Draft response:
+Behavior:
+
+- if `imapAccountId` is empty, the rule's stored `imap_account_id` is used
+- the backend resolves the stored account credentials
+- the backend selects the account's default mailbox
+- the existing DSL fetch engine runs without executing actions
+- a `rule_runs` record is persisted with:
+  - `mode="dry_run"`
+  - `matched_count`
+  - `action_summary_json`
+  - `sample_results_json`
+- the parent rule is updated with:
+  - `last_preview_count`
+  - `last_run_at`
+
+Current preview safeguards:
+
+- if the rule limit is zero, the dry-run defaults to 20 rows
+- if the rule limit is above 25, it is clamped to 25 rows for preview
+
+Example:
 
 ```json
 {
   "data": {
-    "ruleId": "rule_invoice_triage",
-    "imapAccountId": "acc_work_gmail",
-    "matchedCount": 12,
+    "ruleId": "rule-1",
+    "imapAccountId": "acc-1",
+    "matchedCount": 1,
     "actionPlan": {
-      "moveTo": "Receipts"
+      "moveTo": "Archive"
     },
     "sampleRows": [
       {
-        "uid": 91230,
-        "subject": "Invoice 9381",
-        "from": "Billing Co <billing@example.com>",
-        "whyMatched": ["subject_contains", "within_days"]
+        "uid": 7,
+        "seqNum": 7,
+        "subject": "smailnaild http integration 1773669405135960830",
+        "from": [
+          {
+            "name": "Seeder",
+            "address": "seed@example.com"
+          }
+        ],
+        "flags": [],
+        "size": 214,
+        "totalCount": 1
       }
     ],
-    "createdAt": "2026-03-16T10:14:00Z"
+    "createdAt": "2026-03-16T14:05:00Z"
   }
 }
 ```
 
-## Usage examples
+## Manual local verification
 
-### Health check
+Start the local Dovecot fixture:
 
 ```bash
-curl -s http://127.0.0.1:8080/healthz
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+docker compose -f docker-compose.local.yml up -d dovecot
 ```
 
-### Readiness check
+Set the encryption key and start the backend:
 
 ```bash
-curl -s http://127.0.0.1:8080/readyz
+export SMAILNAILD_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+go run ./cmd/smailnaild serve
 ```
 
-### Info endpoint
+Then follow the curl walkthrough in:
+
+- [smailnaild-local-account-flow.md](/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/docs/smailnaild-local-account-flow.md)
+
+## Automated verification
+
+Focused hosted-backend verification:
 
 ```bash
-curl -s http://127.0.0.1:8080/api/info | jq
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/...
+SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/accounts -run TestServiceAgainstLocalDovecot -v
+SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild/rules -run TestDryRunAgainstLocalDovecot -v
+SMAILNAILD_DOVECOT_TEST=1 go test ./pkg/smailnaild -run TestHostedHTTPFlowAgainstLocalDovecot -v
+SMAILNAILD_DOVECOT_TEST=1 go test ./...
 ```
 
 ## Related
