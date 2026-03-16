@@ -23,7 +23,7 @@ ExternalSources:
     - https://datatracker.ietf.org/doc/html/rfc7591
     - https://www.keycloak.org/docs/latest/server_admin/
 Summary: Diary capturing the creation of the shared OIDC identity implementation ticket and the reasoning that connects the current browser stub to the existing MCP OIDC flow.
-LastUpdated: 2026-03-16T13:02:00-04:00
+LastUpdated: 2026-03-16T13:29:00-04:00
 WhatFor: Record the concrete reasoning, references, and scoping decisions behind the shared identity implementation ticket.
 WhenToUse: Use when reviewing why the ticket exists, what assumptions it makes, and which code paths were inspected at kickoff.
 ---
@@ -312,3 +312,62 @@ Scope boundary for this step:
 
 - the resolved local user is now available to tool handlers, but stored IMAP account selection by account ID is still the next slice
 - the JavaScript execution tool still accepts only raw code; it has not yet been taught to consume browser-created stored accounts
+
+## Implementation Step 5: Use browser-owned stored IMAP accounts from MCP JavaScript execution
+
+Goal of this step:
+
+- make the shared identity work useful in practice by letting MCP execution use hosted stored accounts
+- keep one JavaScript API that works in both local and hosted modes
+- enforce account ownership through the existing hosted account repository instead of duplicating credential checks
+
+What was changed in `smailnail`:
+
+- extended `pkg/services/smailnailjs/service.go`
+  - `ConnectOptions` now accepts `accountId`
+  - added `StoredAccountResolver`
+  - `Service.Connect(...)` now resolves stored account credentials when `accountId` is provided
+- updated `pkg/js/modules/smailnail/module.go`
+  - module instances now carry an execution context
+  - JavaScript `connect(...)` now uses the per-call context instead of `context.Background()`
+- added `pkg/mcp/imapjs/service_context.go`
+  - stores a per-request stored-account resolver and optional test dialer in context
+- extended `pkg/mcp/imapjs/identity_middleware.go`
+  - shared runtime now accepts app encryption flags
+  - initializes `accounts.Service` when the shared app database and encryption key are available
+  - injects a stored-account resolver bound to the resolved local `user_id`
+- updated `pkg/mcp/imapjs/execute_tool.go`
+  - runtime service construction now consumes resolver/dialer values from context
+- added tests:
+  - `pkg/services/smailnailjs/service_test.go`
+  - `pkg/js/modules/smailnail/module_test.go`
+  - `pkg/mcp/imapjs/execute_tool_account_test.go`
+  - extended `pkg/mcp/imapjs/web_identity_integration_test.go`
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/services/smailnailjs ./pkg/js/modules/smailnail ./pkg/mcp/imapjs
+```
+
+Key result from this step:
+
+- hosted browser-created IMAP accounts can now be selected from MCP JavaScript using:
+
+```javascript
+const smailnail = require("smailnail");
+const svc = smailnail.newService();
+const session = svc.connect({ accountId: "acc-123" });
+```
+
+Security behavior now covered:
+
+- account lookup is scoped to the resolved local `user_id`
+- cross-user account IDs fail instead of leaking credentials
+- an account must be explicitly marked `mcpEnabled` before MCP can use it
+
+Scope boundary for this step:
+
+- the full end-to-end test against local Keycloak and local Dovecot is still pending
+- documentation for the new `accountId` connect path should be expanded in a later polish pass so the docs tool reflects it more clearly

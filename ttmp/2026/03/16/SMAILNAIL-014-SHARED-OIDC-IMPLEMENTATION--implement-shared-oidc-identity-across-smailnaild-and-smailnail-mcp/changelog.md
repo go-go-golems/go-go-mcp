@@ -33,3 +33,8 @@ Add hosted OIDC login, callback, logout, and fake-provider session flow tests fo
 ## 2026-03-16
 
 Carry richer verified OIDC principals through `go-go-mcp` and resolve the same local user for MCP bearer-authenticated requests in `smailnail`.
+
+
+## 2026-03-16
+
+Allow MCP JavaScript execution to select hosted stored IMAP accounts by `accountId` with ownership enforcement and browser-to-MCP account reuse tests.

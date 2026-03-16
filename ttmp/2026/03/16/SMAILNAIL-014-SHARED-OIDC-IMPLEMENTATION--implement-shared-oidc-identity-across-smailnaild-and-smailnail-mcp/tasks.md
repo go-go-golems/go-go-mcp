@@ -49,10 +49,10 @@
 
 ### Account ownership and MCP account usage
 
-- [ ] `E1` Route account loading through the resolved local `user_id` rather than the dev fallback.
-- [ ] `E2` Extend MCP execution APIs so stored accounts can be selected by account ID instead of requiring raw credentials.
-- [ ] `E3` Add authorization checks for cross-user account access attempts.
-- [ ] `E4` Ensure the same local user can use browser-created accounts through MCP.
+- [x] `E1` Route account loading through the resolved local `user_id` rather than the dev fallback.
+- [x] `E2` Extend MCP execution APIs so stored accounts can be selected by account ID instead of requiring raw credentials.
+- [x] `E3` Add authorization checks for cross-user account access attempts.
+- [x] `E4` Ensure the same local user can use browser-created accounts through MCP.
 - [ ] `E5` Add end-to-end tests against local Keycloak and local Dovecot.
 
 ## Frontend workstream
