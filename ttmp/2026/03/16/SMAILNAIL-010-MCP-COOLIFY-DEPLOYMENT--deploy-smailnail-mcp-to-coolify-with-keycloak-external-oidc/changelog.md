@@ -11,3 +11,4 @@
 - Added a hosted Dovecot fixture definition, created the raw-port Coolify service `gh32795yh1av2dpi2j6lhn6h`, and validated remote IMAPS mailbox creation, message append, and message fetch against `89.167.52.236:993` (`04f2762`)
 - Consolidated the ad hoc deployment helpers into the ticket `scripts/` directory so the Coolify, Keycloak, and hosted Dovecot steps can be replayed without shell-history archaeology
 - Added a proper authenticated streamable-HTTP smoke client under the ticket `scripts/` directory and validated a live Keycloak-backed `executeIMAPJS` call that connected to the hosted Dovecot fixture and returned `{"mailbox":"INBOX"}`
+- Added a fresh OpenAI/Keycloak DCR debug guide documenting that the current failure is Keycloak anonymous client-registration policy rejection (`Trusted Hosts` and `Allowed Client Scopes`), not a missing RFC 7591 endpoint

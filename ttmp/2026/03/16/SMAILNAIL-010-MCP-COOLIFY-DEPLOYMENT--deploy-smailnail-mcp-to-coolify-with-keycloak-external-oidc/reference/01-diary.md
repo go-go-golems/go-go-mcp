@@ -643,6 +643,95 @@ I also turned that validation into reusable ticket scripts instead of leaving it
 - Successful tool result payload:
   - `{"mailbox":"INBOX"}`
 
+## Step 8: OpenAI connector and Keycloak DCR debugging pass
+
+I revisited the hosted deployment from the OpenAI connector angle after the user tried several Keycloak UI changes and still received a generic RFC 7591 error. The important outcome is that the message from OpenAI is not the real diagnosis: the live system does advertise a `registration_endpoint`, and Keycloak is actively receiving dynamic client registration attempts.
+
+The fresh analysis showed that the failures are still inside Keycloak’s anonymous client registration policy layer. The two active blockers are `Trusted Hosts` and `Allowed Client Scopes`. I turned that into a dedicated debug guide so the next iteration can be driven by evidence instead of the connector’s generic error text.
+
+### Prompt Context
+
+**User prompt (verbatim):** "I tried a bunch of things. Read https://codegym.cc/quests/lectures/en.codegym.chatgptapp.next.lecture.level10.lecture03 and https://kane.mx/posts/2025/deploy-keycloak-aws-mcp-oauth/ and do a fresh analysis of what the issue might be (you can read logs and do things and all that), and store the analysis a debug guide in the ticket and upload to remarkable"
+
+**Assistant interpretation:** Re-assess the OpenAI connector failure using the referenced Keycloak/MCP materials plus fresh live evidence from the deployed stack, then write a ticket-local debugging guide and deliver it to reMarkable.
+
+**Inferred user intent:** Stop guessing in the Keycloak UI and replace it with a grounded explanation of the actual failing component and the most likely next fixes.
+
+### What I did
+- Installed `defuddle` and extracted both referenced articles to local markdown for analysis
+- Re-checked:
+  - `https://auth.scapegoat.dev/realms/smailnail/.well-known/openid-configuration`
+  - `https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource`
+- Tailed fresh live logs from:
+  - `keycloak-k12lm4blpo13louovn3pfsgs`
+  - `fhp3mxqlfftdxdib3vxz89l3-044752750295`
+- Probed the dynamic client registration endpoint directly and captured the 403 policy error
+- Dumped the live anonymous client registration policy components from Keycloak via `kcadm.sh`
+- Added the debug guide:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/reference/03-openai-keycloak-dcr-debug-guide.md`
+
+### Why
+- The generic OpenAI error was not enough to distinguish between:
+  - missing DCR support
+  - broken protected resource metadata
+  - Keycloak policy rejection
+  - token or audience validation problems after registration
+- The user explicitly asked for a fresh analysis grounded in both documentation and live behavior
+
+### What worked
+- The issuer metadata confirmed the registration endpoint is present
+- The log review confirmed OpenAI is making real registration attempts
+- The direct DCR probe reproduced the same policy failure outside OpenAI
+- The Keycloak policy dump clearly showed `Trusted Hosts` and `Allowed Client Scopes` active for anonymous registration
+
+### What didn't work
+- The Keycloak UI changes attempted so far did not fully resolve the anonymous DCR path
+- The `Allowed Client Scopes` UI still does not expose a straightforward way to add `openid`, even though Keycloak logs continue rejecting it
+
+### What I learned
+- OpenAI’s RFC 7591 error is generic and hides the actual Keycloak policy failures
+- OpenAI appears to use rotating Azure IPs for DCR requests, making `Trusted Hosts` a poor fit for this workflow
+- The Kane article’s advice about fixing Keycloak DCR policy via Admin REST, not only the UI, matches the current live system
+- Keycloak’s RFC 8707/resource-indicator gap is likely a later issue, not the current blocker
+
+### What was tricky to build
+- The tricky part was separating “what the connector says” from “what the auth server is actually doing.” Without the live log correlation, the natural assumption is that DCR is not advertised. In reality, the flow is getting much farther: discovery works, the registration endpoint exists, and the failure happens inside anonymous policy evaluation. That distinction matters because it changes the fix from “change the MCP server” to “change Keycloak policy.”
+
+### What warrants a second pair of eyes
+- Whether to keep anonymous DCR at all for OpenAI, given the rotating `Trusted Hosts` source IPs
+- Whether the next implementation step should use Admin REST to rewrite the `Allowed Client Scopes` policy instead of more UI attempts
+- Whether audience/resource handling should be prepared immediately after DCR succeeds
+
+### What should be done in the future
+- Disable or remove anonymous `Trusted Hosts` and anonymous `Allowed Client Scopes` temporarily, then retry OpenAI while tailing logs
+- If DCR succeeds, reintroduce restrictions incrementally
+- If DCR succeeds but login still fails, inspect `aud`/`resource` handling next
+
+### Code review instructions
+- Start with `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/reference/03-openai-keycloak-dcr-debug-guide.md`
+- Then compare the hosted MCP auth behavior in:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/auth_provider_external.go`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/pkg/embeddable/mcpgo_backend.go`
+- Validate live with:
+  - `curl -fsS https://auth.scapegoat.dev/realms/smailnail/.well-known/openid-configuration | jq`
+  - `curl -fsS https://smailnail.mcp.scapegoat.dev/.well-known/oauth-protected-resource | jq`
+  - `ssh root@89.167.52.236 'docker logs --since 20m keycloak-k12lm4blpo13louovn3pfsgs 2>&1 | tail -n 200'`
+
+### Technical details
+- Observed OpenAI-related `Trusted Hosts` rejections from:
+  - `52.176.139.178`
+  - `52.176.139.180`
+  - `52.176.139.181`
+  - `52.176.139.183`
+  - `52.176.139.187`
+  - `52.176.139.190`
+- Direct DCR probe result:
+  - `403 insufficient_scope`
+  - `Policy 'Allowed Client Scopes' rejected request to client-registration service`
+- Anonymous policy components confirmed active:
+  - `Trusted Hosts`
+  - `Allowed Client Scopes`
+
 ## Related
 
 - Implementation plan: `../design-doc/01-concrete-deployment-plan-for-smailnail-mcp-on-coolify-with-keycloak.md`
