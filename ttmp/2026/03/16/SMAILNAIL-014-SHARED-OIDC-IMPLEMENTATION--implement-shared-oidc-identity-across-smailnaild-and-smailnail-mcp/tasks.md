@@ -28,15 +28,15 @@
 
 ### smailnaild web auth
 
-- [ ] `C1` Add a Glazed OIDC settings section for issuer, client ID, client secret, redirect URL, scopes, and session cookie settings.
-- [ ] `C2` Add OIDC bootstrap wiring in `cmd/smailnaild/commands/serve.go`.
+- [x] `C1` Add a Glazed OIDC settings section for issuer, client ID, client secret, redirect URL, scopes, and session cookie settings.
+- [x] `C2` Add OIDC bootstrap wiring in `cmd/smailnaild/commands/serve.go`.
 - [ ] `C3` Add `/auth/login` to start the authorization code flow.
 - [ ] `C4` Add `/auth/callback` to exchange code for tokens and create a local session.
 - [ ] `C5` Add `/auth/logout` to clear the session and optionally redirect through provider logout.
-- [ ] `C6` Add `/api/me` for the authenticated frontend bootstrap call.
-- [ ] `C7` Add session cookie issuance, lookup, refresh, and deletion middleware.
-- [ ] `C8` Replace implicit `local-user` fallback with authenticated session resolution in hosted mode.
-- [ ] `C9` Preserve an explicit development override mode only when a dedicated flag or env toggle is enabled.
+- [x] `C6` Add `/api/me` for the authenticated frontend bootstrap call.
+- [x] `C7` Add session cookie issuance, lookup, refresh, and deletion middleware.
+- [x] `C8` Replace implicit `local-user` fallback with authenticated session resolution in hosted mode.
+- [x] `C9` Preserve an explicit development override mode only when a dedicated flag or env toggle is enabled.
 - [ ] `C10` Add integration tests for anonymous access, login callback, me, logout, and expired session behavior.
 
 ### MCP shared identity

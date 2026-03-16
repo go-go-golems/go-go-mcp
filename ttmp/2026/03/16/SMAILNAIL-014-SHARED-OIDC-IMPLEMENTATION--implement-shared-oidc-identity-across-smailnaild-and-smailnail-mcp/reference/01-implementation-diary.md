@@ -140,3 +140,53 @@ Worktree notes:
   - `smailnail-imap-mcp`
   - `smailnaild.sqlite`
   - `ui/tsconfig.tsbuildinfo`
+
+## Implementation Step 2: Hosted auth mode config, session resolver, and `/api/me`
+
+Goal of this step:
+
+- stop treating every hosted request as implicitly authenticated
+- add an explicit hosted auth mode surface
+- make session-backed user resolution possible before the full OIDC callback/login flow exists
+
+What was changed in `smailnail`:
+
+- added `pkg/smailnaild/auth/config.go`
+  - new Glazed `auth` section
+  - `auth-mode` choices: `dev`, `session`, `oidc`
+  - session cookie and future OIDC fields
+- updated `pkg/smailnaild/user.go`
+  - `UserResolver` now returns `(string, error)`
+  - added `ErrUnauthenticated`
+  - added `SessionUserResolver`
+- updated `cmd/smailnaild/commands/serve.go`
+  - loads auth settings
+  - uses `HeaderUserResolver` only in `auth-mode=dev`
+  - uses `SessionUserResolver` in `session` and `oidc` modes
+- updated `pkg/smailnaild/http.go`
+  - protected APIs now call `requireUserID(...)`
+  - unauthenticated access returns `401`
+  - added `GET /api/me`
+- extended tests in `pkg/smailnaild/http_test.go`
+  - unauthenticated `401` case
+  - cookie-backed `/api/me` success case
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/...
+go test ./cmd/smailnaild/...
+```
+
+Observed issue and fix:
+
+- moving `identity` tests away from the parent `smailnaild` bootstrap caused a package import cycle to disappear but also removed the transitive SQLite driver import
+- fixed by:
+  - self-bootstrapping the minimal identity tables inside `identity/service_test.go`
+  - adding the explicit `_ "github.com/mattn/go-sqlite3"` import to that test file
+
+Scope boundary for this step:
+
+- this step does **not** yet add `/auth/login`, `/auth/callback`, or `/auth/logout`
+- it lays the auth boundary and config surface needed for those routes in the next slice
