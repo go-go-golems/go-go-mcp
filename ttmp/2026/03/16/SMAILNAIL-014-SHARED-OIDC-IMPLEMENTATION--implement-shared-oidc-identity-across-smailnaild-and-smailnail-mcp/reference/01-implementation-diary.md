@@ -88,3 +88,55 @@ It was exercised against the `smailnail` repo and confirmed:
 - the oldest reachable commit is `27c2460` (`Initial commit`)
 - the first reachable MCP files appear in `ff584b4` (`Add smailnail IMAP JS MCP runtime slice`)
 - there is no earlier non-JS MCP surface in the reachable history before that commit
+
+## Implementation Step 1: Identity schema and shared user service foundation
+
+Goal of this step:
+
+- create the first executable slice of `SMAILNAIL-014`
+- add local identity storage and provider-neutral principal resolution
+- avoid touching the still-unrelated frontend embed drift in the `smailnail` worktree
+
+What was changed in `smailnail`:
+
+- bumped the hosted schema from version `5` to `6`
+- added three new tables in `pkg/smailnaild/db.go`
+  - `users`
+  - `user_external_identities`
+  - `web_sessions`
+- added a new package:
+  - `pkg/smailnaild/identity/types.go`
+  - `pkg/smailnaild/identity/repository.go`
+  - `pkg/smailnaild/identity/service.go`
+  - `pkg/smailnaild/identity/service_test.go`
+- extended `pkg/smailnaild/db_test.go` to assert the new schema version and tables
+
+What the new slice does:
+
+- defines a provider-neutral `ExternalPrincipal`
+- defines local `User`, `ExternalIdentity`, and `WebSession` records
+- provides repository helpers for users, external identities, and sessions
+- implements `ResolveOrProvisionUser(ctx, principal)`
+- refreshes stored profile fields on repeated resolution without changing the canonical identity key
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/...
+go test ./cmd/smailnaild/...
+```
+
+Observed issue and fix:
+
+- first test run failed because `pkg/smailnaild/identity/repository.go` used `time.Time` in a helper but did not import `time`
+- fixed by adding the missing import and rerunning the focused test suites
+
+Worktree notes:
+
+- unrelated existing drift was left untouched:
+  - `go.mod`
+  - `pkg/smailnaild/web/embed/public/...`
+  - `smailnail-imap-mcp`
+  - `smailnaild.sqlite`
+  - `ui/tsconfig.tsbuildinfo`
