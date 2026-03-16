@@ -23,7 +23,7 @@ ExternalSources:
     - https://datatracker.ietf.org/doc/html/rfc7591
     - https://www.keycloak.org/docs/latest/server_admin/
 Summary: Diary capturing the creation of the shared OIDC identity implementation ticket and the reasoning that connects the current browser stub to the existing MCP OIDC flow.
-LastUpdated: 2026-03-16T11:28:46.488167485-04:00
+LastUpdated: 2026-03-16T12:21:00-04:00
 WhatFor: Record the concrete reasoning, references, and scoping decisions behind the shared identity implementation ticket.
 WhenToUse: Use when reviewing why the ticket exists, what assumptions it makes, and which code paths were inspected at kickoff.
 ---
@@ -190,3 +190,63 @@ Scope boundary for this step:
 
 - this step does **not** yet add `/auth/login`, `/auth/callback`, or `/auth/logout`
 - it lays the auth boundary and config surface needed for those routes in the next slice
+
+## Implementation Step 3: OIDC login, callback, logout, and web-session round-trip
+
+Goal of this step:
+
+- make `auth-mode=oidc` actually usable for browser login
+- connect OIDC discovery and JWT verification to the shared identity service
+- prove the web flow with an executable fake-provider test instead of relying on manual login only
+
+What was changed in `smailnail`:
+
+- completed `pkg/smailnaild/auth/oidc.go`
+  - OIDC discovery fetch
+  - JWKS cache and `id_token` signature verification
+  - authorization code exchange
+  - local user provisioning through `identity.Service`
+  - hosted session creation and cookie issuance
+- updated `pkg/smailnaild/http.go`
+  - added optional web auth handler wiring
+  - registers:
+    - `GET /auth/login`
+    - `GET /auth/callback`
+    - `GET /auth/logout`
+- updated `cmd/smailnaild/commands/serve.go`
+  - creates `identity.Service`
+  - boots `OIDCAuthenticator` when `auth-mode=oidc`
+  - passes the web auth handler into the hosted HTTP server
+- added `pkg/smailnaild/oidc_test.go`
+  - fake OIDC provider with discovery, JWKS, token exchange, and signed `id_token`
+  - asserts login redirect
+  - asserts callback session issuance
+  - asserts `/api/me` returns the provisioned user
+  - asserts logout invalidates the session
+- extended `pkg/smailnaild/http_test.go`
+  - added expired-session rejection coverage for `/api/me`
+
+Validation commands run:
+
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail
+go test ./pkg/smailnaild/... ./cmd/smailnaild/...
+go test ./...
+```
+
+Observed issue and fix:
+
+- the initial `oidc.go` draft had a stray `github.com/golang-jwt/jwt/v5/request` import kept alive by a dummy reference
+- removed it before wiring the authenticator so the new slice stayed on one JWT stack
+
+Behavior added by this step:
+
+- in `auth-mode=oidc`, `/auth/login` now redirects to the provider authorization endpoint with state and nonce cookies
+- `/auth/callback` now exchanges the code, verifies the `id_token`, provisions or refreshes the local user, and creates a `web_sessions` row
+- `/auth/logout` now deletes the local session and clears the browser cookie
+- authenticated browser requests can now bootstrap through `/api/me` using the same local identity tables that future MCP bearer auth will use
+
+Scope boundary for this step:
+
+- provider logout redirect is still local-only; there is not yet an upstream end-session flow
+- MCP bearer-authenticated user mapping is still the next implementation slice

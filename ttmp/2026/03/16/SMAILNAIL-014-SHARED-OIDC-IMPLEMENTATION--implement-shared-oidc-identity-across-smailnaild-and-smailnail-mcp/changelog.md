@@ -24,3 +24,7 @@ Implement identity schema version 6 and add the shared user resolution foundatio
 
 Add hosted auth-mode configuration, session-backed user resolution, /api/me, and 401 responses for protected API calls.
 
+
+## 2026-03-16
+
+Add hosted OIDC login, callback, logout, and fake-provider session flow tests for `smailnaild`.
