@@ -1,0 +1,6 @@
+# Changelog
+
+## 2026-03-16
+
+- Initial workspace created
+- Scoped the ticket around production packaging for `smailnail-imap-mcp`, Coolify deployment on `smailnail.mcp.scapegoat.dev`, Keycloak external OIDC via `auth.scapegoat.dev`, and a separate hosted Dovecot test target
