@@ -603,3 +603,66 @@ The earlier user-visible rough edge is now handled in code and revalidated in pr
 - the merged `/mcp` flow still works on the same account
 - the remaining real operational issue is no longer the transient IMAP test failure
 - the remaining real operational issue is still the non-persistent app DB on redeploy
+
+## Implementation step 8: clarify logout behavior, IdP choice, and GitHub-login expectations
+
+### Problem observed
+
+When testing GitHub SSO setup, the user noticed that logging out of the app and then pressing sign-in did not obviously return them to a provider-choice screen. Instead, the flow appeared to bounce straight back into the prior manual login path.
+
+That looked confusing at first, but it is actually the result of multiple independent sessions:
+
+- the `smailnaild` application session cookie
+- the Keycloak realm session
+- the upstream GitHub browser session
+
+Clearing only the app session is not enough to force the user through a real chooser experience again.
+
+### What this means operationally
+
+If the app clears only `smailnail_session`, but the browser still has a valid Keycloak session, then going back to `/auth/login` can immediately re-authenticate through Keycloak without showing a login form again.
+
+Even if the Keycloak session is cleared, GitHub itself may still have an active browser session, so choosing the GitHub provider can still silently succeed without prompting for GitHub credentials.
+
+So there are two separate goals:
+
+- show the Keycloak login page with a choice of providers
+- force the user to type credentials again
+
+Those are not the same thing.
+
+### Correct product expectation
+
+For the current architecture, the right behavior is:
+
+- normal app login should go to Keycloak without a forced provider hint
+- Keycloak should show the realm login page with the available provider buttons
+- app logout should clear the app session and, ideally, redirect through Keycloak end-session logout
+
+What app logout cannot reliably do is force GitHub itself to forget the browser login. That is controlled by the GitHub session in the browser.
+
+### Important Keycloak configuration concept
+
+If Keycloak has a default Identity Provider Redirector configured in the browser flow, then users may never see the normal Keycloak login page. Instead, Keycloak can immediately redirect them into one provider, such as GitHub.
+
+That behavior should only be enabled if the product explicitly wants:
+
+- always use GitHub
+- never show a Keycloak provider chooser
+
+It is not the right default if the goal is to let a user choose between local Keycloak login and GitHub login.
+
+### What the app should eventually do
+
+The desired future UI shape is:
+
+- `Sign in` -> standard Keycloak login page, no forced provider
+- `Sign in with GitHub` -> same Keycloak auth endpoint, but with `kc_idp_hint=github`
+
+And logout should:
+
+- clear `smailnail_session`
+- redirect through the Keycloak end-session endpoint
+- return to the app after Keycloak logout completes
+
+That will clear the app session and the Keycloak session, which is enough to make provider choice work predictably. It still will not guarantee a GitHub password prompt if GitHub itself is still logged in.

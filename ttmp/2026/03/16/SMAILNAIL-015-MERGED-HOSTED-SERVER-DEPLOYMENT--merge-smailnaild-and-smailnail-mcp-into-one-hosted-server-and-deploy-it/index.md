@@ -71,6 +71,7 @@ This ticket covers both the code refactor and the deployment cutover on Coolify.
 
 - Design doc: [design/01-implementation-plan-for-merging-smailnaild-and-mcp-into-one-hosted-server.md](./design/01-implementation-plan-for-merging-smailnaild-and-mcp-into-one-hosted-server.md)
 - Diary: [reference/01-implementation-diary.md](./reference/01-implementation-diary.md)
+- Playbook: [playbooks/01-hosted-validation-and-github-sso-playbook.md](./playbooks/01-hosted-validation-and-github-sso-playbook.md)
 - Prior shared-identity ticket: [../SMAILNAIL-014-SHARED-OIDC-IMPLEMENTATION--implement-shared-oidc-identity-across-smailnaild-and-smailnail-mcp/index.md](../SMAILNAIL-014-SHARED-OIDC-IMPLEMENTATION--implement-shared-oidc-identity-across-smailnaild-and-smailnail-mcp/index.md)
 - Prior hosted MCP deployment ticket: [../SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/index.md](../SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/index.md)
 - **Related Files**: See frontmatter RelatedFiles field

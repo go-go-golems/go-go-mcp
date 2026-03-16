@@ -15,3 +15,4 @@
 - 2026-03-16: Completed hosted browser-session validation for `/auth/login`, `/auth/callback`, `/api/me`, saved-account creation, mailbox listing, message preview, unauthenticated `/mcp` protection, and bearer-authenticated MCP execution using the same stored account.
 - 2026-03-16: Added reusable hosted smoke scripts under `scripts/` for browser-login validation and merged `/mcp` bearer-auth validation.
 - 2026-03-16: Hardened the hosted IMAP account-test path to retry transient network-closure failures, added unit coverage for retry vs non-retry behavior, redeployed the merged Coolify app, and revalidated hosted `/api/accounts/{id}/test` plus merged `/mcp` against a freshly recreated account.
+- 2026-03-16: Added an operator playbook covering post-deploy hosted validation and the next GitHub SSO setup sequence for the production Keycloak realm.
