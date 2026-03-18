@@ -171,3 +171,12 @@ func TestProtectedResourceHandlerUsesProviderMetadata(t *testing.T) {
 		t.Fatalf("unexpected resource: %#v", got)
 	}
 }
+
+func TestBuildBearerChallengeOnlyAdvertisesResourceMetadata(t *testing.T) {
+	got := buildBearerChallenge("https://mcp.example.com/.well-known/oauth-protected-resource")
+	want := `Bearer realm="mcp", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`
+
+	if got != want {
+		t.Fatalf("unexpected challenge header:\nwant: %q\n got: %q", want, got)
+	}
+}

@@ -42,7 +42,6 @@ type externalBearerClaims struct {
 type externalOIDCAuthProvider struct {
 	opts           ExternalOIDCOptions
 	resourceURL    string
-	discoveryURL   string
 	discovery      oidcDiscoveryDocument
 	httpClient     *http.Client
 	jwks           *jwksCache
@@ -93,7 +92,6 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 	provider := &externalOIDCAuthProvider{
 		opts:           opts.External,
 		resourceURL:    strings.TrimSpace(opts.EffectiveResourceURL()),
-		discoveryURL:   discoveryURL,
 		discovery:      discovery,
 		httpClient:     httpClient,
 		requiredScopes: requiredScopes,
@@ -176,8 +174,7 @@ func (p *externalOIDCAuthProvider) ProtectedResourceMetadata() map[string]any {
 }
 
 func (p *externalOIDCAuthProvider) WWWAuthenticateHeader() string {
-	return "Bearer realm=\"mcp\", resource=\"" + p.resourceURL + "\"" +
-		", authorization_uri=\"" + p.discoveryURL + "\", resource_metadata=\"" + protectedResourceMetadataURL(p.resourceURL) + "\""
+	return buildBearerChallenge(protectedResourceMetadataURL(p.resourceURL))
 }
 
 func (p *externalOIDCAuthProvider) verifyToken(ctx context.Context, token string, forceRefresh bool) (*externalBearerClaims, error) {

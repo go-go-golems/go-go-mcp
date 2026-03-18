@@ -91,11 +91,11 @@ func TestExternalOIDCProviderValidatesJWTAndAdvertisesResourceMetadata(t *testin
 	}
 
 	header := provider.WWWAuthenticateHeader()
-	if !strings.Contains(header, `resource="https://mcp.example.com/mcp"`) {
-		t.Fatalf("missing resource in WWW-Authenticate: %q", header)
+	if want := `Bearer realm="mcp", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`; header != want {
+		t.Fatalf("unexpected WWW-Authenticate header:\nwant: %q\n got: %q", want, header)
 	}
-	if !strings.Contains(header, `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`) {
-		t.Fatalf("missing resource metadata in WWW-Authenticate: %q", header)
+	if strings.Contains(header, "authorization_uri=") {
+		t.Fatalf("unexpected authorization_uri in WWW-Authenticate: %q", header)
 	}
 
 	metadata := provider.ProtectedResourceMetadata()
