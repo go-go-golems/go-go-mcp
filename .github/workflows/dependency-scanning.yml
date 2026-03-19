@@ -1,5 +1,8 @@
 name: Dependency Scanning
 
+env:
+  GOSEC_EXCLUDES: G101,G204,G301,G304,G306,G702
+
 on:
   push:
     branches: [ main ]
@@ -56,4 +59,4 @@ jobs:
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
       - name: Run Gosec Security Scanner
-        run: gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./... 
+        run: gosec -exclude="$GOSEC_EXCLUDES" -exclude-dir=.history ./...

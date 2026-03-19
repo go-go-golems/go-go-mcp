@@ -22,6 +22,7 @@ type Backend interface {
 }
 
 const toolDescriptionPreviewEdge = 80
+const shutdownTimeout = 10 * time.Second
 
 // NewBackend constructs an mcp-go based backend from the provided ServerConfig.
 // It builds an MCP server, registers tools via existing configuration, and
@@ -248,7 +249,9 @@ func (b *sseBackend) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		log.Info().Str("addr", addr).Msg("Shutting down SSE HTTP server")
-		_ = server.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
 	}()
 
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
@@ -277,7 +280,9 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	go func() {
 		<-ctx.Done()
 		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
-		_ = server.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
 	}()
 
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")

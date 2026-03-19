@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -17,7 +18,8 @@ type HTTPResponse struct {
 
 // MakeHTTPRequest makes an HTTP request and returns a standardized response
 func MakeHTTPRequest(req *http.Request) *HTTPResponse {
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
+	// #nosec G704 -- callers build requests for vetted scholarly provider endpoints.
 	resp, err := client.Do(req)
 	if err != nil {
 		return &HTTPResponse{

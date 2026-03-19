@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -62,10 +63,16 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 	if issuerURL == "" {
 		return nil, fmt.Errorf("external oidc issuer url is required")
 	}
+	if _, err := validateExternalOIDCEndpointURL(issuerURL); err != nil {
+		return nil, fmt.Errorf("invalid external oidc issuer url: %w", err)
+	}
 
 	discoveryURL := strings.TrimSpace(opts.External.DiscoveryURL)
 	if discoveryURL == "" {
 		discoveryURL = strings.TrimRight(issuerURL, "/") + "/.well-known/openid-configuration"
+	}
+	if _, err := validateExternalOIDCEndpointURL(discoveryURL); err != nil {
+		return nil, fmt.Errorf("invalid external oidc discovery url: %w", err)
 	}
 
 	httpClient := &http.Client{Timeout: defaultOIDCHTTPTimeout}
@@ -79,6 +86,15 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 	}
 	if strings.TrimSpace(discovery.JWKSURI) == "" {
 		return nil, fmt.Errorf("oidc discovery document missing jwks_uri")
+	}
+	if _, err := validateExternalOIDCEndpointURL(discovery.Issuer); err != nil {
+		return nil, fmt.Errorf("invalid oidc discovery issuer: %w", err)
+	}
+	if normalizeURLForCompare(discovery.Issuer) != normalizeURLForCompare(issuerURL) {
+		return nil, fmt.Errorf("oidc discovery issuer %q does not match configured issuer %q", discovery.Issuer, issuerURL)
+	}
+	if _, err := validateExternalOIDCEndpointURL(discovery.JWKSURI); err != nil {
+		return nil, fmt.Errorf("invalid jwks uri: %w", err)
 	}
 
 	requiredScopes := make(map[string]struct{}, len(opts.External.RequiredScopes))
@@ -240,11 +256,16 @@ func (c *jwksCache) needsRefresh() bool {
 }
 
 func (c *jwksCache) refresh(ctx context.Context) error {
+	if _, err := validateExternalOIDCEndpointURL(c.jwksURI); err != nil {
+		return err
+	}
+	// #nosec G704 -- jwks_uri is validated against allowed OIDC endpoint URL rules.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.jwksURI, nil)
 	if err != nil {
 		return err
 	}
 
+	// #nosec G704 -- outbound fetch is limited to a validated jwks_uri.
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
@@ -268,11 +289,16 @@ func (c *jwksCache) refresh(ctx context.Context) error {
 }
 
 func fetchOIDCDiscovery(ctx context.Context, client *http.Client, discoveryURL string) (oidcDiscoveryDocument, error) {
+	if _, err := validateExternalOIDCEndpointURL(discoveryURL); err != nil {
+		return oidcDiscoveryDocument{}, err
+	}
+	// #nosec G704 -- discovery URL is validated before request construction.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoveryURL, nil)
 	if err != nil {
 		return oidcDiscoveryDocument{}, err
 	}
 
+	// #nosec G704 -- outbound fetch is limited to a validated OIDC discovery URL.
 	resp, err := client.Do(req)
 	if err != nil {
 		return oidcDiscoveryDocument{}, err
@@ -288,6 +314,46 @@ func fetchOIDCDiscovery(ctx context.Context, client *http.Client, discoveryURL s
 		return oidcDiscoveryDocument{}, err
 	}
 	return doc, nil
+}
+
+func validateExternalOIDCEndpointURL(rawURL string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, err
+	}
+	if !parsed.IsAbs() {
+		return nil, fmt.Errorf("url must be absolute")
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("url must include a host")
+	}
+	if parsed.User != nil {
+		return nil, fmt.Errorf("userinfo is not allowed in oidc endpoint urls")
+	}
+	if parsed.Fragment != "" {
+		return nil, fmt.Errorf("fragments are not allowed in oidc endpoint urls")
+	}
+
+	switch parsed.Scheme {
+	case "https":
+		return parsed, nil
+	case "http":
+		host := parsed.Hostname()
+		if host == "localhost" {
+			return parsed, nil
+		}
+		ip := net.ParseIP(host)
+		if ip != nil && ip.IsLoopback() {
+			return parsed, nil
+		}
+		return nil, fmt.Errorf("http is allowed only for localhost or loopback addresses")
+	default:
+		return nil, fmt.Errorf("unsupported scheme %q", parsed.Scheme)
+	}
+}
+
+func normalizeURLForCompare(rawURL string) string {
+	return strings.TrimRight(strings.TrimSpace(rawURL), "/")
 }
 
 func protectedResourceMetadataURL(resourceURL string) string {
