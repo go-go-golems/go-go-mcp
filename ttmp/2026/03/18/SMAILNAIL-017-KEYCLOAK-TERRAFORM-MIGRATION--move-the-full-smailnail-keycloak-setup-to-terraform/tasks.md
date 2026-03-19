@@ -34,7 +34,7 @@
 
 ## Phase 4: Migration mechanics
 
-- [ ] Decide whether to import existing hosted Keycloak resources into Terraform state or recreate them.
+- [x] Decide whether to import existing hosted Keycloak resources into Terraform state or recreate them.
 - [ ] Write an operator playbook for safe first import and first plan against the live realm.
 - [ ] Add a drift-review workflow before any apply to production.
 - [ ] Create rollback guidance for accidental realm or client misconfiguration.
@@ -43,6 +43,7 @@
 
 - [x] Add `terraform fmt` and `terraform validate` to the implementation workflow.
 - [x] Add a local verification workflow against the local Keycloak container.
+- [x] Add an initial hosted import verification workflow that proves realm and client import plus drift inspection.
 - [ ] Add a hosted verification workflow that checks discovery, browser login, and MCP metadata.
 - [ ] Add a connector-focused verification checklist for OpenAI and Claude.
 

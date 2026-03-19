@@ -9,6 +9,8 @@
 - Added an initial Terraform scaffold under `smailnail/deployments/terraform/keycloak` with shared modules plus `local` and `hosted` environments.
 - Verified the scaffold with the real `keycloak/keycloak` provider using `terraform init -backend=false` and `terraform validate`.
 - Proved a real local apply against sandbox realm `smailnail-dev-tf`, verified OIDC discovery for that realm, and reached a clean no-op follow-up plan.
+- Added hosted Terraform auth support via bootstrap admin username/password and imported the live hosted realm plus the `smailnail-web` and `smailnail-mcp` clients into hosted Terraform state.
+- Confirmed two important provider behaviors during hosted import: `keycloak_openid_client` import requires the internal Keycloak client UUID in the import ID, and `keycloak_openid_client_default_scopes` / `optional_scopes` do not support import.
 
 ## 2026-03-18
 

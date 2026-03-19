@@ -321,6 +321,117 @@ curl -fsS http://127.0.0.1:18080/realms/smailnail-dev-tf/.well-known/openid-conf
 docker exec smailnail-keycloak /opt/keycloak/bin/kcadm.sh get clients/.../default-client-scopes -r smailnail-dev-tf
 ```
 
+## Step 4: Import the live hosted realm and discover the provider import limits
+
+This step moved from local proof into hosted adoption. The goal was not to apply Terraform to production yet. The goal was to get the live hosted Keycloak realm under Terraform state inspection so future work can be based on a real `terraform plan` instead of guesswork.
+
+To make that possible, I first extended the hosted Terraform provider config to support bootstrap admin `username` and `password`, matching the local environment. Then I used the live Keycloak bootstrap admin credentials from the running container to import the hosted `smailnail` realm and the two currently existing hosted clients, `smailnail-web` and `smailnail-mcp`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 3)
+
+**Assistant interpretation:** After the local Terraform path was proven, the next requested action was to continue into hosted import work.
+
+**Inferred user intent:** Start bringing the real hosted Keycloak realm under Terraform state without yet making configuration changes to production.
+
+**Commit (code):** N/A
+
+### What I did
+- Updated hosted Terraform provider config to support:
+  - `keycloak_username`
+  - `keycloak_password`
+  - default `client_id = admin-cli`
+- Queried the live hosted Keycloak container to find:
+  - bootstrap admin username
+  - bootstrap admin password
+  - `smailnail-web` client UUID
+  - `smailnail-mcp` client UUID
+  - current `smailnail-web` secret
+- Imported into hosted Terraform state:
+  - `module.realm.keycloak_realm.this`
+  - `module.browser_client.keycloak_openid_client.this`
+  - `module.mcp_client.keycloak_openid_client.this`
+- Ran hosted `terraform plan` afterward to inspect remaining drift.
+
+### Why
+- Importing the live realm is the safest first hosted step because it does not change production objects.
+- A post-import plan reveals the actual differences between live production and the current HCL.
+
+### What worked
+- Hosted provider authentication with bootstrap admin credentials worked.
+- Import of the hosted realm succeeded.
+- Import of both hosted clients succeeded once the correct import ID format was used.
+- Hosted state now contains:
+  - `module.realm.keycloak_realm.this`
+  - `module.browser_client.keycloak_openid_client.this`
+  - `module.mcp_client.keycloak_openid_client.this`
+- The follow-up plan exposed meaningful drift rather than "everything will be created".
+
+### What didn't work
+- The first attempt to import `keycloak_openid_client` using `smailnail/smailnail-web` failed.
+- Attempting to import `keycloak_openid_client_default_scopes` failed because the resource does not support import.
+
+Exact client import failure:
+
+```text
+error sending GET request to /admin/realms/smailnail/clients/smailnail-web: 404 Not Found
+```
+
+Exact scope-import failure:
+
+```text
+resource keycloak_openid_client_default_scopes doesn't support import
+```
+
+### What I learned
+- For this provider, `keycloak_openid_client` import IDs use:
+  - `realm_id/internal_client_uuid`
+  not the public `clientId` string.
+- The client-scope attachment helper resources are create/update-only from Terraform’s point of view and cannot be imported into state.
+- The current live hosted web and MCP clients still point at the older `smailnail.mcp.scapegoat.dev` host in places where the current HCL expects `smailnail.scapegoat.dev`.
+
+### What was tricky to build
+- The import format ambiguity was the main trap. The provider error message says the supported format is `{{realmId}}/{{openidClientId}}`, but the actual operational value for the second segment was the internal client UUID, not the public `clientId`. The only reliable way to resolve that was to test it against the live provider behavior.
+- Another subtle issue was distinguishing "import support" from "resource exists." The client-scope attachment resources clearly exist conceptually, but the provider does not implement import for them, which means adoption planning must account for create/update-only helper resources.
+
+### What warrants a second pair of eyes
+- The hosted plan still shows real drift:
+  - old vs new public callback/origin hostnames
+  - `use_refresh_tokens` differences
+  - a realm-level `default_signature_algorithm` field
+- Those should be reviewed before any hosted apply.
+
+### What should be done in the future
+- Write an explicit hosted import playbook with the exact import IDs and credential requirements.
+- Decide whether the old `smailnail.mcp.scapegoat.dev` host should remain or whether Terraform should intentionally converge the clients to `smailnail.scapegoat.dev`.
+- Decide how to handle non-importable client-scope attachment resources in the adoption workflow.
+
+### Code review instructions
+- Review hosted provider/auth changes:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/providers.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/variables.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/terraform.tfvars.example`
+- Review current hosted Terraform state with:
+```bash
+cd /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted
+terraform state list
+```
+- Review drift with:
+```bash
+terraform plan ...
+```
+
+### Technical details
+- Commands used:
+```bash
+terraform import module.realm.keycloak_realm.this smailnail
+terraform import module.browser_client.keycloak_openid_client.this smailnail/4a6dfa44-5dd3-48ae-90ae-2581ae3953b9
+terraform import module.mcp_client.keycloak_openid_client.this smailnail/7cdece72-a92a-4715-96ba-19c326b22f27
+terraform state list
+terraform plan ...
+```
+
 ## Related
 
 - Main design guide: [../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)
