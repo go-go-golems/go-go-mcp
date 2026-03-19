@@ -10,8 +10,8 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/go-go-golems/clay v0.4.0
-	github.com/go-go-golems/geppetto v0.10.11
-	github.com/go-go-golems/glazed v1.0.4
+	github.com/go-go-golems/geppetto v0.10.17
+	github.com/go-go-golems/glazed v1.0.5
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1

@@ -111,10 +111,10 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/go-go-golems/clay v0.4.0 h1:8VeR+o3ah9P95TWLFtitSLabF567AzhjjoeYK87vEwM=
 github.com/go-go-golems/clay v0.4.0/go.mod h1:8wx9hz+dUN4jodWN4CzfMqjBfcXyZ4X6DaJfFFAI8eE=
-github.com/go-go-golems/geppetto v0.10.11 h1:06UGGaJ7lCnbozuPzcTsqXtHcAPbtfMA4Njp5TcRPkw=
-github.com/go-go-golems/geppetto v0.10.11/go.mod h1:Pa8R0u2dUBC8rLH3B7a05TxBXGlnITaQZoNSoLjF9CE=
-github.com/go-go-golems/glazed v1.0.4 h1:QOrPFq3RnL36I3yYkbc/frMsGDyWIZnwpQyNAQPGoyc=
-github.com/go-go-golems/glazed v1.0.4/go.mod h1:k+KwcIT68nAam+p1JTGbCtT4Pr20sCwYPKr1FFHIazo=
+github.com/go-go-golems/geppetto v0.10.17 h1:rjBLRZ1ssU/suT/ctrQCeIA/DLMUs9ZkBFl6q4+sRLA=
+github.com/go-go-golems/geppetto v0.10.17/go.mod h1:Pa8R0u2dUBC8rLH3B7a05TxBXGlnITaQZoNSoLjF9CE=
+github.com/go-go-golems/glazed v1.0.5 h1:p4kcDdNsT2Ze+avqsFJJw/DyDdUCRJe2Dn9qHGwwOEI=
+github.com/go-go-golems/glazed v1.0.5/go.mod h1:k+KwcIT68nAam+p1JTGbCtT4Pr20sCwYPKr1FFHIazo=
 github.com/go-jose/go-jose/v3 v3.0.4 h1:Wp5HA7bLQcKnf6YYao/4kpRpVMp/yf6+pJKV8WFSaNY=
 github.com/go-jose/go-jose/v3 v3.0.4/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
 github.com/go-kit/log v0.1.0/go.mod h1:zbhenjAZHb184qTLMA9ZjW7ThYL0H2mk7Q6pNt4vbaY=
