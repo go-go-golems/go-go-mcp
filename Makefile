@@ -6,8 +6,9 @@ VERSION ?= $(shell svu)
 COMMIT ?= $(shell git rev-parse --short HEAD)
 DIRTY ?= $(shell git diff --quiet || echo "dirty")
 LDFLAGS=-ldflags "-X main.version=$(VERSION)-$(COMMIT)-$(DIRTY)"
+GOSEC_EXCLUDES=G101,G204,G301,G304,G306,G702
 
-TAPES=$(shell ls doc/vhs/*tape)
+TAPES=$(wildcard doc/vhs/*tape)
 gifs: $(TAPES)
 	for i in $(TAPES); do vhs < $$i; done
 
@@ -26,7 +27,7 @@ lintmax:
 
 gosec:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
-	gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./...
+	gosec -exclude=$(GOSEC_EXCLUDES) -exclude-dir=.history ./...
 
 govulncheck:
 	go install golang.org/x/vuln/cmd/govulncheck@latest

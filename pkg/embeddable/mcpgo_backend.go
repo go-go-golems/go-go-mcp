@@ -22,6 +22,7 @@ type Backend interface {
 }
 
 const toolDescriptionPreviewEdge = 80
+const shutdownTimeout = 10 * time.Second
 
 // NewBackend constructs an mcp-go based backend from the provided ServerConfig.
 // It builds an MCP server, registers tools via existing configuration, and
@@ -61,6 +62,43 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		return &streamBackend{server: s, port: cfg.defaultPort, cfg: cfg}, nil
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
+	}
+}
+
+// MountHTTPHandlers mounts HTTP-based MCP routes into an existing mux.
+// It is intended for applications that already own an http.Server and want to
+// expose MCP on the same listener.
+func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
+	if mux == nil {
+		return fmt.Errorf("nil mux")
+	}
+	if cfg == nil {
+		return fmt.Errorf("nil server config")
+	}
+
+	log.Debug().
+		Str("name", cfg.Name).
+		Str("version", cfg.Version).
+		Str("transport", cfg.defaultTransport).
+		Msg("Mounting MCP HTTP handlers")
+
+	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
+		mcpserver.WithToolCapabilities(true),
+		mcpserver.WithLogging(),
+	)
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
+		return err
+	}
+
+	switch cfg.defaultTransport {
+	case "sse":
+		return mountSSEHandlers(mux, s, cfg)
+	case "streamable_http":
+		return mountStreamableHTTPHandlers(mux, s, cfg)
+	case "stdio":
+		return fmt.Errorf("stdio transport cannot be mounted into an existing HTTP mux")
+	default:
+		return fmt.Errorf("unknown transport: %s", cfg.defaultTransport)
 	}
 }
 
@@ -202,31 +240,18 @@ type sseBackend struct {
 
 func (b *sseBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-
-	// Create mcp-go SSE server and mount on mux
-	sse := mcpserver.NewSSEServer(b.server, mcpserver.WithStaticBasePath("/mcp"))
 	mux := http.NewServeMux()
-
-	var handler http.Handler = sse
-
-	if b.cfg != nil && b.cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(b.cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	if err := mountSSEHandlers(mux, b.server, b.cfg); err != nil {
+		return err
 	}
-
-	// Mount SSE under /mcp/ (ServeHTTP routes internally to /mcp/sse and /mcp/message)
-	mux.Handle("/mcp/", withRequestLogging(handler))
 
 	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		log.Info().Str("addr", addr).Msg("Shutting down SSE HTTP server")
-		_ = server.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
 	}()
 
 	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting SSE server (single-port)")
@@ -246,15 +271,33 @@ type streamBackend struct {
 
 func (b *streamBackend) Start(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", b.port)
-
-	// Create mcp-go Streamable HTTP server and mount on mux
-	stream := mcpserver.NewStreamableHTTPServer(b.server)
 	mux := http.NewServeMux()
+	if err := mountStreamableHTTPHandlers(mux, b.server, b.cfg); err != nil {
+		return err
+	}
 
-	var handler http.Handler = stream
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
 
-	if b.cfg != nil && b.cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(b.cfg)
+	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+func mountSSEHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
+	sse := mcpserver.NewSSEServer(server, mcpserver.WithStaticBasePath("/mcp"))
+
+	var handler http.Handler = sse
+	if cfg != nil && cfg.authEnabled {
+		provider, err := newHTTPAuthProvider(cfg)
 		if err != nil {
 			return err
 		}
@@ -263,21 +306,26 @@ func (b *streamBackend) Start(ctx context.Context) error {
 		handler = authMiddleware(provider, handler)
 	}
 
-	// Mount streamable HTTP under /mcp
+	mux.Handle("/mcp/", withRequestLogging(handler))
+	return nil
+}
+
+func mountStreamableHTTPHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
+	stream := mcpserver.NewStreamableHTTPServer(server)
+
+	var handler http.Handler = stream
+	if cfg != nil && cfg.authEnabled {
+		provider, err := newHTTPAuthProvider(cfg)
+		if err != nil {
+			return err
+		}
+		provider.MountRoutes(mux)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
+		handler = authMiddleware(provider, handler)
+	}
+
 	mux.Handle("/mcp", withRequestLogging(handler))
 	mux.Handle("/mcp/", withRequestLogging(handler))
-
-	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	go func() {
-		<-ctx.Done()
-		log.Info().Str("addr", addr).Msg("Shutting down Streamable HTTP server")
-		_ = server.Shutdown(context.Background())
-	}()
-
-	log.Debug().Str("addr", addr).Str("endpoint", "/mcp").Msg("Starting StreamableHTTP server (single-port)")
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return err
-	}
 	return nil
 }
 
@@ -302,6 +350,7 @@ func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
 			return
 		}
 		r2 := r.Clone(r.Context())
+		r2 = r2.WithContext(WithAuthPrincipal(r2.Context(), principal))
 		r2.Header.Set("X-MCP-Subject", principal.Subject)
 		r2.Header.Set("X-MCP-Client-ID", principal.ClientID)
 		log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("subject", principal.Subject).Str("client_id", principal.ClientID).Bool("authorized", true).Msg("Authorized request")

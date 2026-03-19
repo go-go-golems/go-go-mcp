@@ -40,6 +40,8 @@ type Config struct {
 	Authenticator Authenticator
 }
 
+const maxFormBodyBytes int64 = 1 << 20
+
 type Server struct {
 	PrivateKey *rsa.PrivateKey
 	Issuer     string
@@ -310,10 +312,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		log.Info().Str("endpoint", "/login").Str("method", "GET").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("return_to", r.URL.Query().Get("return_to")).Msg("render login")
 		_ = loginTpl.Execute(w, struct{ ReturnTo string }{r.URL.Query().Get("return_to")})
 	case http.MethodPost:
-		_ = r.ParseForm()
-		u := r.FormValue("username")
-		log.Info().Str("endpoint", "/login").Str("method", "POST").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("username", u).Str("return_to", r.FormValue("return_to")).Msg("attempt login")
-		p := r.FormValue("password")
+		if err := parseFormWithLimit(w, r); err != nil {
+			writeFormParseError(w, err)
+			return
+		}
+		form := r.PostForm
+		u := form.Get("username")
+		returnTo := form.Get("return_to")
+		log.Info().Str("endpoint", "/login").Str("method", "POST").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("username", u).Str("return_to", returnTo).Msg("attempt login")
+		p := form.Get("password")
 		ok := false
 		var err error
 		if s.authenticator != nil {
@@ -325,8 +332,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 			ok = (u == s.User && p == s.Pass)
 		}
 		if ok {
-			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "ok:" + u, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
-			rt := sanitizeReturnTo(r.FormValue("return_to"))
+			writeLoginCookie(w, r, u)
+			rt := sanitizeReturnTo(returnTo)
 			log.Info().Str("endpoint", "/login").Str("username", u).Str("return_to", rt).Msg("login success, redirecting")
 			http.Redirect(w, r, rt, http.StatusFound)
 			return
@@ -344,6 +351,18 @@ func currentUser(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return strings.TrimPrefix(c.Value, "ok:"), true
+}
+
+func writeLoginCookie(w http.ResponseWriter, r *http.Request, username string) {
+	_ = r
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    "ok:" + username,
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
@@ -408,7 +427,10 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	_ = r.ParseForm()
+	if err := parseFormWithLimit(w, r); err != nil {
+		writeFormParseError(w, err)
+		return
+	}
 	form := r.PostForm
 	log.Info().
 		Str("endpoint", "/oauth2/token").
@@ -446,6 +468,20 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Info().Str("endpoint", "/oauth2/token").Str("grant_type", form.Get("grant_type")).Msg("token exchange success")
 	s.Provider.WriteAccessResponse(ctx, w, accessReq, resp)
+}
+
+func parseFormWithLimit(w http.ResponseWriter, r *http.Request) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodyBytes)
+	return r.ParseForm()
+}
+
+func writeFormParseError(w http.ResponseWriter, err error) {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	http.Error(w, "invalid form body", http.StatusBadRequest)
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {

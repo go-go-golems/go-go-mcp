@@ -29,6 +29,7 @@ type SSETransport struct {
 	initialized         bool
 	sessionID           string
 	endpoint            string
+	subscriptionCancel  context.CancelFunc
 	notificationHandler func(*protocol.Response)
 	cookies             []*http.Cookie
 }
@@ -182,6 +183,9 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 
 	// Create a new context with cancellation for the subscription
 	subCtx, cancel := context.WithCancel(ctx)
+	t.mu.Lock()
+	t.subscriptionCancel = cancel
+	t.mu.Unlock()
 
 	// Channel to wait for endpoint event
 	endpointCh := make(chan string, 1)
@@ -275,6 +279,7 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 			Msg("SSE initialization successful")
 		return nil
 	case <-ctx.Done():
+		cancel()
 		t.logger.Error().Msg("Context cancelled while waiting for endpoint event")
 		return ctx.Err()
 	}
@@ -283,7 +288,15 @@ func (t *SSETransport) initializeSSE(ctx context.Context) error {
 // Close closes the transport
 func (t *SSETransport) Close(ctx context.Context) error {
 	t.logger.Debug().Msg("Closing transport")
+	_ = ctx
 	t.closeOnce.Do(func() {
+		t.mu.Lock()
+		cancel := t.subscriptionCancel
+		t.subscriptionCancel = nil
+		t.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
 		t.sseClient.Unsubscribe(t.events)
 		close(t.events)
 		t.logger.Debug().Msg("Transport closed")

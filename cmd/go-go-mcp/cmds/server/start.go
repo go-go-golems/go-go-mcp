@@ -155,6 +155,7 @@ func (c *StartCommand) Run(
 	defer stop()
 
 	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, gctx := errgroup.WithContext(cancelCtx)
 
 	// Start file watcher

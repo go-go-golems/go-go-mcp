@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	embeddedoidc "github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 )
@@ -13,10 +12,16 @@ import (
 var errUnauthorizedToken = errors.New("unauthorized token")
 
 type AuthPrincipal struct {
-	Subject  string
-	ClientID string
-	Issuer   string
-	Scopes   []string
+	Subject           string
+	ClientID          string
+	Issuer            string
+	Scopes            []string
+	Email             string
+	EmailVerified     bool
+	PreferredUsername string
+	DisplayName       string
+	AvatarURL         string
+	Claims            map[string]any
 }
 
 type HTTPAuthProvider interface {
@@ -104,10 +109,9 @@ func (p *embeddedDevAuthProvider) ProtectedResourceMetadata() map[string]any {
 }
 
 func (p *embeddedDevAuthProvider) WWWAuthenticateHeader() string {
-	issuer := strings.TrimRight(p.opts.Issuer, "/")
-	asMeta := issuer + "/.well-known/oauth-authorization-server"
-	prm := issuer + "/.well-known/oauth-protected-resource"
+	return buildBearerChallenge(protectedResourceMetadataURL(p.resourceURL))
+}
 
-	return "Bearer realm=\"mcp\", resource=\"" + p.resourceURL + "\"" +
-		", authorization_uri=\"" + asMeta + "\", resource_metadata=\"" + prm + "\""
+func buildBearerChallenge(resourceMetadataURL string) string {
+	return "Bearer realm=\"mcp\", resource_metadata=\"" + resourceMetadataURL + "\""
 }

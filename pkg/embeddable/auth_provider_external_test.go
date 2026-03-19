@@ -80,13 +80,22 @@ func TestExternalOIDCProviderValidatesJWTAndAdvertisesResourceMetadata(t *testin
 	if principal.Issuer != issuer {
 		t.Fatalf("unexpected issuer: %q", principal.Issuer)
 	}
+	if principal.Email != "alice@example.com" {
+		t.Fatalf("unexpected email: %q", principal.Email)
+	}
+	if principal.PreferredUsername != "alice" {
+		t.Fatalf("unexpected preferred username: %q", principal.PreferredUsername)
+	}
+	if principal.DisplayName != "Alice Example" {
+		t.Fatalf("unexpected display name: %q", principal.DisplayName)
+	}
 
 	header := provider.WWWAuthenticateHeader()
-	if !strings.Contains(header, `resource="https://mcp.example.com/mcp"`) {
-		t.Fatalf("missing resource in WWW-Authenticate: %q", header)
+	if want := `Bearer realm="mcp", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`; header != want {
+		t.Fatalf("unexpected WWW-Authenticate header:\nwant: %q\n got: %q", want, header)
 	}
-	if !strings.Contains(header, `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`) {
-		t.Fatalf("missing resource metadata in WWW-Authenticate: %q", header)
+	if strings.Contains(header, "authorization_uri=") {
+		t.Fatalf("unexpected authorization_uri in WWW-Authenticate: %q", header)
 	}
 
 	metadata := provider.ProtectedResourceMetadata()
@@ -180,8 +189,13 @@ func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, aud
 			IssuedAt:  jwt.NewNumericDate(now),
 		}).
 		Claims(map[string]any{
-			"azp":   clientID,
-			"scope": scope,
+			"azp":                clientID,
+			"scope":              scope,
+			"email":              "alice@example.com",
+			"email_verified":     true,
+			"preferred_username": "alice",
+			"name":               "Alice Example",
+			"picture":            "https://example.com/alice.png",
 		}).
 		CompactSerialize()
 	if err != nil {

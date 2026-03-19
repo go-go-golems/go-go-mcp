@@ -27,6 +27,16 @@ topics:
       description: Authentication and authorization architecture work
     - slug: keycloak
       description: Keycloak identity provider and OIDC integration work
+    - slug: sql
+      description: SQL database configuration and storage work
+    - slug: coolify
+      description: Coolify platform deployment and management work
+    - slug: deployments
+      description: Deployment implementation, rollout, and operational verification work
+    - slug: claude
+      description: Anthropic Claude clients, connectors, and Claude-specific integration behavior
+    - slug: terraform
+      description: Terraform-based infrastructure as code, provider configuration, plans, applies, and state management
 docTypes:
     - slug: index
       description: Ticket index document
@@ -36,3 +46,5 @@ intent:
 status:
     - slug: active
       description: Actively maintained or currently relevant document
+    - slug: complete
+      description: Closed ticket state
