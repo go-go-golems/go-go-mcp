@@ -353,26 +353,16 @@ func currentUser(r *http.Request) (string, bool) {
 	return strings.TrimPrefix(c.Value, "ok:"), true
 }
 
-// #nosec G124 -- Secure is intentionally inferred from direct/proxied HTTPS transport.
 func writeLoginCookie(w http.ResponseWriter, r *http.Request, username string) {
+	_ = r
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
 		Value:    "ok:" + username,
 		Path:     "/",
-		Secure:   requestUsesHTTPS(r),
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
-}
-
-func requestUsesHTTPS(r *http.Request) bool {
-	if r == nil {
-		return false
-	}
-	if r.TLS != nil {
-		return true
-	}
-	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
 }
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
