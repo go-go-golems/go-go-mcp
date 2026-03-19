@@ -12,22 +12,25 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: go-go-mcp/ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_keycloak_realm_and_mcp_client.sh
-      Note: Primary evidence for imperative hosted Keycloak setup captured in diary
-    - Path: smailnail/deployments/terraform/keycloak
+    - Path: ../../../../../../../smailnail/deployments/terraform/keycloak
       Note: Implementation scaffold recorded in diary step 2
-    - Path: smailnail/dev/keycloak/realm-import/smailnail-dev-realm.json
+    - Path: ../../../../../../../smailnail/dev/keycloak/realm-import/smailnail-dev-realm.json
       Note: Primary evidence for current local realm contents captured in diary
-    - Path: smailnail/docs/deployments/smailnaild-merged-coolify.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnaild-merged-coolify.md
       Note: Primary evidence for current hosted OIDC and MCP contract captured in diary
-    - Path: smailnail/docs/deployments/smailnaild-oidc-keycloak.md
+    - Path: ../../../../../../../smailnail/docs/deployments/smailnaild-oidc-keycloak.md
       Note: Primary evidence for current browser OIDC expectations captured in diary
+    - Path: ttmp/2026/03/16/SMAILNAIL-010-MCP-COOLIFY-DEPLOYMENT--deploy-smailnail-mcp-to-coolify-with-keycloak-external-oidc/scripts/create_keycloak_realm_and_mcp_client.sh
+      Note: Primary evidence for imperative hosted Keycloak setup captured in diary
+    - Path: ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/reference/02-hosted-keycloak-import-and-apply-playbook.md
+      Note: Step 7 records creation of the hosted operator playbook
 ExternalSources: []
 Summary: ""
 LastUpdated: 2026-03-18T17:14:27.604947896-04:00
 WhatFor: Record the investigation and documentation work for planning the migration of the full smailnail Keycloak setup to Terraform.
 WhenToUse: Use when continuing the Terraform migration work, reviewing how the design conclusions were reached, or reconstructing the evidence behind the ticket.
 ---
+
 
 
 
@@ -582,4 +585,127 @@ terraform plan -input=false -var='keycloak_url=https://auth.scapegoat.dev' -var=
 ## Related
 
 - Main design guide: [../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)
+- Ticket index: [../index.md](../index.md)
+
+## Step 7: Push the branches and write the hosted operator playbook
+
+Once the hosted Terraform adoption reached a no-op plan, the next job was to
+make the result reproducible for another operator. A clean imported state on one
+machine is useful, but it is not yet a handoff. The playbook work turns that
+single run into an explicit operating procedure with guardrails, rollback rules,
+and verification steps.
+
+This step also closed the loop on the user request to "do both" by pushing the
+current branches and then documenting the hosted import/apply path in the
+ticket. The important point here is that the playbook is based on the real
+hosted import procedure we already executed, not on generic Terraform or
+Keycloak advice.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do  both"
+
+**Assistant interpretation:** The user wants both remaining actions completed: push the repo branches and add the hosted import/apply playbook.
+
+**Inferred user intent:** Finish the migration checkpoint so both the code/docs and the operator procedure are available to the team.
+
+**Commit (code):** N/A
+
+### What I did
+- Waited for both repo pushes to complete after their pre-push hooks.
+- Confirmed the pushed branch tips:
+  - `smailnail`: `dbf9ec0`
+  - `go-go-mcp`: `201d817`
+- Added:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/reference/02-hosted-keycloak-import-and-apply-playbook.md`
+- Updated:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/index.md`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/tasks.md`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/changelog.md`
+- Wrote the playbook to cover:
+  - prerequisites
+  - hosted variable handling
+  - `kcadm.sh` client UUID discovery
+  - import commands
+  - drift-review rules
+  - safe-apply rules
+  - rollback guidance
+  - hosted verification commands
+  - connector-specific checks for OpenAI and Claude
+
+### Why
+- A no-op hosted plan is only operationally useful if another engineer can
+  recreate it reliably.
+- The push step matters because the adopted Terraform baseline and the ticket
+  docs need to exist remotely, not only in the local checkout.
+
+### What worked
+- Both pre-push hook chains completed successfully and both branches pushed.
+- The ticket now contains a concrete runbook for repeating the hosted import and
+  first-plan workflow.
+- The previously open migration tasks around operator playbook, rollback
+  guidance, and connector verification could now be checked off.
+
+### What didn't work
+- The `go-go-mcp` pre-push hook emitted:
+
+```text
+ls: cannot access 'doc/vhs/*tape': No such file or directory
+```
+
+  but the overall hook still passed, including test, lint, and release. This
+  looks like noisy hook behavior rather than a release blocker.
+
+### What I learned
+- The difference between "the process is known" and "the process is documented"
+  is material. The playbook captures several details that are easy to forget,
+  especially the internal-client-UUID import rule and the rollback boundary
+  between local state mistakes and real production changes.
+- The push confirmation is worth recording explicitly because the pre-push hooks
+  do real work and are not instantaneous.
+
+### What was tricky to build
+- The main challenge was deciding how much real production detail to capture in
+  the playbook without turning the ticket into a secret store. The compromise
+  was to document the discovery workflow and variable shape, while leaving
+  secrets as placeholders and emphasizing temporary local `terraform.tfvars` or
+  environment variables.
+
+### What warrants a second pair of eyes
+- The rollback section should be reviewed by whoever owns production incident
+  response, because "repair through Terraform" and "temporary repair through
+  Keycloak admin tooling" have different operational tradeoffs.
+- The connector verification checklist should be revisited once Claude support
+  stabilizes, since current Claude behavior still depends on the Keycloak DCR
+  policy decision.
+
+### What should be done in the future
+- Update the human-facing deployment docs so they point at the Terraform
+  workflow instead of older imperative setup steps.
+- Decide whether to move hosted Terraform state to a remote backend with
+  locking before broadening operator usage.
+
+### Code review instructions
+- Review the new playbook:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/reference/02-hosted-keycloak-import-and-apply-playbook.md`
+- Confirm the ticket index links to it:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp/ttmp/2026/03/18/SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/index.md`
+- Re-run ticket hygiene:
+```bash
+docmgr doctor --ticket SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION --stale-after 30
+```
+
+### Technical details
+- Commands used:
+```bash
+git -C /home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail push origin task/update-imap-mcp
+git -C /home/manuel/workspaces/2026-03-08/update-imap-mcp/go-go-mcp push origin task/update-imap-mcp
+docmgr doc add --ticket SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION --doc-type reference --title "Hosted Keycloak import and apply playbook"
+docmgr doctor --ticket SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION --stale-after 30
+```
+
+## Related
+
+- Main design guide: [../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)
+- Hosted playbook: [./02-hosted-keycloak-import-and-apply-playbook.md](./02-hosted-keycloak-import-and-apply-playbook.md)
 - Ticket index: [../index.md](../index.md)

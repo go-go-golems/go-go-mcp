@@ -13,6 +13,8 @@
 - Confirmed two important provider behaviors during hosted import: `keycloak_openid_client` import requires the internal Keycloak client UUID in the import ID, and `keycloak_openid_client_default_scopes` / `optional_scopes` do not support import.
 - Aligned hosted Terraform with the decision to keep `smailnail.mcp.scapegoat.dev` as the canonical public hostname, which removed the old-vs-new hostname drift from the hosted plan.
 - Reconciled the remaining hosted Terraform drift by preserving live production behavior for `use_refresh_tokens`, `RS256`, and the unmanaged scope-attachment surfaces, and by dropping the optional hosted browser client display name so the imported live state now plans cleanly with `No changes`.
+- Pushed the Terraform and documentation branches after pre-push validation passed in both repositories.
+- Added a hosted operator playbook covering safe import, no-op drift review, deliberate apply rules, rollback guidance, and OpenAI/Claude verification checks.
 
 ## 2026-03-18
 

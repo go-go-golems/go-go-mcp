@@ -42,6 +42,7 @@ That split makes drift likely and auditability poor. The migration goal is a sin
 
 - Main design document: [design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](./design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)
 - Diary: [reference/01-diary.md](./reference/01-diary.md)
+- Hosted import/apply playbook: [reference/02-hosted-keycloak-import-and-apply-playbook.md](./reference/02-hosted-keycloak-import-and-apply-playbook.md)
 - Tasks: [tasks.md](./tasks.md)
 - Changelog: [changelog.md](./changelog.md)
 
