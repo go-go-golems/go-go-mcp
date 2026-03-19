@@ -498,6 +498,87 @@ terraform plan ...
 terraform plan -input=false -var='keycloak_url=https://auth.scapegoat.dev' -var='keycloak_username=...' -var='keycloak_password=...' -var='web_client_secret=...'
 ```
 
+## Step 6: Drive the hosted imported state all the way to a no-op plan
+
+This step took the hosted import work from "useful but still drifting" to "safe baseline for future adoption." After the hostname decision, the remaining hosted drift was narrow but still mixed together three concerns: Terraform wanted to change refresh-token behavior, take over the non-importable client-scope attachment resources, and normalize the realm signature algorithm field.
+
+The right move here was not to apply those differences. The right move was to teach the Terraform configuration to preserve current production behavior. I added explicit knobs for `use_refresh_tokens`, made the scope-attachment helper resources optional, preserved `default_signature_algorithm = "RS256"` in the hosted realm model, and removed the optional browser-client `name` from hosted config because the live client did not currently have one set. After those changes, the hosted `terraform plan` reached the desired result: `No changes. Your infrastructure matches the configuration.`
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok"
+
+**Assistant interpretation:** The user accepted the recommendation to preserve current production behavior during Terraform adoption rather than letting the first hosted apply also change auth behavior.
+
+**Inferred user intent:** Get hosted Terraform adoption to a no-op baseline before making any production behavior changes.
+
+**Commit (code):** N/A
+
+### What I did
+- Added `default_signature_algorithm` support to the shared realm module.
+- Added `use_refresh_tokens` and `manage_scope_attachments` controls to the browser and MCP client modules.
+- Set hosted values to preserve current production behavior:
+  - `use_refresh_tokens = false`
+  - `manage_scope_attachments = false`
+  - `default_signature_algorithm = "RS256"`
+- Made the browser-client `name` optional and set it to `null` in hosted config.
+- Re-ran hosted `terraform validate`.
+- Re-ran hosted `terraform plan` against live imported state.
+
+### Why
+- The first production apply should not silently change auth behavior.
+- Reaching a no-op plan is the safest checkpoint for infrastructure adoption.
+
+### What worked
+- The hosted configuration remained valid after the module refactor.
+- The final hosted plan reached:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+### What didn't work
+- N/A. This step converged as intended once the module knobs existed.
+
+### What I learned
+- The difference between "Terraform can import it" and "Terraform can adopt it safely" is important. Import alone was not enough; a behavior-preserving reconciliation pass was needed.
+- Optional resource-management flags are useful when a provider cannot import every helper resource cleanly.
+
+### What was tricky to build
+- The subtle part was avoiding overfitting the modules to one environment while still letting hosted preserve current production behavior. The solution was to add narrowly scoped control variables rather than fork the entire module design.
+
+### What warrants a second pair of eyes
+- The hosted config now intentionally preserves some live behavior that we may want to revisit later:
+  - `use_refresh_tokens = false`
+  - unmanaged scope attachments in hosted
+  - `RS256` modeled explicitly
+- Those should be reviewed before the team starts tightening policies for connector support.
+
+### What should be done in the future
+- Write the explicit hosted import/runbook now that the process is known and stable.
+- Decide when hosted Terraform should start owning scope attachments.
+- Decide whether a future deliberate production change should enable refresh tokens or change realm defaults.
+
+### Code review instructions
+- Review:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/modules/realm-base/main.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/modules/browser-client/main.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/modules/browser-client/variables.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/modules/mcp-client/main.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/modules/mcp-client/variables.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/main.tf`
+- Validate with:
+```bash
+terraform plan ...
+```
+
+### Technical details
+- Commands used:
+```bash
+terraform validate
+terraform plan -input=false -var='keycloak_url=https://auth.scapegoat.dev' -var='keycloak_username=...' -var='keycloak_password=...' -var='web_client_secret=...'
+```
+
 ## Related
 
 - Main design guide: [../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)

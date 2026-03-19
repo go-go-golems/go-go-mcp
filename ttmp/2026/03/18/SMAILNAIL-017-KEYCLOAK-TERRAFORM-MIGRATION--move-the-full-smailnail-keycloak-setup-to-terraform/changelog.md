@@ -12,6 +12,7 @@
 - Added hosted Terraform auth support via bootstrap admin username/password and imported the live hosted realm plus the `smailnail-web` and `smailnail-mcp` clients into hosted Terraform state.
 - Confirmed two important provider behaviors during hosted import: `keycloak_openid_client` import requires the internal Keycloak client UUID in the import ID, and `keycloak_openid_client_default_scopes` / `optional_scopes` do not support import.
 - Aligned hosted Terraform with the decision to keep `smailnail.mcp.scapegoat.dev` as the canonical public hostname, which removed the old-vs-new hostname drift from the hosted plan.
+- Reconciled the remaining hosted Terraform drift by preserving live production behavior for `use_refresh_tokens`, `RS256`, and the unmanaged scope-attachment surfaces, and by dropping the optional hosted browser client display name so the imported live state now plans cleanly with `No changes`.
 
 ## 2026-03-18
 
