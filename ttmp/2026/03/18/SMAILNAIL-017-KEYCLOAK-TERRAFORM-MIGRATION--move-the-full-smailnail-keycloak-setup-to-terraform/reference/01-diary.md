@@ -432,6 +432,72 @@ terraform state list
 terraform plan ...
 ```
 
+## Step 5: Reconcile the hosted hostname assumption with live production
+
+After the first hosted import, the largest plan diff was not a Terraform bug. It was a product decision mismatch. The HCL was still modeling the newer merged-host target `smailnail.scapegoat.dev`, while the live Keycloak clients were still configured against `smailnail.mcp.scapegoat.dev`. The user explicitly chose to keep `smailnail.mcp.scapegoat.dev`, so the Terraform model needed to be brought back in line with that reality.
+
+Once the hosted environment HCL was updated to use `smailnail.mcp.scapegoat.dev` for both the browser callback/origin and the MCP redirect wildcard, the plan became much more useful. The hostname churn disappeared, leaving only the real remaining questions: refresh-token behavior, non-importable scope attachment resources, and one realm-level signature-algorithm field.
+
+### Prompt Context
+
+**User prompt (verbatim):** "keep smailnail.mcp.scapegoat.dev"
+
+**Assistant interpretation:** The user wants the hosted Terraform configuration to preserve the current public production hostname instead of converging to the newer merged-host design.
+
+**Inferred user intent:** Avoid an unnecessary production hostname migration while adopting Terraform.
+
+**Commit (code):** N/A
+
+### What I did
+- Updated:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/main.tf`
+- Changed hosted Terraform values from:
+  - `https://smailnail.scapegoat.dev/...`
+  to:
+  - `https://smailnail.mcp.scapegoat.dev/...`
+- Re-ran hosted `terraform plan` against the imported live state.
+
+### Why
+- Terraform should model intended production truth, not an abandoned or postponed cutover target.
+
+### What worked
+- The hostname-related drift disappeared from the hosted plan.
+- The remaining plan is now small and meaningful.
+
+### What didn't work
+- N/A. This was a straightforward config reconciliation step.
+
+### What I learned
+- The cutover design and the live production reality had diverged. Terraform import made that divergence obvious very quickly.
+
+### What was tricky to build
+- The tricky part was not the edit itself. It was recognizing that the hostname mismatch was a product rollout decision, not an infrastructure correctness bug. Terraform surfaced it, but the user had to decide the intended production truth.
+
+### What warrants a second pair of eyes
+- The remaining hosted plan still wants:
+  - `use_refresh_tokens = true`
+  - creation of default/optional-scope attachment resources
+  - removal of `default_signature_algorithm = "RS256"` from the realm model
+
+### What should be done in the future
+- Decide whether to keep `use_refresh_tokens = false` in production or encode the Terraform default.
+- Decide whether to keep scope attachment resources in HCL before first hosted apply.
+- Decide whether to model `default_signature_algorithm` explicitly.
+
+### Code review instructions
+- Review:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/main.tf`
+- Re-run:
+```bash
+terraform plan ...
+```
+
+### Technical details
+- Commands used:
+```bash
+terraform plan -input=false -var='keycloak_url=https://auth.scapegoat.dev' -var='keycloak_username=...' -var='keycloak_password=...' -var='web_client_secret=...'
+```
+
 ## Related
 
 - Main design guide: [../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md](../design-doc/01-intern-guide-to-migrating-the-full-smailnail-keycloak-setup-to-terraform.md)

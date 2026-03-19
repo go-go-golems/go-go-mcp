@@ -11,6 +11,7 @@
 - Proved a real local apply against sandbox realm `smailnail-dev-tf`, verified OIDC discovery for that realm, and reached a clean no-op follow-up plan.
 - Added hosted Terraform auth support via bootstrap admin username/password and imported the live hosted realm plus the `smailnail-web` and `smailnail-mcp` clients into hosted Terraform state.
 - Confirmed two important provider behaviors during hosted import: `keycloak_openid_client` import requires the internal Keycloak client UUID in the import ID, and `keycloak_openid_client_default_scopes` / `optional_scopes` do not support import.
+- Aligned hosted Terraform with the decision to keep `smailnail.mcp.scapegoat.dev` as the canonical public hostname, which removed the old-vs-new hostname drift from the hosted plan.
 
 ## 2026-03-18
 
