@@ -1,7 +1,7 @@
 ---
 Title: move the full smailnail keycloak setup to terraform
 Ticket: SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION
-Status: active
+Status: complete
 Topics:
     - smailnail
     - keycloak
@@ -14,10 +14,11 @@ Owners: []
 RelatedFiles: []
 ExternalSources: []
 Summary: ""
-LastUpdated: 2026-03-18T17:14:19.133883955-04:00
+LastUpdated: 2026-03-18T22:01:33.677708724-04:00
 WhatFor: Move the full smailnail Keycloak setup from ad-hoc realm imports and shell commands to a reproducible Terraform-managed model across local and hosted environments.
 WhenToUse: Use when planning or implementing infrastructure-as-code for smailnail OIDC, Keycloak client setup, realm policy, and connector compatibility.
 ---
+
 
 # move the full smailnail keycloak setup to terraform
 
@@ -48,7 +49,7 @@ That split makes drift likely and auditability poor. The migration goal is a sin
 
 ## Status
 
-Current status: **active**
+Current status: **complete**
 
 ## Topics
 

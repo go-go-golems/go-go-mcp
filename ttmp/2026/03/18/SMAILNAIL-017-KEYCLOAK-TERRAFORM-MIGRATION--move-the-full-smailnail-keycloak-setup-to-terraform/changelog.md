@@ -15,6 +15,7 @@
 - Reconciled the remaining hosted Terraform drift by preserving live production behavior for `use_refresh_tokens`, `RS256`, and the unmanaged scope-attachment surfaces, and by dropping the optional hosted browser client display name so the imported live state now plans cleanly with `No changes`.
 - Pushed the Terraform and documentation branches after pre-push validation passed in both repositories.
 - Added a hosted operator playbook covering safe import, no-op drift review, deliberate apply rules, rollback guidance, and OpenAI/Claude verification checks.
+- Added a Terraform-managed hosted remediation step for the anonymous Keycloak DCR allowed-scope policy, applied it to production, and restored a clean hosted no-op plan afterward.
 
 ## 2026-03-18
 

@@ -463,6 +463,108 @@ Resource not found for url: http://127.0.0.1:8080/admin/realms/smailnail/client-
 - Primary design doc:
   - [../design-doc/01-claude-mcp-oauth-and-keycloak-dynamic-client-registration-guide-for-smailnail.md](../design-doc/01-claude-mcp-oauth-and-keycloak-dynamic-client-registration-guide-for-smailnail.md)
 
+## Step 3: Apply the Keycloak DCR remediation and verify Claude end to end
+
+After the analysis ticket established that Claude was failing inside Keycloak dynamic client registration, the remaining question was whether we should route around DCR with a pre-provisioned client or change the registration policy itself. The live evidence showed that Claude was explicitly requesting `service_account`, and the anonymous `Allowed Client Scopes` policy was whitelisting only `mcp:tools`, `openid`, and `web-origins`.
+
+The chosen remediation for this ticket was to widen that one anonymous DCR scope whitelist just enough to admit Claude's request. Rather than changing the hosted Keycloak state manually and leaving Terraform behind, the fix was encoded into the hosted Terraform workflow through an admin-API helper step so the production state and the documented state remain aligned.
+
+### Prompt Context
+
+**User prompt (verbatim):** "then do the keycloak fix for claude in terraform and apply it"
+
+**Assistant interpretation:** Implement the actual Keycloak-side fix for Claude through the Terraform workflow and apply it to the hosted realm.
+
+**Inferred user intent:** Resolve the real Claude production blocker now that the root cause has been identified, and keep the fix represented in the new Terraform model rather than as an undocumented manual tweak.
+
+**Commit (code):** N/A
+
+### What I did
+- Added a hosted Terraform-managed remediation in:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/main.tf`
+- Added an idempotent admin-API helper script:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/scripts/update_anonymous_dcr_allowed_client_scopes.sh`
+- Configured the desired anonymous DCR scope list to include:
+  - `mcp:tools`
+  - `openid`
+  - `service_account`
+  - `web-origins`
+- Ran hosted `terraform plan` and confirmed that the only change was the new DCR helper action.
+- Applied hosted Terraform against production Keycloak.
+- Probed the live DCR endpoint before and after:
+  - before: HTTP `403`
+  - after: HTTP `201`
+- Cleaned up the temporary DCR probe client after validation.
+- The user then confirmed the practical outcome:
+  - Claude now works.
+
+### Why
+- The real production blocker was not the MCP server anymore. It was the Keycloak anonymous DCR policy.
+- Fixing that policy in a Terraform-managed way preserves the new infrastructure-as-code direction instead of creating fresh manual drift.
+
+### What worked
+- The live Keycloak policy accepted the updated scope list.
+- The post-fix direct DCR probe returned `201` and issued a registration response instead of `403`.
+- Hosted Terraform returned to a clean no-op plan after apply.
+- The user confirmed that Claude now works end to end.
+
+### What didn't work
+- My first apply attempt failed because the verification logic in the helper script compared JSON arrays by order rather than as sets.
+
+Exact failure:
+
+```text
+verification failed: expected ["mcp:tools","openid","service_account","web-origins"], got ["service_account","web-origins","mcp:tools","openid"]
+```
+
+- The policy update itself had actually succeeded; only the verification was too strict. I fixed the script to compare sorted arrays and re-applied successfully.
+
+### What I learned
+- Keycloak can reorder multivalued component config when persisting it, so verification logic must compare normalized values.
+- The minimal real fix for Claude was narrower than a broad policy redesign: allow `service_account` in the anonymous DCR allowed-scope set.
+
+### What was tricky to build
+- The Terraform provider still does not expose the anonymous client-registration policy components directly as first-class resources, so the fix had to bridge declarative Terraform intent with a controlled admin-API update step.
+- That is an acceptable tactical compromise for now, but it is not the same as full native provider support.
+
+### What warrants a second pair of eyes
+- Whether the long-term connector policy should keep allowing anonymous DCR with `service_account`, or whether future hardening should move back toward pre-provisioned clients.
+- Whether OpenAI now behaves differently with the widened allowed-scope set, since its previous failures also involved DCR policy.
+
+### What should be done in the future
+- Revisit whether anonymous DCR is the desired long-term production posture.
+- If the Terraform provider gains first-class registration-policy resources, replace the helper script with native Terraform resources.
+
+### Code review instructions
+- Review:
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/envs/hosted/main.tf`
+  - `/home/manuel/workspaces/2026-03-08/update-imap-mcp/smailnail/deployments/terraform/keycloak/scripts/update_anonymous_dcr_allowed_client_scopes.sh`
+- Reproduce the direct DCR validation:
+```bash
+curl -i -X POST \
+  'https://auth.scapegoat.dev/realms/smailnail/clients-registrations/openid-connect' \
+  -H 'Content-Type: application/json' \
+  -d '{"client_name":"probe","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"grant_types":["authorization_code"],"response_types":["code"],"token_endpoint_auth_method":"none","scope":"openid service_account"}'
+```
+
+### Technical details
+- Before fix:
+```text
+403
+{"error":"insufficient_scope","error_description":"Policy 'Allowed Client Scopes' rejected request to client-registration service. Details: Not permitted to use specified clientScope"}
+```
+- After fix:
+```text
+201
+```
+- Final anonymous allowed-scope set:
+```json
+["service_account","openid","web-origins","mcp:tools"]
+```
+
 ## Related
 
-<!-- Link to related documents or resources -->
+- Primary design doc:
+  - [../design-doc/01-claude-mcp-oauth-and-keycloak-dynamic-client-registration-guide-for-smailnail.md](../design-doc/01-claude-mcp-oauth-and-keycloak-dynamic-client-registration-guide-for-smailnail.md)
+- Terraform migration ticket:
+  - [../../SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/index.md](../../SMAILNAIL-017-KEYCLOAK-TERRAFORM-MIGRATION--move-the-full-smailnail-keycloak-setup-to-terraform/index.md)

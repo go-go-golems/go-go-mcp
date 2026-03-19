@@ -7,7 +7,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD)
 DIRTY ?= $(shell git diff --quiet || echo "dirty")
 LDFLAGS=-ldflags "-X main.version=$(VERSION)-$(COMMIT)-$(DIRTY)"
 
-TAPES=$(shell ls doc/vhs/*tape)
+TAPES=$(wildcard doc/vhs/*tape)
 gifs: $(TAPES)
 	for i in $(TAPES); do vhs < $$i; done
 

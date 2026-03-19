@@ -1,7 +1,7 @@
 ---
 Title: Analyze Claude MCP login failures against Keycloak-backed smailnail MCP
 Ticket: SMAILNAIL-016-CLAUDE-MCP-LOGIN-ANALYSIS
-Status: active
+Status: complete
 Topics:
     - authentication
     - keycloak
@@ -21,16 +21,17 @@ RelatedFiles:
       Note: Deployment contract for the merged hosted server
 ExternalSources: []
 Summary: Ticket for the Claude.ai login failure against the hosted smailnail MCP server, including the completed server-side challenge fix, the production redeploy, the Keycloak DCR root-cause evidence, and the intern-facing design guide.
-LastUpdated: 2026-03-18T16:49:22.827337939-04:00
+LastUpdated: 2026-03-18T22:01:33.674539828-04:00
 WhatFor: Track analysis and remediation planning for Claude's failure to complete OAuth against the hosted smailnail MCP deployment.
 WhenToUse: Use when investigating Claude connector auth failures, explaining the hosted smailnail MCP auth stack, or continuing the Keycloak client registration remediation.
 ---
+
 
 # Analyze Claude MCP login failures against Keycloak-backed smailnail MCP
 
 ## Overview
 
-This ticket captures the production investigation into why Claude.ai fails to log into the hosted smailnail MCP server even though the server now serves correct protected resource metadata and a minimal bearer challenge. The current evidence shows the failure occurs in Keycloak during dynamic client registration, not in the smailnail MCP transport itself.
+This ticket captures the production investigation into why Claude.ai failed to log into the hosted smailnail MCP server even though the server served correct protected resource metadata and a minimal bearer challenge. The investigation showed the failure occurred in Keycloak during dynamic client registration, not in the smailnail MCP transport itself, and the chosen remediation has now been applied and verified.
 
 The ticket now contains:
 
@@ -47,7 +48,7 @@ The ticket now contains:
 
 ## Status
 
-Current status: **active**
+Current status: **complete**
 
 ## Topics
 

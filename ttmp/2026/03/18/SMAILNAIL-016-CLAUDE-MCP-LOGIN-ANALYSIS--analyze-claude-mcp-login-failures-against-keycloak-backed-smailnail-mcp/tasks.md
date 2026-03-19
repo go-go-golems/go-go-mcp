@@ -10,5 +10,5 @@
 - [x] Inspect Keycloak realm configuration and client registration policies with `kcadm.sh`
 - [x] Write an intern-facing design and implementation guide explaining the full auth stack
 - [x] Record the debugging chronology in the ticket diary
-- [ ] Decide whether to fix Claude login via anonymous DCR policy changes or a pre-provisioned client strategy
-- [ ] Apply the chosen Keycloak-side remediation and validate Claude end-to-end
+- [x] Decide whether to fix Claude login via anonymous DCR policy changes or a pre-provisioned client strategy
+- [x] Apply the chosen Keycloak-side remediation and validate Claude end-to-end
