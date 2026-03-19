@@ -332,7 +332,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 			ok = (u == s.User && p == s.Pass)
 		}
 		if ok {
-			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "ok:" + u, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+			writeLoginCookie(w, r, u)
 			rt := sanitizeReturnTo(returnTo)
 			log.Info().Str("endpoint", "/login").Str("username", u).Str("return_to", rt).Msg("login success, redirecting")
 			http.Redirect(w, r, rt, http.StatusFound)
@@ -351,6 +351,28 @@ func currentUser(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return strings.TrimPrefix(c.Value, "ok:"), true
+}
+
+// #nosec G124 -- Secure is intentionally inferred from direct/proxied HTTPS transport.
+func writeLoginCookie(w http.ResponseWriter, r *http.Request, username string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    "ok:" + username,
+		Path:     "/",
+		Secure:   requestUsesHTTPS(r),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func requestUsesHTTPS(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
 }
 
 func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
