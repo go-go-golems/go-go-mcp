@@ -26,6 +26,8 @@ The embedded integration is still first-class and runs in-process: the OIDC Auth
 
 The goal is to make the secure path the easy path: enable standards‑compliant OAuth 2.1/OIDC flows (authorization code with PKCE), serve discovery/JWKS, protect `/mcp` with Bearer tokens, and provide pragmatic developer conveniences for local testing.
 
+If you need the operator-facing deployment guide that starts with OAuth/OIDC fundamentals, then explains Keycloak, and then walks through a real Coolify-hosted case for OpenAI and Claude-compatible MCP clients, read [OIDC, Keycloak, and Coolify for Hosted MCP](./08-oidc-keycloak-coolify-hosted-mcp.md).
+
 ## Architecture
 
 The embedded OIDC implementation is composed of two pieces:
@@ -351,4 +353,3 @@ If you see no logs when pointing a client to the server, check:
 - Obtain a token (auth code with PKCE) or set a temporary `AuthKey` for smoke tests.
 - Verify `/mcp` responds with `401` + `WWW-Authenticate` when unauthenticated.
 - Verify `/mcp` accepts authenticated calls.
-

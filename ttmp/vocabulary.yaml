@@ -33,6 +33,10 @@ topics:
       description: Coolify platform deployment and management work
     - slug: deployments
       description: Deployment implementation, rollout, and operational verification work
+    - slug: claude
+      description: Anthropic Claude clients, connectors, and Claude-specific integration behavior
+    - slug: terraform
+      description: Terraform-based infrastructure as code, provider configuration, plans, applies, and state management
 docTypes:
     - slug: index
       description: Ticket index document
