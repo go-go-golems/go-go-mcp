@@ -1,6 +1,6 @@
 module github.com/go-go-golems/go-go-mcp
 
-go 1.25.8
+go 1.26.3
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
@@ -12,6 +12,7 @@ require (
 	github.com/go-go-golems/clay v0.4.0
 	github.com/go-go-golems/geppetto v0.10.17
 	github.com/go-go-golems/glazed v1.0.5
+	github.com/go-go-golems/logcopter v0.1.0
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -23,15 +24,15 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/rs/cors v1.11.0
-	github.com/rs/zerolog v1.34.0
+	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tailscale/hujson v0.0.0-20250226034555-ec1d1c113d33
-	golang.org/x/crypto v0.48.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/text v0.34.0
+	golang.org/x/crypto v0.51.0
+	golang.org/x/sync v0.20.0
+	golang.org/x/text v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -155,12 +156,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.51.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/term v0.40.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260203192932-546029d2fa20 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
@@ -171,3 +172,5 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+tool github.com/go-go-golems/logcopter/cmd/logcopter-gen

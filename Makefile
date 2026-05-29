@@ -67,3 +67,11 @@ mcp_BINARY=$(shell which mcp)
 install:
 	go build -o ./dist/mcp ./cmd/go-go-mcp && \
 		cp ./dist/mcp $(mcp_BINARY)
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.go-go-mcp -strip-prefix github.com/go-go-golems/go-go-mcp ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.go-go-mcp -strip-prefix github.com/go-go-golems/go-go-mcp -check ./cmd/... ./pkg/...
