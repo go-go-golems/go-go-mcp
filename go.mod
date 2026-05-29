@@ -13,7 +13,7 @@ require (
 	github.com/go-go-golems/geppetto v0.10.17
 	github.com/go-go-golems/glazed v1.0.5
 	github.com/go-go-golems/logcopter v0.1.0
-	github.com/go-jose/go-jose/v3 v3.0.4
+	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hpcloud/tail v1.0.0

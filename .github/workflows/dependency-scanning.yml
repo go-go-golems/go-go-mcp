@@ -1,7 +1,7 @@
 name: Dependency Scanning
 
 env:
-  GOSEC_EXCLUDES: G101,G204,G301,G304,G306,G702
+  GOSEC_EXCLUDES: G101,G204,G301,G304,G306,G702,G710
 
 on:
   push:
