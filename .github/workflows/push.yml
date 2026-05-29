@@ -23,4 +23,7 @@ jobs:
         run: go generate ./...
       -
         name: run unit tests
+      - name: Verify Glazed CLI policy
+        run: make glazed-lint
+
         run: go test ./...

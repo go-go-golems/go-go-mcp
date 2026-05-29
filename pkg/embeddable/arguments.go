@@ -26,7 +26,7 @@ func (a Arguments) Raw() map[string]interface{} {
 
 // BindArguments unmarshals the arguments into the provided struct
 func (a Arguments) BindArguments(target interface{}) error {
-	if target == nil || reflect.ValueOf(target).Kind() != reflect.Ptr {
+	if target == nil || reflect.ValueOf(target).Kind() != reflect.Pointer {
 		return fmt.Errorf("target must be a non-nil pointer")
 	}
 

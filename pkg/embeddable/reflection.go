@@ -228,7 +228,7 @@ func RegisterFunctionTool(config *ServerConfig, name string, fn interface{}) err
 
 // generateSchemaFromType generates a JSON schema from a Go type
 func generateSchemaFromType(t reflect.Type) (map[string]interface{}, error) {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -307,7 +307,7 @@ func generateSchemaFromType(t reflect.Type) (map[string]interface{}, error) {
 			fieldSchema["type"] = "string" // Functions not supported, use string representation
 		case reflect.Interface:
 			fieldSchema["type"] = "object" // Interfaces as objects
-		case reflect.Ptr:
+		case reflect.Pointer:
 			fieldSchema["type"] = "object" // Pointers as objects
 		case reflect.UnsafePointer:
 			fieldSchema["type"] = "string" // Unsafe pointers as strings
@@ -336,7 +336,7 @@ func generateSchemaFromType(t reflect.Type) (map[string]interface{}, error) {
 
 // convertArgumentsToStruct converts a map of arguments to a struct
 func convertArgumentsToStruct(arguments map[string]interface{}, structType reflect.Type) (reflect.Value, error) {
-	if structType.Kind() == reflect.Ptr {
+	if structType.Kind() == reflect.Pointer {
 		structType = structType.Elem()
 	}
 

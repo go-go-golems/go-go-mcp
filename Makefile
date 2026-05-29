@@ -67,3 +67,32 @@ mcp_BINARY=$(shell which mcp)
 install:
 	go build -o ./dist/mcp ./cmd/go-go-mcp && \
 		cp ./dist/mcp $(mcp_BINARY)
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.go-go-mcp -strip-prefix github.com/go-go-golems/go-go-mcp ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.go-go-mcp -strip-prefix github.com/go-go-golems/go-go-mcp -check ./cmd/... ./pkg/...
+
+GLAZED_LINT_BIN ?= /tmp/glazed-lint
+GLAZED_LINT_PKG ?= github.com/go-go-golems/glazed/cmd/tools/glazed-lint
+GLAZED_VERSION ?= v1.3.6
+
+.PHONY: glazed-lint-build glazed-lint
+
+glazed-lint-build:
+	@echo "Building glazed-lint from Glazed module..."
+	@if [ -n "$(GLAZED_VERSION)" ]; then \
+		echo "Installing $(GLAZED_LINT_PKG)@$(GLAZED_VERSION)"; \
+		GOBIN=$(dir $(GLAZED_LINT_BIN)) GOWORK=off go install $(GLAZED_LINT_PKG)@$(GLAZED_VERSION); \
+	else \
+		echo "Installing $(GLAZED_LINT_PKG) from workspace/module"; \
+		GOBIN=$(dir $(GLAZED_LINT_BIN)) go install $(GLAZED_LINT_PKG); \
+	fi
+
+GLAZED_LINT_ALLOW_PATHS ?= cmd/apps/scholarly/cmd/,cmd/go-go-mcp/cmds/,pkg/embeddable/
+
+glazed-lint: glazed-lint-build
+	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) -glazedclilint.allow-paths=$(GLAZED_LINT_ALLOW_PATHS) ./cmd/... ./pkg/...
