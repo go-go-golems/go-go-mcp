@@ -92,5 +92,7 @@ glazed-lint-build:
 		GOBIN=$(dir $(GLAZED_LINT_BIN)) go install $(GLAZED_LINT_PKG); \
 	fi
 
+GLAZED_LINT_ALLOW_PATHS ?= cmd/apps/scholarly/cmd/,cmd/go-go-mcp/cmds/,pkg/embeddable/
+
 glazed-lint: glazed-lint-build
-	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) ./cmd/... ./pkg/...
+	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) -glazedclilint.allow-paths=$(GLAZED_LINT_ALLOW_PATHS) ./cmd/... ./pkg/...
