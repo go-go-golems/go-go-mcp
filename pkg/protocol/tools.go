@@ -14,8 +14,16 @@ type Tool struct {
 
 // ToolResult represents the result of a tool invocation
 type ToolResult struct {
-	Content []ToolContent `json:"content"`
-	IsError bool          `json:"isError"`
+	Content []ToolContent  `json:"content"`
+	IsError bool           `json:"isError"`
+	Meta    map[string]any `json:"_meta,omitempty"`
+}
+
+// WithMeta attaches MCP result metadata such as mcp/www_authenticate.
+func WithMeta(meta map[string]any) ToolResultOption {
+	return func(tr *ToolResult) {
+		tr.Meta = meta
+	}
 }
 
 // ToolContent represents different types of content in a tool result

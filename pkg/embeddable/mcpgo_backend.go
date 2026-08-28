@@ -179,6 +179,9 @@ func mapToolResultToMCP(res *protocol.ToolResult) *mcp.CallToolResult {
 	out := &mcp.CallToolResult{
 		IsError: res.IsError,
 	}
+	if len(res.Meta) > 0 {
+		out.Meta = &mcp.Meta{AdditionalFields: res.Meta}
+	}
 
 	for _, c := range res.Content {
 		switch c.Type {
