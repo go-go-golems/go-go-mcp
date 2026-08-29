@@ -16,7 +16,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/layers"
-	mcp "github.com/mark3labs/mcp-go/mcp"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -47,7 +47,7 @@ type CallToolSettings struct {
 }
 
 func NewListToolsCommand() (*ListToolsCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedSection()
+	glazedParameterLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}
@@ -135,26 +135,17 @@ func (c *ListToolsCommand) RunIntoGlazeProcessor(
 		}
 	}()
 
-	res, err := client.ListTools(ctx, mcp.ListToolsRequest{})
+	res, err := client.ListTools(ctx, nil)
 	if err != nil {
 		return err
 	}
 
 	for _, tool := range res.Tools {
-		// Prepare raw schema JSON from either RawInputSchema or structured InputSchema
-		var schemaBytes []byte
-		if tool.RawInputSchema != nil {
-			schemaBytes = tool.RawInputSchema
-		} else {
-			var err error
-			schemaBytes, err = json.Marshal(tool.InputSchema)
-			if err != nil {
-				return fmt.Errorf("failed to marshal structured schema: %w", err)
-			}
+		schemaBytes, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			return fmt.Errorf("failed to marshal tool schema: %w", err)
 		}
-
-		// Unmarshal into interface for display
-		var schemaObj interface{}
+		var schemaObj any
 		if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
 			return fmt.Errorf("failed to parse schema JSON: %w", err)
 		}
@@ -198,7 +189,7 @@ func (c *ListToolsCommand) RunIntoWriter(
 		}
 	}()
 
-	res, err := client.ListTools(ctx, mcp.ListToolsRequest{})
+	res, err := client.ListTools(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -247,12 +238,9 @@ func (c *CallToolCommand) RunIntoWriter(
 		toolArgMap = s.Args
 	}
 
-	res, err := client.CallTool(ctx, mcp.CallToolRequest{
-		Request: mcp.Request{Method: string(mcp.MethodToolsCall)},
-		Params: mcp.CallToolParams{
-			Name:      s.ToolName,
-			Arguments: toolArgMap,
-		},
+	res, err := client.CallTool(ctx, &mcp.CallToolParams{
+		Name:      s.ToolName,
+		Arguments: toolArgMap,
 	})
 	if err != nil {
 		return err
@@ -261,11 +249,11 @@ func (c *CallToolCommand) RunIntoWriter(
 	// Pretty print the result
 	for _, content := range res.Content {
 		switch c := content.(type) {
-		case mcp.TextContent:
+		case *mcp.TextContent:
 			_, err = fmt.Fprintf(w, "%s\n", c.Text)
-		case mcp.ImageContent:
+		case *mcp.ImageContent:
 			_, err = fmt.Fprintf(w, "[image %s, %d bytes base64]\n", c.MIMEType, len(c.Data))
-		case mcp.EmbeddedResource:
+		case *mcp.EmbeddedResource:
 			_, err = fmt.Fprintf(w, "[embedded resource]\n")
 		default:
 			_, err = fmt.Fprintf(w, "[unknown content]\n")
@@ -307,22 +295,22 @@ func (c *CallToolCommand) RunIntoGlazeProcessor(
 		toolArgMap = s.Args
 	}
 
-	res, err := client.CallTool(ctx, mcp.CallToolRequest{Params: mcp.CallToolParams{Name: s.ToolName, Arguments: toolArgMap}})
+	res, err := client.CallTool(ctx, &mcp.CallToolParams{Name: s.ToolName, Arguments: toolArgMap})
 	if err != nil {
 		return err
 	}
 
 	for _, content := range res.Content {
 		switch c := content.(type) {
-		case mcp.TextContent:
+		case *mcp.TextContent:
 			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "text"), types.MRP("text", c.Text))); err != nil {
 				return err
 			}
-		case mcp.ImageContent:
+		case *mcp.ImageContent:
 			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "image"), types.MRP("mime", c.MIMEType), types.MRP("data", c.Data))); err != nil {
 				return err
 			}
-		case mcp.EmbeddedResource:
+		case *mcp.EmbeddedResource:
 			if err := gp.AddRow(ctx, types.NewRow(types.MRP("type", "resource"))); err != nil {
 				return err
 			}

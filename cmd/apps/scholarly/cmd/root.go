@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/glazed/pkg/help"
 	helpCmd "github.com/go-go-golems/glazed/pkg/help/cmd"
@@ -35,12 +34,11 @@ func Execute() {
 	helpSystem := help.NewHelpSystem()
 	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
-	err := clay.InitGlazed("scholarly", rootCmd)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize glazed root command")
+	if err := logging.AddLoggingSectionToRootCommand(rootCmd, "scholarly"); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize root logging section")
 	}
 
-	err = rootCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}

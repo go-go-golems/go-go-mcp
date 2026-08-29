@@ -44,7 +44,7 @@ type CallToolSettings struct {
 }
 
 func NewListToolsCommand() (*ListToolsCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedSection()
+	glazedParameterLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}

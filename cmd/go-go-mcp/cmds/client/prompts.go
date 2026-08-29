@@ -17,7 +17,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/go-go-golems/glazed/pkg/types"
 	"github.com/go-go-golems/go-go-mcp/cmd/go-go-mcp/cmds/client/helpers"
-	mcp "github.com/mark3labs/mcp-go/mcp"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -44,7 +44,7 @@ type ExecutePromptSettings struct {
 }
 
 func NewListPromptsCommand() (*ListPromptsCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedSection()
+	glazedParameterLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Glazed parameter layer")
 	}
@@ -114,7 +114,7 @@ func (c *ListPromptsCommand) RunIntoGlazeProcessor(
 		}
 	}()
 
-	res, err := client.ListPrompts(ctx, mcp.ListPromptsRequest{})
+	res, err := client.ListPrompts(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (c *ListPromptsCommand) RunIntoWriter(
 		}
 	}()
 
-	res, err := client.ListPrompts(ctx, mcp.ListPromptsRequest{})
+	res, err := client.ListPrompts(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -206,13 +206,13 @@ func (c *ExecutePromptCommand) RunIntoWriter(
 		}
 	}
 
-	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{Params: mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap}})
+	res, err := client.GetPrompt(ctx, &mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap})
 	if err != nil {
 		return err
 	}
 
 	for _, message := range res.Messages {
-		if tc, ok := message.Content.(mcp.TextContent); ok {
+		if tc, ok := message.Content.(*mcp.TextContent); ok {
 			_, _ = fmt.Fprintf(w, "%s: %s\n", message.Role, tc.Text)
 		}
 	}
@@ -246,13 +246,13 @@ func (c *ExecutePromptCommand) RunIntoGlazeProcessor(
 		}
 	}
 
-	res, err := client.GetPrompt(ctx, mcp.GetPromptRequest{Params: mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap}})
+	res, err := client.GetPrompt(ctx, &mcp.GetPromptParams{Name: s.PromptName, Arguments: promptArgMap})
 	if err != nil {
 		return err
 	}
 
 	for _, message := range res.Messages {
-		if tc, ok := message.Content.(mcp.TextContent); ok {
+		if tc, ok := message.Content.(*mcp.TextContent); ok {
 			row := types.NewRow(
 				types.MRP("role", message.Role),
 				types.MRP("text", tc.Text),

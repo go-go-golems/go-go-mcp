@@ -10,8 +10,6 @@ import (
 	"github.com/go-go-golems/go-go-mcp/pkg/cmds"
 	"github.com/go-go-golems/go-go-mcp/pkg/doc"
 
-	clay "github.com/go-go-golems/clay/pkg"
-
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds/alias"
 	"github.com/go-go-golems/glazed/pkg/cmds/loaders"
@@ -69,9 +67,8 @@ func initRootCmd() (*help.HelpSystem, error) {
 	// Set up help system with UI support
 	helpCmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
-	err = clay.InitGlazed("mcp", rootCmd)
-	if err != nil {
-		return nil, err
+	if err := logging.AddLoggingSectionToRootCommand(rootCmd, "mcp"); err != nil {
+		return nil, errors.Wrap(err, "initialize root logging section")
 	}
 
 	// Initialize commands

@@ -81,7 +81,7 @@ func (c *MetricsCommand) RunIntoGlazeProcessor(
 // NewMetricsCommand creates a new metrics command
 func NewMetricsCommand() (*MetricsCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

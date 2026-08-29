@@ -12,10 +12,19 @@ import (
 	"strings"
 	"time"
 
-	mcpclient "github.com/mark3labs/mcp-go/client"
-	"github.com/mark3labs/mcp-go/client/transport"
-	mcp "github.com/mark3labs/mcp-go/mcp"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+type bearerRoundTripper struct {
+	token string
+	next  http.RoundTripper
+}
+
+func (r bearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	cloned := req.Clone(req.Context())
+	cloned.Header.Set("Authorization", "Bearer "+r.token)
+	return r.next.RoundTrip(cloned)
+}
 
 type tokenResponse struct {
 	AccessToken string `json:"access_token"`
@@ -51,38 +60,28 @@ func main() {
 		fatalf("fetch token: %v", err)
 	}
 
-	client, err := mcpclient.NewStreamableHttpClient(
-		*serverURL,
-		transport.WithHTTPHeaders(map[string]string{
-			"Authorization": "Bearer " + token,
-		}),
-		transport.WithHTTPBasicClient(&http.Client{Timeout: *timeout}),
-	)
-	if err != nil {
-		fatalf("create MCP client: %v", err)
-	}
-	defer func() { _ = client.Close() }()
-
-	if err := client.Start(ctx); err != nil {
-		fatalf("start client: %v", err)
-	}
-
-	if _, err := client.Initialize(ctx, mcp.InitializeRequest{
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo:      mcp.Implementation{Name: "smailnail-merged-smoke", Version: "dev"},
-			Capabilities:    mcp.ClientCapabilities{},
+	httpClient := &http.Client{
+		Timeout: *timeout,
+		Transport: bearerRoundTripper{
+			token: token,
+			next:  http.DefaultTransport,
 		},
-	}); err != nil {
-		fatalf("initialize client: %v", err)
 	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "smailnail-merged-smoke", Version: "dev"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:             *serverURL,
+		HTTPClient:           httpClient,
+		DisableStandaloneSSE: true,
+	}, nil)
+	if err != nil {
+		fatalf("connect and initialize client: %v", err)
+	}
+	defer func() { _ = session.Close() }()
 
-	result, err := client.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "executeIMAPJS",
-			Arguments: map[string]any{
-				"code": buildAccountCode(*accountID),
-			},
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "executeIMAPJS",
+		Arguments: map[string]any{
+			"code": buildAccountCode(*accountID),
 		},
 	})
 	if err != nil {
@@ -92,7 +91,7 @@ func main() {
 		fatalf("tool returned error: %s", firstText(result.Content))
 	}
 
-	text, ok := mcp.AsTextContent(result.Content[0])
+	text, ok := result.Content[0].(*mcp.TextContent)
 	if !ok {
 		fatalf("expected text result, got %T", result.Content[0])
 	}
@@ -169,7 +168,7 @@ func firstText(content []mcp.Content) string {
 	if len(content) == 0 {
 		return "(no content)"
 	}
-	if text, ok := mcp.AsTextContent(content[0]); ok {
+	if text, ok := content[0].(*mcp.TextContent); ok {
 		return text.Text
 	}
 	return fmt.Sprintf("%T", content[0])

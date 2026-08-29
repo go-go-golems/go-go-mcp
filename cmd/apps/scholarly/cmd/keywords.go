@@ -96,7 +96,7 @@ func truncateText(text string, length int) string {
 // NewKeywordsCommand creates a new keywords command
 func NewKeywordsCommand() (*KeywordsCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

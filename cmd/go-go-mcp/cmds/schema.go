@@ -26,7 +26,7 @@ type SchemaCommand struct {
 }
 
 func NewSchemaCommand() (*SchemaCommand, error) {
-	glazedParameterLayer, err := settings.NewGlazedSection()
+	glazedParameterLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create glazed parameter layer")
 	}

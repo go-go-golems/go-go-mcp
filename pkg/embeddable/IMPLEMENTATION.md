@@ -46,7 +46,7 @@ This document summarizes the MVP implementation of the embeddable MCP server API
 - [x] `mcp test-tool` - Test individual tools
 - [x] `mcp config` - Configuration management (placeholder)
 
-#### Enhanced API (v2) - Inspired by mark3labs/mcp-go
+#### Enhanced API (v2) - Backed by the official MCP Go SDK
 - [x] Enhanced argument access with `Arguments` wrapper
 - [x] Type-safe argument getters (`GetString`, `RequireInt`, etc.)
 - [x] Flexible type conversion for all basic types

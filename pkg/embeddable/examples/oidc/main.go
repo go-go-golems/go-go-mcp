@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 
-	clay "github.com/go-go-golems/clay/pkg"
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
@@ -57,8 +56,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := clay.InitGlazed("oidc-example", rootCmd); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to initialize glazed root command: %v\n", err)
+	if err := logging.AddLoggingSectionToRootCommand(rootCmd, "oidc-example"); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize root logging section: %v\n", err)
 		os.Exit(1)
 	}
 

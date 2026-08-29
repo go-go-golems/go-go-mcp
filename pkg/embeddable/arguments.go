@@ -8,7 +8,7 @@ import (
 )
 
 // Arguments provides convenient methods for accessing tool arguments
-// with type conversion and validation, inspired by mark3labs/mcp-go
+// with type conversion and validation, supported by the SDK-neutral embeddable facade
 type Arguments map[string]interface{}
 
 // NewArguments creates an Arguments instance from a map

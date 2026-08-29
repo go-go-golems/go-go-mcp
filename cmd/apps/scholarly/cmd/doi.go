@@ -81,7 +81,7 @@ func (c *DOICommand) RunIntoGlazeProcessor(
 // NewDOICommand creates a new DOI command
 func NewDOICommand() (*DOICommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

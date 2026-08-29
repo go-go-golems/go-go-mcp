@@ -136,7 +136,7 @@ func main() {
 
 ## Enhanced Features (v2)
 
-Inspired by [mark3labs/mcp-go](https://github.com/mark3labs/mcp-go), we now provide enhanced APIs for even more convenient tool development:
+Inspired by the [official MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), we now provide enhanced APIs for even more convenient tool development:
 
 ### Enhanced Tool Registration
 

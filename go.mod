@@ -18,7 +18,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hpcloud/tail v1.0.0
 	github.com/invopop/jsonschema v0.13.0
-	github.com/mark3labs/mcp-go v0.38.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/ory/fosite v0.49.0

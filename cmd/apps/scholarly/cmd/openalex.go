@@ -147,7 +147,7 @@ func (c *OpenAlexCommand) RunIntoGlazeProcessor(
 // NewOpenAlexCommand creates a new OpenAlex command
 func NewOpenAlexCommand() (*OpenAlexCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}
