@@ -46,7 +46,7 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 	)
 
 	// Register tools from our registry into mcp-go server
-	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +86,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 		mcpserver.WithToolCapabilities(true),
 		mcpserver.WithLogging(),
 	)
-	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
 		return err
 	}
 
@@ -102,7 +102,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 	}
 }
 
-func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry, cfg *ServerConfig) error {
+func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
 		return nil
@@ -125,39 +125,14 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 			Str("description_preview", previewDescription(t.Description, toolDescriptionPreviewEdge)).
 			Msg("Adding tool to mcp-go server")
 
-		// Build a wrapped handler that applies middleware and hooks around registry.CallTool
-		baseHandler := func(callCtx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
-			return reg.CallTool(callCtx, name, args)
-		}
-
-		// Apply middleware stack (reverse order)
-		wrapped := baseHandler
-		if len(cfg.middleware) > 0 {
-			log.Debug().Str("tool", name).Int("middleware_count", len(cfg.middleware)).Msg("Applying middleware chain")
-			for i := len(cfg.middleware) - 1; i >= 0; i-- {
-				wrapped = cfg.middleware[i](wrapped)
-			}
-		}
-
-		// Adapter for mcp-go handler signature
+		// The registry handler owns middleware and hook execution. Applying them
+		// again in the SDK adapter would invoke each layer twice for every call.
 		s.AddTool(mt, func(callCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args := req.GetArguments()
-
-			if cfg.hooks != nil && cfg.hooks.BeforeToolCall != nil {
-				if err := cfg.hooks.BeforeToolCall(callCtx, name, args); err != nil {
-					return nil, err
-				}
-			}
-
 			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
 
-			res, err := wrapped(callCtx, args)
-
+			res, err := reg.CallTool(callCtx, name, args)
 			mcpRes := mapToolResultToMCP(res)
-
-			if cfg.hooks != nil && cfg.hooks.AfterToolCall != nil {
-				cfg.hooks.AfterToolCall(callCtx, name, res, err)
-			}
 
 			if err != nil {
 				log.Error().Str("tool", name).Err(err).Msg("Tool call errored")

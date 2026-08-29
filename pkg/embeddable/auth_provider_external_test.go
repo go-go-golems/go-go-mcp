@@ -104,7 +104,7 @@ func TestExternalOIDCProviderValidatesJWTAndAdvertisesResourceMetadata(t *testin
 	}
 }
 
-func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
+func TestExternalOIDCProviderRejectsInvalidTokens(t *testing.T) {
 	privateKey, publicJWK := generateTestJWK(t)
 	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
 	defer server.Close()
@@ -123,9 +123,22 @@ func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
 		t.Fatalf("newExternalOIDCAuthProvider() error = %v", err)
 	}
 
-	token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid profile")
-	if _, err := provider.ValidateBearerToken(context.Background(), token); err == nil {
-		t.Fatalf("expected missing-scope validation error")
+	now := time.Now()
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{name: "malformed", token: "not-a-jwt"},
+		{name: "wrong audience", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "another-resource", "client-1", "mcp:invoke", now.Add(-time.Minute), now.Add(time.Hour))},
+		{name: "expired", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "mcp-resource", "client-1", "mcp:invoke", now.Add(-2*time.Hour), now.Add(-time.Hour))},
+		{name: "missing scope", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "mcp-resource", "client-1", "openid profile", now.Add(-time.Minute), now.Add(time.Hour))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := provider.ValidateBearerToken(context.Background(), tt.token); err == nil {
+				t.Fatalf("expected %s validation error", tt.name)
+			}
+		})
 	}
 }
 
@@ -169,6 +182,12 @@ func generateTestJWK(t *testing.T) (*rsa.PrivateKey, jose.JSONWebKey) {
 
 func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, audience, clientID, scope string) string {
 	t.Helper()
+	now := time.Now()
+	return signExternalTestTokenWithTimes(t, privateKey, issuer, audience, clientID, scope, now.Add(-time.Minute), now.Add(time.Hour))
+}
+
+func signExternalTestTokenWithTimes(t *testing.T, privateKey *rsa.PrivateKey, issuer, audience, clientID, scope string, notBefore, expiry time.Time) string {
+	t.Helper()
 
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
@@ -184,8 +203,8 @@ func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, aud
 			Issuer:    issuer,
 			Subject:   "alice",
 			Audience:  jwt.Audience{audience},
-			Expiry:    jwt.NewNumericDate(now.Add(time.Hour)),
-			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
+			Expiry:    jwt.NewNumericDate(expiry),
+			NotBefore: jwt.NewNumericDate(notBefore),
 			IssuedAt:  jwt.NewNumericDate(now),
 		}).
 		Claims(map[string]any{
