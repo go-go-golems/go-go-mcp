@@ -42,7 +42,7 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
 
 	// Register tools from our registry into the official SDK server
-	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
 		return nil, err
 	}
 
@@ -79,7 +79,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 		Msg("Mounting MCP HTTP handlers")
 
 	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
-	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
+	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
 		return err
 	}
 
@@ -95,7 +95,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 	}
 }
 
-func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry) error {
+func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry, cfg *ServerConfig) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
 		return nil
@@ -108,7 +108,13 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 
 	log.Debug().Int("count", len(tools)).Msg("Registering tools")
 
+	registeredPolicies := map[string]struct{}{}
 	for _, t := range tools {
+		policy, hasPolicy := cfg.toolAuthorization[t.Name]
+		if hasPolicy {
+			applyToolSecurityMetadata(&t, policy)
+			registeredPolicies[t.Name] = struct{}{}
+		}
 		mappedTool := mapToolToOfficial(t)
 		name := t.Name
 		log.Debug().
@@ -119,6 +125,16 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 		// The registry handler owns middleware and hook execution. Applying them
 		// again in the SDK adapter would invoke each layer twice for every call.
 		s.AddTool(mappedTool, func(callCtx context.Context, req *official.CallToolRequest) (*official.CallToolResult, error) {
+			if hasPolicy {
+				var tokenInfo *mcpauth.TokenInfo
+				if req.Extra != nil {
+					tokenInfo = req.Extra.TokenInfo
+				}
+				if denial := authorizeToolRequest(tokenInfo, policy, protectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())); denial != nil {
+					return mapToolResultToOfficial(denial)
+				}
+			}
+
 			args := map[string]any{}
 			if req.Params != nil && len(req.Params.Arguments) > 0 {
 				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
@@ -141,6 +157,11 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 		})
 	}
 
+	for toolName := range cfg.toolAuthorization {
+		if _, ok := registeredPolicies[toolName]; !ok {
+			return fmt.Errorf("tool authorization policy references unregistered tool %q", toolName)
+		}
+	}
 	return nil
 }
 

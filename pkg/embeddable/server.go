@@ -23,8 +23,9 @@ type ServerConfig struct {
 	Version     string
 	Description string
 
-	// Tool registration
-	toolRegistry *tool_registry.Registry
+	// Tool registration and decoded-dispatch authorization.
+	toolRegistry      *tool_registry.Registry
+	toolAuthorization map[string]ToolAuthorizationPolicy
 
 	// Transport options
 	defaultTransport string
@@ -67,14 +68,15 @@ type ServerOption func(*ServerConfig) error
 // NewServerConfig creates a new server configuration with defaults
 func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Name:             "Embeddable MCP Server",
-		Version:          "1.0.0",
-		Description:      "MCP Server",
-		toolRegistry:     tool_registry.NewRegistry(),
-		defaultTransport: "stdio",
-		defaultPort:      3000,
-		enableConfig:     false,
-		sessionStore:     session.NewInMemorySessionStore(),
+		Name:              "Embeddable MCP Server",
+		Version:           "1.0.0",
+		Description:       "MCP Server",
+		toolRegistry:      tool_registry.NewRegistry(),
+		toolAuthorization: map[string]ToolAuthorizationPolicy{},
+		defaultTransport:  "stdio",
+		defaultPort:       3000,
+		enableConfig:      false,
+		sessionStore:      session.NewInMemorySessionStore(),
 	}
 }
 
