@@ -10,12 +10,14 @@ import (
 
 func mapToolToOfficial(tool protocol.Tool) *official.Tool {
 	mapped := &official.Tool{
-		Name:         tool.Name,
-		Title:        tool.Title,
-		Description:  tool.Description,
-		InputSchema:  tool.InputSchema,
-		OutputSchema: tool.OutputSchema,
-		Meta:         cloneMeta(tool.Meta),
+		Name:        tool.Name,
+		Title:       tool.Title,
+		Description: tool.Description,
+		InputSchema: tool.InputSchema,
+		Meta:        cloneMeta(tool.Meta),
+	}
+	if len(tool.OutputSchema) > 0 {
+		mapped.OutputSchema = tool.OutputSchema
 	}
 	if tool.Annotations != nil {
 		mapped.Annotations = &official.ToolAnnotations{

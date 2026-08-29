@@ -60,7 +60,7 @@ func TestMCPGoBackendConformance(t *testing.T) {
 	if !ok || len(tools) != 1 {
 		t.Fatalf("tools = %#v, want one tool", listResult["tools"])
 	}
-	golden := `{"annotations":{},"description":"Echo one message","inputSchema":{"additionalProperties":false,"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"}`
+	golden := `{"description":"Echo one message","inputSchema":{"additionalProperties":false,"properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"}`
 	encodedTool, err := json.Marshal(tools[0])
 	if err != nil {
 		t.Fatal(err)

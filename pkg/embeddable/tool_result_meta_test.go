@@ -12,7 +12,10 @@ func TestMapToolResultToMCPForwardsMeta(t *testing.T) {
 	result.Meta = map[string]any{
 		"mcp/www_authenticate": []string{`Bearer error="insufficient_scope"`},
 	}
-	mapped := mapToolResultToMCP(result)
+	mapped, err := mapToolResultToOfficial(result)
+	if err != nil {
+		t.Fatal(err)
+	}
 	encoded, err := json.Marshal(mapped)
 	if err != nil {
 		t.Fatal(err)

@@ -8,15 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
-	mcp "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	official "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/rs/zerolog/log"
 )
 
-// Backend represents a runnable server backend
-// that starts the selected transport using an mcp-go MCPServer.
+// Backend represents a runnable server backend that starts the selected
+// transport using the official Model Context Protocol Go SDK.
 type Backend interface {
 	Start(ctx context.Context) error
 }
@@ -24,8 +22,8 @@ type Backend interface {
 const toolDescriptionPreviewEdge = 80
 const shutdownTimeout = 10 * time.Second
 
-// NewBackend constructs an mcp-go based backend from the provided ServerConfig.
-// It builds an MCP server, registers tools via existing configuration, and
+// NewBackend constructs an official-SDK backend from the provided ServerConfig.
+// It builds an MCP server, registers tools through the existing registry, and
 // returns a transport-specific backend that can Start(ctx).
 func NewBackend(cfg *ServerConfig) (Backend, error) {
 	if cfg == nil {
@@ -37,15 +35,11 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		Str("version", cfg.Version).
 		Str("transport", cfg.defaultTransport).
 		Int("port", cfg.defaultPort).
-		Msg("Creating mcp-go backend")
+		Msg("Creating official MCP SDK backend")
 
-	// Build mcp-go server
-	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
-		mcpserver.WithToolCapabilities(true),
-		mcpserver.WithLogging(),
-	)
+	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
 
-	// Register tools from our registry into mcp-go server
+	// Register tools from our registry into the official SDK server
 	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
 		return nil, err
 	}
@@ -82,10 +76,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 		Str("transport", cfg.defaultTransport).
 		Msg("Mounting MCP HTTP handlers")
 
-	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
-		mcpserver.WithToolCapabilities(true),
-		mcpserver.WithLogging(),
-	)
+	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
 	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry); err != nil {
 		return err
 	}
@@ -102,7 +93,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 	}
 }
 
-func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry) error {
+func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
 		return nil
@@ -116,69 +107,39 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 	log.Debug().Int("count", len(tools)).Msg("Registering tools")
 
 	for _, t := range tools {
-		// Map our protocol.Tool to mcp-go Tool with raw schema
-		mt := mcp.NewToolWithRawSchema(t.Name, t.Description, t.InputSchema)
-
+		mappedTool := mapToolToOfficial(t)
 		name := t.Name
 		log.Debug().
 			Str("tool", name).
 			Str("description_preview", previewDescription(t.Description, toolDescriptionPreviewEdge)).
-			Msg("Adding tool to mcp-go server")
+			Msg("Adding tool to official MCP SDK server")
 
 		// The registry handler owns middleware and hook execution. Applying them
 		// again in the SDK adapter would invoke each layer twice for every call.
-		s.AddTool(mt, func(callCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args := req.GetArguments()
+		s.AddTool(mappedTool, func(callCtx context.Context, req *official.CallToolRequest) (*official.CallToolResult, error) {
+			args := map[string]any{}
+			if req.Params != nil && len(req.Params.Arguments) > 0 {
+				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+					return nil, fmt.Errorf("decode arguments for tool %q: %w", name, err)
+				}
+			}
 			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
 
 			res, err := reg.CallTool(callCtx, name, args)
-			mcpRes := mapToolResultToMCP(res)
-
 			if err != nil {
 				log.Error().Str("tool", name).Err(err).Msg("Tool call errored")
-			} else {
-				log.Debug().Str("tool", name).Bool("is_error", mcpRes.IsError).Msg("Tool call completed")
+				return nil, err
 			}
-			return mcpRes, err
+			mappedResult, err := mapToolResultToOfficial(res)
+			if err != nil {
+				return nil, fmt.Errorf("map result for tool %q: %w", name, err)
+			}
+			log.Debug().Str("tool", name).Bool("is_error", mappedResult.IsError).Msg("Tool call completed")
+			return mappedResult, nil
 		})
 	}
 
 	return nil
-}
-
-func mapToolResultToMCP(res *protocol.ToolResult) *mcp.CallToolResult {
-	if res == nil {
-		return &mcp.CallToolResult{}
-	}
-
-	out := &mcp.CallToolResult{
-		IsError: res.IsError,
-	}
-	if len(res.Meta) > 0 {
-		out.Meta = &mcp.Meta{AdditionalFields: res.Meta}
-	}
-
-	for _, c := range res.Content {
-		switch c.Type {
-		case "text":
-			out.Content = append(out.Content, mcp.TextContent{Type: "text", Text: c.Text})
-		case "image":
-			out.Content = append(out.Content, mcp.ImageContent{Type: "image", Data: c.Data, MIMEType: c.MimeType})
-		case "resource":
-			if c.Resource != nil {
-				var rc mcp.ResourceContents
-				if c.Resource.Blob != "" {
-					rc = mcp.BlobResourceContents{URI: c.Resource.URI, MIMEType: c.Resource.MimeType, Blob: c.Resource.Blob}
-				} else {
-					rc = mcp.TextResourceContents{URI: c.Resource.URI, MIMEType: c.Resource.MimeType, Text: c.Resource.Text}
-				}
-				embedded := mcp.NewEmbeddedResource(rc)
-				out.Content = append(out.Content, embedded)
-			}
-		}
-	}
-
-	return out
 }
 
 func previewDescription(desc string, edge int) string {
@@ -200,18 +161,17 @@ func previewDescription(desc string, edge int) string {
 // stdio backend
 
 type stdioBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 }
 
 func (b *stdioBackend) Start(ctx context.Context) error {
-	// Use ServeStdio convenience which binds to os.Stdin/os.Stdout
-	return mcpserver.ServeStdio(b.server)
+	return b.server.Run(ctx, &official.StdioTransport{})
 }
 
 // sse backend
 
 type sseBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 	port   int
 	cfg    *ServerConfig
 }
@@ -242,7 +202,7 @@ func (b *sseBackend) Start(ctx context.Context) error {
 // streamable-http backend
 
 type streamBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 	port   int
 	cfg    *ServerConfig
 }
@@ -270,8 +230,8 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	return nil
 }
 
-func mountSSEHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
-	sse := mcpserver.NewSSEServer(server, mcpserver.WithStaticBasePath("/mcp"))
+func mountSSEHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
+	sse := official.NewSSEHandler(func(*http.Request) *official.Server { return server }, nil)
 
 	var handler http.Handler = sse
 	if cfg != nil && cfg.authEnabled {
@@ -288,8 +248,11 @@ func mountSSEHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *Serv
 	return nil
 }
 
-func mountStreamableHTTPHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
-	stream := mcpserver.NewStreamableHTTPServer(server)
+func mountStreamableHTTPHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
+	stream := official.NewStreamableHTTPHandler(
+		func(*http.Request) *official.Server { return server },
+		&official.StreamableHTTPOptions{Stateless: false, JSONResponse: false},
+	)
 
 	var handler http.Handler = stream
 	if cfg != nil && cfg.authEnabled {
