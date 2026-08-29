@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	embeddedoidc "github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 )
@@ -21,6 +22,7 @@ type AuthPrincipal struct {
 	PreferredUsername string
 	DisplayName       string
 	AvatarURL         string
+	Expiration        time.Time
 	Claims            map[string]any
 }
 

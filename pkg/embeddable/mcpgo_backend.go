@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	official "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"github.com/rs/zerolog/log"
 )
 
@@ -233,15 +235,9 @@ func (b *streamBackend) Start(ctx context.Context) error {
 func mountSSEHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
 	sse := official.NewSSEHandler(func(*http.Request) *official.Server { return server }, nil)
 
-	var handler http.Handler = sse
-	if cfg != nil && cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	handler, err := wrapHTTPAuthentication(mux, cfg, sse)
+	if err != nil {
+		return err
 	}
 
 	mux.Handle("/mcp/", withRequestLogging(handler))
@@ -254,15 +250,9 @@ func mountStreamableHTTPHandlers(mux *http.ServeMux, server *official.Server, cf
 		&official.StreamableHTTPOptions{Stateless: false, JSONResponse: false},
 	)
 
-	var handler http.Handler = stream
-	if cfg != nil && cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	handler, err := wrapHTTPAuthentication(mux, cfg, stream)
+	if err != nil {
+		return err
 	}
 
 	mux.Handle("/mcp", withRequestLogging(handler))
@@ -271,6 +261,70 @@ func mountStreamableHTTPHandlers(mux *http.ServeMux, server *official.Server, cf
 }
 
 // --- Auth helpers ---
+
+const officialPrincipalExtraKey = "go-go-mcp/auth-principal"
+
+func wrapHTTPAuthentication(mux *http.ServeMux, cfg *ServerConfig, next http.Handler) (http.Handler, error) {
+	if cfg == nil || !cfg.authEnabled {
+		return next, nil
+	}
+	provider, err := newHTTPAuthProvider(cfg)
+	if err != nil {
+		return nil, err
+	}
+	provider.MountRoutes(mux)
+
+	if external, ok := provider.(*externalOIDCAuthProvider); ok {
+		metadata := &oauthex.ProtectedResourceMetadata{
+			Resource:             external.resourceURL,
+			AuthorizationServers: []string{external.discovery.Issuer},
+			ScopesSupported:      append([]string(nil), external.opts.RequiredScopes...),
+		}
+		mux.Handle("/.well-known/oauth-protected-resource", mcpauth.ProtectedResourceMetadataHandler(metadata))
+		return officialExternalOIDCMiddleware(external, next), nil
+	}
+
+	mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
+	return authMiddleware(provider, next), nil
+}
+
+func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next http.Handler) http.Handler {
+	verifier := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
+		principal, err := provider.validateBearerToken(ctx, token, false)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
+		}
+		return &mcpauth.TokenInfo{
+			UserID:     principal.Subject,
+			Scopes:     append([]string(nil), principal.Scopes...),
+			Expiration: principal.Expiration,
+			Extra:      map[string]any{officialPrincipalExtraKey: principal},
+		}, nil
+	}
+
+	injectPrincipal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil {
+			http.Error(w, "verified token information missing", http.StatusInternalServerError)
+			return
+		}
+		principal, ok := tokenInfo.Extra[officialPrincipalExtraKey].(AuthPrincipal)
+		if !ok {
+			http.Error(w, "verified principal missing", http.StatusInternalServerError)
+			return
+		}
+		ctx := WithAuthPrincipal(r.Context(), principal)
+		r2 := r.Clone(ctx)
+		r2.Header.Set("X-MCP-Subject", principal.Subject)
+		r2.Header.Set("X-MCP-Client-ID", principal.ClientID)
+		next.ServeHTTP(w, r2)
+	})
+
+	return mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
+		Scopes:              append([]string(nil), provider.opts.RequiredScopes...),
+		ResourceMetadataURL: protectedResourceMetadataURL(provider.resourceURL),
+	})(injectPrincipal)
+}
 
 func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

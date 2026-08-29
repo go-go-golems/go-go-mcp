@@ -32,6 +32,9 @@ func TestOfficialSDKSpike(t *testing.T) {
 			"securitySchemes": []any{map[string]any{"type": "oauth2", "scopes": []string{"mcp:invoke"}}},
 		},
 	}, func(_ context.Context, req *official.CallToolRequest) (*official.CallToolResult, error) {
+		if req.Extra == nil || req.Extra.TokenInfo == nil || req.Extra.TokenInfo.UserID != "alice" {
+			t.Fatalf("decoded request token info = %#v", req.Extra)
+		}
 		var input struct {
 			Message string `json:"message"`
 		}

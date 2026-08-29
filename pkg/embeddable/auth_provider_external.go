@@ -128,6 +128,10 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 func (p *externalOIDCAuthProvider) MountRoutes(mux *http.ServeMux) {}
 
 func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
+	return p.validateBearerToken(ctx, token, true)
+}
+
+func (p *externalOIDCAuthProvider) validateBearerToken(ctx context.Context, token string, enforceRequiredScopes bool) (AuthPrincipal, error) {
 	claims, err := p.verifyToken(ctx, token, false)
 	if err != nil {
 		claims, err = p.verifyToken(ctx, token, true)
@@ -148,9 +152,11 @@ func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, toke
 	}
 
 	scopeSet := parseScopeSet(claims.Scope, claims.SCP)
-	for scope := range p.requiredScopes {
-		if _, ok := scopeSet[scope]; !ok {
-			return AuthPrincipal{}, fmt.Errorf("%w: missing required scope %q", errUnauthorizedToken, scope)
+	if enforceRequiredScopes {
+		for scope := range p.requiredScopes {
+			if _, ok := scopeSet[scope]; !ok {
+				return AuthPrincipal{}, fmt.Errorf("%w: missing required scope %q", errUnauthorizedToken, scope)
+			}
 		}
 	}
 
@@ -172,6 +178,7 @@ func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, toke
 		PreferredUsername: claims.PreferredUsername,
 		DisplayName:       claims.Name,
 		AvatarURL:         claims.Picture,
+		Expiration:        claims.Expiry.Time(),
 		Claims: map[string]any{
 			"email":              claims.Email,
 			"email_verified":     claims.EmailVerified,

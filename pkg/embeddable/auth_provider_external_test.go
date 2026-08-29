@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
@@ -140,6 +141,86 @@ func TestExternalOIDCProviderRejectsInvalidTokens(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOfficialExternalOIDCMiddlewarePropagatesPrincipalAndChallenges(t *testing.T) {
+	privateKey, publicJWK := generateTestJWK(t)
+	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
+	defer server.Close()
+
+	cfg := NewServerConfig()
+	cfg.authEnabled = true
+	cfg.authOptions = AuthOptions{
+		Mode:        AuthModeExternalOIDC,
+		ResourceURL: "https://mcp.example.com/mcp",
+		External: ExternalOIDCOptions{
+			IssuerURL:      issuer,
+			DiscoveryURL:   discoveryURL,
+			Audience:       "mcp-resource",
+			RequiredScopes: []string{"mcp:invoke"},
+		},
+	}
+	mux := http.NewServeMux()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := GetAuthPrincipal(r.Context())
+		if !ok || principal.Subject != "alice" || principal.ClientID != "client-1" {
+			t.Fatalf("principal = %#v, ok=%v", principal, ok)
+		}
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil || tokenInfo.UserID != "alice" || tokenInfo.Expiration.IsZero() {
+			t.Fatalf("token info = %#v", tokenInfo)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	wrapped, err := wrapHTTPAuthentication(mux, cfg, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle("/mcp", wrapped)
+
+	t.Run("valid", func(t *testing.T) {
+		token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "mcp:invoke")
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("missing bearer", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/mcp", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d", rec.Code)
+		}
+		if challenge := rec.Header().Get("WWW-Authenticate"); !strings.Contains(challenge, `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`) {
+			t.Fatalf("challenge = %q", challenge)
+		}
+	})
+
+	t.Run("insufficient scope", func(t *testing.T) {
+		token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid")
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		if challenge := rec.Header().Get("WWW-Authenticate"); !strings.Contains(challenge, `scope="mcp:invoke"`) {
+			t.Fatalf("challenge = %q", challenge)
+		}
+	})
+
+	t.Run("protected resource metadata", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
+		if rec.Code != http.StatusOK || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+			t.Fatalf("status=%d cors=%q body=%s", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"), rec.Body.String())
+		}
+	})
 }
 
 func TestExternalOIDCProviderRequiresExplicitResourceURL(t *testing.T) {
