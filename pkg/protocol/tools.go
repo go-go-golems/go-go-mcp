@@ -7,22 +7,44 @@ import (
 )
 
 type Tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"inputSchema"`
+	Name         string           `json:"name"`
+	Title        string           `json:"title,omitempty"`
+	Description  string           `json:"description"`
+	InputSchema  json.RawMessage  `json:"inputSchema"`
+	OutputSchema json.RawMessage  `json:"outputSchema,omitempty"`
+	Annotations  *ToolAnnotations `json:"annotations,omitempty"`
+	Meta         map[string]any   `json:"_meta,omitempty"`
 }
 
-// ToolResult represents the result of a tool invocation
+// ToolAnnotations describes behavioral hints exposed to MCP clients. These
+// are descriptive hints only and must never replace server-side policy.
+type ToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    bool   `json:"readOnlyHint"`
+	DestructiveHint *bool  `json:"destructiveHint,omitempty"`
+	IdempotentHint  bool   `json:"idempotentHint"`
+	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
+}
+
+// ToolResult represents the result of a tool invocation.
 type ToolResult struct {
-	Content []ToolContent  `json:"content"`
-	IsError bool           `json:"isError"`
-	Meta    map[string]any `json:"_meta,omitempty"`
+	Content           []ToolContent  `json:"content"`
+	StructuredContent any            `json:"structuredContent,omitempty"`
+	IsError           bool           `json:"isError"`
+	Meta              map[string]any `json:"_meta,omitempty"`
 }
 
 // WithMeta attaches MCP result metadata such as mcp/www_authenticate.
 func WithMeta(meta map[string]any) ToolResultOption {
 	return func(tr *ToolResult) {
 		tr.Meta = meta
+	}
+}
+
+// WithStructuredContent attaches the machine-readable result payload.
+func WithStructuredContent(content any) ToolResultOption {
+	return func(tr *ToolResult) {
+		tr.StructuredContent = content
 	}
 }
 
@@ -72,6 +94,7 @@ func WithJSON(data interface{}) ToolResultOption {
 			return
 		}
 		tr.Content = append(tr.Content, content)
+		tr.StructuredContent = data
 	}
 }
 
