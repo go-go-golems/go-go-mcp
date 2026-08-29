@@ -35,6 +35,41 @@ func (p *stubAuthProvider) WWWAuthenticateHeader() string {
 	return p.authHeader
 }
 
+func TestWithHTTPAuthProviderUsesApplicationProvider(t *testing.T) {
+	provider := &stubAuthProvider{principal: AuthPrincipal{Subject: "employee"}}
+	cfg := NewServerConfig()
+	if err := WithHTTPAuthProvider(provider)(cfg); err != nil {
+		t.Fatalf("WithHTTPAuthProvider: %v", err)
+	}
+	got, err := newHTTPAuthProvider(cfg)
+	if err != nil {
+		t.Fatalf("newHTTPAuthProvider: %v", err)
+	}
+	if got != provider {
+		t.Fatalf("provider = %T, want application provider", got)
+	}
+	if !cfg.authEnabled {
+		t.Fatal("custom provider did not enable HTTP auth")
+	}
+}
+
+func TestWithHTTPAuthProviderRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
+	cfg := NewServerConfig()
+	if err := WithHTTPAuthProvider(nil)(cfg); err == nil {
+		t.Fatal("WithHTTPAuthProvider(nil) succeeded")
+	}
+	provider := &stubAuthProvider{}
+	if err := WithHTTPAuthProvider(provider)(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := WithAuth(AuthOptions{Mode: AuthModeNone})(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.customAuthProvider != nil || cfg.authEnabled {
+		t.Fatalf("WithAuth did not replace custom provider: %+v", cfg)
+	}
+}
+
 func TestWithOIDCUsesEmbeddedDevMode(t *testing.T) {
 	cfg := NewServerConfig()
 	if err := WithOIDC(OIDCOptions{Issuer: "http://localhost:3001"})(cfg); err != nil {

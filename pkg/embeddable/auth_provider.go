@@ -34,7 +34,13 @@ type HTTPAuthProvider interface {
 }
 
 func newHTTPAuthProvider(cfg *ServerConfig) (HTTPAuthProvider, error) {
-	if cfg == nil || !cfg.authEnabled || !cfg.authOptions.Enabled() {
+	if cfg == nil || !cfg.authEnabled {
+		return nil, nil
+	}
+	if cfg.customAuthProvider != nil {
+		return cfg.customAuthProvider, nil
+	}
+	if !cfg.authOptions.Enabled() {
 		return nil, nil
 	}
 

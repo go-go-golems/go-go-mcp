@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
@@ -45,8 +46,9 @@ type ServerConfig struct {
 	commandCustomizers []CommandCustomizer
 
 	// Auth options (HTTP transports only)
-	authEnabled bool
-	authOptions AuthOptions
+	authEnabled        bool
+	authOptions        AuthOptions
+	customAuthProvider HTTPAuthProvider
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -284,6 +286,24 @@ func WithAuth(opts AuthOptions) ServerOption {
 	return func(config *ServerConfig) error {
 		config.authEnabled = opts.Enabled()
 		config.authOptions = opts
+		config.customAuthProvider = nil
+		return nil
+	}
+}
+
+// WithHTTPAuthProvider installs an application-owned HTTP authorization
+// provider. It is intended for production integrations whose authorization
+// server lifecycle is outside go-go-mcp's embedded development issuer. The
+// provider owns route mounting, bearer validation, protected-resource metadata,
+// and challenge formatting. A later WithAuth call replaces it.
+func WithHTTPAuthProvider(provider HTTPAuthProvider) ServerOption {
+	return func(config *ServerConfig) error {
+		if provider == nil {
+			return fmt.Errorf("HTTP auth provider is required")
+		}
+		config.authEnabled = true
+		config.authOptions = AuthOptions{}
+		config.customAuthProvider = provider
 		return nil
 	}
 }
