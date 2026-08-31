@@ -28,6 +28,28 @@ type contextKey string
 // sessionContextKey is the key used to store the Session in the context.
 const sessionContextKey = contextKey("session")
 
+type sessionIDContextKey struct{}
+
+// WithSessionID returns a context carrying the official MCP session ID. The
+// official SDK owns session lifecycle; this value only bridges that identity
+// into legacy-compatible tool handlers.
+func WithSessionID(ctx context.Context, id string) context.Context {
+	if id == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, sessionIDContextKey{}, id)
+}
+
+// SessionIDFromContext returns the official MCP session ID when the handler
+// was invoked through a stateful MCP transport.
+func SessionIDFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	id, ok := ctx.Value(sessionIDContextKey{}).(string)
+	return id, ok && id != ""
+}
+
 // WithSession returns a new context derived from ctx that carries the provided session.
 func WithSession(ctx context.Context, session *Session) context.Context {
 	return context.WithValue(ctx, sessionContextKey, session)

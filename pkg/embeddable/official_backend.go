@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 	official "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -142,6 +143,9 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 				}
 			}
 			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
+			if req.Session != nil {
+				callCtx = session.WithSessionID(callCtx, req.Session.ID())
+			}
 
 			res, err := reg.CallTool(callCtx, name, args)
 			if err != nil {

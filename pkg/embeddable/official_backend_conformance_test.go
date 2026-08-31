@@ -11,17 +11,22 @@ import (
 	"testing"
 
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	mcppsession "github.com/go-go-golems/go-go-mcp/pkg/session"
 )
 
 func TestMCPGoBackendConformance(t *testing.T) {
 	var handlerCalls atomic.Int32
+	var handlerSessionID atomic.Value
 	cfg := NewServerConfig()
 	options := []ServerOption{
 		WithName("conformance-server"),
 		WithVersion("1.2.3"),
 		WithDefaultTransport("streamable_http"),
-		WithTool("echo", func(_ context.Context, args map[string]any) (*protocol.ToolResult, error) {
+		WithTool("echo", func(ctx context.Context, args map[string]any) (*protocol.ToolResult, error) {
 			handlerCalls.Add(1)
+			if sessionID, ok := mcppsession.SessionIDFromContext(ctx); ok {
+				handlerSessionID.Store(sessionID)
+			}
 			result := protocol.NewToolResult(protocol.WithJSON(map[string]any{"echo": args["message"]}))
 			result.Meta = map[string]any{"test/result-meta": "preserved"}
 			return result, nil
@@ -88,6 +93,9 @@ func TestMCPGoBackendConformance(t *testing.T) {
 	}
 	if got := handlerCalls.Load(); got != 1 {
 		t.Fatalf("handler calls = %d, want 1", got)
+	}
+	if got := handlerSessionID.Load().(string); got != sessionID {
+		t.Fatalf("handler session ID = %q, want %q", got, sessionID)
 	}
 }
 
