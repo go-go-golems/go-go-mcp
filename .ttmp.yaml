@@ -1,0 +1,6 @@
+root: ttmp
+defaults:
+    owners: []
+    intent: long-term
+filenamePrefixPolicy: ""
+vocabulary: ttmp/vocabulary.yaml

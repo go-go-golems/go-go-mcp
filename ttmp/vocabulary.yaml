@@ -37,14 +37,44 @@ topics:
       description: Anthropic Claude clients, connectors, and Claude-specific integration behavior
     - slug: terraform
       description: Terraform-based infrastructure as code, provider configuration, plans, applies, and state management
+    - slug: chat
+      description: Chat backend and frontend surfaces
+    - slug: backend
+      description: Backend services
+    - slug: websocket
+      description: WebSocket lifecycle & events
+    - slug: cleanup
+      description: Removal of obsolete code and dependencies
+    - slug: dependencies
+      description: Dependency graph and module maintenance
+    - slug: refactoring
+      description: Structural code improvements
 docTypes:
     - slug: index
       description: Ticket index document
+    - slug: design-doc
+      description: Structured rationale and architecture notes
+    - slug: reference
+      description: Reference docs and API contracts
+    - slug: playbook
+      description: Operational procedures and QA/Smoke steps
+    - slug: skill
+      description: Skill documentation (what it's for and when to use it)
 intent:
     - slug: long-term
       description: Long-term reference material
+    - slug: short-term
+      description: Short-term documentation for active work
+    - slug: throwaway
+      description: Temporary/experimental documentation
 status:
     - slug: active
       description: Actively maintained or currently relevant document
     - slug: complete
       description: Closed ticket state
+    - slug: draft
+      description: Initial draft state
+    - slug: review
+      description: Ready for review
+    - slug: archived
+      description: Archived/completed work
