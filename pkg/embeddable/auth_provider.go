@@ -26,16 +26,16 @@ type AuthPrincipal struct {
 	Claims            map[string]any
 }
 
-// HTTPAuthProvider is the MCP resource-server boundary. Authorization-server
+// HTTPAuthVerifier is the MCP resource-server boundary. Authorization-server
 // routes belong to the application composition root, not to bearer middleware.
-type HTTPAuthProvider interface {
+type HTTPAuthVerifier interface {
 	ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error)
 	ProtectedResourceMetadata() map[string]any
 	WWWAuthenticateHeader() string
 }
 
 type httpAuthRuntime struct {
-	provider                 HTTPAuthProvider
+	provider                 HTTPAuthVerifier
 	mountAuthorizationServer func(*http.ServeMux)
 }
 
@@ -43,8 +43,8 @@ func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
 	if cfg == nil || !cfg.authEnabled {
 		return httpAuthRuntime{}, nil
 	}
-	if cfg.customAuthProvider != nil {
-		return httpAuthRuntime{provider: cfg.customAuthProvider}, nil
+	if cfg.customAuthVerifier != nil {
+		return httpAuthRuntime{provider: cfg.customAuthVerifier}, nil
 	}
 	if !cfg.authOptions.Enabled() {
 		return httpAuthRuntime{}, nil
@@ -58,7 +58,7 @@ func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
 		if err != nil {
 			return httpAuthRuntime{}, err
 		}
-		return httpAuthRuntime{provider: provider, mountAuthorizationServer: provider.MountRoutes}, nil
+		return httpAuthRuntime{provider: provider, mountAuthorizationServer: provider.MountAuthorizationServer}, nil
 	case AuthModeExternalOIDC:
 		provider, err := newExternalOIDCAuthProvider(cfg.authOptions)
 		if err != nil {
@@ -95,7 +95,7 @@ func newEmbeddedDevAuthProvider(opts AuthOptions) (*embeddedDevAuthProvider, err
 	}, nil
 }
 
-func (p *embeddedDevAuthProvider) MountRoutes(mux *http.ServeMux) {
+func (p *embeddedDevAuthProvider) MountAuthorizationServer(mux *http.ServeMux) {
 	p.server.Routes(mux)
 }
 

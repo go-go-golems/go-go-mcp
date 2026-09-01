@@ -48,7 +48,7 @@ type ServerConfig struct {
 	// Auth options (HTTP transports only)
 	authEnabled        bool
 	authOptions        AuthOptions
-	customAuthProvider HTTPAuthProvider
+	customAuthVerifier HTTPAuthVerifier
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -286,23 +286,23 @@ func WithAuth(opts AuthOptions) ServerOption {
 	return func(config *ServerConfig) error {
 		config.authEnabled = opts.Enabled()
 		config.authOptions = opts
-		config.customAuthProvider = nil
+		config.customAuthVerifier = nil
 		return nil
 	}
 }
 
-// WithHTTPAuthProvider installs an application-owned MCP resource-server
+// WithHTTPAuthVerifier installs an application-owned MCP resource-server
 // verifier. The application mounts any authorization-server routes separately;
-// this provider owns only bearer validation, protected-resource metadata, and
+// this verifier owns only bearer validation, protected-resource metadata, and
 // challenge formatting. A later WithAuth call replaces it.
-func WithHTTPAuthProvider(provider HTTPAuthProvider) ServerOption {
+func WithHTTPAuthVerifier(verifier HTTPAuthVerifier) ServerOption {
 	return func(config *ServerConfig) error {
-		if provider == nil {
-			return fmt.Errorf("HTTP auth provider is required")
+		if verifier == nil {
+			return fmt.Errorf("HTTP auth verifier is required")
 		}
 		config.authEnabled = true
 		config.authOptions = AuthOptions{}
-		config.customAuthProvider = provider
+		config.customAuthVerifier = verifier
 		return nil
 	}
 }

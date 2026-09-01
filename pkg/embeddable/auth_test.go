@@ -33,11 +33,11 @@ func (p *stubAuthProvider) WWWAuthenticateHeader() string {
 	return p.authHeader
 }
 
-func TestWithHTTPAuthProviderUsesApplicationProvider(t *testing.T) {
+func TestWithHTTPAuthVerifierUsesApplicationVerifier(t *testing.T) {
 	provider := &stubAuthProvider{principal: AuthPrincipal{Subject: "employee"}}
 	cfg := NewServerConfig()
-	if err := WithHTTPAuthProvider(provider)(cfg); err != nil {
-		t.Fatalf("WithHTTPAuthProvider: %v", err)
+	if err := WithHTTPAuthVerifier(provider)(cfg); err != nil {
+		t.Fatalf("WithHTTPAuthVerifier: %v", err)
 	}
 	runtime, err := newHTTPAuthRuntime(cfg)
 	if err != nil {
@@ -54,19 +54,19 @@ func TestWithHTTPAuthProviderUsesApplicationProvider(t *testing.T) {
 	}
 }
 
-func TestWithHTTPAuthProviderRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
+func TestWithHTTPAuthVerifierRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
 	cfg := NewServerConfig()
-	if err := WithHTTPAuthProvider(nil)(cfg); err == nil {
-		t.Fatal("WithHTTPAuthProvider(nil) succeeded")
+	if err := WithHTTPAuthVerifier(nil)(cfg); err == nil {
+		t.Fatal("WithHTTPAuthVerifier(nil) succeeded")
 	}
 	provider := &stubAuthProvider{}
-	if err := WithHTTPAuthProvider(provider)(cfg); err != nil {
+	if err := WithHTTPAuthVerifier(provider)(cfg); err != nil {
 		t.Fatal(err)
 	}
 	if err := WithAuth(AuthOptions{Mode: AuthModeNone})(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.customAuthProvider != nil || cfg.authEnabled {
+	if cfg.customAuthVerifier != nil || cfg.authEnabled {
 		t.Fatalf("WithAuth did not replace custom provider: %+v", cfg)
 	}
 }

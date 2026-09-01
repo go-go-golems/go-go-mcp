@@ -16,7 +16,7 @@ import (
 	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
-func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
+func TestNewHTTPAuthRuntimeSelectsExternalOIDC(t *testing.T) {
 	privateKey, publicJWK := generateTestJWK(t)
 	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
 	defer server.Close()

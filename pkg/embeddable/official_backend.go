@@ -354,7 +354,7 @@ func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next htt
 	})(injectPrincipal)
 }
 
-func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
+func authMiddleware(provider HTTPAuthVerifier, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authz := r.Header.Get("Authorization")
 		if len(authz) < len("Bearer ") || authz[:len("Bearer ")] != "Bearer " {
@@ -381,7 +381,7 @@ func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
 	})
 }
 
-func protectedResourceHandler(provider HTTPAuthProvider) http.HandlerFunc {
+func protectedResourceHandler(provider HTTPAuthVerifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		j := provider.ProtectedResourceMetadata()
 		w.Header().Set("Content-Type", "application/json")
@@ -390,7 +390,7 @@ func protectedResourceHandler(provider HTTPAuthProvider) http.HandlerFunc {
 	}
 }
 
-func advertiseWWWAuthenticate(w http.ResponseWriter, provider HTTPAuthProvider) {
+func advertiseWWWAuthenticate(w http.ResponseWriter, provider HTTPAuthVerifier) {
 	hdr := provider.WWWAuthenticateHeader()
 	w.Header().Set("WWW-Authenticate", hdr)
 	log.Debug().Str("header", hdr).Msg("set WWW-Authenticate")
