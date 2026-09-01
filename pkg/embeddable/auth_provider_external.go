@@ -125,8 +125,6 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 	return provider, nil
 }
 
-func (p *externalOIDCAuthProvider) MountRoutes(mux *http.ServeMux) {}
-
 func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
 	return p.validateBearerToken(ctx, token, true)
 }

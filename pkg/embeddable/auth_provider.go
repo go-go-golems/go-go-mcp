@@ -26,33 +26,47 @@ type AuthPrincipal struct {
 	Claims            map[string]any
 }
 
+// HTTPAuthProvider is the MCP resource-server boundary. Authorization-server
+// routes belong to the application composition root, not to bearer middleware.
 type HTTPAuthProvider interface {
-	MountRoutes(mux *http.ServeMux)
 	ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error)
 	ProtectedResourceMetadata() map[string]any
 	WWWAuthenticateHeader() string
 }
 
-func newHTTPAuthProvider(cfg *ServerConfig) (HTTPAuthProvider, error) {
+type httpAuthRuntime struct {
+	provider                 HTTPAuthProvider
+	mountAuthorizationServer func(*http.ServeMux)
+}
+
+func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
 	if cfg == nil || !cfg.authEnabled {
-		return nil, nil
+		return httpAuthRuntime{}, nil
 	}
 	if cfg.customAuthProvider != nil {
-		return cfg.customAuthProvider, nil
+		return httpAuthRuntime{provider: cfg.customAuthProvider}, nil
 	}
 	if !cfg.authOptions.Enabled() {
-		return nil, nil
+		return httpAuthRuntime{}, nil
 	}
 
 	switch cfg.authOptions.Mode {
 	case AuthModeNone:
-		return nil, nil
+		return httpAuthRuntime{}, nil
 	case AuthModeEmbeddedDev:
-		return newEmbeddedDevAuthProvider(cfg.authOptions)
+		provider, err := newEmbeddedDevAuthProvider(cfg.authOptions)
+		if err != nil {
+			return httpAuthRuntime{}, err
+		}
+		return httpAuthRuntime{provider: provider, mountAuthorizationServer: provider.MountRoutes}, nil
 	case AuthModeExternalOIDC:
-		return newExternalOIDCAuthProvider(cfg.authOptions)
+		provider, err := newExternalOIDCAuthProvider(cfg.authOptions)
+		if err != nil {
+			return httpAuthRuntime{}, err
+		}
+		return httpAuthRuntime{provider: provider}, nil
 	default:
-		return nil, fmt.Errorf("unsupported auth mode: %s", cfg.authOptions.Mode)
+		return httpAuthRuntime{}, fmt.Errorf("unsupported auth mode: %s", cfg.authOptions.Mode)
 	}
 }
 

@@ -293,11 +293,14 @@ func wrapHTTPAuthentication(mux *http.ServeMux, cfg *ServerConfig, next http.Han
 	if cfg == nil || !cfg.authEnabled {
 		return next, nil
 	}
-	provider, err := newHTTPAuthProvider(cfg)
+	authRuntime, err := newHTTPAuthRuntime(cfg)
 	if err != nil {
 		return nil, err
 	}
-	provider.MountRoutes(mux)
+	if authRuntime.mountAuthorizationServer != nil {
+		authRuntime.mountAuthorizationServer(mux)
+	}
+	provider := authRuntime.provider
 
 	if external, ok := provider.(*externalOIDCAuthProvider); ok {
 		metadata := &oauthex.ProtectedResourceMetadata{

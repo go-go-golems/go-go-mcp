@@ -16,8 +16,6 @@ type stubAuthProvider struct {
 	receivedTokens []string
 }
 
-func (p *stubAuthProvider) MountRoutes(mux *http.ServeMux) {}
-
 func (p *stubAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
 	_ = ctx
 	p.receivedTokens = append(p.receivedTokens, token)
@@ -41,12 +39,15 @@ func TestWithHTTPAuthProviderUsesApplicationProvider(t *testing.T) {
 	if err := WithHTTPAuthProvider(provider)(cfg); err != nil {
 		t.Fatalf("WithHTTPAuthProvider: %v", err)
 	}
-	got, err := newHTTPAuthProvider(cfg)
+	runtime, err := newHTTPAuthRuntime(cfg)
 	if err != nil {
-		t.Fatalf("newHTTPAuthProvider: %v", err)
+		t.Fatalf("newHTTPAuthRuntime: %v", err)
 	}
-	if got != provider {
-		t.Fatalf("provider = %T, want application provider", got)
+	if runtime.provider != provider {
+		t.Fatalf("provider = %T, want application provider", runtime.provider)
+	}
+	if runtime.mountAuthorizationServer != nil {
+		t.Fatal("application verifier unexpectedly owns authorization-server routes")
 	}
 	if !cfg.authEnabled {
 		t.Fatal("custom provider did not enable HTTP auth")

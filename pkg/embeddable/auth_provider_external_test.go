@@ -32,12 +32,16 @@ func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
 		},
 	}
 
-	provider, err := newHTTPAuthProvider(cfg)
+	runtime, err := newHTTPAuthRuntime(cfg)
 	if err != nil {
-		t.Fatalf("newHTTPAuthProvider() error = %v", err)
+		t.Fatalf("newHTTPAuthRuntime() error = %v", err)
 	}
-	if _, ok := provider.(*externalOIDCAuthProvider); !ok {
-		t.Fatalf("expected externalOIDCAuthProvider, got %T", provider)
+	provider, ok := runtime.provider.(*externalOIDCAuthProvider)
+	if !ok {
+		t.Fatalf("expected externalOIDCAuthProvider, got %T", runtime.provider)
+	}
+	if runtime.mountAuthorizationServer != nil {
+		t.Fatal("external verifier unexpectedly owns authorization-server routes")
 	}
 
 	token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid")
