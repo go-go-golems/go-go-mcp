@@ -6,7 +6,7 @@ toolchain go1.26.7
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/PuerkitoBio/goquery v1.10.1
+	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/ThreeDotsLabs/watermill v1.5.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
