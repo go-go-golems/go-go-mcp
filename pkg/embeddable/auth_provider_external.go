@@ -166,11 +166,15 @@ func (p *externalOIDCAuthProvider) validateBearerToken(ctx context.Context, toke
 		clientID = claims.Audience[0]
 	}
 
+	typedScopes, err := ParseScopeSet(sortedScopeKeys(scopeSet))
+	if err != nil {
+		return AuthPrincipal{}, fmt.Errorf("parse verified scopes: %w", err)
+	}
 	return AuthPrincipal{
 		Subject:           claims.Subject,
 		ClientID:          clientID,
 		Issuer:            claims.Issuer,
-		Scopes:            sortedScopeKeys(scopeSet),
+		Scopes:            typedScopes,
 		Email:             claims.Email,
 		EmailVerified:     claims.EmailVerified,
 		PreferredUsername: claims.PreferredUsername,

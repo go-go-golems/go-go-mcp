@@ -16,7 +16,7 @@ type AuthPrincipal struct {
 	Subject           string
 	ClientID          string
 	Issuer            string
-	Scopes            []string
+	Scopes            ScopeSet
 	Email             string
 	EmailVerified     bool
 	PreferredUsername string
