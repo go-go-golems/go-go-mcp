@@ -135,7 +135,7 @@ func (c *CrossrefCommand) RunIntoGlazeProcessor(
 // NewCrossrefCommand creates a new Crossref command
 func NewCrossrefCommand() (*CrossrefCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

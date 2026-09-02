@@ -199,8 +199,16 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		return fmt.Errorf("unsupported auth mode: %s", authModeValue)
 	}
 
-	config.authOptions.Mode = authMode
-	config.authEnabled = config.authOptions.Enabled()
+	// An application-supplied verifier is already a complete HTTP resource-server
+	// auth configuration. Do not let the CLI's unchanged default "none" replace
+	// it. An explicit --auth-mode (or the legacy --oidc switch) still takes
+	// ownership and replaces the custom verifier, matching WithAuth semantics.
+	preserveCustomVerifier := config.customAuthVerifier != nil && !cmd.Flags().Changed("auth-mode") && !oidcEnabled
+	if !preserveCustomVerifier {
+		config.authOptions.Mode = authMode
+		config.authEnabled = config.authOptions.Enabled()
+		config.customAuthVerifier = nil
+	}
 	config.authOptions.ResourceURL = authResourceURL
 	config.authOptions.External.IssuerURL = externalIssuerURL
 	config.authOptions.External.DiscoveryURL = externalDiscoveryURL

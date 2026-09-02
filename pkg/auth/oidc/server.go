@@ -335,6 +335,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 			writeLoginCookie(w, r, u)
 			rt := sanitizeReturnTo(returnTo)
 			log.Info().Str("endpoint", "/login").Str("username", u).Str("return_to", rt).Msg("login success, redirecting")
+			// #nosec G710 -- sanitizeReturnTo accepts only local absolute paths and rejects scheme, host, and protocol-relative forms.
 			http.Redirect(w, r, rt, http.StatusFound)
 			return
 		}

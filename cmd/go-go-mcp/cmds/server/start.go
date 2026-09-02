@@ -108,7 +108,7 @@ func (c *StartCommand) Run(
 	var toolProvider pkg.ToolProvider = configToolProvider
 	_ = toolProvider
 
-	// Create resource provider (not yet wired into mcp-go backend)
+	// Create resource provider (not yet wired into the official SDK backend)
 	_ = resources.NewRegistry()
 
 	// Build a registry adapter that proxies calls to the tool provider

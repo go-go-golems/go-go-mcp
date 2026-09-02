@@ -102,7 +102,7 @@ func (c *FulltextCommand) RunIntoGlazeProcessor(
 // NewFulltextCommand creates a new fulltext command
 func NewFulltextCommand() (*FulltextCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

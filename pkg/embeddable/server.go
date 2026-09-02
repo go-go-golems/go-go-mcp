@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/go-go-golems/go-go-mcp/pkg"
@@ -23,8 +24,9 @@ type ServerConfig struct {
 	Version     string
 	Description string
 
-	// Tool registration
-	toolRegistry *tool_registry.Registry
+	// Tool registration and decoded-dispatch authorization.
+	toolRegistry      *tool_registry.Registry
+	toolAuthorization map[string]ToolAuthorizationPolicy
 
 	// Transport options
 	defaultTransport string
@@ -44,8 +46,9 @@ type ServerConfig struct {
 	commandCustomizers []CommandCustomizer
 
 	// Auth options (HTTP transports only)
-	authEnabled bool
-	authOptions AuthOptions
+	authEnabled        bool
+	authOptions        AuthOptions
+	customAuthVerifier HTTPAuthVerifier
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -67,14 +70,15 @@ type ServerOption func(*ServerConfig) error
 // NewServerConfig creates a new server configuration with defaults
 func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Name:             "Embeddable MCP Server",
-		Version:          "1.0.0",
-		Description:      "MCP Server",
-		toolRegistry:     tool_registry.NewRegistry(),
-		defaultTransport: "stdio",
-		defaultPort:      3000,
-		enableConfig:     false,
-		sessionStore:     session.NewInMemorySessionStore(),
+		Name:              "Embeddable MCP Server",
+		Version:           "1.0.0",
+		Description:       "MCP Server",
+		toolRegistry:      tool_registry.NewRegistry(),
+		toolAuthorization: map[string]ToolAuthorizationPolicy{},
+		defaultTransport:  "stdio",
+		defaultPort:       3000,
+		enableConfig:      false,
+		sessionStore:      session.NewInMemorySessionStore(),
 	}
 }
 
@@ -282,6 +286,23 @@ func WithAuth(opts AuthOptions) ServerOption {
 	return func(config *ServerConfig) error {
 		config.authEnabled = opts.Enabled()
 		config.authOptions = opts
+		config.customAuthVerifier = nil
+		return nil
+	}
+}
+
+// WithHTTPAuthVerifier installs an application-owned MCP resource-server
+// verifier. The application mounts any authorization-server routes separately;
+// this verifier owns only bearer validation, protected-resource metadata, and
+// challenge formatting. A later WithAuth call replaces it.
+func WithHTTPAuthVerifier(verifier HTTPAuthVerifier) ServerOption {
+	return func(config *ServerConfig) error {
+		if verifier == nil {
+			return fmt.Errorf("HTTP auth verifier is required")
+		}
+		config.authEnabled = true
+		config.authOptions = AuthOptions{}
+		config.customAuthVerifier = verifier
 		return nil
 	}
 }

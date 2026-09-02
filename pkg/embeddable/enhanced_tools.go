@@ -24,7 +24,7 @@ type ToolAnnotations struct {
 	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
 }
 
-// Enhanced tool registration with mark3labs/mcp-go inspired API
+// Enhanced tool registration over the official MCP Go SDK
 func WithEnhancedTool(name string, handler EnhancedToolHandler, opts ...EnhancedToolOption) ServerOption {
 	return func(config *ServerConfig) error {
 		// Create enhanced tool configuration

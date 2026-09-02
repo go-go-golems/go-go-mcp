@@ -218,7 +218,7 @@ The main auth wiring lives in these files:
 
 - `pkg/embeddable/auth_provider.go`
 - `pkg/embeddable/auth_provider_external.go`
-- `pkg/embeddable/mcpgo_backend.go`
+- `pkg/embeddable/official_backend.go`
 - `pkg/embeddable/server.go`
 - `pkg/embeddable/command.go`
 

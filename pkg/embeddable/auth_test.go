@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,8 +16,6 @@ type stubAuthProvider struct {
 	authHeader     string
 	receivedTokens []string
 }
-
-func (p *stubAuthProvider) MountRoutes(mux *http.ServeMux) {}
 
 func (p *stubAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
 	_ = ctx
@@ -33,6 +32,66 @@ func (p *stubAuthProvider) ProtectedResourceMetadata() map[string]any {
 
 func (p *stubAuthProvider) WWWAuthenticateHeader() string {
 	return p.authHeader
+}
+
+func TestWithHTTPAuthVerifierUsesApplicationVerifier(t *testing.T) {
+	provider := &stubAuthProvider{principal: AuthPrincipal{Subject: "employee"}}
+	cfg := NewServerConfig()
+	if err := WithHTTPAuthVerifier(provider)(cfg); err != nil {
+		t.Fatalf("WithHTTPAuthVerifier: %v", err)
+	}
+	runtime, err := newHTTPAuthRuntime(cfg)
+	if err != nil {
+		t.Fatalf("newHTTPAuthRuntime: %v", err)
+	}
+	if runtime.provider != provider {
+		t.Fatalf("provider = %T, want application provider", runtime.provider)
+	}
+	if runtime.mountAuthorizationServer != nil {
+		t.Fatal("application verifier unexpectedly owns authorization-server routes")
+	}
+	if !cfg.authEnabled {
+		t.Fatal("custom provider did not enable HTTP auth")
+	}
+}
+
+func TestMCPStartPreservesApplicationVerifierWhenAuthModeFlagIsUnchanged(t *testing.T) {
+	provider := &stubAuthProvider{}
+	stop := errors.New("stop after CLI auth configuration")
+	var cfg *ServerConfig
+	capture := func(config *ServerConfig) error {
+		cfg = config
+		return nil
+	}
+	cmd := NewMCPCommand(
+		WithHTTPAuthVerifier(provider),
+		capture,
+		WithHooks(&Hooks{OnServerStart: func(context.Context) error { return stop }}),
+	)
+	cmd.SetArgs([]string{"start"})
+	if err := cmd.Execute(); !errors.Is(err, stop) {
+		t.Fatalf("Execute() error = %v, want %v", err, stop)
+	}
+	if cfg == nil || !cfg.authEnabled || cfg.customAuthVerifier != provider {
+		t.Fatalf("CLI startup replaced application verifier: %+v", cfg)
+	}
+}
+
+func TestWithHTTPAuthVerifierRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
+	cfg := NewServerConfig()
+	if err := WithHTTPAuthVerifier(nil)(cfg); err == nil {
+		t.Fatal("WithHTTPAuthVerifier(nil) succeeded")
+	}
+	provider := &stubAuthProvider{}
+	if err := WithHTTPAuthVerifier(provider)(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := WithAuth(AuthOptions{Mode: AuthModeNone})(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.customAuthVerifier != nil || cfg.authEnabled {
+		t.Fatalf("WithAuth did not replace custom provider: %+v", cfg)
+	}
 }
 
 func TestWithOIDCUsesEmbeddedDevMode(t *testing.T) {

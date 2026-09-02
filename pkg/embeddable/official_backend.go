@@ -8,15 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
+	"github.com/go-go-golems/go-go-mcp/pkg/session"
 	"github.com/go-go-golems/go-go-mcp/pkg/tools/providers/tool-registry"
-	mcp "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
+	official "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"github.com/rs/zerolog/log"
 )
 
-// Backend represents a runnable server backend
-// that starts the selected transport using an mcp-go MCPServer.
+// Backend represents a runnable server backend that starts the selected
+// transport using the official Model Context Protocol Go SDK.
 type Backend interface {
 	Start(ctx context.Context) error
 }
@@ -24,8 +25,8 @@ type Backend interface {
 const toolDescriptionPreviewEdge = 80
 const shutdownTimeout = 10 * time.Second
 
-// NewBackend constructs an mcp-go based backend from the provided ServerConfig.
-// It builds an MCP server, registers tools via existing configuration, and
+// NewBackend constructs an official-SDK backend from the provided ServerConfig.
+// It builds an MCP server, registers tools through the existing registry, and
 // returns a transport-specific backend that can Start(ctx).
 func NewBackend(cfg *ServerConfig) (Backend, error) {
 	if cfg == nil {
@@ -37,15 +38,11 @@ func NewBackend(cfg *ServerConfig) (Backend, error) {
 		Str("version", cfg.Version).
 		Str("transport", cfg.defaultTransport).
 		Int("port", cfg.defaultPort).
-		Msg("Creating mcp-go backend")
+		Msg("Creating official MCP SDK backend")
 
-	// Build mcp-go server
-	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
-		mcpserver.WithToolCapabilities(true),
-		mcpserver.WithLogging(),
-	)
+	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
 
-	// Register tools from our registry into mcp-go server
+	// Register tools from our registry into the official SDK server
 	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
 		return nil, err
 	}
@@ -82,10 +79,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 		Str("transport", cfg.defaultTransport).
 		Msg("Mounting MCP HTTP handlers")
 
-	s := mcpserver.NewMCPServer(cfg.Name, cfg.Version,
-		mcpserver.WithToolCapabilities(true),
-		mcpserver.WithLogging(),
-	)
+	s := official.NewServer(&official.Implementation{Name: cfg.Name, Version: cfg.Version}, nil)
 	if err := registerToolsFromRegistry(context.Background(), s, cfg.toolRegistry, cfg); err != nil {
 		return err
 	}
@@ -102,7 +96,7 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 	}
 }
 
-func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg *tool_registry.Registry, cfg *ServerConfig) error {
+func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry, cfg *ServerConfig) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
 		return nil
@@ -115,92 +109,64 @@ func registerToolsFromRegistry(ctx context.Context, s *mcpserver.MCPServer, reg 
 
 	log.Debug().Int("count", len(tools)).Msg("Registering tools")
 
+	registeredPolicies := map[string]struct{}{}
 	for _, t := range tools {
-		// Map our protocol.Tool to mcp-go Tool with raw schema
-		mt := mcp.NewToolWithRawSchema(t.Name, t.Description, t.InputSchema)
-
+		policy, hasPolicy := cfg.toolAuthorization[t.Name]
+		if hasPolicy {
+			applyToolSecurityMetadata(&t, policy)
+			registeredPolicies[t.Name] = struct{}{}
+		}
+		mappedTool := mapToolToOfficial(t)
 		name := t.Name
 		log.Debug().
 			Str("tool", name).
 			Str("description_preview", previewDescription(t.Description, toolDescriptionPreviewEdge)).
-			Msg("Adding tool to mcp-go server")
+			Msg("Adding tool to official MCP SDK server")
 
-		// Build a wrapped handler that applies middleware and hooks around registry.CallTool
-		baseHandler := func(callCtx context.Context, args map[string]interface{}) (*protocol.ToolResult, error) {
-			return reg.CallTool(callCtx, name, args)
-		}
-
-		// Apply middleware stack (reverse order)
-		wrapped := baseHandler
-		if len(cfg.middleware) > 0 {
-			log.Debug().Str("tool", name).Int("middleware_count", len(cfg.middleware)).Msg("Applying middleware chain")
-			for i := len(cfg.middleware) - 1; i >= 0; i-- {
-				wrapped = cfg.middleware[i](wrapped)
-			}
-		}
-
-		// Adapter for mcp-go handler signature
-		s.AddTool(mt, func(callCtx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			args := req.GetArguments()
-
-			if cfg.hooks != nil && cfg.hooks.BeforeToolCall != nil {
-				if err := cfg.hooks.BeforeToolCall(callCtx, name, args); err != nil {
-					return nil, err
+		// The registry handler owns middleware and hook execution. Applying them
+		// again in the SDK adapter would invoke each layer twice for every call.
+		s.AddTool(mappedTool, func(callCtx context.Context, req *official.CallToolRequest) (*official.CallToolResult, error) {
+			if hasPolicy {
+				var tokenInfo *mcpauth.TokenInfo
+				if req.Extra != nil {
+					tokenInfo = req.Extra.TokenInfo
+				}
+				if denial := authorizeToolRequest(tokenInfo, policy, protectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())); denial != nil {
+					return mapToolResultToOfficial(denial)
 				}
 			}
 
+			args := map[string]any{}
+			if req.Params != nil && len(req.Params.Arguments) > 0 {
+				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
+					return nil, fmt.Errorf("decode arguments for tool %q: %w", name, err)
+				}
+			}
 			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
-
-			res, err := wrapped(callCtx, args)
-
-			mcpRes := mapToolResultToMCP(res)
-
-			if cfg.hooks != nil && cfg.hooks.AfterToolCall != nil {
-				cfg.hooks.AfterToolCall(callCtx, name, res, err)
+			if req.Session != nil {
+				callCtx = session.WithSessionID(callCtx, req.Session.ID())
 			}
 
+			res, err := reg.CallTool(callCtx, name, args)
 			if err != nil {
 				log.Error().Str("tool", name).Err(err).Msg("Tool call errored")
-			} else {
-				log.Debug().Str("tool", name).Bool("is_error", mcpRes.IsError).Msg("Tool call completed")
+				return nil, err
 			}
-			return mcpRes, err
+			mappedResult, err := mapToolResultToOfficial(res)
+			if err != nil {
+				return nil, fmt.Errorf("map result for tool %q: %w", name, err)
+			}
+			log.Debug().Str("tool", name).Bool("is_error", mappedResult.IsError).Msg("Tool call completed")
+			return mappedResult, nil
 		})
 	}
 
-	return nil
-}
-
-func mapToolResultToMCP(res *protocol.ToolResult) *mcp.CallToolResult {
-	if res == nil {
-		return &mcp.CallToolResult{}
-	}
-
-	out := &mcp.CallToolResult{
-		IsError: res.IsError,
-	}
-
-	for _, c := range res.Content {
-		switch c.Type {
-		case "text":
-			out.Content = append(out.Content, mcp.TextContent{Type: "text", Text: c.Text})
-		case "image":
-			out.Content = append(out.Content, mcp.ImageContent{Type: "image", Data: c.Data, MIMEType: c.MimeType})
-		case "resource":
-			if c.Resource != nil {
-				var rc mcp.ResourceContents
-				if c.Resource.Blob != "" {
-					rc = mcp.BlobResourceContents{URI: c.Resource.URI, MIMEType: c.Resource.MimeType, Blob: c.Resource.Blob}
-				} else {
-					rc = mcp.TextResourceContents{URI: c.Resource.URI, MIMEType: c.Resource.MimeType, Text: c.Resource.Text}
-				}
-				embedded := mcp.NewEmbeddedResource(rc)
-				out.Content = append(out.Content, embedded)
-			}
+	for toolName := range cfg.toolAuthorization {
+		if _, ok := registeredPolicies[toolName]; !ok {
+			return fmt.Errorf("tool authorization policy references unregistered tool %q", toolName)
 		}
 	}
-
-	return out
+	return nil
 }
 
 func previewDescription(desc string, edge int) string {
@@ -222,18 +188,17 @@ func previewDescription(desc string, edge int) string {
 // stdio backend
 
 type stdioBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 }
 
 func (b *stdioBackend) Start(ctx context.Context) error {
-	// Use ServeStdio convenience which binds to os.Stdin/os.Stdout
-	return mcpserver.ServeStdio(b.server)
+	return b.server.Run(ctx, &official.StdioTransport{})
 }
 
 // sse backend
 
 type sseBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 	port   int
 	cfg    *ServerConfig
 }
@@ -264,7 +229,7 @@ func (b *sseBackend) Start(ctx context.Context) error {
 // streamable-http backend
 
 type streamBackend struct {
-	server *mcpserver.MCPServer
+	server *official.Server
 	port   int
 	cfg    *ServerConfig
 }
@@ -292,36 +257,27 @@ func (b *streamBackend) Start(ctx context.Context) error {
 	return nil
 }
 
-func mountSSEHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
-	sse := mcpserver.NewSSEServer(server, mcpserver.WithStaticBasePath("/mcp"))
+func mountSSEHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
+	sse := official.NewSSEHandler(func(*http.Request) *official.Server { return server }, nil)
 
-	var handler http.Handler = sse
-	if cfg != nil && cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	handler, err := wrapHTTPAuthentication(mux, cfg, sse)
+	if err != nil {
+		return err
 	}
 
 	mux.Handle("/mcp/", withRequestLogging(handler))
 	return nil
 }
 
-func mountStreamableHTTPHandlers(mux *http.ServeMux, server *mcpserver.MCPServer, cfg *ServerConfig) error {
-	stream := mcpserver.NewStreamableHTTPServer(server)
+func mountStreamableHTTPHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
+	stream := official.NewStreamableHTTPHandler(
+		func(*http.Request) *official.Server { return server },
+		&official.StreamableHTTPOptions{Stateless: false, JSONResponse: false},
+	)
 
-	var handler http.Handler = stream
-	if cfg != nil && cfg.authEnabled {
-		provider, err := newHTTPAuthProvider(cfg)
-		if err != nil {
-			return err
-		}
-		provider.MountRoutes(mux)
-		mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
-		handler = authMiddleware(provider, handler)
+	handler, err := wrapHTTPAuthentication(mux, cfg, stream)
+	if err != nil {
+		return err
 	}
 
 	mux.Handle("/mcp", withRequestLogging(handler))
@@ -331,7 +287,74 @@ func mountStreamableHTTPHandlers(mux *http.ServeMux, server *mcpserver.MCPServer
 
 // --- Auth helpers ---
 
-func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
+const officialPrincipalExtraKey = "go-go-mcp/auth-principal"
+
+func wrapHTTPAuthentication(mux *http.ServeMux, cfg *ServerConfig, next http.Handler) (http.Handler, error) {
+	if cfg == nil || !cfg.authEnabled {
+		return next, nil
+	}
+	authRuntime, err := newHTTPAuthRuntime(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if authRuntime.mountAuthorizationServer != nil {
+		authRuntime.mountAuthorizationServer(mux)
+	}
+	provider := authRuntime.provider
+
+	if external, ok := provider.(*externalOIDCAuthProvider); ok {
+		metadata := &oauthex.ProtectedResourceMetadata{
+			Resource:             external.resourceURL,
+			AuthorizationServers: []string{external.discovery.Issuer},
+			ScopesSupported:      append([]string(nil), external.opts.RequiredScopes...),
+		}
+		mux.Handle("/.well-known/oauth-protected-resource", mcpauth.ProtectedResourceMetadataHandler(metadata))
+		return officialExternalOIDCMiddleware(external, next), nil
+	}
+
+	mux.HandleFunc("/.well-known/oauth-protected-resource", protectedResourceHandler(provider))
+	return authMiddleware(provider, next), nil
+}
+
+func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next http.Handler) http.Handler {
+	verifier := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
+		principal, err := provider.validateBearerToken(ctx, token, false)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
+		}
+		return &mcpauth.TokenInfo{
+			UserID:     principal.Subject,
+			Scopes:     append([]string(nil), principal.Scopes...),
+			Expiration: principal.Expiration,
+			Extra:      map[string]any{officialPrincipalExtraKey: principal},
+		}, nil
+	}
+
+	injectPrincipal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil {
+			http.Error(w, "verified token information missing", http.StatusInternalServerError)
+			return
+		}
+		principal, ok := tokenInfo.Extra[officialPrincipalExtraKey].(AuthPrincipal)
+		if !ok {
+			http.Error(w, "verified principal missing", http.StatusInternalServerError)
+			return
+		}
+		ctx := WithAuthPrincipal(r.Context(), principal)
+		r2 := r.Clone(ctx)
+		r2.Header.Set("X-MCP-Subject", principal.Subject)
+		r2.Header.Set("X-MCP-Client-ID", principal.ClientID)
+		next.ServeHTTP(w, r2)
+	})
+
+	return mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
+		Scopes:              append([]string(nil), provider.opts.RequiredScopes...),
+		ResourceMetadataURL: protectedResourceMetadataURL(provider.resourceURL),
+	})(injectPrincipal)
+}
+
+func authMiddleware(provider HTTPAuthVerifier, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authz := r.Header.Get("Authorization")
 		if len(authz) < len("Bearer ") || authz[:len("Bearer ")] != "Bearer " {
@@ -358,7 +381,7 @@ func authMiddleware(provider HTTPAuthProvider, next http.Handler) http.Handler {
 	})
 }
 
-func protectedResourceHandler(provider HTTPAuthProvider) http.HandlerFunc {
+func protectedResourceHandler(provider HTTPAuthVerifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		j := provider.ProtectedResourceMetadata()
 		w.Header().Set("Content-Type", "application/json")
@@ -367,7 +390,7 @@ func protectedResourceHandler(provider HTTPAuthProvider) http.HandlerFunc {
 	}
 }
 
-func advertiseWWWAuthenticate(w http.ResponseWriter, provider HTTPAuthProvider) {
+func advertiseWWWAuthenticate(w http.ResponseWriter, provider HTTPAuthVerifier) {
 	hdr := provider.WWWAuthenticateHeader()
 	w.Header().Set("WWW-Authenticate", hdr)
 	log.Debug().Str("header", hdr).Msg("set WWW-Authenticate")

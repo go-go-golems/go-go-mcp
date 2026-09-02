@@ -133,7 +133,7 @@ func (c *LibgenCommand) RunIntoGlazeProcessor(
 // NewLibgenCommand creates a new LibGen command
 func NewLibgenCommand() (*LibgenCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}

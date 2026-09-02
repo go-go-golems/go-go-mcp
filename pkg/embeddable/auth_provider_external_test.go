@@ -13,9 +13,10 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
-func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
+func TestNewHTTPAuthRuntimeSelectsExternalOIDC(t *testing.T) {
 	privateKey, publicJWK := generateTestJWK(t)
 	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
 	defer server.Close()
@@ -31,12 +32,16 @@ func TestNewHTTPAuthProviderSelectsExternalOIDC(t *testing.T) {
 		},
 	}
 
-	provider, err := newHTTPAuthProvider(cfg)
+	runtime, err := newHTTPAuthRuntime(cfg)
 	if err != nil {
-		t.Fatalf("newHTTPAuthProvider() error = %v", err)
+		t.Fatalf("newHTTPAuthRuntime() error = %v", err)
 	}
-	if _, ok := provider.(*externalOIDCAuthProvider); !ok {
-		t.Fatalf("expected externalOIDCAuthProvider, got %T", provider)
+	provider, ok := runtime.provider.(*externalOIDCAuthProvider)
+	if !ok {
+		t.Fatalf("expected externalOIDCAuthProvider, got %T", runtime.provider)
+	}
+	if runtime.mountAuthorizationServer != nil {
+		t.Fatal("external verifier unexpectedly owns authorization-server routes")
 	}
 
 	token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid")
@@ -104,7 +109,7 @@ func TestExternalOIDCProviderValidatesJWTAndAdvertisesResourceMetadata(t *testin
 	}
 }
 
-func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
+func TestExternalOIDCProviderRejectsInvalidTokens(t *testing.T) {
 	privateKey, publicJWK := generateTestJWK(t)
 	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
 	defer server.Close()
@@ -123,10 +128,103 @@ func TestExternalOIDCProviderRejectsMissingScope(t *testing.T) {
 		t.Fatalf("newExternalOIDCAuthProvider() error = %v", err)
 	}
 
-	token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid profile")
-	if _, err := provider.ValidateBearerToken(context.Background(), token); err == nil {
-		t.Fatalf("expected missing-scope validation error")
+	now := time.Now()
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{name: "malformed", token: "not-a-jwt"},
+		{name: "wrong audience", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "another-resource", "client-1", "mcp:invoke", now.Add(-time.Minute), now.Add(time.Hour))},
+		{name: "expired", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "mcp-resource", "client-1", "mcp:invoke", now.Add(-2*time.Hour), now.Add(-time.Hour))},
+		{name: "missing scope", token: signExternalTestTokenWithTimes(t, privateKey, issuer, "mcp-resource", "client-1", "openid profile", now.Add(-time.Minute), now.Add(time.Hour))},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := provider.ValidateBearerToken(context.Background(), tt.token); err == nil {
+				t.Fatalf("expected %s validation error", tt.name)
+			}
+		})
+	}
+}
+
+func TestOfficialExternalOIDCMiddlewarePropagatesPrincipalAndChallenges(t *testing.T) {
+	privateKey, publicJWK := generateTestJWK(t)
+	server, issuer, discoveryURL := newTestOIDCServer(t, publicJWK)
+	defer server.Close()
+
+	cfg := NewServerConfig()
+	cfg.authEnabled = true
+	cfg.authOptions = AuthOptions{
+		Mode:        AuthModeExternalOIDC,
+		ResourceURL: "https://mcp.example.com/mcp",
+		External: ExternalOIDCOptions{
+			IssuerURL:      issuer,
+			DiscoveryURL:   discoveryURL,
+			Audience:       "mcp-resource",
+			RequiredScopes: []string{"mcp:invoke"},
+		},
+	}
+	mux := http.NewServeMux()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := GetAuthPrincipal(r.Context())
+		if !ok || principal.Subject != "alice" || principal.ClientID != "client-1" {
+			t.Fatalf("principal = %#v, ok=%v", principal, ok)
+		}
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil || tokenInfo.UserID != "alice" || tokenInfo.Expiration.IsZero() {
+			t.Fatalf("token info = %#v", tokenInfo)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	wrapped, err := wrapHTTPAuthentication(mux, cfg, next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux.Handle("/mcp", wrapped)
+
+	t.Run("valid", func(t *testing.T) {
+		token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "mcp:invoke")
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("missing bearer", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/mcp", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d", rec.Code)
+		}
+		if challenge := rec.Header().Get("WWW-Authenticate"); !strings.Contains(challenge, `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`) {
+			t.Fatalf("challenge = %q", challenge)
+		}
+	})
+
+	t.Run("insufficient scope", func(t *testing.T) {
+		token := signExternalTestToken(t, privateKey, issuer, "mcp-resource", "client-1", "openid")
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		if challenge := rec.Header().Get("WWW-Authenticate"); !strings.Contains(challenge, `scope="mcp:invoke"`) {
+			t.Fatalf("challenge = %q", challenge)
+		}
+	})
+
+	t.Run("protected resource metadata", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
+		if rec.Code != http.StatusOK || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+			t.Fatalf("status=%d cors=%q body=%s", rec.Code, rec.Header().Get("Access-Control-Allow-Origin"), rec.Body.String())
+		}
+	})
 }
 
 func TestExternalOIDCProviderRequiresExplicitResourceURL(t *testing.T) {
@@ -169,6 +267,12 @@ func generateTestJWK(t *testing.T) (*rsa.PrivateKey, jose.JSONWebKey) {
 
 func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, audience, clientID, scope string) string {
 	t.Helper()
+	now := time.Now()
+	return signExternalTestTokenWithTimes(t, privateKey, issuer, audience, clientID, scope, now.Add(-time.Minute), now.Add(time.Hour))
+}
+
+func signExternalTestTokenWithTimes(t *testing.T, privateKey *rsa.PrivateKey, issuer, audience, clientID, scope string, notBefore, expiry time.Time) string {
+	t.Helper()
 
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
@@ -184,8 +288,8 @@ func signExternalTestToken(t *testing.T, privateKey *rsa.PrivateKey, issuer, aud
 			Issuer:    issuer,
 			Subject:   "alice",
 			Audience:  jwt.Audience{audience},
-			Expiry:    jwt.NewNumericDate(now.Add(time.Hour)),
-			NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)),
+			Expiry:    jwt.NewNumericDate(expiry),
+			NotBefore: jwt.NewNumericDate(notBefore),
 			IssuedAt:  jwt.NewNumericDate(now),
 		}).
 		Claims(map[string]any{

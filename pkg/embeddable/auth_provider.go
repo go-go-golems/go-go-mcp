@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	embeddedoidc "github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 )
@@ -21,30 +22,51 @@ type AuthPrincipal struct {
 	PreferredUsername string
 	DisplayName       string
 	AvatarURL         string
+	Expiration        time.Time
 	Claims            map[string]any
 }
 
-type HTTPAuthProvider interface {
-	MountRoutes(mux *http.ServeMux)
+// HTTPAuthVerifier is the MCP resource-server boundary. Authorization-server
+// routes belong to the application composition root, not to bearer middleware.
+type HTTPAuthVerifier interface {
 	ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error)
 	ProtectedResourceMetadata() map[string]any
 	WWWAuthenticateHeader() string
 }
 
-func newHTTPAuthProvider(cfg *ServerConfig) (HTTPAuthProvider, error) {
-	if cfg == nil || !cfg.authEnabled || !cfg.authOptions.Enabled() {
-		return nil, nil
+type httpAuthRuntime struct {
+	provider                 HTTPAuthVerifier
+	mountAuthorizationServer func(*http.ServeMux)
+}
+
+func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
+	if cfg == nil || !cfg.authEnabled {
+		return httpAuthRuntime{}, nil
+	}
+	if cfg.customAuthVerifier != nil {
+		return httpAuthRuntime{provider: cfg.customAuthVerifier}, nil
+	}
+	if !cfg.authOptions.Enabled() {
+		return httpAuthRuntime{}, nil
 	}
 
 	switch cfg.authOptions.Mode {
 	case AuthModeNone:
-		return nil, nil
+		return httpAuthRuntime{}, nil
 	case AuthModeEmbeddedDev:
-		return newEmbeddedDevAuthProvider(cfg.authOptions)
+		provider, err := newEmbeddedDevAuthProvider(cfg.authOptions)
+		if err != nil {
+			return httpAuthRuntime{}, err
+		}
+		return httpAuthRuntime{provider: provider, mountAuthorizationServer: provider.MountAuthorizationServer}, nil
 	case AuthModeExternalOIDC:
-		return newExternalOIDCAuthProvider(cfg.authOptions)
+		provider, err := newExternalOIDCAuthProvider(cfg.authOptions)
+		if err != nil {
+			return httpAuthRuntime{}, err
+		}
+		return httpAuthRuntime{provider: provider}, nil
 	default:
-		return nil, fmt.Errorf("unsupported auth mode: %s", cfg.authOptions.Mode)
+		return httpAuthRuntime{}, fmt.Errorf("unsupported auth mode: %s", cfg.authOptions.Mode)
 	}
 }
 
@@ -73,7 +95,7 @@ func newEmbeddedDevAuthProvider(opts AuthOptions) (*embeddedDevAuthProvider, err
 	}, nil
 }
 
-func (p *embeddedDevAuthProvider) MountRoutes(mux *http.ServeMux) {
+func (p *embeddedDevAuthProvider) MountAuthorizationServer(mux *http.ServeMux) {
 	p.server.Routes(mux)
 }
 

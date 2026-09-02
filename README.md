@@ -53,7 +53,12 @@ This project implements the [Model Context Protocol](https://github.com/modelcon
 - Core protocol message types and interfaces
 - A modular registry system for managing prompts, resources, and tools
 - Support for custom handlers and subscriptions
-- 
+
+### HTTP authorization boundary
+
+For application-owned OAuth, go-go-mcp is only the MCP resource server. Install an `embeddable.HTTPAuthVerifier` with `embeddable.WithHTTPAuthVerifier`; the verifier validates bearer tokens, publishes protected-resource metadata, and formats the bearer challenge.
+
+Authorization-server routes do not belong to this interface. The application composition root mounts registration, authorization, consent, token, revocation, JWKS, and identity-callback routes separately. There is no compatibility alias for the former route-owning `HTTPAuthProvider` API.
 
 ### Supported Methods
 

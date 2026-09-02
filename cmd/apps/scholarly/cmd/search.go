@@ -190,7 +190,7 @@ func (c *SearchCommand) RunIntoGlazeProcessor(
 // NewSearchCommand creates a new search command
 func NewSearchCommand() (*SearchCommand, error) {
 	// Create the Glazed layer for output formatting
-	glazedLayer, err := settings.NewGlazedSection()
+	glazedLayer, err := settings.NewStructuredOutputSection()
 	if err != nil {
 		return nil, err
 	}
