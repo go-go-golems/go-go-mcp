@@ -6,7 +6,7 @@ import (
 )
 
 func TestScopeSetNormalizesAndCopies(t *testing.T) {
-	set, err := ParseScopeSet([]string{"scope:b", " scope:a ", "scope:b"})
+	set, err := ParseScopeSet([]string{"scope:b", "scope:a", "scope:b"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,11 +20,15 @@ func TestScopeSetNormalizesAndCopies(t *testing.T) {
 	}
 }
 
-func TestScopeSetRejectsWhitespaceAndEmptyValues(t *testing.T) {
-	for _, values := range [][]string{{""}, {"scope a"}, {"scope\ta"}, {"scope\"a"}} {
+func TestScopeSetRejectsValuesOutsideRFC6749ScopeTokenGrammar(t *testing.T) {
+	for _, values := range [][]string{{""}, {" scope:a"}, {"scope:a "}, {"scope a"}, {"scope\\a"}, {"scope\x00a"}, {"scope\x1fa"}, {"scope\x7fa"}, {"scopé"}, {"scope\"a"}} {
 		if _, err := ParseScopeSet(values); err == nil {
 			t.Fatalf("ParseScopeSet(%q) unexpectedly succeeded", values)
 		}
+	}
+	validBoundary, err := ParseScopeSet([]string{string([]byte{0x21, 0x23, 0x5b, 0x5d, 0x7e})})
+	if err != nil || !validBoundary.Contains("!#[]~") {
+		t.Fatalf("valid RFC 6749 boundary token rejected: %v", err)
 	}
 }
 

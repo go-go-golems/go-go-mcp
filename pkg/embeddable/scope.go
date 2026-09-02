@@ -3,7 +3,6 @@ package embeddable
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // Scope is one verified OAuth/MCP authority value. It is distinct from
@@ -20,8 +19,8 @@ type ScopeSet struct {
 func NewScopeSet(values ...Scope) (ScopeSet, error) {
 	seen := make(map[Scope]struct{}, len(values))
 	for _, raw := range values {
-		value := Scope(strings.TrimSpace(string(raw)))
-		if value == "" || strings.ContainsAny(string(value), " \t\r\n\"") {
+		value := Scope(string(raw))
+		if !validScopeToken(string(value)) {
 			return ScopeSet{}, fmt.Errorf("invalid scope %q", raw)
 		}
 		seen[value] = struct{}{}
@@ -42,6 +41,21 @@ func ParseScopeSet(values []string) (ScopeSet, error) {
 		scopes[i] = Scope(value)
 	}
 	return NewScopeSet(scopes...)
+}
+
+// validScopeToken implements RFC 6749's scope-token grammar:
+// %x21 / %x23-5B / %x5D-7E. Iterating bytes also rejects non-ASCII UTF-8.
+func validScopeToken(value string) bool {
+	if value == "" {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] == 0x21 || value[i] >= 0x23 && value[i] <= 0x5b || value[i] >= 0x5d && value[i] <= 0x7e {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // Contains reports whether the scope is present.
