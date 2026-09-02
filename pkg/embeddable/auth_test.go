@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -51,6 +52,28 @@ func TestWithHTTPAuthVerifierUsesApplicationVerifier(t *testing.T) {
 	}
 	if !cfg.authEnabled {
 		t.Fatal("custom provider did not enable HTTP auth")
+	}
+}
+
+func TestMCPStartPreservesApplicationVerifierWhenAuthModeFlagIsUnchanged(t *testing.T) {
+	provider := &stubAuthProvider{}
+	stop := errors.New("stop after CLI auth configuration")
+	var cfg *ServerConfig
+	capture := func(config *ServerConfig) error {
+		cfg = config
+		return nil
+	}
+	cmd := NewMCPCommand(
+		WithHTTPAuthVerifier(provider),
+		capture,
+		WithHooks(&Hooks{OnServerStart: func(context.Context) error { return stop }}),
+	)
+	cmd.SetArgs([]string{"start"})
+	if err := cmd.Execute(); !errors.Is(err, stop) {
+		t.Fatalf("Execute() error = %v, want %v", err, stop)
+	}
+	if cfg == nil || !cfg.authEnabled || cfg.customAuthVerifier != provider {
+		t.Fatalf("CLI startup replaced application verifier: %+v", cfg)
 	}
 }
 
