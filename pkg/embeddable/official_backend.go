@@ -324,7 +324,7 @@ func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next htt
 		}
 		return &mcpauth.TokenInfo{
 			UserID:     principal.Subject,
-			Scopes:     append([]string(nil), principal.Scopes...),
+			Scopes:     principal.Scopes.Strings(),
 			Expiration: principal.Expiration,
 			Extra:      map[string]any{officialPrincipalExtraKey: principal},
 		}, nil
