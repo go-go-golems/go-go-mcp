@@ -6,7 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	mcpauth "github.com/modelcontextprotocol/go-sdk/auth"
 )
 
 type stubAuthProvider struct {
@@ -123,7 +127,7 @@ func TestEffectiveResourceURLDoesNotDefaultExternalOIDCToIssuer(t *testing.T) {
 
 func TestAuthMiddlewareRejectsMissingBearer(t *testing.T) {
 	provider := &stubAuthProvider{
-		authHeader: `Bearer realm="mcp", resource="https://mcp.example.com/mcp"`,
+		metadata: map[string]any{"resource": "https://mcp.example.com/mcp"},
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
@@ -136,12 +140,16 @@ func TestAuthMiddlewareRejectsMissingBearer(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", rec.Code)
 	}
-	if got := rec.Header().Get("WWW-Authenticate"); got != provider.authHeader {
+	if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`) {
 		t.Fatalf("unexpected WWW-Authenticate header: %q", got)
 	}
 }
 
 func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
+	scopes, err := ParseScopeSet([]string{"coinvault:knowledge:read", "coinvault:sql:read"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	provider := &stubAuthProvider{
 		principal: AuthPrincipal{
 			Subject:           "alice",
@@ -149,8 +157,10 @@ func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
 			Issuer:            "https://auth.example.com/realms/smailnail",
 			Email:             "alice@example.com",
 			PreferredUsername: "alice",
+			Scopes:            scopes,
+			Expiration:        time.Now().Add(time.Hour),
 		},
-		authHeader: `Bearer realm="mcp"`,
+		metadata: map[string]any{"resource": "https://mcp.example.com/mcp"},
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
@@ -170,6 +180,13 @@ func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
 		}
 		if principal.Email != "alice@example.com" || principal.PreferredUsername != "alice" {
 			t.Fatalf("unexpected principal in context: %#v", principal)
+		}
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil {
+			t.Fatal("expected official SDK token info in request context")
+		}
+		if got := strings.Join(tokenInfo.Scopes, " "); got != "coinvault:knowledge:read coinvault:sql:read" {
+			t.Fatalf("official SDK token scopes = %q", got)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})).ServeHTTP(rec, req)

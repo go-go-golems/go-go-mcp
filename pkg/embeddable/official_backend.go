@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -355,30 +356,56 @@ func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next htt
 }
 
 func authMiddleware(provider HTTPAuthVerifier, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authz := r.Header.Get("Authorization")
-		if len(authz) < len("Bearer ") || authz[:len("Bearer ")] != "Bearer " {
-			advertiseWWWAuthenticate(w, provider)
-			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Msg("Unauthorized: missing bearer header")
-			http.Error(w, "missing bearer", http.StatusUnauthorized)
-			return
-		}
-		tok := authz[len("Bearer "):]
-
-		principal, err := provider.ValidateBearerToken(r.Context(), tok)
+	verifier := func(ctx context.Context, token string, r *http.Request) (*mcpauth.TokenInfo, error) {
+		principal, err := provider.ValidateBearerToken(ctx, token)
 		if err != nil {
-			advertiseWWWAuthenticate(w, provider)
 			log.Warn().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Err(err).Msg("Unauthorized: token validation failed")
-			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return nil, fmt.Errorf("%w: token validation failed", mcpauth.ErrInvalidToken)
+		}
+		return &mcpauth.TokenInfo{
+			UserID:     principal.Subject,
+			Scopes:     principal.Scopes.Strings(),
+			Expiration: principal.Expiration,
+			Extra:      map[string]any{officialPrincipalExtraKey: principal},
+		}, nil
+	}
+
+	injectPrincipal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenInfo := mcpauth.TokenInfoFromContext(r.Context())
+		if tokenInfo == nil {
+			http.Error(w, "verified token information missing", http.StatusInternalServerError)
 			return
 		}
-		r2 := r.Clone(r.Context())
-		r2 = r2.WithContext(WithAuthPrincipal(r2.Context(), principal))
+		principal, ok := tokenInfo.Extra[officialPrincipalExtraKey].(AuthPrincipal)
+		if !ok {
+			http.Error(w, "verified principal missing", http.StatusInternalServerError)
+			return
+		}
+		ctx := WithAuthPrincipal(r.Context(), principal)
+		r2 := r.Clone(ctx)
 		r2.Header.Set("X-MCP-Subject", principal.Subject)
 		r2.Header.Set("X-MCP-Client-ID", principal.ClientID)
 		log.Info().Str("path", r.URL.Path).Str("method", r.Method).Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Str("subject", principal.Subject).Str("client_id", principal.ClientID).Bool("authorized", true).Msg("Authorized request")
 		next.ServeHTTP(w, r2)
 	})
+
+	return mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
+		ResourceMetadataURL: applicationResourceMetadataURL(provider),
+	})(injectPrincipal)
+}
+
+func applicationResourceMetadataURL(provider HTTPAuthVerifier) string {
+	resource, _ := provider.ProtectedResourceMetadata()["resource"].(string)
+	u, err := url.Parse(resource)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return protectedResourceMetadataURL(resource)
+	}
+	resourcePath := strings.TrimRight(u.Path, "/")
+	u.Path = "/.well-known/oauth-protected-resource" + resourcePath
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
 }
 
 func protectedResourceHandler(provider HTTPAuthVerifier) http.HandlerFunc {
@@ -388,12 +415,6 @@ func protectedResourceHandler(provider HTTPAuthVerifier) http.HandlerFunc {
 		_ = json.NewEncoder(w).Encode(j)
 		log.Info().Str("endpoint", "/.well-known/oauth-protected-resource").Str("ua", r.UserAgent()).Str("remote", r.RemoteAddr).Interface("response", j).Msg("served protected resource metadata")
 	}
-}
-
-func advertiseWWWAuthenticate(w http.ResponseWriter, provider HTTPAuthVerifier) {
-	hdr := provider.WWWAuthenticateHeader()
-	w.Header().Set("WWW-Authenticate", hdr)
-	log.Debug().Str("header", hdr).Msg("set WWW-Authenticate")
 }
 
 // withRequestLogging logs request summaries for debugging while censoring sensitive data.
