@@ -372,5 +372,25 @@ func createToolFromConfig(name string, config *ToolConfig) (tools.Tool, error) {
 		}
 	}
 
-	return tools.NewToolImpl(name, config.Description, json.RawMessage(schemaBytes))
+	// Convert optional output schema to JSON
+	var outputSchemaBytes []byte
+	if config.OutputSchema != nil {
+		switch s := config.OutputSchema.(type) {
+		case json.RawMessage:
+			outputSchemaBytes = s
+		case string:
+			outputSchemaBytes = []byte(s)
+		default:
+			outputSchemaBytes, err = json.Marshal(s)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	tool, err := tools.NewToolImplWithMetadata(name, config.Description, json.RawMessage(schemaBytes), json.RawMessage(outputSchemaBytes), config.Annotations)
+	if err != nil {
+		return nil, err
+	}
+	return tool, nil
 }
