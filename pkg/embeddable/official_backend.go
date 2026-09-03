@@ -273,7 +273,10 @@ func mountSSEHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerCo
 func mountStreamableHTTPHandlers(mux *http.ServeMux, server *official.Server, cfg *ServerConfig) error {
 	stream := official.NewStreamableHTTPHandler(
 		func(*http.Request) *official.Server { return server },
-		&official.StreamableHTTPOptions{Stateless: false, JSONResponse: false},
+		&official.StreamableHTTPOptions{
+			Stateless:    cfg.streamableHTTPStateless,
+			JSONResponse: cfg.streamableHTTPJSONResponse,
+		},
 	)
 
 	handler, err := wrapHTTPAuthentication(mux, cfg, stream)

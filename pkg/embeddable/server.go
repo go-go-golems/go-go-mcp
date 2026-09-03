@@ -29,8 +29,10 @@ type ServerConfig struct {
 	toolAuthorization map[string]ToolAuthorizationPolicy
 
 	// Transport options
-	defaultTransport string
-	defaultPort      int
+	defaultTransport           string
+	defaultPort                int
+	streamableHTTPStateless    bool
+	streamableHTTPJSONResponse bool
 
 	// Configuration options
 	enableConfig bool
@@ -70,15 +72,17 @@ type ServerOption func(*ServerConfig) error
 // NewServerConfig creates a new server configuration with defaults
 func NewServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Name:              "Embeddable MCP Server",
-		Version:           "1.0.0",
-		Description:       "MCP Server",
-		toolRegistry:      tool_registry.NewRegistry(),
-		toolAuthorization: map[string]ToolAuthorizationPolicy{},
-		defaultTransport:  "stdio",
-		defaultPort:       3000,
-		enableConfig:      false,
-		sessionStore:      session.NewInMemorySessionStore(),
+		Name:                       "Embeddable MCP Server",
+		Version:                    "1.0.0",
+		Description:                "MCP Server",
+		toolRegistry:               tool_registry.NewRegistry(),
+		toolAuthorization:          map[string]ToolAuthorizationPolicy{},
+		defaultTransport:           "stdio",
+		defaultPort:                3000,
+		streamableHTTPStateless:    true,
+		streamableHTTPJSONResponse: false,
+		enableConfig:               false,
+		sessionStore:               session.NewInMemorySessionStore(),
 	}
 }
 
@@ -115,6 +119,24 @@ func WithDefaultTransport(transport string) ServerOption {
 func WithDefaultPort(port int) ServerOption {
 	return func(config *ServerConfig) error {
 		config.defaultPort = port
+		return nil
+	}
+}
+
+// WithStreamableHTTPStateless selects stateless Streamable HTTP. It defaults
+// to true, which is required for MCP 2026-07-28 and later.
+func WithStreamableHTTPStateless(stateless bool) ServerOption {
+	return func(config *ServerConfig) error {
+		config.streamableHTTPStateless = stateless
+		return nil
+	}
+}
+
+// WithStreamableHTTPJSONResponse controls whether request responses are sent
+// as application/json instead of SSE. It defaults to false.
+func WithStreamableHTTPJSONResponse(jsonResponse bool) ServerOption {
+	return func(config *ServerConfig) error {
+		config.streamableHTTPJSONResponse = jsonResponse
 		return nil
 	}
 }
