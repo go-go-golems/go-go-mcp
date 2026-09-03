@@ -2,6 +2,8 @@ package embeddable
 
 import (
 	"encoding/json"
+
+	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 )
 
 // ToolOption configures individual tools
@@ -9,9 +11,11 @@ type ToolOption func(*ToolConfig) error
 
 // ToolConfig holds configuration for a tool
 type ToolConfig struct {
-	Description string
-	Schema      interface{} // Can be a struct, JSON schema string, or json.RawMessage
-	Examples    []ToolExample
+	Description  string
+	Schema       interface{} // Can be a struct, JSON schema string, or json.RawMessage
+	OutputSchema interface{} // Optional output schema (struct, JSON schema string, or json.RawMessage)
+	Annotations  *protocol.ToolAnnotations
+	Examples     []ToolExample
 }
 
 // ToolExample represents an example usage of a tool
@@ -32,6 +36,25 @@ func WithDescription(desc string) ToolOption {
 func WithSchema(schema interface{}) ToolOption {
 	return func(config *ToolConfig) error {
 		config.Schema = schema
+		return nil
+	}
+}
+
+// WithOutputSchema attaches an output schema to a simple tool. The schema
+// can be a struct, a JSON schema string, or a json.RawMessage.
+func WithOutputSchema(schema interface{}) ToolOption {
+	return func(config *ToolConfig) error {
+		config.OutputSchema = schema
+		return nil
+	}
+}
+
+// WithToolAnnotations attaches MCP behavioral annotations to a simple tool.
+// Annotations are descriptive hints for clients and are never enforced.
+func WithToolAnnotations(annotations protocol.ToolAnnotations) ToolOption {
+	return func(config *ToolConfig) error {
+		annotationsCopy := annotations
+		config.Annotations = &annotationsCopy
 		return nil
 	}
 }

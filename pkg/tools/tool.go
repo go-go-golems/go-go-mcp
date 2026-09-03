@@ -19,9 +19,11 @@ type Tool interface {
 
 // ToolImpl is a basic implementation of the Tool interface
 type ToolImpl struct {
-	name        string
-	description string
-	inputSchema json.RawMessage
+	name         string
+	description  string
+	inputSchema  json.RawMessage
+	outputSchema json.RawMessage
+	annotations  *protocol.ToolAnnotations
 }
 
 // NewToolImpl creates a new ToolImpl with the given parameters
@@ -47,6 +49,18 @@ func NewToolImpl(name, description string, inputSchema interface{}) (*ToolImpl, 
 	}, nil
 }
 
+// NewToolImplWithMetadata creates a ToolImpl with an optional output schema
+// and behavioral annotations alongside the input schema.
+func NewToolImplWithMetadata(name, description string, inputSchema interface{}, outputSchema json.RawMessage, annotations *protocol.ToolAnnotations) (*ToolImpl, error) {
+	tool, err := NewToolImpl(name, description, inputSchema)
+	if err != nil {
+		return nil, err
+	}
+	tool.outputSchema = outputSchema
+	tool.annotations = annotations
+	return tool, nil
+}
+
 // GetName returns the tool's name
 func (t *ToolImpl) GetName() string {
 	return t.name
@@ -65,9 +79,11 @@ func (t *ToolImpl) GetInputSchema() json.RawMessage {
 // GetToolDefinition returns the tool's definition
 func (t *ToolImpl) GetToolDefinition() protocol.Tool {
 	return protocol.Tool{
-		Name:        t.name,
-		Description: t.description,
-		InputSchema: t.inputSchema,
+		Name:         t.name,
+		Description:  t.description,
+		InputSchema:  t.inputSchema,
+		OutputSchema: t.outputSchema,
+		Annotations:  t.annotations,
 	}
 }
 

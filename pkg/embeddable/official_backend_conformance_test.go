@@ -243,3 +243,83 @@ func objectField(t *testing.T, object map[string]any, key string) map[string]any
 	}
 	return value
 }
+
+// TestSimpleToolOutputSchemaAndAnnotations verifies that the simple WithTool
+// path carries outputSchema and annotations through tools/list exactly.
+func TestSimpleToolOutputSchemaAndAnnotations(t *testing.T) {
+	cfg := NewServerConfig()
+	annotations := protocol.ToolAnnotations{
+		Title:           "Echo",
+		ReadOnlyHint:    true,
+		DestructiveHint: boolPtr(false),
+		IdempotentHint:  true,
+		OpenWorldHint:   boolPtr(false),
+	}
+	options := []ServerOption{
+		WithDefaultTransport("streamable_http"),
+		WithTool("echo", func(ctx context.Context, args map[string]any) (*protocol.ToolResult, error) {
+			return protocol.NewToolResult(protocol.WithJSON(map[string]any{"echo": args["message"]})), nil
+		},
+			WithDescription("Echo one message"),
+			WithSchema(json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}},"required":["message"],"additionalProperties":false}`)),
+			WithOutputSchema(json.RawMessage(`{"type":"object","properties":{"echo":{"type":"string"}},"required":["echo"],"additionalProperties":false}`)),
+			WithToolAnnotations(annotations),
+		),
+	}
+	for _, option := range options {
+		if err := option(cfg); err != nil {
+			t.Fatalf("configure server: %v", err)
+		}
+	}
+
+	mux := http.NewServeMux()
+	if err := MountHTTPHandlers(mux, cfg); err != nil {
+		t.Fatalf("MountHTTPHandlers() error = %v", err)
+	}
+
+	sessionID, _ := mcpRequest(t, mux, "", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"descriptor-test","version":"1"}}}`)
+	_, listed := mcpRequest(t, mux, sessionID, `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}`)
+	listResult := objectField(t, listed, "result")
+	tools, ok := listResult["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("tools = %#v, want one tool", listResult["tools"])
+	}
+	tool, ok := tools[0].(map[string]any)
+	if !ok {
+		t.Fatalf("tool = %#v", tools[0])
+	}
+	outputSchema, ok := tool["outputSchema"].(map[string]any)
+	if !ok {
+		t.Fatalf("outputSchema = %#v", tool["outputSchema"])
+	}
+	if outputSchema["type"] != "object" {
+		t.Fatalf("outputSchema.type = %#v", outputSchema["type"])
+	}
+	props, ok := outputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("outputSchema.properties = %#v", outputSchema["properties"])
+	}
+	if _, ok := props["echo"]; !ok {
+		t.Fatalf("outputSchema.properties missing echo: %#v", props)
+	}
+
+	gotAnnotations, ok := tool["annotations"].(map[string]any)
+	if !ok {
+		t.Fatalf("annotations = %#v", tool["annotations"])
+	}
+	if gotAnnotations["title"] != "Echo" {
+		t.Fatalf("annotations.title = %#v", gotAnnotations["title"])
+	}
+	if gotAnnotations["readOnlyHint"] != true {
+		t.Fatalf("annotations.readOnlyHint = %#v", gotAnnotations["readOnlyHint"])
+	}
+	if gotAnnotations["destructiveHint"] != false {
+		t.Fatalf("annotations.destructiveHint = %#v", gotAnnotations["destructiveHint"])
+	}
+	if gotAnnotations["idempotentHint"] != true {
+		t.Fatalf("annotations.idempotentHint = %#v", gotAnnotations["idempotentHint"])
+	}
+	if gotAnnotations["openWorldHint"] != false {
+		t.Fatalf("annotations.openWorldHint = %#v", gotAnnotations["openWorldHint"])
+	}
+}
