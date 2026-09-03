@@ -51,6 +51,8 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	// Add flags
 	startCmd.Flags().String("transport", config.defaultTransport, "Transport type (stdio, sse, streamable_http)")
 	startCmd.Flags().Int("port", config.defaultPort, "Port for SSE and streamable HTTP transport")
+	startCmd.Flags().Bool("streamable-http-stateless", config.streamableHTTPStateless, "Use stateless Streamable HTTP (required for MCP 2026-07-28 and later)")
+	startCmd.Flags().Bool("streamable-http-json-response", config.streamableHTTPJSONResponse, "Return application/json instead of SSE for Streamable HTTP request responses")
 	startCmd.Flags().StringSlice("internal-servers", config.internalServers, "Built-in tools to enable")
 	// Auth-related flags
 	startCmd.Flags().String("auth-mode", defaultAuthModeFlagValue(config), "Authentication mode for HTTP transports (none, embedded_dev, external_oidc)")
@@ -161,9 +163,20 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 		return fmt.Errorf("failed to get port flag: %w", err)
 	}
 
+	streamableHTTPStateless, err := cmd.Flags().GetBool("streamable-http-stateless")
+	if err != nil {
+		return fmt.Errorf("failed to get Streamable HTTP stateless flag: %w", err)
+	}
+	streamableHTTPJSONResponse, err := cmd.Flags().GetBool("streamable-http-json-response")
+	if err != nil {
+		return fmt.Errorf("failed to get Streamable HTTP JSON response flag: %w", err)
+	}
+
 	// Update defaults from flags
 	config.defaultTransport = transportType
 	config.defaultPort = port
+	config.streamableHTTPStateless = streamableHTTPStateless
+	config.streamableHTTPJSONResponse = streamableHTTPJSONResponse
 
 	authModeValue, _ := cmd.Flags().GetString("auth-mode")
 	authResourceURL, _ := cmd.Flags().GetString("auth-resource-url")

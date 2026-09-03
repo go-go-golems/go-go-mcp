@@ -16,7 +16,6 @@ import (
 
 func TestMCPGoBackendConformance(t *testing.T) {
 	var handlerCalls atomic.Int32
-	var handlerSessionID atomic.Value
 	cfg := NewServerConfig()
 	options := []ServerOption{
 		WithName("conformance-server"),
@@ -24,8 +23,8 @@ func TestMCPGoBackendConformance(t *testing.T) {
 		WithDefaultTransport("streamable_http"),
 		WithTool("echo", func(ctx context.Context, args map[string]any) (*protocol.ToolResult, error) {
 			handlerCalls.Add(1)
-			if sessionID, ok := mcppsession.SessionIDFromContext(ctx); ok {
-				handlerSessionID.Store(sessionID)
+			if _, ok := mcppsession.SessionIDFromContext(ctx); ok {
+				t.Fatal("stateless Streamable HTTP unexpectedly injected a session ID")
 			}
 			result := protocol.NewToolResult(protocol.WithJSON(map[string]any{"echo": args["message"]}))
 			result.Meta = map[string]any{"test/result-meta": "preserved"}
@@ -94,8 +93,65 @@ func TestMCPGoBackendConformance(t *testing.T) {
 	if got := handlerCalls.Load(); got != 1 {
 		t.Fatalf("handler calls = %d, want 1", got)
 	}
-	if got := handlerSessionID.Load().(string); got != sessionID {
-		t.Fatalf("handler session ID = %q, want %q", got, sessionID)
+	if sessionID != "" {
+		t.Fatalf("stateless Streamable HTTP issued session ID %q", sessionID)
+	}
+}
+
+func TestStreamableHTTPDefaultsToModernStatelessDiscovery(t *testing.T) {
+	cfg := NewServerConfig()
+	for _, option := range []ServerOption{
+		WithName("modern-server"),
+		WithVersion("2.0.0"),
+		WithDefaultTransport("streamable_http"),
+		WithTool("echo", func(context.Context, map[string]any) (*protocol.ToolResult, error) {
+			return protocol.NewToolResult(protocol.WithText("ok")), nil
+		}),
+	} {
+		if err := option(cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mux := http.NewServeMux()
+	if err := MountHTTPHandlers(mux, cfg); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"modern-test","version":"1"}}}}`
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+	req.Header.Set("Mcp-Method", "server/discover")
+	req.Header.Set("Mcp-Name", "modern-test")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("server/discover status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	payload := rec.Body.Bytes()
+	if bytes.HasPrefix(payload, []byte("event:")) {
+		for _, line := range bytes.Split(payload, []byte("\n")) {
+			if bytes.HasPrefix(line, []byte("data: ")) {
+				payload = bytes.TrimPrefix(line, []byte("data: "))
+				break
+			}
+		}
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("decode server/discover %q: %v", payload, err)
+	}
+	result := objectField(t, decoded, "result")
+	versions, ok := result["supportedVersions"].([]any)
+	if !ok || len(versions) == 0 || versions[0] != "2026-07-28" {
+		t.Fatalf("supportedVersions = %#v", result["supportedVersions"])
+	}
+	capabilities := objectField(t, result, "capabilities")
+	if _, ok := capabilities["tools"]; !ok {
+		t.Fatalf("discovered capabilities = %#v", capabilities)
+	}
+	if sessionID := rec.Header().Get("Mcp-Session-Id"); sessionID != "" {
+		t.Fatalf("server/discover issued session ID %q", sessionID)
 	}
 }
 

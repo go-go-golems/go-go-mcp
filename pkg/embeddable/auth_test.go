@@ -81,6 +81,26 @@ func TestMCPStartPreservesApplicationVerifierWhenAuthModeFlagIsUnchanged(t *test
 	}
 }
 
+func TestStreamableHTTPFlagsOverrideDefaults(t *testing.T) {
+	stop := errors.New("stop after transport flag configuration")
+	var cfg *ServerConfig
+	capture := func(config *ServerConfig) error {
+		cfg = config
+		return nil
+	}
+	cmd := NewMCPCommand(
+		capture,
+		WithHooks(&Hooks{OnServerStart: func(context.Context) error { return stop }}),
+	)
+	cmd.SetArgs([]string{"start", "--streamable-http-stateless=false", "--streamable-http-json-response=true"})
+	if err := cmd.Execute(); !errors.Is(err, stop) {
+		t.Fatalf("Execute() error = %v, want %v", err, stop)
+	}
+	if cfg == nil || cfg.streamableHTTPStateless || !cfg.streamableHTTPJSONResponse {
+		t.Fatalf("Streamable HTTP flags not applied: %+v", cfg)
+	}
+}
+
 func TestWithHTTPAuthVerifierRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
 	cfg := NewServerConfig()
 	if err := WithHTTPAuthVerifier(nil)(cfg); err == nil {
