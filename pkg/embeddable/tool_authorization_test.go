@@ -83,6 +83,44 @@ func TestToolAuthorizationPolicyDrivesDescriptorAndDispatch(t *testing.T) {
 	}
 }
 
+func TestApplicationVerifierScopesReachToolAuthorization(t *testing.T) {
+	var handlerCalls atomic.Int32
+	cfg := NewServerConfig()
+	cfg.authOptions.ResourceURL = "https://mcp.example.com/mcp"
+	for _, option := range []ServerOption{
+		WithTool("protected", func(context.Context, map[string]any) (*protocol.ToolResult, error) {
+			handlerCalls.Add(1)
+			return protocol.NewToolResult(protocol.WithJSON(map[string]any{"ok": true})), nil
+		}),
+		WithToolAuthorization("protected", ToolAuthorizationPolicy{RequiredScopes: []string{"scope:a"}}),
+	} {
+		if err := option(cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server := official.NewServer(&official.Implementation{Name: "custom-auth-policy-test", Version: "1"}, nil)
+	if err := registerToolsFromRegistry(context.Background(), server, cfg.toolRegistry, cfg); err != nil {
+		t.Fatal(err)
+	}
+	streamable := official.NewStreamableHTTPHandler(func(*http.Request) *official.Server { return server }, &official.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+	scopes, err := ParseScopeSet([]string{"scope:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &stubAuthProvider{
+		principal: AuthPrincipal{Subject: "alice", Scopes: scopes, Expiration: time.Now().Add(time.Hour)},
+		metadata:  map[string]any{"resource": "https://mcp.example.com/mcp"},
+	}
+
+	response := policyMCPRequest(t, authMiddleware(provider, streamable), "valid", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"protected","arguments":{}}}`)
+	if result := officialObjectField(t, response, "result"); result["isError"] == true {
+		t.Fatalf("application-verifier scope was not propagated: %#v", result)
+	}
+	if got := handlerCalls.Load(); got != 1 {
+		t.Fatalf("handler calls = %d, want 1", got)
+	}
+}
+
 func TestToolAuthorizationPolicyValidation(t *testing.T) {
 	tests := []ToolAuthorizationPolicy{
 		{},
