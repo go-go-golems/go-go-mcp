@@ -97,6 +97,14 @@ func MountHTTPHandlers(mux *http.ServeMux, cfg *ServerConfig) error {
 	}
 }
 
+// toolResourceMetadataURL uses the same verified resource as bearer challenges.
+func toolResourceMetadataURL(cfg *ServerConfig) string {
+	if cfg.customAuthVerifier != nil {
+		return applicationResourceMetadataURL(cfg.customAuthVerifier)
+	}
+	return protectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())
+}
+
 func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry, cfg *ServerConfig) error {
 	if reg == nil {
 		log.Debug().Msg("No tool registry set; skipping registration")
@@ -132,7 +140,7 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 				if req.Extra != nil {
 					tokenInfo = req.Extra.TokenInfo
 				}
-				if denial := authorizeToolRequest(tokenInfo, policy, protectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())); denial != nil {
+				if denial := authorizeToolRequest(tokenInfo, policy, toolResourceMetadataURL(cfg)); denial != nil {
 					return mapToolResultToOfficial(denial)
 				}
 			}
@@ -143,7 +151,7 @@ func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *too
 					return nil, fmt.Errorf("decode arguments for tool %q: %w", name, err)
 				}
 			}
-			log.Debug().Str("tool", name).Interface("args", args).Msg("Handling tool call")
+			log.Debug().Str("tool", name).Msg("Handling tool call")
 			if req.Session != nil {
 				callCtx = session.WithSessionID(callCtx, req.Session.ID())
 			}
