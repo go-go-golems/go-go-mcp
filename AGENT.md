@@ -47,7 +47,7 @@
 </webGuidelines>
 
 <debuggingGuidelines>
-If me or you the LLM agent seem to go down too deep in a debugging/fixing rabbit hole in our conversations, remind me to take a breath and think about the bigger picture instead of hacking away. Say: "I think I'm stuck, let's TOUCH GRASS".  IMPORTANT: Don't try to fix errors by yourself more than twice in a row. Then STOP. Don't do anything else.
+Continue debugging while there is a concrete path forward. Stop only when you have no path forward, need the user's help, or are at a loss. When stopping, explain the blocker, what you tried, and what information or help is needed. Do not stop merely because a fixed number of attempts has failed.
 
 </debuggingGuidelines>
 
