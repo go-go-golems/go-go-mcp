@@ -201,31 +201,41 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("/dev/callback", s.devCallback)
 }
 
-// IntrospectAccessToken validates a bearer access token and returns subject and clientID when valid.
+// AccessTokenInfo describes a valid access token issued by this server.
+type AccessTokenInfo struct {
+	Subject   string
+	ClientID  string
+	ExpiresAt time.Time
+}
+
+// IntrospectAccessToken validates a bearer access token and describes it when valid.
 // If introspection fails and dev-tokens are enabled with DB persistence, falls back to DB tokens.
-func (s *Server) IntrospectAccessToken(ctx context.Context, token string) (string, string, bool, error) {
+func (s *Server) IntrospectAccessToken(ctx context.Context, token string) (AccessTokenInfo, bool, error) {
 	sess := new(openid.DefaultSession)
-	tt, ar, err := s.Provider.IntrospectToken(ctx, token, fosite.AccessToken, sess)
+	_, ar, err := s.Provider.IntrospectToken(ctx, token, fosite.AccessToken, sess)
 	if err != nil {
 		if s.dbPath != "" && s.enableDevTokens {
 			if tr, ok, derr := s.GetToken(token); derr == nil && ok {
 				if time.Now().Before(tr.ExpiresAt) {
-					return tr.Subject, tr.ClientID, true, nil
+					return AccessTokenInfo{Subject: tr.Subject, ClientID: tr.ClientID, ExpiresAt: tr.ExpiresAt}, true, nil
 				}
 			}
 		}
-		return "", "", false, err
+		return AccessTokenInfo{}, false, err
 	}
-	_ = tt
-	subject := ""
+	info := AccessTokenInfo{}
 	if sess.Claims != nil {
-		subject = sess.Claims.Subject
+		info.Subject = sess.Claims.Subject
 	}
-	clientID := ""
-	if ar != nil && ar.GetClient() != nil {
-		clientID = ar.GetClient().GetID()
+	if ar != nil {
+		if ar.GetClient() != nil {
+			info.ClientID = ar.GetClient().GetID()
+		}
+		if ar.GetSession() != nil {
+			info.ExpiresAt = ar.GetSession().GetExpiresAt(fosite.AccessToken)
+		}
 	}
-	return subject, clientID, true, nil
+	return info, true, nil
 }
 
 func (s *Server) oidcDiscovery(w http.ResponseWriter, r *http.Request) {

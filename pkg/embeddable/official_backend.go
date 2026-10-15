@@ -102,7 +102,7 @@ func toolResourceMetadataURL(cfg *ServerConfig) string {
 	if cfg.customAuthVerifier != nil {
 		return applicationResourceMetadataURL(cfg.customAuthVerifier)
 	}
-	return protectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())
+	return ProtectedResourceMetadataURL(cfg.authOptions.EffectiveResourceURL())
 }
 
 func registerToolsFromRegistry(ctx context.Context, s *official.Server, reg *tool_registry.Registry, cfg *ServerConfig) error {
@@ -362,7 +362,7 @@ func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next htt
 
 	return mcpauth.RequireBearerToken(verifier, &mcpauth.RequireBearerTokenOptions{
 		Scopes:              append([]string(nil), provider.opts.RequiredScopes...),
-		ResourceMetadataURL: protectedResourceMetadataURL(provider.resourceURL),
+		ResourceMetadataURL: ProtectedResourceMetadataURL(provider.resourceURL),
 	})(injectPrincipal)
 }
 
@@ -409,7 +409,7 @@ func applicationResourceMetadataURL(provider HTTPAuthVerifier) string {
 	resource, _ := provider.ProtectedResourceMetadata()["resource"].(string)
 	u, err := url.Parse(resource)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		return protectedResourceMetadataURL(resource)
+		return ProtectedResourceMetadataURL(resource)
 	}
 	resourcePath := strings.TrimRight(u.Path, "/")
 	u.Path = "/.well-known/oauth-protected-resource" + resourcePath

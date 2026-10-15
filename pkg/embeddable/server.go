@@ -51,6 +51,7 @@ type ServerConfig struct {
 	authEnabled        bool
 	authOptions        AuthOptions
 	customAuthVerifier HTTPAuthVerifier
+	authModeProviders  map[AuthMode]AuthModeProvider
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -83,6 +84,7 @@ func NewServerConfig() *ServerConfig {
 		streamableHTTPJSONResponse: false,
 		enableConfig:               false,
 		sessionStore:               session.NewInMemorySessionStore(),
+		authModeProviders:          map[AuthMode]AuthModeProvider{},
 	}
 }
 
@@ -255,9 +257,6 @@ const (
 	AuthModeExternalOIDC AuthMode = "external_oidc"
 )
 
-// OIDCOptions is kept as a compatibility alias for the legacy embedded-only API.
-type OIDCOptions = EmbeddedOIDCOptions
-
 type EmbeddedOIDCOptions struct {
 	Issuer          string
 	DBPath          string
@@ -329,11 +328,24 @@ func WithHTTPAuthVerifier(verifier HTTPAuthVerifier) ServerOption {
 	}
 }
 
-func WithOIDC(opts OIDCOptions) ServerOption {
-	return WithAuth(AuthOptions{
-		Mode:     AuthModeEmbeddedDev,
-		Embedded: opts,
-	})
+// WithAuthModeProvider links the implementation of an auth mode into this
+// server. Modes whose implementation carries heavy dependencies (embedded_dev)
+// are provided this way so that only programs that use them link them; see
+// package embeddeddev. A provider for a built-in mode replaces the built-in.
+func WithAuthModeProvider(mode AuthMode, provider AuthModeProvider) ServerOption {
+	return func(config *ServerConfig) error {
+		if mode == "" || mode == AuthModeNone {
+			return fmt.Errorf("an auth mode name is required")
+		}
+		if provider == nil {
+			return fmt.Errorf("auth mode %s: provider is required", mode)
+		}
+		if config.authModeProviders == nil {
+			config.authModeProviders = map[AuthMode]AuthModeProvider{}
+		}
+		config.authModeProviders[mode] = provider
+		return nil
+	}
 }
 
 func WithCommandCustomizer(customizer CommandCustomizer) ServerOption {

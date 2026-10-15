@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-go-golems/glazed/pkg/cmds/logging"
 	"github.com/go-go-golems/go-go-mcp/pkg/embeddable"
+	"github.com/go-go-golems/go-go-mcp/pkg/embeddable/embeddeddev"
 	"github.com/go-go-golems/go-go-mcp/pkg/protocol"
 	"github.com/spf13/cobra"
 )
@@ -35,7 +36,7 @@ func main() {
 		embeddable.WithServerDescription("Example MCP server secured by embedded OIDC"),
 		embeddable.WithDefaultTransport("sse"),
 		embeddable.WithDefaultPort(3001),
-		embeddable.WithOIDC(embeddable.OIDCOptions{
+		embeddeddev.WithOIDC(embeddable.EmbeddedOIDCOptions{
 			Issuer:          "http://localhost:3001",
 			DBPath:          "/tmp/mcp-oidc.db",
 			EnableDevTokens: false,

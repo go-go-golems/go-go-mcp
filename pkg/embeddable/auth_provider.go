@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	embeddedoidc "github.com/go-go-golems/go-go-mcp/pkg/auth/oidc"
 )
 
 var errUnauthorizedToken = errors.New("unauthorized token")
+
+// errEmbeddedDevNotLinked is returned when embedded_dev is selected but the
+// program did not link the embedded authorization server. Keeping that server
+// out of this package keeps fosite, SQLite and their dependencies out of every
+// program that imports embeddable.
+var errEmbeddedDevNotLinked = errors.New("auth mode embedded_dev is not linked into this program; add embeddeddev.Provide() from github.com/go-go-golems/go-go-mcp/pkg/embeddable/embeddeddev to the server options")
 
 type AuthPrincipal struct {
 	Subject           string
@@ -34,6 +38,11 @@ type HTTPAuthVerifier interface {
 	WWWAuthenticateHeader() string
 }
 
+// AuthModeProvider builds the resource-server verifier for an auth mode. When
+// the mode runs its own authorization server, it also returns a function that
+// mounts that server's routes next to the MCP endpoint; otherwise nil.
+type AuthModeProvider func(opts AuthOptions) (HTTPAuthVerifier, func(*http.ServeMux), error)
+
 type httpAuthRuntime struct {
 	provider                 HTTPAuthVerifier
 	mountAuthorizationServer func(*http.ServeMux)
@@ -50,15 +59,19 @@ func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
 		return httpAuthRuntime{}, nil
 	}
 
+	if linked, ok := cfg.authModeProviders[cfg.authOptions.Mode]; ok {
+		provider, mount, err := linked(cfg.authOptions)
+		if err != nil {
+			return httpAuthRuntime{}, err
+		}
+		return httpAuthRuntime{provider: provider, mountAuthorizationServer: mount}, nil
+	}
+
 	switch cfg.authOptions.Mode {
 	case AuthModeNone:
 		return httpAuthRuntime{}, nil
 	case AuthModeEmbeddedDev:
-		provider, err := newEmbeddedDevAuthProvider(cfg.authOptions)
-		if err != nil {
-			return httpAuthRuntime{}, err
-		}
-		return httpAuthRuntime{provider: provider, mountAuthorizationServer: provider.MountAuthorizationServer}, nil
+		return httpAuthRuntime{}, errEmbeddedDevNotLinked
 	case AuthModeExternalOIDC:
 		provider, err := newExternalOIDCAuthProvider(cfg.authOptions)
 		if err != nil {
@@ -70,70 +83,8 @@ func newHTTPAuthRuntime(cfg *ServerConfig) (httpAuthRuntime, error) {
 	}
 }
 
-type embeddedDevAuthProvider struct {
-	server      *embeddedoidc.Server
-	opts        EmbeddedOIDCOptions
-	resourceURL string
-}
-
-func newEmbeddedDevAuthProvider(opts AuthOptions) (*embeddedDevAuthProvider, error) {
-	srv, err := embeddedoidc.New(embeddedoidc.Config{
-		Issuer:          opts.Embedded.Issuer,
-		DBPath:          opts.Embedded.DBPath,
-		EnableDevTokens: opts.Embedded.EnableDevTokens,
-		User:            opts.Embedded.User,
-		Pass:            opts.Embedded.Pass,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &embeddedDevAuthProvider{
-		server:      srv,
-		opts:        opts.Embedded,
-		resourceURL: opts.EffectiveResourceURL(),
-	}, nil
-}
-
-func (p *embeddedDevAuthProvider) MountAuthorizationServer(mux *http.ServeMux) {
-	p.server.Routes(mux)
-}
-
-func (p *embeddedDevAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
-	if p.opts.AuthKey != "" && token == p.opts.AuthKey {
-		return AuthPrincipal{
-			Subject:  "static-key-user",
-			ClientID: "static-key-client",
-			Issuer:   p.opts.Issuer,
-		}, nil
-	}
-
-	subj, cid, ok, err := p.server.IntrospectAccessToken(ctx, token)
-	if err != nil {
-		return AuthPrincipal{}, err
-	}
-	if !ok {
-		return AuthPrincipal{}, errUnauthorizedToken
-	}
-
-	return AuthPrincipal{
-		Subject:  subj,
-		ClientID: cid,
-		Issuer:   p.opts.Issuer,
-	}, nil
-}
-
-func (p *embeddedDevAuthProvider) ProtectedResourceMetadata() map[string]any {
-	return map[string]any{
-		"authorization_servers": []string{p.opts.Issuer},
-		"resource":              p.resourceURL,
-	}
-}
-
-func (p *embeddedDevAuthProvider) WWWAuthenticateHeader() string {
-	return buildBearerChallenge(protectedResourceMetadataURL(p.resourceURL))
-}
-
-func buildBearerChallenge(resourceMetadataURL string) string {
+// BearerChallenge returns the WWW-Authenticate value that points MCP clients
+// to the protected resource metadata (RFC 9728) at resourceMetadataURL.
+func BearerChallenge(resourceMetadataURL string) string {
 	return "Bearer realm=\"mcp\", resource_metadata=\"" + resourceMetadataURL + "\""
 }

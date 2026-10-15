@@ -86,3 +86,71 @@ The goal is to make go-go-mcp's `pkg/embeddable` a reasonable dependency for app
 ### Technical details
 
 - Measurement command: `GOWORK=off GOFLAGS=-mod=mod GOPROXY=off go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./pkg/embeddable | sort -u | wc -l`.
+
+## Step 2: Link `embedded_dev` on request and fix its expiration
+
+This step moved the embedded development OIDC provider out of `pkg/embeddable` into the new package `pkg/embeddable/embeddeddev`, added the `WithAuthModeProvider` seam, and fixed `embedded_dev` tokens being rejected over HTTP. `pkg/embeddable` now compiles 65 non-standard packages instead of 318.
+
+### Prompt Context
+
+**User prompt (verbatim):** see Step 1.
+
+**Assistant interpretation:** Implement design §5.1–5.3.
+
+**Inferred user intent:** A light `pkg/embeddable` that still offers `embedded_dev` to programs that ask for it.
+
+### What I did
+
+- `pkg/auth/oidc/server.go`: `IntrospectAccessToken` now returns `AccessTokenInfo{Subject, ClientID, ExpiresAt}`; fosite tokens take `ExpiresAt` from `ar.GetSession().GetExpiresAt(fosite.AccessToken)`, SQLite development tokens from the stored record.
+- `pkg/embeddable/auth_provider.go`: removed the embedded provider and the `pkg/auth/oidc` import; added `AuthModeProvider`, `errEmbeddedDevNotLinked`, and the linked-provider lookup in `newHTTPAuthRuntime`; exported `BearerChallenge`.
+- `pkg/embeddable/auth_provider_external.go`, `official_backend.go`: `protectedResourceMetadataURL` → exported `ProtectedResourceMetadataURL`.
+- `pkg/embeddable/server.go`: `authModeProviders` map in `ServerConfig`; `WithAuthModeProvider`; removed `WithOIDC` and the `OIDCOptions` alias.
+- New `pkg/embeddable/embeddeddev/embeddeddev.go`: `Provide()`, `WithOIDC(opts)`, the provider (static key reports `now + 1 minute`; issued tokens report their expiry). `make logcopter-generate` added its `logcopter.go`.
+- `pkg/embeddable/examples/oidc/main.go`: uses `embeddeddev.WithOIDC(embeddable.EmbeddedOIDCOptions{…})`.
+- Tests: in `pkg/embeddable`, `TestEmbeddedDevRequiresLinkedProvider`, `TestWithAuthModeProviderSuppliesVerifierAndRoutes`, `TestWithAuthModeProviderRejectsMissingArguments`, `TestImportGraphExcludesEmbeddedAuthorizationServer` (runs `go list -deps .`); in `embeddeddev`, static key and development token expiry tests, an HTTP test through `MountHTTPHandlers` with streamable HTTP, and a no-token 401 test.
+
+### Why
+
+- An explicit option keeps the dependency visible at the call site (design decision §5.1). The expiry fix belongs with the move because the moved provider is where the principal is built.
+
+### What worked
+
+- `GOWORK=off go build ./...`, `go vet`, `GOWORK=off go test ./...` (all packages `ok`), `golangci-lint run` → `0 issues.`, `make logcopter-check` clean.
+- Dependency count: `go list -deps ./pkg/embeddable` → 65 non-standard packages (was 318); `./pkg/embeddable/embeddeddev` → 319.
+- The HTTP test fails without the fix and passes with it. With the static key's `Expiration` line removed:
+
+  ```text
+  --- FAIL: TestEmbeddedDevAcceptsStaticKeyOverHTTP (0.04s)
+      embeddeddev_test.go:103: static key: status 401, body "token missing expiration\n"
+  ```
+
+  After restoring the file the test passes (Go reported the cached result, confirming the file was byte-identical).
+
+### What didn't work
+
+- No failures beyond the deliberate check above.
+
+### What I learned
+
+- `MountHTTPHandlers` plus `httptest` exercises the real go-sdk middleware, which is what the old provider-level test missed.
+
+### What was tricky to build
+
+- `WithOIDC` must both link the provider and select the mode; it composes `Provide()` and `WithAuth(...)` in one option so option order does not matter for callers.
+
+### What warrants a second pair of eyes
+
+- Removing `embeddable.WithOIDC` and `embeddable.OIDCOptions` is a breaking API change for downstream users when they upgrade (AGENT.md: no compatibility layers).
+- The fosite-issued token path (`GetExpiresAt`) is covered by reading, not by a test: obtaining a fosite token needs a full authorization-code flow.
+
+### What should be done in the future
+
+- Introspection (Step 3) and documentation (Step 4).
+
+### Code review instructions
+
+- Start with `pkg/embeddable/auth_provider.go` and `pkg/embeddable/embeddeddev/embeddeddev.go`; run `GOWORK=off go test ./pkg/embeddable/... ./pkg/auth/...`.
+
+### Technical details
+
+- Error text when the mode is not linked: `auth mode embedded_dev is not linked into this program; add embeddeddev.Provide() from github.com/go-go-golems/go-go-mcp/pkg/embeddable/embeddeddev to the server options`.

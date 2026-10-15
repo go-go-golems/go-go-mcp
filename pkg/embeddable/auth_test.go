@@ -118,17 +118,58 @@ func TestWithHTTPAuthVerifierRejectsNilAndWithAuthReplacesCustom(t *testing.T) {
 	}
 }
 
-func TestWithOIDCUsesEmbeddedDevMode(t *testing.T) {
+func TestEmbeddedDevRequiresLinkedProvider(t *testing.T) {
 	cfg := NewServerConfig()
-	if err := WithOIDC(OIDCOptions{Issuer: "http://localhost:3001"})(cfg); err != nil {
-		t.Fatalf("WithOIDC() error = %v", err)
+	if err := WithAuth(AuthOptions{Mode: AuthModeEmbeddedDev, Embedded: EmbeddedOIDCOptions{Issuer: "http://localhost:3001"}})(cfg); err != nil {
+		t.Fatal(err)
 	}
+	_, err := newHTTPAuthRuntime(cfg)
+	if !errors.Is(err, errEmbeddedDevNotLinked) {
+		t.Fatalf("newHTTPAuthRuntime() error = %v, want errEmbeddedDevNotLinked", err)
+	}
+	if !strings.Contains(err.Error(), "embeddeddev.Provide()") {
+		t.Fatalf("error does not say how to link the mode: %v", err)
+	}
+}
 
-	if !cfg.authEnabled {
-		t.Fatalf("expected auth to be enabled")
+func TestWithAuthModeProviderSuppliesVerifierAndRoutes(t *testing.T) {
+	stub := &stubAuthProvider{metadata: map[string]any{"resource": "http://localhost:3001/mcp"}}
+	mounted := false
+	cfg := NewServerConfig()
+	opts := []ServerOption{
+		WithAuthModeProvider(AuthModeEmbeddedDev, func(opts AuthOptions) (HTTPAuthVerifier, func(*http.ServeMux), error) {
+			if opts.Embedded.Issuer != "http://localhost:3001" {
+				t.Fatalf("provider received options %+v", opts)
+			}
+			return stub, func(*http.ServeMux) { mounted = true }, nil
+		}),
+		WithAuth(AuthOptions{Mode: AuthModeEmbeddedDev, Embedded: EmbeddedOIDCOptions{Issuer: "http://localhost:3001"}}),
 	}
-	if cfg.authOptions.Mode != AuthModeEmbeddedDev {
-		t.Fatalf("expected embedded dev mode, got %q", cfg.authOptions.Mode)
+	for _, o := range opts {
+		if err := o(cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rt, err := newHTTPAuthRuntime(cfg)
+	if err != nil {
+		t.Fatalf("newHTTPAuthRuntime() error = %v", err)
+	}
+	if rt.provider != stub {
+		t.Fatalf("runtime provider = %#v, want the linked provider", rt.provider)
+	}
+	rt.mountAuthorizationServer(http.NewServeMux())
+	if !mounted {
+		t.Fatal("authorization-server routes were not mounted")
+	}
+}
+
+func TestWithAuthModeProviderRejectsMissingArguments(t *testing.T) {
+	cfg := NewServerConfig()
+	if err := WithAuthModeProvider("", func(AuthOptions) (HTTPAuthVerifier, func(*http.ServeMux), error) { return nil, nil, nil })(cfg); err == nil {
+		t.Fatal("expected an error for an empty mode")
+	}
+	if err := WithAuthModeProvider(AuthModeEmbeddedDev, nil)(cfg); err == nil {
+		t.Fatal("expected an error for a nil provider")
 	}
 }
 
@@ -219,28 +260,6 @@ func TestAuthMiddlewareInjectsPrincipalHeaders(t *testing.T) {
 	}
 }
 
-func TestEmbeddedDevProviderStaticAuthKey(t *testing.T) {
-	provider, err := newEmbeddedDevAuthProvider(AuthOptions{
-		Mode: AuthModeEmbeddedDev,
-		Embedded: EmbeddedOIDCOptions{
-			Issuer:  "http://localhost:3001",
-			AuthKey: "STATIC_TOKEN",
-		},
-	})
-	if err != nil {
-		t.Fatalf("newEmbeddedDevAuthProvider() error = %v", err)
-	}
-
-	principal, err := provider.ValidateBearerToken(context.Background(), "STATIC_TOKEN")
-	if err != nil {
-		t.Fatalf("ValidateBearerToken() error = %v", err)
-	}
-
-	if principal.Subject != "static-key-user" || principal.ClientID != "static-key-client" {
-		t.Fatalf("unexpected principal: %#v", principal)
-	}
-}
-
 func TestProtectedResourceHandlerUsesProviderMetadata(t *testing.T) {
 	provider := &stubAuthProvider{
 		metadata: map[string]any{
@@ -268,8 +287,8 @@ func TestProtectedResourceHandlerUsesProviderMetadata(t *testing.T) {
 	}
 }
 
-func TestBuildBearerChallengeOnlyAdvertisesResourceMetadata(t *testing.T) {
-	got := buildBearerChallenge("https://mcp.example.com/.well-known/oauth-protected-resource")
+func TestBearerChallengeOnlyAdvertisesResourceMetadata(t *testing.T) {
+	got := BearerChallenge("https://mcp.example.com/.well-known/oauth-protected-resource")
 	want := `Bearer realm="mcp", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`
 
 	if got != want {

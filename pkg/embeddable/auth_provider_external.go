@@ -199,7 +199,7 @@ func (p *externalOIDCAuthProvider) ProtectedResourceMetadata() map[string]any {
 }
 
 func (p *externalOIDCAuthProvider) WWWAuthenticateHeader() string {
-	return buildBearerChallenge(protectedResourceMetadataURL(p.resourceURL))
+	return BearerChallenge(ProtectedResourceMetadataURL(p.resourceURL))
 }
 
 func (p *externalOIDCAuthProvider) verifyToken(ctx context.Context, token string, forceRefresh bool) (*externalBearerClaims, error) {
@@ -365,7 +365,8 @@ func normalizeURLForCompare(rawURL string) string {
 	return strings.TrimRight(strings.TrimSpace(rawURL), "/")
 }
 
-func protectedResourceMetadataURL(resourceURL string) string {
+// ProtectedResourceMetadataURL returns the RFC 9728 metadata URL for a resource URL.
+func ProtectedResourceMetadataURL(resourceURL string) string {
 	u, err := url.Parse(resourceURL)
 	if err != nil {
 		return strings.TrimRight(resourceURL, "/") + "/.well-known/oauth-protected-resource"
