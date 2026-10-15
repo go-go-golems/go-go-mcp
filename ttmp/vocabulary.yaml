@@ -49,6 +49,8 @@ topics:
       description: Dependency graph and module maintenance
     - slug: refactoring
       description: Structural code improvements
+    - slug: introspection
+      description: OAuth 2.0 token introspection (RFC 7662)
 docTypes:
     - slug: index
       description: Ticket index document
@@ -60,6 +62,8 @@ docTypes:
       description: Operational procedures and QA/Smoke steps
     - slug: skill
       description: Skill documentation (what it's for and when to use it)
+    - slug: working-note
+      description: Chronological investigation and implementation notes
 intent:
     - slug: long-term
       description: Long-term reference material
