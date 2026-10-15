@@ -1,3 +1,13 @@
+# Embedded OIDC linked on request; token introspection
+
+Made `pkg/embeddable` a light dependency and taught `external_oidc` to verify opaque tokens:
+- `embedded_dev` moved to `pkg/embeddable/embeddeddev` (`Provide()`, `WithOIDC(...)`); `pkg/embeddable` compiles 65 non-standard packages instead of 318
+- `embeddable.WithAuthModeProvider` links an auth mode's implementation; `embeddable.WithOIDC` and the `OIDCOptions` alias were removed
+- `embedded_dev` tokens now carry an expiration (they were rejected with `401 token missing expiration`)
+- `external_oidc` gains `--oidc-token-validation jwt|introspection|auto` and introspection client flags (RFC 7662, `client_secret_basic`)
+- issuer outages during token validation answer `500` instead of `401`
+- `BearerChallenge` and `ProtectedResourceMetadataURL` are exported for custom verifiers
+
 # Enhanced Documentation Metadata
 
 Added structured metadata to technical documentation for better maintainability:

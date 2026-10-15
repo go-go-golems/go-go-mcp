@@ -21,6 +21,10 @@ Flags:
 - oidc-discovery-url
 - oidc-audience
 - oidc-required-scope
+- oidc-token-validation
+- oidc-introspection-url
+- oidc-introspection-client-id
+- oidc-introspection-client-secret-file
 IsTemplate: false
 IsTopLevel: false
 ShowPerDefault: true
@@ -233,7 +237,8 @@ In external OIDC mode, the framework validates tokens by using:
 
 - issuer metadata
 - discovery metadata
-- JWKS
+- JWKS (for JWT access tokens)
+- the issuer's introspection endpoint (for opaque access tokens, when `--oidc-token-validation` is `introspection` or `auto`)
 - optional audience checks
 - optional scope checks
 
@@ -261,6 +266,11 @@ The important framework flags are:
 - `--oidc-discovery-url=...` if you must override discovery
 - `--oidc-audience=...` if you want audience enforcement
 - `--oidc-required-scope=...` if you want scope enforcement
+- `--oidc-token-validation=jwt|introspection|auto` when the issuer hands out opaque access tokens
+- `--oidc-introspection-client-id=...` and `--oidc-introspection-client-secret-file=...` to authenticate this server to the introspection endpoint
+- `--oidc-introspection-url=...` if discovery does not advertise `introspection_endpoint`
+
+Whether access tokens are JWTs depends on the issuer and on how the client was registered. Keycloak issues JWTs. ZITADEL issues opaque tokens by default, including to clients created through dynamic client registration, so a ZITADEL-backed deployment needs `auto` or `introspection` and an API client for this resource server. The embedded-OIDC topic describes the exact checks applied to an introspection response.
 
 The practical meaning is:
 
@@ -279,8 +289,13 @@ on request to /mcp:
 
   token = parse bearer token
   discovery = load or refresh issuer metadata
-  jwks = load or refresh issuer keys
-  claims = validate JWT signature and issuer
+  if token looks like a JWT (or validation is jwt):
+    jwks = load or refresh issuer keys
+    claims = validate JWT signature and issuer
+  else:                                   # validation is introspection or auto
+    claims = POST token to introspection_endpoint (client_secret_basic)
+    reject unless active, unexpired, same issuer
+    if the issuer cannot answer: return 500, not 401
 
   if audience configured:
     reject token if audience does not match

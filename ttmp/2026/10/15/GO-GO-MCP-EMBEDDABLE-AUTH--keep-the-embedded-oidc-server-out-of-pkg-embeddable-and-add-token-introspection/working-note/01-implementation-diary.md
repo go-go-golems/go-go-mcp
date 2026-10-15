@@ -224,3 +224,58 @@ This step added RFC 7662 token introspection to the `external_oidc` mode with th
 ### Technical details
 
 - Request: `POST <introspection_endpoint>`, `Authorization: Basic base64(urlencode(id):urlencode(secret))`, body `token=…&token_type_hint=access_token`.
+
+## Step 4: Documentation
+
+This step brought the user-facing documentation in line with the code: the help pages for embedded/external OIDC and for hosted deployments, the README's authorization section, and the repository changelog.
+
+### Prompt Context
+
+**User prompt (verbatim):** see Step 1.
+
+**Assistant interpretation:** Design §8 step 4.
+
+**Inferred user intent:** Users of the library learn the new option and flags from the shipped help, not from this ticket.
+
+### What I did
+
+- `pkg/doc/topics/07-embedded-oidc.md`: the embedded server is linked through `embeddeddev`; `Provide()`/`WithOIDC(...)` replace the removed compatibility API; the programmatic example adds `embeddeddev.Provide()`; the four introspection flags; a new "Opaque access tokens and introspection" section (validation table, acceptance rules, 500-on-outage, no cache, CLI example); expiry note for embedded tokens; checklist updated.
+- `pkg/doc/topics/08-oidc-keycloak-coolify-hosted-mcp.md`: new flags in the front matter and the core-flags list; when tokens are JWTs (Keycloak) versus opaque (ZITADEL default); pseudocode with the introspection branch.
+- `README.md`: one paragraph in "HTTP authorization boundary".
+- `changelog.md`: new entry at the top.
+
+### Why
+
+- The help pages are embedded in the binary (`go-go-mcp help …`), so they are what users read.
+
+### What worked
+
+- `GOWORK=off go run ./cmd/go-go-mcp help embedded-oidc` renders the new section ("### Opaque access tokens and introspection", line 349 of the output) and the `embeddeddev.Provide()` text; `help oidc-keycloak-coolify-hosted-mcp` lists `--oidc-token-validation`.
+
+### What didn't work
+
+- No failures.
+
+### What I learned
+
+- The hosted guide still describes the smailnail/Keycloak deployment; it now states that ZITADEL needs introspection, but a ZITADEL walkthrough would be a separate document.
+
+### What was tricky to build
+
+- N/A.
+
+### What warrants a second pair of eyes
+
+- The claim in the docs that ZITADEL issues opaque tokens by default to dynamically registered clients comes from zitadel#12658; verify against the ZITADEL version in use.
+
+### What should be done in the future
+
+- Open the pull request (Step 5).
+
+### Code review instructions
+
+- Read the rendered help: `GOWORK=off go run ./cmd/go-go-mcp help embedded-oidc`.
+
+### Technical details
+
+- N/A.
