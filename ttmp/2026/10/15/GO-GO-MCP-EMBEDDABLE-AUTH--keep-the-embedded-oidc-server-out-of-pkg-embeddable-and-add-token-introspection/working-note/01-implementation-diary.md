@@ -154,3 +154,73 @@ This step moved the embedded development OIDC provider out of `pkg/embeddable` i
 ### Technical details
 
 - Error text when the mode is not linked: `auth mode embedded_dev is not linked into this program; add embeddeddev.Provide() from github.com/go-go-golems/go-go-mcp/pkg/embeddable/embeddeddev to the server options`.
+
+## Step 3: Token introspection in `external_oidc`
+
+This step added RFC 7662 token introspection to the `external_oidc` mode with three validation settings (`jwt`, `introspection`, `auto`), four `mcp start` flags, startup checks, and a distinction between "the token is invalid" (401) and "the identity provider could not answer" (500).
+
+### Prompt Context
+
+**User prompt (verbatim):** see Step 1.
+
+**Assistant interpretation:** Implement design §5.4.
+
+**Inferred user intent:** Let go-go-mcp verify opaque tokens such as those ZITADEL issues to dynamically registered MCP clients.
+
+### What I did
+
+- `pkg/embeddable/server.go`: `TokenValidation` (`jwt`, `introspection`, `auto`) and `ExternalOIDCOptions.TokenValidation`, `IntrospectionURL`, `IntrospectionClientID`, `IntrospectionClientSecret`.
+- `pkg/embeddable/auth_provider_external.go`:
+  - discovery reads `introspection_endpoint`;
+  - `configureTokenValidation` checks the mode, endpoint URL rules and credentials at startup;
+  - `validateBearerToken` dispatches, and the previous body became `validateJWT`;
+  - `introspect` posts `token` and `token_type_hint=access_token` with `client_secret_basic` (credentials form-encoded first, RFC 6749 §2.3.1), limits the body to 1 MiB, and checks `active`, `iss`, `exp` (required), `nbf`, `aud`, `token_type != refresh_token` and required scopes;
+  - `looksLikeJWS` and `isBase64URLRune`;
+  - `errAuthorizationServerUnavailable` for transport, status and decoding failures.
+- `pkg/embeddable/official_backend.go`: `officialExternalOIDCMiddleware` returns `errAuthorizationServerUnavailable` errors unwrapped (go-sdk answers 500) and logs them; other failures stay `ErrInvalidToken` (401).
+- `pkg/embeddable/command.go`: `--oidc-token-validation`, `--oidc-introspection-url`, `--oidc-introspection-client-id`, `--oidc-introspection-client-secret-file` (read and trimmed).
+- `pkg/embeddable/auth_provider_introspection_test.go`: a fake identity provider (discovery, JWKS, introspection recording Basic credentials and form) and eight tests: active token mapping; ten rejection cases; 500 and invalid JSON; `auto` routing (valid JWT and forged JWT never introspected, opaque token introspected); `looksLikeJWS`; startup checks; the HTTP middleware (204, 401, 500); flag parsing.
+- Design §5.4 gained the 500-versus-401 paragraph.
+
+### Why
+
+- Opaque tokens can only be verified by the issuer. `auto` lets one deployment accept both JWT and opaque tokens without sending JWTs, valid or forged, to the issuer.
+- A 401 makes MCP clients restart sign-in, which is the wrong reaction to an unreachable identity provider.
+
+### What worked
+
+- `GOWORK=off go test ./pkg/embeddable/ -run 'Introspection|AutoValidation|LooksLikeJWS|MCPStartIntrospection' -v` → all eight tests pass.
+- `GOWORK=off go test -race ./pkg/embeddable/ ./pkg/embeddable/embeddeddev/` → `ok`, no races.
+- `GOWORK=off go test ./...` → 7 packages `ok`, no failures; `golangci-lint run` → `0 issues.`; `make logcopter-check` clean.
+
+### What didn't work
+
+- First test draft declared a package-level `type url struct`, which collides with the `net/url` import in the package's other files (an identifier may not be declared in both the file block and the package block). Renamed to `introspectionCall` before compiling.
+- `golangci-lint run` → `pkg/embeddable/auth_provider_external.go:376:7: QF1001: could apply De Morgan's law (staticcheck)`. Replaced the negated condition with `isBase64URLRune`.
+- `gosec` is not installed locally (`which gosec` empty); CI will run whatever security scan the repository configures.
+
+### What I learned
+
+- go-jose's `jwt.NumericDate` and `jwt.Audience` decode RFC 7662 `exp`/`nbf` and string-or-array `aud` directly, so the response struct needs no custom decoding.
+
+### What was tricky to build
+
+- Where scope enforcement happens: the middleware calls `validateBearerToken(..., false)` and lets go-sdk enforce `RequiredScopes` (so the 403 carries a scope challenge), while direct `ValidateBearerToken` enforces them itself. Introspection follows the same split.
+
+### What warrants a second pair of eyes
+
+- `exp` is required in introspection responses. RFC 7662 makes it optional; go-sdk's middleware rejects tokens without an expiration anyway, so requiring it gives a precise error rather than changing behaviour.
+- No caching: one identity-provider round trip per MCP request (design §5.4).
+
+### What should be done in the future
+
+- Optional TTL cache; `private_key_jwt` client authentication; documentation (Step 4).
+
+### Code review instructions
+
+- `pkg/embeddable/auth_provider_external.go`: `configureTokenValidation`, `validateBearerToken`, `introspect`, `looksLikeJWS`.
+- `GOWORK=off go test ./pkg/embeddable/ -run Introspection -v`.
+
+### Technical details
+
+- Request: `POST <introspection_endpoint>`, `Authorization: Basic base64(urlencode(id):urlencode(secret))`, body `token=…&token_type_hint=access_token`.

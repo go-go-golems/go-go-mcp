@@ -3,6 +3,7 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -332,6 +333,12 @@ func officialExternalOIDCMiddleware(provider *externalOIDCAuthProvider, next htt
 	verifier := func(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 		principal, err := provider.validateBearerToken(ctx, token, false)
 		if err != nil {
+			if errors.Is(err, errAuthorizationServerUnavailable) {
+				// Not an answer about the token: report a server error
+				// instead of prompting the client to sign in again.
+				log.Error().Err(err).Msg("token validation could not reach the authorization server")
+				return nil, err
+			}
 			return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
 		}
 		return &mcpauth.TokenInfo{

@@ -277,6 +277,8 @@ token=<token>&token_type_hint=access_token
 
 The principal is built from `sub`, `client_id`, `iss`, `scope` and `exp`, plus `email`, `email_verified`, `preferred_username`/`username`, `name` and `picture` when the identity provider includes them (ZITADEL can include profile claims in introspection responses).
 
+**Identity provider failures.** A network error, a non-200 status or a malformed body is not an answer about the token. Such errors wrap `errAuthorizationServerUnavailable`, and the HTTP middleware returns them unwrapped, so go-sdk answers `500` instead of `401`. A `401` would tell the MCP client to sign in again, which cannot help while the identity provider is unreachable. (Added during implementation.)
+
 **`auto`.** A JWS in compact form has three base64url segments separated by dots. If the token has that shape it is verified as a JWT and is *not* sent to introspection when verification fails, so a forged JWT never reaches the identity provider. Anything else is introspected.
 
 #### Decision: no introspection cache in this change

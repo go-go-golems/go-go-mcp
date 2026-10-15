@@ -3,7 +3,9 @@ package embeddable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,15 +18,23 @@ import (
 )
 
 const (
-	defaultOIDCHTTPTimeout = 10 * time.Second
-	defaultJWKSRefresh     = 5 * time.Minute
+	defaultOIDCHTTPTimeout   = 10 * time.Second
+	defaultJWKSRefresh       = 5 * time.Minute
+	maxIntrospectionResponse = 1 << 20
 )
+
+// errAuthorizationServerUnavailable marks failures to obtain an answer from
+// the identity provider (network errors, non-200 responses, malformed bodies),
+// as opposed to an answer that the token is not valid. The HTTP middleware
+// reports these as server errors instead of asking the client to sign in again.
+var errAuthorizationServerUnavailable = errors.New("authorization server unavailable")
 
 type oidcDiscoveryDocument struct {
 	Issuer                string `json:"issuer"`
 	JWKSURI               string `json:"jwks_uri"`
 	AuthorizationEndpoint string `json:"authorization_endpoint,omitempty"`
 	TokenEndpoint         string `json:"token_endpoint,omitempty"`
+	IntrospectionEndpoint string `json:"introspection_endpoint,omitempty"`
 }
 
 type externalBearerClaims struct {
@@ -41,12 +51,34 @@ type externalBearerClaims struct {
 }
 
 type externalOIDCAuthProvider struct {
-	opts           ExternalOIDCOptions
-	resourceURL    string
-	discovery      oidcDiscoveryDocument
-	httpClient     *http.Client
-	jwks           *jwksCache
-	requiredScopes map[string]struct{}
+	opts             ExternalOIDCOptions
+	resourceURL      string
+	discovery        oidcDiscoveryDocument
+	httpClient       *http.Client
+	jwks             *jwksCache
+	requiredScopes   map[string]struct{}
+	validation       TokenValidation
+	introspectionURL string
+}
+
+// introspectionResponse is the RFC 7662 §2.2 response, plus the profile claims
+// identity providers commonly add.
+type introspectionResponse struct {
+	Active            bool             `json:"active"`
+	Scope             string           `json:"scope,omitempty"`
+	ClientID          string           `json:"client_id,omitempty"`
+	Username          string           `json:"username,omitempty"`
+	TokenType         string           `json:"token_type,omitempty"`
+	Expiry            *jwt.NumericDate `json:"exp,omitempty"`
+	NotBefore         *jwt.NumericDate `json:"nbf,omitempty"`
+	Subject           string           `json:"sub,omitempty"`
+	Audience          jwt.Audience     `json:"aud,omitempty"`
+	Issuer            string           `json:"iss,omitempty"`
+	Email             string           `json:"email,omitempty"`
+	EmailVerified     bool             `json:"email_verified,omitempty"`
+	PreferredUsername string           `json:"preferred_username,omitempty"`
+	Name              string           `json:"name,omitempty"`
+	Picture           string           `json:"picture,omitempty"`
 }
 
 type jwksCache struct {
@@ -121,8 +153,43 @@ func newExternalOIDCAuthProvider(opts AuthOptions) (*externalOIDCAuthProvider, e
 	if provider.resourceURL == "" {
 		return nil, fmt.Errorf("external oidc auth requires resource url")
 	}
+	if err := provider.configureTokenValidation(); err != nil {
+		return nil, err
+	}
 
 	return provider, nil
+}
+
+// configureTokenValidation checks the introspection settings at startup, so a
+// misconfiguration fails the server instead of every request.
+func (p *externalOIDCAuthProvider) configureTokenValidation() error {
+	p.validation = p.opts.TokenValidation
+	switch p.validation {
+	case "":
+		p.validation = TokenValidationJWT
+		return nil
+	case TokenValidationJWT:
+		return nil
+	case TokenValidationIntrospection, TokenValidationAuto:
+	default:
+		return fmt.Errorf("unsupported token validation %q (want jwt, introspection or auto)", p.validation)
+	}
+
+	endpoint := strings.TrimSpace(p.opts.IntrospectionURL)
+	if endpoint == "" {
+		endpoint = strings.TrimSpace(p.discovery.IntrospectionEndpoint)
+	}
+	if endpoint == "" {
+		return fmt.Errorf("token validation %q needs an introspection endpoint: the discovery document has none and no introspection url is set", p.validation)
+	}
+	if _, err := validateExternalOIDCEndpointURL(endpoint); err != nil {
+		return fmt.Errorf("invalid introspection url: %w", err)
+	}
+	if strings.TrimSpace(p.opts.IntrospectionClientID) == "" || p.opts.IntrospectionClientSecret == "" {
+		return fmt.Errorf("token validation %q needs an introspection client id and secret", p.validation)
+	}
+	p.introspectionURL = endpoint
+	return nil
 }
 
 func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, token string) (AuthPrincipal, error) {
@@ -130,6 +197,19 @@ func (p *externalOIDCAuthProvider) ValidateBearerToken(ctx context.Context, toke
 }
 
 func (p *externalOIDCAuthProvider) validateBearerToken(ctx context.Context, token string, enforceRequiredScopes bool) (AuthPrincipal, error) {
+	switch p.validation {
+	case TokenValidationIntrospection:
+		return p.introspect(ctx, token, enforceRequiredScopes)
+	case TokenValidationAuto:
+		if !looksLikeJWS(token) {
+			return p.introspect(ctx, token, enforceRequiredScopes)
+		}
+	case TokenValidationJWT:
+	}
+	return p.validateJWT(ctx, token, enforceRequiredScopes)
+}
+
+func (p *externalOIDCAuthProvider) validateJWT(ctx context.Context, token string, enforceRequiredScopes bool) (AuthPrincipal, error) {
 	claims, err := p.verifyToken(ctx, token, false)
 	if err != nil {
 		claims, err = p.verifyToken(ctx, token, true)
@@ -189,6 +269,125 @@ func (p *externalOIDCAuthProvider) validateBearerToken(ctx context.Context, toke
 			"picture":            claims.Picture,
 		},
 	}, nil
+}
+
+// introspect asks the identity provider about an access token (RFC 7662) and
+// applies the same issuer, audience, lifetime and scope rules as for JWTs.
+func (p *externalOIDCAuthProvider) introspect(ctx context.Context, token string, enforceRequiredScopes bool) (AuthPrincipal, error) {
+	form := url.Values{"token": {token}, "token_type_hint": {"access_token"}}
+	// #nosec G704 -- the introspection URL is validated at startup.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.introspectionURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return AuthPrincipal{}, err
+	}
+	// RFC 6749 §2.3.1: form-encode the credentials before Basic encoding.
+	req.SetBasicAuth(url.QueryEscape(p.opts.IntrospectionClientID), url.QueryEscape(p.opts.IntrospectionClientSecret))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	// #nosec G704 -- outbound call limited to the validated introspection URL.
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return AuthPrincipal{}, fmt.Errorf("%w: introspection request: %v", errAuthorizationServerUnavailable, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return AuthPrincipal{}, fmt.Errorf("%w: introspection returned status %d", errAuthorizationServerUnavailable, resp.StatusCode)
+	}
+	var r introspectionResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxIntrospectionResponse)).Decode(&r); err != nil {
+		return AuthPrincipal{}, fmt.Errorf("%w: introspection response: %v", errAuthorizationServerUnavailable, err)
+	}
+
+	if !r.Active {
+		return AuthPrincipal{}, fmt.Errorf("%w: token is not active", errUnauthorizedToken)
+	}
+	if r.Issuer != "" && normalizeURLForCompare(r.Issuer) != normalizeURLForCompare(p.discovery.Issuer) {
+		return AuthPrincipal{}, fmt.Errorf("%w: token issuer %q does not match %q", errUnauthorizedToken, r.Issuer, p.discovery.Issuer)
+	}
+	now := time.Now()
+	if r.Expiry == nil {
+		return AuthPrincipal{}, fmt.Errorf("%w: introspection response has no exp", errUnauthorizedToken)
+	}
+	if !r.Expiry.Time().After(now) {
+		return AuthPrincipal{}, fmt.Errorf("%w: token expired", errUnauthorizedToken)
+	}
+	if r.NotBefore != nil && r.NotBefore.Time().After(now) {
+		return AuthPrincipal{}, fmt.Errorf("%w: token not valid yet", errUnauthorizedToken)
+	}
+	if audience := strings.TrimSpace(p.opts.Audience); audience != "" && !r.Audience.Contains(audience) {
+		return AuthPrincipal{}, fmt.Errorf("%w: token audience does not include %q", errUnauthorizedToken, audience)
+	}
+	if r.TokenType == "refresh_token" {
+		return AuthPrincipal{}, fmt.Errorf("%w: refresh tokens are not accepted", errUnauthorizedToken)
+	}
+
+	scopeSet := parseScopeSet(r.Scope, nil)
+	if enforceRequiredScopes {
+		for scope := range p.requiredScopes {
+			if _, ok := scopeSet[scope]; !ok {
+				return AuthPrincipal{}, fmt.Errorf("%w: missing required scope %q", errUnauthorizedToken, scope)
+			}
+		}
+	}
+	typedScopes, err := ParseScopeSet(sortedScopeKeys(scopeSet))
+	if err != nil {
+		return AuthPrincipal{}, fmt.Errorf("parse introspected scopes: %w", err)
+	}
+
+	issuer := r.Issuer
+	if issuer == "" {
+		issuer = p.discovery.Issuer
+	}
+	username := r.PreferredUsername
+	if username == "" {
+		username = r.Username
+	}
+	return AuthPrincipal{
+		Subject:           r.Subject,
+		ClientID:          r.ClientID,
+		Issuer:            issuer,
+		Scopes:            typedScopes,
+		Email:             r.Email,
+		EmailVerified:     r.EmailVerified,
+		PreferredUsername: username,
+		DisplayName:       r.Name,
+		AvatarURL:         r.Picture,
+		Expiration:        r.Expiry.Time(),
+		Claims: map[string]any{
+			"email":              r.Email,
+			"email_verified":     r.EmailVerified,
+			"preferred_username": username,
+			"name":               r.Name,
+			"picture":            r.Picture,
+		},
+	}, nil
+}
+
+// looksLikeJWS reports whether token has the shape of a compact JWS: three
+// base64url segments separated by dots.
+func looksLikeJWS(token string) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" {
+		return false
+	}
+	for _, part := range parts {
+		for _, c := range part {
+			if !isBase64URLRune(c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isBase64URLRune(c rune) bool {
+	switch {
+	case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+		return true
+	default:
+		return c == '-' || c == '_'
+	}
 }
 
 func (p *externalOIDCAuthProvider) ProtectedResourceMetadata() map[string]any {

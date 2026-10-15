@@ -268,11 +268,36 @@ type EmbeddedOIDCOptions struct {
 	Pass string
 }
 
+// TokenValidation selects how external_oidc verifies access tokens.
+type TokenValidation string
+
+const (
+	// TokenValidationJWT verifies JWT access tokens locally against the
+	// issuer's JWKS. It is the default.
+	TokenValidationJWT TokenValidation = "jwt"
+	// TokenValidationIntrospection asks the issuer's introspection endpoint
+	// (RFC 7662) about every token. Use it for opaque access tokens.
+	TokenValidationIntrospection TokenValidation = "introspection"
+	// TokenValidationAuto verifies tokens shaped like a JWS locally and
+	// introspects all others. A JWS that fails verification is rejected
+	// without being sent to the issuer.
+	TokenValidationAuto TokenValidation = "auto"
+)
+
 type ExternalOIDCOptions struct {
 	IssuerURL      string
 	DiscoveryURL   string
 	Audience       string
 	RequiredScopes []string
+
+	// TokenValidation defaults to TokenValidationJWT.
+	TokenValidation TokenValidation
+	// IntrospectionURL overrides the discovery document's introspection_endpoint.
+	IntrospectionURL string
+	// IntrospectionClientID and IntrospectionClientSecret authenticate this
+	// resource server to the introspection endpoint (client_secret_basic).
+	IntrospectionClientID     string
+	IntrospectionClientSecret string
 }
 
 type AuthOptions struct {
