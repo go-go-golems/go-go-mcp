@@ -422,15 +422,15 @@ Codex reviewed PR #89 and raised one P1 finding: the introspection check rejecte
 
 ### What worked
 
-- With the old check restored temporarily, the new cases fail:
+- With the old check restored temporarily, all six new cases fail, each with `ValidateBearerToken() error = <nil>, want errUnauthorizedToken` (a first run piped through `head -10` hid the sixth; a full run listed all of them):
 
   ```text
-  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/refresh_token_mixed_case
-  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/missing_token_type
   --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/DPoP_token
-  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/keycloak_offline_typ
   --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/keycloak_refresh_typ
-      auth_provider_introspection_test.go:227: ValidateBearerToken() error = <nil>, want errUnauthorizedToken
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/keycloak_offline_typ
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/missing_token_type
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/N_A_token_type
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/refresh_token_mixed_case
   ```
 
   With the fix they pass.
