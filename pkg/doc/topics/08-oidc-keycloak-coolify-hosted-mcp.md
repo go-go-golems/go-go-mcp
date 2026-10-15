@@ -25,6 +25,7 @@ Flags:
 - oidc-introspection-url
 - oidc-introspection-client-id
 - oidc-introspection-client-secret-file
+- oidc-introspection-allow-missing-token-type
 IsTemplate: false
 IsTopLevel: false
 ShowPerDefault: true

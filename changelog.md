@@ -5,6 +5,7 @@ Made `pkg/embeddable` a light dependency and taught `external_oidc` to verify op
 - `embeddable.WithAuthModeProvider` links an auth mode's implementation; `embeddable.WithOIDC` and the `OIDCOptions` alias were removed
 - `embedded_dev` tokens now carry an expiration (they were rejected with `401 token missing expiration`)
 - `external_oidc` gains `--oidc-token-validation jwt|introspection|auto` and introspection client flags (RFC 7662, `client_secret_basic`)
+- introspected tokens must be bearer access tokens (`token_type: Bearer`, case-insensitive); responses without `token_type` are rejected unless `--oidc-introspection-allow-missing-token-type` is set
 - issuer outages during token validation answer `500` instead of `401`
 - `BearerChallenge` and `ProtectedResourceMetadataURL` are exported for custom verifiers
 

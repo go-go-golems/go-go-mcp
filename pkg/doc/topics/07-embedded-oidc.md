@@ -168,6 +168,7 @@ When you add the embeddable server to your Cobra app, the generated `mcp start` 
 - `--oidc-introspection-url` (string): override for the issuer's `introspection_endpoint`
 - `--oidc-introspection-client-id` (string): client ID used to authenticate to the introspection endpoint
 - `--oidc-introspection-client-secret-file` (path): file holding that client's secret
+- `--oidc-introspection-allow-missing-token-type` (bool): accept introspection responses without `token_type`; only for issuers that never report refresh tokens as active
 - `--embedded-issuer` (string): issuer base URL for `embedded_dev`
 - `--embedded-db` (string): SQLite DB path for `embedded_dev`
 - `--embedded-dev-tokens` (bool): accept DB tokens for embedded dev mode
@@ -299,7 +300,9 @@ Some issuers hand out opaque access tokens: random strings that carry no claims.
 
 Introspection needs an endpoint (`introspection_endpoint` from discovery, or `IntrospectionURL`) and the client ID and secret of this resource server, registered at the issuer as an API or resource-server client. The server authenticates with HTTP Basic (`client_secret_basic`). Settings are checked at startup.
 
-An introspected token is accepted when the response says `active: true`, has an `exp` in the future, an `iss` equal to the configured issuer (when present), an `aud` containing the configured audience (when one is configured), a `token_type` other than `refresh_token`, and every required scope in `scope`. `sub`, `client_id`, `scope`, `exp` and the profile claims `email`, `email_verified`, `preferred_username`/`username`, `name` and `picture` populate the `AuthPrincipal`.
+An introspected token is accepted when the response says `active: true`, has an `exp` in the future, an `iss` equal to the configured issuer (when present), an `aud` containing the configured audience (when one is configured), `token_type` equal to `Bearer` (case-insensitive), and every required scope in `scope`.
+
+The token type is checked positively because an introspection endpoint may report an active refresh token, and `token_type_hint=access_token` in the request is only a lookup hint. A response without `token_type` is therefore rejected by default; set `IntrospectionAllowMissingTokenType` (`--oidc-introspection-allow-missing-token-type`) only for issuers that never report refresh tokens as active. A Keycloak-style `typ` claim other than `Bearer` (`Refresh`, `Offline`) is rejected in either case, and DPoP-bound tokens are rejected because their proofs are not verified. ZITADEL documents `token_type` as always `Bearer`. `sub`, `client_id`, `scope`, `exp` and the profile claims `email`, `email_verified`, `preferred_username`/`username`, `name` and `picture` populate the `AuthPrincipal`.
 
 When the issuer cannot answer (network error, non-200 status, malformed body), `/mcp` responds `500` rather than `401`, so clients do not restart sign-in during an outage. There is no cache: each MCP request costs one introspection call, and revocation at the issuer takes effect immediately.
 

@@ -386,3 +386,80 @@ A project report for the Obsidian vault (go-go-parc) explains the three changes 
 ### Technical details
 
 - Vault commit: `5529b84`.
+
+## Step 7: Review fix: accept only bearer access tokens from introspection
+
+Codex reviewed PR #89 and raised one P1 finding: the introspection check rejected refresh tokens only when the issuer wrote the literal `token_type: refresh_token`. RFC 7662 makes `token_type` optional, and `token_type_hint=access_token` is only a lookup hint, so an issuer could report an active refresh token without a type, and if it carried the audience and scopes it would be accepted as an access token. The finding is correct. The check is now an allowlist: the response must positively identify a bearer access token.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Address code review comment: https://github.com/go-go-golems/go-go-mcp/pull/89"
+
+**Assistant interpretation:** Fix the review finding on PR #89, with tests, and answer the comment.
+
+**Inferred user intent:** Merge-ready PR without a token-confusion hole.
+
+### What I did
+
+- Read the review: one inline comment (id 4289358470) on `pkg/embeddable/auth_provider_external.go:321` from `chatgpt-codex-connector[bot]`, "Reject refresh tokens without relying on token_type".
+- Checked what the main target returns: `zitadel/oidc/v3@v3.47.8` leaves the response fields to the server's storage (`pkg/op/token_intospection.go`), and ZITADEL's documentation states `token_type` is always `Bearer` in introspection responses. An allowlist therefore does not break ZITADEL.
+- `auth_provider_external.go`: replaced the `refresh_token` comparison with `checkIntrospectedTokenType`:
+  - `token_type` must equal `Bearer` case-insensitively (RFC 6749 §5.1);
+  - a missing `token_type` is rejected unless `IntrospectionAllowMissingTokenType` is set;
+  - a Keycloak-style `typ` other than `Bearer` is rejected even with that opt-out;
+  - DPoP is rejected because proofs are not verified.
+- `server.go`: `ExternalOIDCOptions.IntrospectionAllowMissingTokenType`. `command.go`: `--oidc-introspection-allow-missing-token-type`.
+- Tests:
+  - new rejection cases: missing `token_type` (the review scenario), `Refresh_Token`, `DPoP`, `N_A`, Keycloak `typ` `Refresh` and `Offline`;
+  - lowercase `bearer` is accepted;
+  - a new test shows the opt-out accepts a missing type but still rejects `typ: Refresh` and an explicit `refresh_token`;
+  - the flag test covers the new flag.
+- Docs: design §5.4 rule 6, help page 07 (rule, rationale and flag), help page 08 front matter, changelog.
+
+### Why
+
+- A denylist of one optional literal cannot fail closed. The only signals RFC 7662 responses offer are `token_type` and, for Keycloak, `typ`; requiring a positive bearer type is the reliable discriminator, and an explicit opt-out keeps issuers that omit the field usable, with the risk named in the flag's help.
+
+### What worked
+
+- With the old check restored temporarily, the new cases fail:
+
+  ```text
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/refresh_token_mixed_case
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/missing_token_type
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/DPoP_token
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/keycloak_offline_typ
+  --- FAIL: TestIntrospectionRejectsTokensItMustNotAccept/keycloak_refresh_typ
+      auth_provider_introspection_test.go:227: ValidateBearerToken() error = <nil>, want errUnauthorizedToken
+  ```
+
+  With the fix they pass.
+- `GOWORK=off go test ./...` → 7 packages `ok`; `go test -race ./pkg/embeddable/` → `ok`; `golangci-lint run` → `0 issues.`; `make logcopter-check` clean.
+
+### What didn't work
+
+- `gofmt -l` flagged the edited test file (map literal alignment after adding longer keys); `gofmt -w` fixed it.
+
+### What I learned
+
+- ZITADEL's introspection `active` is also false when the calling client is not in the token's audience, which binds tokens to the resource server independently of the `aud` check here.
+
+### What was tricky to build
+
+- Keeping the opt-out narrow: it relaxes only the missing-field case; explicit non-bearer types and Keycloak refresh `typ` values stay rejected.
+
+### What warrants a second pair of eyes
+
+- Whether Keycloak's introspection responses include `token_type`; if not, Keycloak deployments using introspection need the opt-out (its `typ` check still protects them).
+
+### What should be done in the future
+
+- Verify against a live ZITADEL and Keycloak introspection response.
+
+### Code review instructions
+
+- `checkIntrospectedTokenType` in `pkg/embeddable/auth_provider_external.go`; `GOWORK=off go test ./pkg/embeddable/ -run Introspection -v`.
+
+### Technical details
+
+- Review comment: https://github.com/go-go-golems/go-go-mcp/pull/89#discussion_r4289358470

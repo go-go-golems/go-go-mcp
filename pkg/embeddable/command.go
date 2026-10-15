@@ -66,6 +66,7 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().String("oidc-introspection-url", config.authOptions.External.IntrospectionURL, "Override for the issuer's introspection_endpoint")
 	startCmd.Flags().String("oidc-introspection-client-id", config.authOptions.External.IntrospectionClientID, "Client ID this server uses to authenticate to the introspection endpoint")
 	startCmd.Flags().String("oidc-introspection-client-secret-file", "", "File containing the client secret for the introspection endpoint")
+	startCmd.Flags().Bool("oidc-introspection-allow-missing-token-type", config.authOptions.External.IntrospectionAllowMissingTokenType, "Accept introspection responses without token_type (only for issuers that never report refresh tokens as active)")
 
 	// Legacy embedded OIDC flags, kept for compatibility.
 	startCmd.Flags().Bool("oidc", config.authEnabled && config.authOptions.Mode == AuthModeEmbeddedDev, "Enable embedded OIDC and protect HTTP endpoints")
@@ -193,6 +194,7 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	introspectionURL, _ := cmd.Flags().GetString("oidc-introspection-url")
 	introspectionClientID, _ := cmd.Flags().GetString("oidc-introspection-client-id")
 	introspectionSecretFile, _ := cmd.Flags().GetString("oidc-introspection-client-secret-file")
+	introspectionAllowMissingTokenType, _ := cmd.Flags().GetBool("oidc-introspection-allow-missing-token-type")
 
 	embeddedIssuer, _ := cmd.Flags().GetString("embedded-issuer")
 	embeddedDB, _ := cmd.Flags().GetString("embedded-db")
@@ -239,6 +241,7 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	config.authOptions.External.TokenValidation = TokenValidation(tokenValidation)
 	config.authOptions.External.IntrospectionURL = introspectionURL
 	config.authOptions.External.IntrospectionClientID = introspectionClientID
+	config.authOptions.External.IntrospectionAllowMissingTokenType = introspectionAllowMissingTokenType
 	if introspectionSecretFile != "" {
 		// #nosec G304 -- the operator names the secret file on the command line.
 		secret, err := os.ReadFile(introspectionSecretFile)

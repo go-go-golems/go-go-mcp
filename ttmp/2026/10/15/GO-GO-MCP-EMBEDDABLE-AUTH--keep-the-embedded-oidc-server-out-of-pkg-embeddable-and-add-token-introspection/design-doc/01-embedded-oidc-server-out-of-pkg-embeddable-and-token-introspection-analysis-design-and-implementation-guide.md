@@ -272,7 +272,7 @@ token=<token>&token_type_hint=access_token
 3. `exp` must be present and in the future. (The go-sdk middleware would reject a missing expiration anyway; checking here gives a precise error.)
 4. If `nbf` is present it must not be in the future.
 5. If an audience is configured, `aud` (a string or an array) must contain it.
-6. If `token_type` is present it must not be `refresh_token`.
+6. The response must identify a bearer access token: `token_type` must equal `Bearer`, compared case-insensitively (RFC 6749 §5.1). A missing `token_type` is rejected unless `IntrospectionAllowMissingTokenType` is set, because the request's `token_type_hint=access_token` is only a lookup hint and an issuer may report an active refresh token without a type. A Keycloak-style `typ` other than `Bearer` (`Refresh`, `Offline`) is rejected even with the opt-out. DPoP-bound tokens are rejected because DPoP proofs are not verified. (Revised after review on PR #89; the first version only rejected the literal `refresh_token`.)
 7. Required scopes are checked against `scope` (space-separated), exactly as for JWTs.
 
 The principal is built from `sub`, `client_id`, `iss`, `scope` and `exp`, plus `email`, `email_verified`, `preferred_username`/`username`, `name` and `picture` when the identity provider includes them (ZITADEL can include profile claims in introspection responses).

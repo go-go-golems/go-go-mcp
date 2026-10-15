@@ -69,6 +69,7 @@ type introspectionResponse struct {
 	ClientID          string           `json:"client_id,omitempty"`
 	Username          string           `json:"username,omitempty"`
 	TokenType         string           `json:"token_type,omitempty"`
+	Typ               string           `json:"typ,omitempty"` // Keycloak: Bearer, Refresh, Offline, ID
 	Expiry            *jwt.NumericDate `json:"exp,omitempty"`
 	NotBefore         *jwt.NumericDate `json:"nbf,omitempty"`
 	Subject           string           `json:"sub,omitempty"`
@@ -318,8 +319,8 @@ func (p *externalOIDCAuthProvider) introspect(ctx context.Context, token string,
 	if audience := strings.TrimSpace(p.opts.Audience); audience != "" && !r.Audience.Contains(audience) {
 		return AuthPrincipal{}, fmt.Errorf("%w: token audience does not include %q", errUnauthorizedToken, audience)
 	}
-	if r.TokenType == "refresh_token" {
-		return AuthPrincipal{}, fmt.Errorf("%w: refresh tokens are not accepted", errUnauthorizedToken)
+	if err := p.checkIntrospectedTokenType(r); err != nil {
+		return AuthPrincipal{}, err
 	}
 
 	scopeSet := parseScopeSet(r.Scope, nil)
@@ -362,6 +363,27 @@ func (p *externalOIDCAuthProvider) introspect(ctx context.Context, token string,
 			"picture":            r.Picture,
 		},
 	}, nil
+}
+
+// checkIntrospectedTokenType accepts only bearer access tokens. An
+// introspection endpoint may report refresh tokens as active, and the
+// token_type_hint in the request is only a lookup hint, so the response must
+// positively identify an access token. RFC 6749 §5.1 token types are
+// case-insensitive. DPoP-bound tokens are rejected because this server does
+// not verify DPoP proofs.
+func (p *externalOIDCAuthProvider) checkIntrospectedTokenType(r introspectionResponse) error {
+	if r.Typ != "" && !strings.EqualFold(r.Typ, "Bearer") {
+		return fmt.Errorf("%w: introspected typ %q is not an access token", errUnauthorizedToken, r.Typ)
+	}
+	switch {
+	case r.TokenType == "":
+		if !p.opts.IntrospectionAllowMissingTokenType {
+			return fmt.Errorf("%w: introspection response has no token_type, so an access token cannot be told from a refresh token", errUnauthorizedToken)
+		}
+	case !strings.EqualFold(r.TokenType, "Bearer"):
+		return fmt.Errorf("%w: token_type %q is not a bearer access token", errUnauthorizedToken, r.TokenType)
+	}
+	return nil
 }
 
 // looksLikeJWS reports whether token has the shape of a compact JWS: three

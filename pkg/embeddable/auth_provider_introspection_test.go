@@ -197,16 +197,24 @@ func TestIntrospectionRejectsTokensItMustNotAccept(t *testing.T) {
 	}
 
 	cases := map[string]map[string]any{
-		"inactive":        {"active": false},
-		"wrong issuer":    f.activeResponse(map[string]any{"iss": "https://evil.example.com"}),
-		"expired":         f.activeResponse(map[string]any{"exp": time.Now().Add(-time.Minute).Unix()}),
-		"missing exp":     f.activeResponse(map[string]any{"exp": nil}),
-		"not yet valid":   f.activeResponse(map[string]any{"nbf": time.Now().Add(time.Hour).Unix()}),
-		"wrong audience":  f.activeResponse(map[string]any{"aud": "someone-else"}),
-		"refresh token":   f.activeResponse(map[string]any{"token_type": "refresh_token"}),
-		"missing scope":   f.activeResponse(map[string]any{"scope": "openid"}),
-		"unknown token":   nil,
-		"string aud fail": f.activeResponse(map[string]any{"aud": "other"}),
+		"inactive":       {"active": false},
+		"wrong issuer":   f.activeResponse(map[string]any{"iss": "https://evil.example.com"}),
+		"expired":        f.activeResponse(map[string]any{"exp": time.Now().Add(-time.Minute).Unix()}),
+		"missing exp":    f.activeResponse(map[string]any{"exp": nil}),
+		"not yet valid":  f.activeResponse(map[string]any{"nbf": time.Now().Add(time.Hour).Unix()}),
+		"wrong audience": f.activeResponse(map[string]any{"aud": "someone-else"}),
+		"refresh token":  f.activeResponse(map[string]any{"token_type": "refresh_token"}),
+		// The review case: an active refresh token whose response omits
+		// token_type but carries the audience and scopes.
+		"missing token_type":       f.activeResponse(map[string]any{"token_type": nil}),
+		"refresh token mixed case": f.activeResponse(map[string]any{"token_type": "Refresh_Token"}),
+		"DPoP token":               f.activeResponse(map[string]any{"token_type": "DPoP"}),
+		"N_A token type":           f.activeResponse(map[string]any{"token_type": "N_A"}),
+		"keycloak refresh typ":     f.activeResponse(map[string]any{"typ": "Refresh"}),
+		"keycloak offline typ":     f.activeResponse(map[string]any{"typ": "Offline"}),
+		"missing scope":            f.activeResponse(map[string]any{"scope": "openid"}),
+		"unknown token":            nil,
+		"string aud fail":          f.activeResponse(map[string]any{"aud": "other"}),
 	}
 	for name, resp := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -221,12 +229,43 @@ func TestIntrospectionRejectsTokensItMustNotAccept(t *testing.T) {
 		})
 	}
 
+	t.Run("bearer accepted case-insensitively", func(t *testing.T) {
+		f.responses["tok-lower-bearer"] = f.activeResponse(map[string]any{"token_type": "bearer", "typ": "Bearer"})
+		if _, err := provider.ValidateBearerToken(context.Background(), "tok-lower-bearer"); err != nil {
+			t.Fatalf("ValidateBearerToken() error = %v", err)
+		}
+	})
+
 	t.Run("single string audience accepted", func(t *testing.T) {
 		f.responses["tok-string-aud"] = f.activeResponse(map[string]any{"aud": "mcp-resource"})
 		if _, err := provider.ValidateBearerToken(context.Background(), "tok-string-aud"); err != nil {
 			t.Fatalf("ValidateBearerToken() error = %v", err)
 		}
 	})
+}
+
+func TestIntrospectionAllowMissingTokenTypeStillRejectsRefreshTyp(t *testing.T) {
+	_, publicJWK := generateTestJWK(t)
+	f := newFakeIntrospectionServer(t, publicJWK)
+	opts := introspectionOptions(f, TokenValidationIntrospection)
+	opts.External.IntrospectionAllowMissingTokenType = true
+	provider, err := newExternalOIDCAuthProvider(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f.responses["no-type"] = f.activeResponse(map[string]any{"token_type": nil})
+	if _, err := provider.ValidateBearerToken(context.Background(), "no-type"); err != nil {
+		t.Fatalf("missing token_type with opt-out: error = %v", err)
+	}
+	f.responses["no-type-refresh"] = f.activeResponse(map[string]any{"token_type": nil, "typ": "Refresh"})
+	if _, err := provider.ValidateBearerToken(context.Background(), "no-type-refresh"); !errors.Is(err, errUnauthorizedToken) {
+		t.Fatalf("refresh typ with opt-out: error = %v, want errUnauthorizedToken", err)
+	}
+	f.responses["explicit-refresh"] = f.activeResponse(map[string]any{"token_type": "refresh_token"})
+	if _, err := provider.ValidateBearerToken(context.Background(), "explicit-refresh"); !errors.Is(err, errUnauthorizedToken) {
+		t.Fatalf("explicit refresh token_type with opt-out: error = %v, want errUnauthorizedToken", err)
+	}
 }
 
 func TestIntrospectionReportsAuthorizationServerFailures(t *testing.T) {
@@ -405,13 +444,15 @@ func TestMCPStartIntrospectionFlags(t *testing.T) {
 		"--oidc-introspection-url", "https://idp.example.com/oauth/v2/introspect",
 		"--oidc-introspection-client-id", "mcp-resource",
 		"--oidc-introspection-client-secret-file", secretFile,
+		"--oidc-introspection-allow-missing-token-type",
 	})
 	if err := cmd.Execute(); !errors.Is(err, stop) {
 		t.Fatalf("Execute() error = %v, want %v", err, stop)
 	}
 	ext := cfg.authOptions.External
 	if ext.TokenValidation != TokenValidationAuto || ext.IntrospectionURL != "https://idp.example.com/oauth/v2/introspect" ||
-		ext.IntrospectionClientID != "mcp-resource" || ext.IntrospectionClientSecret != "from-file" {
+		ext.IntrospectionClientID != "mcp-resource" || ext.IntrospectionClientSecret != "from-file" ||
+		!ext.IntrospectionAllowMissingTokenType {
 		t.Fatalf("introspection flags not applied: %+v", ext)
 	}
 }

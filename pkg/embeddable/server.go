@@ -298,6 +298,11 @@ type ExternalOIDCOptions struct {
 	// resource server to the introspection endpoint (client_secret_basic).
 	IntrospectionClientID     string
 	IntrospectionClientSecret string
+	// IntrospectionAllowMissingTokenType accepts introspection responses
+	// without token_type. By default they are rejected, because without it an
+	// access token cannot be told from a refresh token. Enable it only for
+	// issuers that never report refresh tokens as active.
+	IntrospectionAllowMissingTokenType bool
 }
 
 type AuthOptions struct {
