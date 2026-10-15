@@ -333,3 +333,56 @@ The branch was pushed to the `wesen` fork, following the most recent merged pull
 ### Technical details
 
 - Branch: `task/embeddable-auth-introspection`; worktree `/home/manuel/workspaces/2026-10-15/embeddable-auth-introspection/go-go-mcp`.
+
+## Step 6: Vault report
+
+A project report for the Obsidian vault (go-go-parc) explains the three changes as a technical deep dive: concepts, the measurements and the bug, the request path before and after, the seam, the expiry fix, introspection, verification, failures and open work.
+
+### Prompt Context
+
+**User prompt (verbatim):** see Step 1 ("Write a report for the vault when done with the go-go-mcp changes.").
+
+**Assistant interpretation:** Write a durable project note in go-go-parc and commit and push it.
+
+**Inferred user intent:** Keep the reasoning and results findable outside this repository.
+
+### What I did
+
+- Wrote `/home/manuel/code/wesen/go-go-golems/go-go-parc/Projects/2026/10/15/PROJECT REPORT - go-go-mcp Embeddable Auth - Linking the Embedded OIDC Server on Request and Verifying Opaque Tokens - A Technical Deep Dive.md` (front matter with repo, worktree, ticket, branch, PR; two Mermaid diagrams; links to the Francois reports).
+- Staged only that file; vault commit `5529b84`, pushed.
+
+### Why
+
+- The vault's convention for finished engineering work is a `PROJECT REPORT - …` note in the day's folder.
+
+### What worked
+
+- Commit and push succeeded; the vault working tree was otherwise clean.
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- N/A.
+
+### What was tricky to build
+
+- N/A.
+
+### What warrants a second pair of eyes
+
+- N/A.
+
+### What should be done in the future
+
+- Update the report's status line when PR #89 merges.
+
+### Code review instructions
+
+- N/A.
+
+### Technical details
+
+- Vault commit: `5529b84`.

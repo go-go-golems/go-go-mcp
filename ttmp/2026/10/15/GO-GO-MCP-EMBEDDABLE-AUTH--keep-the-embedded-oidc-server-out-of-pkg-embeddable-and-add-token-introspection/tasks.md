@@ -6,4 +6,4 @@
 - [x] Add token introspection (jwt|introspection|auto) to external_oidc with flags and tests <!-- t:pbek -->
 - [x] Update embedded/hosted OIDC docs and the embeddable README <!-- t:67jm -->
 - [x] Open the pull request <!-- t:jut5 -->
-- [ ] Write the vault report <!-- t:7ppw -->
+- [x] Write the vault report <!-- t:7ppw -->
