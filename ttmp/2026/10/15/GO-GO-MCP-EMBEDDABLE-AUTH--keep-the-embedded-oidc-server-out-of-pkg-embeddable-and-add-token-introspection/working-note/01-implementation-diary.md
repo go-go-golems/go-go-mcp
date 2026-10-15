@@ -279,3 +279,57 @@ This step brought the user-facing documentation in line with the code: the help 
 ### Technical details
 
 - N/A.
+
+## Step 5: Pull request
+
+The branch was pushed to the `wesen` fork, following the most recent merged pull request (#88, `wesen:task/add-plot-editor`), and opened against `go-go-golems/go-go-mcp`.
+
+### Prompt Context
+
+**User prompt (verbatim):** see Step 1.
+
+**Assistant interpretation:** Open the pull request for the go-go-mcp changes.
+
+**Inferred user intent:** Review and merge through the usual GitHub flow.
+
+### What I did
+
+- Checked remotes (`origin` = go-go-golems, `wesen` = fork) and that no git hooks are installed (`.git/hooks` has only samples, so lefthook's pre-push `make goreleaser` does not run).
+- `git push -u wesen task/embeddable-auth-introspection`.
+- `gh pr create --repo go-go-golems/go-go-mcp --base main --head wesen:task/embeddable-auth-introspection …` → https://github.com/go-go-golems/go-go-mcp/pull/89. The body lists the measurement, the bug, the introspection rules, breaking changes, validation and follow-ups.
+
+### Why
+
+- Fork-based pull requests match the latest merged PR in this repository.
+
+### What worked
+
+- Push and PR creation succeeded on the first attempt.
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- N/A.
+
+### What was tricky to build
+
+- N/A.
+
+### What warrants a second pair of eyes
+
+- The breaking-change list in the PR body.
+
+### What should be done in the future
+
+- Watch CI; write the vault report.
+
+### Code review instructions
+
+- Review commits in order: `db0cc5d` (ticket), `83d18b8` (embeddeddev), `84388d1` (introspection), `34c6555` (docs).
+
+### Technical details
+
+- Branch: `task/embeddable-auth-introspection`; worktree `/home/manuel/workspaces/2026-10-15/embeddable-auth-introspection/go-go-mcp`.
