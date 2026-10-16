@@ -51,6 +51,7 @@ type ServerConfig struct {
 	authEnabled        bool
 	authOptions        AuthOptions
 	customAuthVerifier HTTPAuthVerifier
+	authModeProviders  map[AuthMode]AuthModeProvider
 }
 
 // ToolMiddleware is a function that wraps a ToolHandler
@@ -83,6 +84,7 @@ func NewServerConfig() *ServerConfig {
 		streamableHTTPJSONResponse: false,
 		enableConfig:               false,
 		sessionStore:               session.NewInMemorySessionStore(),
+		authModeProviders:          map[AuthMode]AuthModeProvider{},
 	}
 }
 
@@ -255,9 +257,6 @@ const (
 	AuthModeExternalOIDC AuthMode = "external_oidc"
 )
 
-// OIDCOptions is kept as a compatibility alias for the legacy embedded-only API.
-type OIDCOptions = EmbeddedOIDCOptions
-
 type EmbeddedOIDCOptions struct {
 	Issuer          string
 	DBPath          string
@@ -269,11 +268,41 @@ type EmbeddedOIDCOptions struct {
 	Pass string
 }
 
+// TokenValidation selects how external_oidc verifies access tokens.
+type TokenValidation string
+
+const (
+	// TokenValidationJWT verifies JWT access tokens locally against the
+	// issuer's JWKS. It is the default.
+	TokenValidationJWT TokenValidation = "jwt"
+	// TokenValidationIntrospection asks the issuer's introspection endpoint
+	// (RFC 7662) about every token. Use it for opaque access tokens.
+	TokenValidationIntrospection TokenValidation = "introspection"
+	// TokenValidationAuto verifies tokens shaped like a JWS locally and
+	// introspects all others. A JWS that fails verification is rejected
+	// without being sent to the issuer.
+	TokenValidationAuto TokenValidation = "auto"
+)
+
 type ExternalOIDCOptions struct {
 	IssuerURL      string
 	DiscoveryURL   string
 	Audience       string
 	RequiredScopes []string
+
+	// TokenValidation defaults to TokenValidationJWT.
+	TokenValidation TokenValidation
+	// IntrospectionURL overrides the discovery document's introspection_endpoint.
+	IntrospectionURL string
+	// IntrospectionClientID and IntrospectionClientSecret authenticate this
+	// resource server to the introspection endpoint (client_secret_basic).
+	IntrospectionClientID     string
+	IntrospectionClientSecret string
+	// IntrospectionAllowMissingTokenType accepts introspection responses
+	// without token_type. By default they are rejected, because without it an
+	// access token cannot be told from a refresh token. Enable it only for
+	// issuers that never report refresh tokens as active.
+	IntrospectionAllowMissingTokenType bool
 }
 
 type AuthOptions struct {
@@ -329,11 +358,24 @@ func WithHTTPAuthVerifier(verifier HTTPAuthVerifier) ServerOption {
 	}
 }
 
-func WithOIDC(opts OIDCOptions) ServerOption {
-	return WithAuth(AuthOptions{
-		Mode:     AuthModeEmbeddedDev,
-		Embedded: opts,
-	})
+// WithAuthModeProvider links the implementation of an auth mode into this
+// server. Modes whose implementation carries heavy dependencies (embedded_dev)
+// are provided this way so that only programs that use them link them; see
+// package embeddeddev. A provider for a built-in mode replaces the built-in.
+func WithAuthModeProvider(mode AuthMode, provider AuthModeProvider) ServerOption {
+	return func(config *ServerConfig) error {
+		if mode == "" || mode == AuthModeNone {
+			return fmt.Errorf("an auth mode name is required")
+		}
+		if provider == nil {
+			return fmt.Errorf("auth mode %s: provider is required", mode)
+		}
+		if config.authModeProviders == nil {
+			config.authModeProviders = map[AuthMode]AuthModeProvider{}
+		}
+		config.authModeProviders[mode] = provider
+		return nil
+	}
 }
 
 func WithCommandCustomizer(customizer CommandCustomizer) ServerOption {

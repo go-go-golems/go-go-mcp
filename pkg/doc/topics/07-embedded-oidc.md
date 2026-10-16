@@ -20,7 +20,7 @@ SectionType: GeneralTopic
 This document explains how HTTP auth works in `go-go-mcp` for SSE and streamable HTTP transports. There are now two supported auth modes:
 
 - `embedded_dev`: the built-in OIDC server runs in-process and shares a mux with the MCP resource
-- `external_oidc`: `go-go-mcp` trusts an external issuer such as Keycloak and validates bearer JWTs against discovery and JWKS metadata
+- `external_oidc`: `go-go-mcp` trusts an external issuer such as Keycloak or ZITADEL and validates bearer tokens: JWTs locally against discovery and JWKS metadata, opaque tokens through the issuer's introspection endpoint (RFC 7662)
 
 The embedded integration is still first-class and runs in-process: the OIDC Authorization Server (AS) and the MCP resource live on the same port and share a single HTTP mux. The external mode keeps the same protected-resource behavior but removes the requirement that `go-go-mcp` itself be the issuer.
 
@@ -35,6 +35,7 @@ The embedded OIDC implementation is composed of two pieces:
 - `pkg/auth/oidc`: A self‑contained OIDC/OAuth 2.1 server based on Fosite.
   - Routes: discovery, AS metadata, JWKS, login, authorize, token, dynamic client registration.
   - Optional SQLite persistence for registered clients, signing keys (JWKS), dev tokens, and tool‑call logs.
+  - Linked into a program only through package `pkg/embeddable/embeddeddev`. `pkg/embeddable` does not import it, so programs that never use `embedded_dev` do not compile Fosite, SQLite, gRPC or the tracing exporters those bring.
 - `pkg/embeddable` HTTP backends: SSE and streamable HTTP.
   - Mount OIDC routes and the MCP endpoints on the same `http.ServeMux`.
   - Wrap `/mcp` with a Bearer middleware that validates tokens via OIDC introspection (plus optional dev helpers).
@@ -57,7 +58,7 @@ The Bearer middleware enforces `Authorization: Bearer <access_token>` on `/mcp` 
 
 ### Token Verification
 
-- The Bearer middleware calls the embedded OIDC server to introspect opaque access tokens (Fosite `IntrospectToken`).
+- The Bearer middleware calls the embedded OIDC server to introspect opaque access tokens (Fosite `IntrospectToken`). The token's expiry is passed on, because go-sdk's bearer middleware rejects tokens without one.
 - On success, it injects the authenticated `subject` and `client_id` into request headers (`X-MCP-Subject`, `X-MCP-Client-ID`) for downstream processing.
 - On failure, a `401 Unauthorized` is returned with a populated `WWW-Authenticate` header. The OIDC endpoints remain public.
 
@@ -79,7 +80,7 @@ If `DBPath` is set, the OIDC server persists:
 
 ## Enabling Auth
 
-The embeddable API now exposes an explicit auth model. `WithOIDC(...)` is still supported as a compatibility wrapper for the embedded path, but new code should prefer `WithAuth(...)`.
+The embeddable API exposes an explicit auth model through `WithAuth(...)`.
 
 ```go
 type AuthMode string
@@ -111,31 +112,28 @@ type ExternalOIDCOptions struct {
     DiscoveryURL   string
     Audience       string
     RequiredScopes []string
+
+    TokenValidation           TokenValidation // jwt (default), introspection, auto
+    IntrospectionURL          string          // default: discovery introspection_endpoint
+    IntrospectionClientID     string
+    IntrospectionClientSecret string
 }
 
 func WithAuth(opts AuthOptions) ServerOption
-func WithOIDC(opts OIDCOptions) ServerOption // compatibility wrapper to embedded_dev
 ```
 
 ## Enabling Embedded OIDC
 
-The compatibility API is still available and keeps the old embedded behavior:
+The embedded server is linked only into programs that ask for it. Package `github.com/go-go-golems/go-go-mcp/pkg/embeddable/embeddeddev` provides two options:
 
 ```go
-// OIDC options
-type OIDCOptions struct {
-    Issuer          string // e.g. https://myapp.example.com
-    DBPath          string // SQLite path for OIDC persistence (optional)
-    EnableDevTokens bool   // Accept DB tokens for dev (optional; default: false)
-    AuthKey         string // Static bearer token for dev (optional; default: empty)
-    User            string // Static login user (dev only; ignored if custom authenticator)
-    Pass            string // Static login password (dev only; ignored if custom authenticator)
-}
-
-func WithOIDC(opts OIDCOptions) ServerOption
+// Provide links the embedded server, so --auth-mode embedded_dev works.
+func Provide() embeddable.ServerOption
+// WithOIDC links the embedded server and selects embedded_dev with these options.
+func WithOIDC(opts embeddable.EmbeddedOIDCOptions) embeddable.ServerOption
 ```
 
-You can enable embedded auth both programmatically and via CLI flags on the generated `mcp` command.
+A program that selects `embedded_dev` without either option fails at startup with an error naming `embeddeddev.Provide()`. You can then enable embedded auth both programmatically and via CLI flags on the generated `mcp` command.
 
 ### Programmatic Configuration
 
@@ -143,6 +141,7 @@ You can enable embedded auth both programmatically and via CLI flags on the gene
 err := embeddable.AddMCPCommand(rootCmd,
     embeddable.WithDefaultTransport("sse"),
     embeddable.WithDefaultPort(3001),
+    embeddeddev.Provide(),
     embeddable.WithAuth(embeddable.AuthOptions{
         Mode: embeddable.AuthModeEmbeddedDev,
         Embedded: embeddable.EmbeddedOIDCOptions{
@@ -165,6 +164,11 @@ When you add the embeddable server to your Cobra app, the generated `mcp start` 
 - `--oidc-discovery-url` (string): optional discovery override for `external_oidc`
 - `--oidc-audience` (string): required audience for `external_oidc`
 - `--oidc-required-scope` (repeatable/string-slice): required scopes for `external_oidc`
+- `--oidc-token-validation` (`jwt` | `introspection` | `auto`): how `external_oidc` verifies tokens; default `jwt`
+- `--oidc-introspection-url` (string): override for the issuer's `introspection_endpoint`
+- `--oidc-introspection-client-id` (string): client ID used to authenticate to the introspection endpoint
+- `--oidc-introspection-client-secret-file` (path): file holding that client's secret
+- `--oidc-introspection-allow-missing-token-type` (bool): accept introspection responses without `token_type`; only for issuers that never report refresh tokens as active
 - `--embedded-issuer` (string): issuer base URL for `embedded_dev`
 - `--embedded-db` (string): SQLite DB path for `embedded_dev`
 - `--embedded-dev-tokens` (bool): accept DB tokens for embedded dev mode
@@ -172,6 +176,8 @@ When you add the embeddable server to your Cobra app, the generated `mcp start` 
 - `--embedded-user` (string): static login user for embedded dev mode
 - `--embedded-pass` (string): static login password for embedded dev mode
 - `--transport` (stdio | sse | streamable_http)
+
+The `--embedded-*` flags and `--auth-mode embedded_dev` take effect only in programs that include `embeddeddev.Provide()` or `embeddeddev.WithOIDC(...)`.
 - `--port` (int)
 
 Legacy embedded flags are still accepted for compatibility:
@@ -264,6 +270,7 @@ The server returns `401` with `WWW-Authenticate` advertising the AS and resource
 - it validates bearer JWTs locally
 - it checks issuer, time-based claims, optional audience, and optional scopes
 - it still serves `/.well-known/oauth-protected-resource` and still emits `WWW-Authenticate`
+- with `TokenValidation` set to `introspection` or `auto`, it also accepts opaque access tokens (see below)
 
 Minimal example:
 
@@ -279,6 +286,34 @@ err := embeddable.AddMCPCommand(rootCmd,
         },
     }),
 )
+```
+
+### Opaque access tokens and introspection
+
+Some issuers hand out opaque access tokens: random strings that carry no claims. ZITADEL does so by default for clients that register themselves at runtime, which is how hosted MCP clients such as claude.ai connectors sign in. Opaque tokens cannot be verified locally; the resource server must ask the issuer through token introspection (RFC 7662).
+
+| `TokenValidation` | Behavior |
+| --- | --- |
+| `jwt` (default) | Verify JWTs locally with the JWKS; reject anything else. |
+| `introspection` | POST every token to the introspection endpoint. |
+| `auto` | Verify tokens shaped like a JWS locally; introspect all others. A JWS that fails verification is rejected without being sent to the issuer. |
+
+Introspection needs an endpoint (`introspection_endpoint` from discovery, or `IntrospectionURL`) and the client ID and secret of this resource server, registered at the issuer as an API or resource-server client. The server authenticates with HTTP Basic (`client_secret_basic`). Settings are checked at startup.
+
+An introspected token is accepted when the response says `active: true`, has an `exp` in the future, an `iss` equal to the configured issuer (when present), an `aud` containing the configured audience (when one is configured), `token_type` equal to `Bearer` (case-insensitive), and every required scope in `scope`.
+
+The token type is checked positively because an introspection endpoint may report an active refresh token, and `token_type_hint=access_token` in the request is only a lookup hint. A response without `token_type` is therefore rejected by default; set `IntrospectionAllowMissingTokenType` (`--oidc-introspection-allow-missing-token-type`) only for issuers that never report refresh tokens as active. A Keycloak-style `typ` claim other than `Bearer` (`Refresh`, `Offline`) is rejected in either case, and DPoP-bound tokens are rejected because their proofs are not verified. ZITADEL documents `token_type` as always `Bearer`. `sub`, `client_id`, `scope`, `exp` and the profile claims `email`, `email_verified`, `preferred_username`/`username`, `name` and `picture` populate the `AuthPrincipal`.
+
+When the issuer cannot answer (network error, non-200 status, malformed body), `/mcp` responds `500` rather than `401`, so clients do not restart sign-in during an outage. There is no cache: each MCP request costs one introspection call, and revocation at the issuer takes effect immediately.
+
+```bash
+go run . mcp start --transport streamable_http --port 3001 \
+  --auth-mode external_oidc \
+  --auth-resource-url https://mcp.example.com/mcp \
+  --oidc-issuer-url https://auth.example.com \
+  --oidc-token-validation auto \
+  --oidc-introspection-client-id mcp-resource \
+  --oidc-introspection-client-secret-file /run/secrets/introspection-secret
 ```
 
 ## Pluggable Authentication
@@ -347,7 +382,7 @@ If you see no logs when pointing a client to the server, check:
 
 ## Minimal Checklist
 
-- Configure `WithOIDC` (Issuer must be the public base URL for discovery).
+- Configure `embeddeddev.WithOIDC` (Issuer must be the public base URL for discovery).
 - Mount HTTP transport (SSE or streamable HTTP).
 - Confirm OIDC endpoints respond and JWKS is available.
 - Obtain a token (auth code with PKCE) or set a temporary `AuthKey` for smoke tests.

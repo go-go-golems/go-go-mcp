@@ -60,6 +60,8 @@ For application-owned OAuth, go-go-mcp is only the MCP resource server. Install 
 
 Authorization-server routes do not belong to this interface. The application composition root mounts registration, authorization, consent, token, revocation, JWKS, and identity-callback routes separately. There is no compatibility alias for the former route-owning `HTTPAuthProvider` API.
 
+The built-in `external_oidc` mode verifies JWT access tokens against the issuer's JWKS and, with `--oidc-token-validation introspection|auto`, opaque access tokens through the issuer's introspection endpoint (RFC 7662). The `embedded_dev` mode runs go-go-mcp's own development authorization server; it is linked only into programs that add `embeddeddev.Provide()` or `embeddeddev.WithOIDC(...)` from `pkg/embeddable/embeddeddev`, so importing `pkg/embeddable` does not pull in Fosite, SQLite or their dependencies. See `go-go-mcp help embedded-oidc`.
+
 ### Supported Methods
 
 The server implements the MCP specification methods:

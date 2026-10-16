@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -61,6 +62,11 @@ func NewMCPCommand(opts ...ServerOption) *cobra.Command {
 	startCmd.Flags().String("oidc-discovery-url", config.authOptions.External.DiscoveryURL, "Optional override for the external OIDC discovery document URL")
 	startCmd.Flags().String("oidc-audience", config.authOptions.External.Audience, "Required audience for external OIDC bearer tokens")
 	startCmd.Flags().StringSlice("oidc-required-scope", config.authOptions.External.RequiredScopes, "Required scopes for external OIDC bearer tokens")
+	startCmd.Flags().String("oidc-token-validation", string(config.authOptions.External.TokenValidation), "How external OIDC access tokens are verified: jwt (default), introspection (RFC 7662, for opaque tokens) or auto")
+	startCmd.Flags().String("oidc-introspection-url", config.authOptions.External.IntrospectionURL, "Override for the issuer's introspection_endpoint")
+	startCmd.Flags().String("oidc-introspection-client-id", config.authOptions.External.IntrospectionClientID, "Client ID this server uses to authenticate to the introspection endpoint")
+	startCmd.Flags().String("oidc-introspection-client-secret-file", "", "File containing the client secret for the introspection endpoint")
+	startCmd.Flags().Bool("oidc-introspection-allow-missing-token-type", config.authOptions.External.IntrospectionAllowMissingTokenType, "Accept introspection responses without token_type (only for issuers that never report refresh tokens as active)")
 
 	// Legacy embedded OIDC flags, kept for compatibility.
 	startCmd.Flags().Bool("oidc", config.authEnabled && config.authOptions.Mode == AuthModeEmbeddedDev, "Enable embedded OIDC and protect HTTP endpoints")
@@ -184,6 +190,11 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	externalDiscoveryURL, _ := cmd.Flags().GetString("oidc-discovery-url")
 	externalAudience, _ := cmd.Flags().GetString("oidc-audience")
 	externalRequiredScopes, _ := cmd.Flags().GetStringSlice("oidc-required-scope")
+	tokenValidation, _ := cmd.Flags().GetString("oidc-token-validation")
+	introspectionURL, _ := cmd.Flags().GetString("oidc-introspection-url")
+	introspectionClientID, _ := cmd.Flags().GetString("oidc-introspection-client-id")
+	introspectionSecretFile, _ := cmd.Flags().GetString("oidc-introspection-client-secret-file")
+	introspectionAllowMissingTokenType, _ := cmd.Flags().GetBool("oidc-introspection-allow-missing-token-type")
 
 	embeddedIssuer, _ := cmd.Flags().GetString("embedded-issuer")
 	embeddedDB, _ := cmd.Flags().GetString("embedded-db")
@@ -227,6 +238,18 @@ func startServer(cmd *cobra.Command, config *ServerConfig) error {
 	config.authOptions.External.DiscoveryURL = externalDiscoveryURL
 	config.authOptions.External.Audience = externalAudience
 	config.authOptions.External.RequiredScopes = externalRequiredScopes
+	config.authOptions.External.TokenValidation = TokenValidation(tokenValidation)
+	config.authOptions.External.IntrospectionURL = introspectionURL
+	config.authOptions.External.IntrospectionClientID = introspectionClientID
+	config.authOptions.External.IntrospectionAllowMissingTokenType = introspectionAllowMissingTokenType
+	if introspectionSecretFile != "" {
+		// #nosec G304 -- the operator names the secret file on the command line.
+		secret, err := os.ReadFile(introspectionSecretFile)
+		if err != nil {
+			return fmt.Errorf("read introspection client secret: %w", err)
+		}
+		config.authOptions.External.IntrospectionClientSecret = strings.TrimSpace(string(secret))
+	}
 
 	if authMode == AuthModeExternalOIDC && strings.TrimSpace(config.authOptions.ResourceURL) == "" {
 		return fmt.Errorf("external_oidc auth mode requires --auth-resource-url to point at the public MCP endpoint")
